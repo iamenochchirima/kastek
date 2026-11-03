@@ -10,22 +10,29 @@ const descriptorSchema=z.strictObject({operation:id,revision:id,description:z.st
   outputSchema:z.record(z.string(),z.unknown()).nullable(),handlerRef:id,policy:capabilityPolicySchema,requiredAuthority:z.array(id).min(1).max(16),
   evidence:z.enum(["none","versioned_sources"]),limits:z.strictObject({timeoutMs:z.number().int().min(1).max(240000),maxPhysicalAttempts:z.number().int().min(1).max(3),maxResponseBytes:z.number().int().min(1).max(2097152),maxModelResultBytes:z.number().int().min(1).max(8192)})});
 const manifestSchema=z.strictObject({schemaVersion:z.literal(1),product:id,revision:id,adapter:adapterReferenceSchema,operations:z.array(descriptorSchema).min(1).max(64),digest});
-export interface InstalledProductAdapter { handlers:readonly string[]; invoke(command:ProductCapabilityInvocation,signal?:AbortSignal):Promise<ProductCapabilityResult> }
+type ProductModelProjection = "effect-status-v1" | "growth-content-post-read-v1";
+export interface InstalledProductAdapter { handlers:readonly string[]; accessReceiptHandlers?:readonly string[];
+  modelProjections?:Readonly<Record<string,ProductModelProjection>>; invoke(command:ProductCapabilityInvocation,signal?:AbortSignal):Promise<ProductCapabilityResult> }
 export const productAdapterRegistry=new ExecutableAdapterRegistry<InstalledProductAdapter>();
 const manifests=new Map<string,ProductCapabilityManifest>();
 const installedMetadata=new Map<string,InstalledProductAdapter>();
-export function registerProductAdapter(manifest:AdapterManifest,adapter:InstalledProductAdapter){
-  const key=canonicalJson([manifest.id,manifest.release]),prior=installedMetadata.get(key),handlers=[...adapter.handlers].sort();
-  if(prior&&canonicalJson(prior.handlers)!==canonicalJson(handlers))throw new PlatformError("ADAPTER_RELEASE_CONFLICT",409,"The installed handler release changed");
-  const metadata=prior??Object.freeze({handlers:Object.freeze(handlers),invoke:async()=>{throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"The runtime has no destination adapter");}});
-  const reference=productAdapterRegistry.register(manifest,metadata);installedMetadata.set(key,metadata);return reference;
+export function registerProductAdapter(manifest:AdapterManifest,adapter:InstalledProductAdapter){return installProductAdapter(manifest,adapter,false);}
+export function registerRetainedProductAdapter(manifest:AdapterManifest,adapter:InstalledProductAdapter){return installProductAdapter(manifest,adapter,true);}
+function installProductAdapter(manifest:AdapterManifest,adapter:InstalledProductAdapter,retained:boolean){
+  const key=canonicalJson([manifest.id,manifest.release,requestDigest(manifest)]),prior=installedMetadata.get(key),handlers=[...adapter.handlers].sort(),accessReceiptHandlers=[...adapter.accessReceiptHandlers??[]].sort();
+  const modelProjections=Object.fromEntries(Object.entries(adapter.modelProjections??{}).sort(([left],[right])=>left.localeCompare(right)));
+  if(new Set(accessReceiptHandlers).size!==accessReceiptHandlers.length||accessReceiptHandlers.some(handler=>!handlers.includes(handler))||
+    Object.entries(modelProjections).some(([handler,version])=>!handlers.includes(handler)||!(["effect-status-v1","growth-content-post-read-v1"] as unknown[]).includes(version)))throw invalid();
+  if(prior&&(canonicalJson(prior.handlers)!==canonicalJson(handlers)||canonicalJson(prior.accessReceiptHandlers??[])!==canonicalJson(accessReceiptHandlers)||canonicalJson(prior.modelProjections??{})!==canonicalJson(modelProjections)))throw new PlatformError("ADAPTER_RELEASE_CONFLICT",409,"The installed handler release changed");
+  const metadata=prior??Object.freeze({handlers:Object.freeze(handlers),accessReceiptHandlers:Object.freeze(accessReceiptHandlers),modelProjections:Object.freeze(modelProjections),invoke:async()=>{throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"The runtime has no destination adapter");}});
+  const reference=retained?productAdapterRegistry.registerRetainedVariant(manifest,metadata):productAdapterRegistry.register(manifest,metadata);installedMetadata.set(key,metadata);return reference;
 }
 export function registerProductManifest(input:ProductCapabilityManifest):ProductCapabilityManifest {
   const parsed=manifestSchema.parse(input),{digest:hash,...content}=parsed;
   if(requestDigest(content)!==hash||new Set(parsed.operations.map(op=>op.operation)).size!==parsed.operations.length)throw invalid();
   const adapter=productAdapterRegistry.resolve({adapter:parsed.adapter,transport:"native_http",protocolVersion:null});
   for(const operation of parsed.operations){
-    if(!adapter.handlers.includes(operation.handlerRef)||!["read","reviewed_write"].includes(operation.policy.effect))throw invalid();
+    if(!adapter.handlers.includes(operation.handlerRef)||!["read","draft_write","authorized_write","reviewed_write"].includes(operation.policy.effect))throw invalid();
     preflightToolSchema(operation.inputSchema);if(operation.outputSchema)preflightToolSchema(operation.outputSchema);
     if(operation.inputSchema.type!=="object")throw invalid();
   }
@@ -48,7 +55,44 @@ export function assertProductBindings(bindings:readonly CapabilityBinding[]):voi
   if(bindings.length>64||new Set(bindings.map(binding=>binding.alias)).size!==bindings.length)throw invalid();
   for(const binding of bindings)productDescriptor(binding);
 }
-export function createProductBindings(manifestInput:ProductCapabilityManifest,organizationId:string,scope:{originProduct:string;originTenantId:string;tenantId:string;mappingRef:string;policyRevision:string},operations:readonly string[]):CapabilityBinding[] {
+/** The installed adapter declares reads that need an access receipt rather than a citation source. */
+export function requiresProductAccess(binding:CapabilityBinding):boolean {
+  const descriptor=productDescriptor(binding);
+  const required=productAdapterRegistry.resolve(binding).accessReceiptHandlers?.includes(descriptor.handlerRef)??false;
+  if(required&&(descriptor.evidence!=="none"||descriptor.policy.effect!=="read"))throw invalid();
+  return required||productEffectProjection(binding)!==null;
+}
+/** A projection is installed with the executable adapter, not selected by a model or descriptor. */
+export function productEffectProjection(binding:CapabilityBinding):"effect-status-v1"|null {
+  const descriptor=productDescriptor(binding),version=productAdapterRegistry.resolve(binding).modelProjections?.[descriptor.handlerRef]??null;
+  if(version===null)return null;
+  if(version==="effect-status-v1"){
+    if(descriptor.policy.effect!=="reviewed_write"||descriptor.evidence!=="none")throw invalid();
+    return version;
+  }
+  productReadProjection(binding);
+  return null;
+}
+/** A read projection is installed with its adapter and narrowly bound to Growth content reads. */
+export function productReadProjection(binding:CapabilityBinding):"growth-content-post-read-v1"|null {
+  const descriptor=productDescriptor(binding),version=productAdapterRegistry.resolve(binding).modelProjections?.[descriptor.handlerRef]??null;
+  if(version===null||version==="effect-status-v1")return null;
+  if(version!=="growth-content-post-read-v1"||binding.adapter.id!=="growth-product"||binding.authority?.destinationProduct!=="growth"||
+    descriptor.policy.effect!=="read"||descriptor.evidence!=="none"||!(["content.posts.get","content.posts.list"] as string[]).includes(descriptor.operation)||
+    descriptor.handlerRef!==`growth.operation.${descriptor.operation}@${descriptor.revision}`)throw invalid();
+  return version;
+}
+/** The commissionable pool authorizes children without exposing their schemas to this agent. */
+export function productAuthorityBindings(configuration:{productBindings:CapabilityBinding[];commissionableProductBindings?:CapabilityBinding[]}):CapabilityBinding[] {
+  const unique=new Map<string,CapabilityBinding>();
+  for(const binding of [...configuration.productBindings,...configuration.commissionableProductBindings??[]]){
+    const previous=unique.get(binding.id);
+    if(previous&&previous.digest!==binding.digest)throw invalid();
+    unique.set(binding.id,binding);
+  }
+  const bindings=[...unique.values()];assertProductBindings(bindings);return bindings;
+}
+export function createProductBindings(manifestInput:ProductCapabilityManifest,organizationId:string,scope:{originProduct:string;originTenantId:string;tenantId:string;mappingRef:string;policyRevision:string;clientId?:string;originClientId?:string},operations:readonly string[]):CapabilityBinding[] {
   const manifest=registerProductManifest(manifestInput);if(new Set(operations).size!==operations.length)throw invalid();
   return operations.map(operation=>{const descriptor=manifest.operations.find(op=>op.operation===operation);if(!descriptor)throw invalid();
     const bindingId=randomUUID();const definition=catalogToolSchema.parse({product:{revision:descriptor.revision,handlerRef:descriptor.handlerRef,requiredAuthority:descriptor.requiredAuthority,evidence:descriptor.evidence},providerOperation:operation,description:descriptor.description,inputSchema:descriptor.inputSchema,outputSchema:descriptor.outputSchema,inputDigest:requestDigest(descriptor.inputSchema),outputDigest:descriptor.outputSchema?requestDigest(descriptor.outputSchema):null});

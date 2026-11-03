@@ -436,6 +436,14 @@
       "privacy_class": "aggregate"
     },
     {
+      "identity": "growth.agent.command@2",
+      "schema": "events/growth/agent_command/v2.schema.json",
+      "examples": ["examples/growth/agent_memory_command.json"],
+      "owner": "growth",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
       "identity": "growth.agent.review@1",
       "schema": "events/growth/agent_review/v1.schema.json",
       "examples": ["examples/growth/agent_review.json"],

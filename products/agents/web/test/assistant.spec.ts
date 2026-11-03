@@ -372,18 +372,16 @@ test("adaptive empty roster saves valid configuration before and after final rem
 });
 
 
-for (const input of [{ context: { maxInputTokens: 26000, compactAtTokens: 24000 }, maxOutputTokens: 4096, warning: false }, { context: { maxInputTokens: 8192, compactAtTokens: 6144 }, maxOutputTokens: 12000, warning: true }]) {
+for (const input of [{ context: { maxInputTokens: 26000, compactAtTokens: 24000 }, maxOutputTokens: 4096 }, { context: { maxInputTokens: 8192, compactAtTokens: 6144 }, maxOutputTokens: 12000 }]) {
   test(`adaptive upgrade respects configured reply and context budgets ${input.maxOutputTokens}`, async ({ page }) => {
     const fixture = await specialistWorkspace(page, input);
     await page.goto("/app/agents/assistant-1?section=configuration");
     const section = page.getByRole("region", { name: "Specialists", exact: true });
     await section.getByRole("button", { name: "Enable adaptive orchestration" }).click();
-    if (input.warning) await expect(section.getByText("Review model limits: orchestration needs room for tool schemas and specialist results.", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Save changes", exact: true }).click();
     await expect.poll(() => fixture.saved.length).toBe(1);
     const saved = agentConfigurationSchema.parse((fixture.saved[0] as {configuration: unknown}).configuration);
     expect(saved.model.maxOutputTokens).toBe(input.maxOutputTokens);
-    expect(saved.context.maxInputTokens).toBe(input.warning ? 20000 : 26000);
-    expect(saved.context.compactAtTokens).toBe(input.warning ? 19999 : 24000);
+    expect(saved.context).toEqual(input.context);
   });
 }

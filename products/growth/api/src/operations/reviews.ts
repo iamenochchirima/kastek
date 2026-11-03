@@ -14,6 +14,7 @@ import { beginRequest, finishRequest, publicRateLimit, type RequestAuditHandle }
 import { operationDomainKey, reconcileGrowthOperationReceipt } from "./reconciliation.js";
 import { recordGrowthOperation } from "./telemetry.js";
 import { getSocialPost } from "../services/social/posts.js";
+import type { GrowthReadDetails } from "./read-access.js";
 
 export interface OperationReviewRow {
   id: string; orgId: string; userId: string; principalId: string; principalKind: string;
@@ -27,6 +28,7 @@ export interface OperationInvocation {
   prepareOnly?: boolean;
   continuation?: string;
   requestAudit?: RequestAuditHandle;
+  captureRead?: (result: Record<string, unknown>, details: GrowthReadDetails) => Promise<(bounded: Record<string, unknown>) => Promise<void>>;
 }
 const digest = (value: unknown) => createHash("sha256").update(canonicalJson(JSON.parse(apiJson(value)))).digest("hex");
 const conflict = (message: string) => new ApiError(409, "operation_review_conflict", message);
@@ -47,7 +49,7 @@ export function operationReviewView(core: CoreContext, row: OperationReviewRow) 
 
 /** Revisions and an immutable human preview bind approval; provider credentials are never selected. */
 async function resourceSnapshot(core: CoreContext, ctx: RequestContext, input: Record<string, unknown>, operation: string): Promise<Record<string, string>> {
-  const snapshot: Record<string, string> = {};
+  const snapshot: Record<string, string> = { agentReviewRevisionSchema: "1" };
   const preview: Record<string, unknown> = {};
   if (typeof input.text === "string") preview.content = input.text;
   if (typeof input.transferId === "string") {
@@ -60,9 +62,10 @@ async function resourceSnapshot(core: CoreContext, ctx: RequestContext, input: R
   if (!postId && typeof input.jobId === "string") postId = (await core.pool.query(`SELECT "postId" FROM "SocialPublishJob" WHERE id=$1 AND "orgId"=$2`, [input.jobId, ctx.organizationId])).rows[0]?.postId;
   if (!postId && typeof input.batchId === "string") postId = (await core.pool.query(`SELECT "postId" FROM "SocialPublishBatch" WHERE id=$1 AND "orgId"=$2`, [input.batchId, ctx.organizationId])).rows[0]?.postId;
   if (postId) {
-    const post = (await core.pool.query(`SELECT "updatedAt" AT TIME ZONE 'UTC' AS revision FROM "SocialPost" WHERE id=$1 AND "orgId"=$2`, [postId, ctx.organizationId])).rows[0];
+    const post = (await core.pool.query(`SELECT "updatedAt" AT TIME ZONE 'UTC' AS revision,"agentReviewRevision"::text AS "agentReviewRevision" FROM "SocialPost" WHERE id=$1 AND "orgId"=$2`, [postId, ctx.organizationId])).rows[0];
     if (!post) throw new ApiError(404, "not_found", "Content post not found");
     snapshot.postRevision = post.revision instanceof Date ? post.revision.toISOString() : String(post.revision);
+    snapshot.postAgentRevision = post.agentReviewRevision;
     const saved = await getSocialPost(core.pool, ctx.organizationId, postId);
     if (!saved) throw new ApiError(404, "not_found", "Content post not found");
     Object.assign(preview, { postId, title: saved.title, content: saved.content,
@@ -102,9 +105,9 @@ async function resourceSnapshot(core: CoreContext, ctx: RequestContext, input: R
   if (typeof draft.primaryChannelId === "string") selectedAccounts.add(draft.primaryChannelId);
   const accountPreviews: Record<string, unknown>[] = [];
   for (const id of selectedAccounts) {
-    const account = (await core.pool.query(`SELECT id,status::text,"updatedAt",platform::text,"displayName",handle,"externalAccountId" FROM "SocialChannelConnection" WHERE id=$1 AND "orgId"=$2`, [id, ctx.organizationId])).rows[0];
+    const account = (await core.pool.query(`SELECT id,status::text,"updatedAt","agentReviewRevision"::text AS "agentReviewRevision",platform::text,"displayName",handle,"externalAccountId" FROM "SocialChannelConnection" WHERE id=$1 AND "orgId"=$2`, [id, ctx.organizationId])).rows[0];
     if (!account) throw new ApiError(404, "not_found", "Publishing account not found");
-    snapshot[`account:${id}`] = digest({ id: account.id, status: account.status, updatedAt: account.updatedAt });
+    snapshot[`account:${id}`] = digest({ id: account.id, status: account.status, updatedAt: account.updatedAt, agentReviewRevision: account.agentReviewRevision });
     accountPreviews.push({ id: account.id, platform: account.platform, displayName: account.displayName, handle: account.handle, externalAccountId: account.externalAccountId });
   }
   if (accountPreviews.length) preview.accounts = accountPreviews.filter(account => typeof input.platform !== "string" || account.platform === input.platform).sort((a,b) => String(a.id).localeCompare(String(b.id)));
@@ -114,15 +117,16 @@ async function resourceSnapshot(core: CoreContext, ctx: RequestContext, input: R
     preview.media = ids.map(id => assets.find(asset => asset.assetId === id) ?? { assetId: id });
   }
   if (typeof input.contactId === "string") {
-    const contact = (await core.pool.query(`SELECT m."updatedAt" AS "membershipRevision", c."updatedAt" AS "contactRevision" FROM "WhatsappContactListMembership" m JOIN "WhatsappContact" c ON c.id=m."contactId" AND c."orgId"=m."orgId" WHERE m.id=$1 AND m."orgId"=$2`, [input.contactId, ctx.organizationId])).rows[0];
+    const contact = (await core.pool.query(`SELECT m."updatedAt" AS "membershipRevision", c."updatedAt" AS "contactRevision",m."agentReviewRevision"::text AS "membershipAgentRevision",c."agentReviewRevision"::text AS "contactAgentRevision" FROM "WhatsappContactListMembership" m JOIN "WhatsappContact" c ON c.id=m."contactId" AND c."orgId"=m."orgId" WHERE m.id=$1 AND m."orgId"=$2`, [input.contactId, ctx.organizationId])).rows[0];
     if (!contact) throw new ApiError(404, "not_found", "The reviewed contact is unavailable");
     snapshot.contactId = digest(contact);
   }
   for (const [field, table] of [["conversationId", "Conversation"], ["connectionId", "ExternalConnection"]] as const) {
     if (typeof input[field] !== "string") continue;
-    const row = (await core.pool.query(`SELECT "updatedAt" FROM "${table}" WHERE id=$1 AND "orgId"=$2`, [input[field], ctx.organizationId])).rows[0];
+    const row = (await core.pool.query(`SELECT "updatedAt","agentReviewRevision"::text AS "agentReviewRevision" FROM "${table}" WHERE id=$1 AND "orgId"=$2`, [input[field], ctx.organizationId])).rows[0];
     if (!row) throw new ApiError(404, "not_found", "The reviewed record is unavailable");
     snapshot[field] = row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt);
+    snapshot[`${field}AgentRevision`] = row.agentReviewRevision;
     const target = field === "conversationId"
       ? (await core.pool.query(`SELECT "customerName" AS name,"customerIdentifier" AS identifier,channel FROM "Conversation" WHERE id=$1 AND "orgId"=$2`, [input[field], ctx.organizationId])).rows[0]
       : (await core.pool.query(`SELECT "displayName" AS name,handle AS identifier,provider AS channel FROM "ExternalConnection" WHERE id=$1 AND "orgId"=$2`, [input[field], ctx.organizationId])).rows[0];
@@ -144,6 +148,8 @@ export async function decideOperationReview(core: CoreContext, ctx: RequestConte
   await authorizeGrowthOperation(core, { ...ctx, idempotencyKey: row.requestKey }, row.operation);
   if (row.payloadDigest !== payloadDigest) throw conflict("The reviewed action changed");
   if (+new Date(row.expiresAt) <= Date.now()) throw conflict("This review expired");
+  if (decision === "approve" && ["proposed", "approved"].includes(row.state) && row.snapshot.agentReviewRevisionSchema !== "1")
+    throw conflict("This review is out of date. Prepare a new review.");
   if (row.state !== "proposed") {
     if (row.state === (decision === "approve" ? "approved" : "rejected")) return row;
     throw conflict("This review was already decided");
@@ -158,14 +164,14 @@ export async function decideOperationReview(core: CoreContext, ctx: RequestConte
 }
 
 /** Shared entry point for REST, MCP and internal agents. Every effect needs the same exact review. */
-async function runGrowthOperation(core: CoreContext, ctx: RequestContext, call: OperationInvocation): Promise<Record<string, unknown>> {
+async function runGrowthOperation(core: CoreContext, ctx: RequestContext, call: OperationInvocation, readDetails: GrowthReadDetails): Promise<Record<string, unknown>> {
   const definition = getGrowthOperation(call.operation);
   validateGrowthOperationInput(call.operation, call.input);
   const context = { ...ctx, idempotencyKey: call.requestId ?? ctx.idempotencyKey };
   await authorizeGrowthOperation(core, context, definition);
   if (definition.review === "none") {
     if (call.continuation && definition.effect !== "read") throw new ApiError(409, "operation_continuation_changed", "A continuation can only observe an existing result");
-    return { state: "succeeded", result: await invokeGrowthOperation(core, context, call.operation, call.input) };
+    return { state: "succeeded", result: await invokeGrowthOperation(core, context, call.operation, call.input, call.captureRead ? { readDetails } : {}) };
   }
   if (["external_effect", "destructive"].includes(definition.effect) && (core.config.env.GROWTH_AGENT_EFFECTS_ENABLED === "false" || core.config.environment === "production" && core.config.env.GROWTH_AGENT_EFFECTS_ENABLED !== "true")) throw new ApiError(503, "agent_effects_disabled", "New external agent actions are disabled");
   const payloadDigest = digest({ operation: definition.name, version: definition.version, input: call.input });
@@ -197,6 +203,7 @@ async function runGrowthOperation(core: CoreContext, ctx: RequestContext, call: 
     return { state: "uncertain", review: operationReviewView(core, row), message: "The result needs reconciliation. Do not repeat this action with a new request identity." };
   }
   if (["rejected", "failed", "expired"].includes(row.state) || +new Date(row.expiresAt) <= Date.now()) return { state: row.state === "proposed" || row.state === "approved" ? "expired" : row.state, review: operationReviewView(core, row) };
+  if (row.snapshot.agentReviewRevisionSchema !== "1") throw conflict("This review is out of date. Prepare a new review.");
   if (row.state !== "approved") return { state: "approval_required", review: operationReviewView(core, row) };
   if (call.prepareOnly || call.continuation) return { state: "approval_required", review: operationReviewView(core, row) };
   if (+new Date(row.expiresAt) <= Date.now()) throw conflict("This review expired");
@@ -206,7 +213,7 @@ async function runGrowthOperation(core: CoreContext, ctx: RequestContext, call: 
   if (!claimed.rowCount) return { state: "uncertain", review: operationReviewView(core, { ...row, state: "executing" }) };
   try {
     const result = await invokeGrowthOperation(core, { ...context, operationReviewId: row.id, idempotencyKey: operationDomainKey(row.id) }, call.operation, call.input, {
-      expectedPostRevision: snapshot.postRevision, expectedSnapshotHash: snapshot.snapshotHash,
+      expectedPostRevision: snapshot.postRevision, expectedPostAgentRevision: snapshot.postAgentRevision, expectedSnapshotHash: snapshot.snapshotHash,
       expectedAccounts: Object.fromEntries(Object.entries(snapshot).filter(([key]) => key.startsWith("account:")).map(([key,value]) => [key.slice(8),value])),
       expectedResourceRevisions: snapshot,
     });
@@ -217,7 +224,7 @@ async function runGrowthOperation(core: CoreContext, ctx: RequestContext, call: 
     });
     return { state: "succeeded", result: value, review: operationReviewView(core, { ...row, state: "succeeded", result: value }) };
   } catch (error) {
-    const known = error instanceof ApiError && error.status < 500;
+    const known = error instanceof ApiError && error.status < 500 && error.code !== "published_update_unconfirmed";
     await transaction(core.pool, async db => {
       const saved = (await db.query<OperationReviewRow>(`UPDATE "GrowthOperationReview" SET state=$2,"errorCode"=$3,"updatedAt"=now() WHERE id=$1 AND state='executing' RETURNING *`, [row.id, known ? "failed" : "uncertain", error instanceof ApiError ? error.code : "operation_result_unknown"])).rows[0];
       if (saved) await enqueueGrowthAgentAccess(db, { orgId: saved.orgId, subjectId: saved.id, kind: "operation", action: known ? "failed" : "uncertain", operation: saved.operation, time: saved.updatedAt });
@@ -258,7 +265,11 @@ export async function executeGrowthOperation(core: CoreContext, context: Request
   const audit = call.requestAudit ?? await beginRequest(core.pool, publicRateLimit(core.config), context, "POST", `/operations/${call.operation}`);
   audit.action = call.operation;
   try {
-    const result = boundedGrowthOperationResult(await runGrowthOperation(core, context, call), call.continuation);
+    const details: GrowthReadDetails = {};
+    const unbounded = await runGrowthOperation(core, context, call, details);
+    const finishRead = call.captureRead ? await call.captureRead(unbounded, details) : undefined;
+    const result = boundedGrowthOperationResult(unbounded, call.continuation);
+    await finishRead?.(result);
     if (!call.requestAudit) await finishRequest(core.pool, audit, 200);
     recordGrowthOperation(context, call.operation, String(result.state), started);
     return result;

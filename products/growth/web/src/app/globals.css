@@ -1,8 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@kasitek-labs/ui/theme.css";
-@source "../../../../../packages/ui/src";
 @import "@xyflow/react/dist/style.css";
+@source "../../../../../packages/ui/src";
 
 .react-flow__edge.observatory-edge-dashed .react-flow__edge-path { stroke-dasharray: 6 5; }
 .react-flow__edge.observatory-edge-live .react-flow__edge-path { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--primary) 70%, transparent)); }

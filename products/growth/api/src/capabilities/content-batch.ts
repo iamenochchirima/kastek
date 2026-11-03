@@ -460,8 +460,10 @@ export async function preflight(
   pool: Pool,
   ctx: RequestContext,
   id: string,
+  capture?: (value: {post:SocialPost;targets:TargetPlan[]}) => void,
 ): Promise<unknown> {
   const plan = await preflightInternal(pool, ctx, id);
+  capture?.({post:plan.post,targets:plan.targets});
   return {
     postId: id,
     status: plan.status,
@@ -510,15 +512,18 @@ export function batchTargetView(row: Row): PublishBatchTarget {
     ...(message ? { message } : {}),
   };
 }
-async function summary(pool: Pool, row: Row): Promise<Row> {
+async function summary(pool: Pool, row: Row, capture?: (value: unknown) => void): Promise<Row> {
+  const targetSql=capture?SQL.load_batch_targets[0].replace("SELECT item.platform::text AS platform,",
+    'SELECT item.id AS access_item_id,item."jobId" AS access_job_id,item."channelConnectionId" AS access_channel_id,item.platform::text AS platform,'):
+    SQL.load_batch_targets[0];
+  const targets=(await pool.query(targetSql,[row.id])).rows;
+  capture?.({batchId:row.id,postId:row.post_id,targets});
   const result: Row = {
     batchId: row.id,
     status: row.status,
     postId: row.post_id,
     snapshotHash: row.snapshot_hash,
-    targets: (await pool.query(SQL.load_batch_targets[0], [row.id])).rows.map(
-      batchTargetView,
-    ),
+    targets: targets.map(batchTargetView),
   };
   for (const key of [
     "target",
@@ -539,6 +544,7 @@ export async function refreshBatchStatus(
   pool: Pool,
   id: string,
   orgId: string,
+  capture?: (value: unknown) => void,
 ): Promise<Row> {
   await transaction(pool, async (tx) => {
     await tx.query(SQL.refresh_batch_status[0], [id]);
@@ -575,25 +581,27 @@ export async function refreshBatchStatus(
     const post = (await tx.query<{ postId: string }>('SELECT "postId" FROM "SocialPublishBatch" WHERE id=$1 AND "orgId"=$2', [id, orgId])).rows[0];
     if (post) await refreshSocialPostPublishState(tx, post.postId);
   });
-  return summary(pool, await loadBatch(pool, orgId, id));
+  return summary(pool, await loadBatch(pool, orgId, id),capture);
 }
 export async function getBatch(
   pool: Pool,
   ctx: RequestContext,
   id: string,
+  capture?: (value: unknown) => void,
 ): Promise<Row> {
   await loadBatch(pool, ctx.organizationId, id);
-  return refreshBatchStatus(pool, id, ctx.organizationId);
+  return refreshBatchStatus(pool, id, ctx.organizationId,capture);
 }
 export async function getLatestBatchForPost(
   pool: Pool,
   ctx: RequestContext,
   id: string,
+  capture?: (value: unknown) => void,
 ): Promise<Row | null> {
   const batch = (
     await pool.query(SQL.get_latest_batch_for_post[0], [ctx.organizationId, id])
   ).rows[0];
-  return batch ? getBatch(pool, ctx, batch.id) : null;
+  return batch ? getBatch(pool, ctx, batch.id,capture) : null;
 }
 function idempotency(ctx: RequestContext, purpose: string): string {
   if (ctx.idempotencyKey === null)

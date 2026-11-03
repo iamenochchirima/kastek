@@ -16,6 +16,11 @@ export interface SkillPackage {
   readonly requirements:SkillRequirements;
 }
 export interface SkillFileEvidence { packageDigest: string; path: string; contentDigest: string }
+export interface SkillFileRange { start: number; end: number; totalBytes: number; nextOffset: number | null; complete: boolean }
+export type SkillContentKind = "instructions" | "reference" | "executable";
+export function skillContentKind(path: string): SkillContentKind {
+  return path === "SKILL.md" ? "instructions" : path.startsWith("scripts/") ? "executable" : "reference";
+}
 const fileInput = z.strictObject({ path: z.string().max(SKILL_PACKAGE_LIMITS.pathBytes),
   content: z.string().max(SKILL_PACKAGE_LIMITS.fileBytes * 2), encoding: z.enum(["utf8", "base64"]).default("utf8") });
 const packageInput = z.strictObject({ files: z.array(fileInput).min(1).max(SKILL_PACKAGE_LIMITS.files) });

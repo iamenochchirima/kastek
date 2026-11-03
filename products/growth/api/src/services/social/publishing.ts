@@ -65,7 +65,7 @@ export async function changePublishJobState(pool: Pool, org: string, id: string,
   const job = (await tx.query<{ post_id: string }>('SELECT "postId" AS post_id FROM "SocialPublishJob" WHERE id=$1 AND "orgId"=$2', [id, org])).rows[0];
   if (!job) throw missing("Publish job not found");
   await lockSocialPost(tx, org, job.post_id, options);
-  if (action === "retry") await lockReviewedSocialAccounts(tx, org, options.expectedAccounts);
+  await lockReviewedSocialAccounts(tx, org, options.expectedAccounts);
   if (action === "retry" && options.delegation === undefined && (await tx.query('SELECT id FROM "SocialPublishJob" WHERE id=$1 AND metadata->\'_kasitek_delegation\' IS NOT NULL AND metadata->\'_kasitek_delegation\' <> \'null\'::jsonb', [id])).rowCount)
     throw new ApiError(409, "conflict", "Review this post again before retrying");
   const result = await tx.query(
@@ -924,7 +924,10 @@ async function deletePlatforms(
       (platform === null || job.platform.toUpperCase() === platform));
     if (platform !== null && !jobs.length) throw missing("No published post was found for the requested social platform");
     const replay = jobs.every(job => readDeletionIntent(job)?.idempotencyKey === key);
-    if (!replay) await lockSocialPost(tx, org, id, options.deleteAdmission);
+    if (!replay) {
+      await lockSocialPost(tx, org, id, options.deleteAdmission);
+      await lockReviewedSocialAccounts(tx, org, options.deleteAdmission?.expectedAccounts);
+    }
     const admitted: { job: SocialPublishJob; intent: DeletionIntent; replay: boolean }[] = [];
     for (const job of jobs) {
       const edit = job.metadata && typeof job.metadata === "object" && !Array.isArray(job.metadata)

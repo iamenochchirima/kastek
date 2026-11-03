@@ -8,7 +8,7 @@ const digest = (value: unknown) => createHash("sha256").update(canonicalJson(JSO
 
 export async function lockReviewedSocialAccounts(tx: PoolClient, org: string, expected: Record<string, string> = {}): Promise<void> {
   for (const id of Object.keys(expected).sort()) {
-    const row = (await tx.query('SELECT id,status::text,"updatedAt" FROM "SocialChannelConnection" WHERE id=$1 AND "orgId"=$2 FOR SHARE', [id, org])).rows[0];
+    const row = (await tx.query('SELECT id,status::text,"updatedAt","agentReviewRevision"::text AS "agentReviewRevision" FROM "SocialChannelConnection" WHERE id=$1 AND "orgId"=$2 FOR SHARE', [id, org])).rows[0];
     if (!row || digest(row) !== expected[id]) throw changed();
   }
 }

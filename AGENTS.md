@@ -330,6 +330,14 @@ be improved.
 
 ## Release completeness
 
+Finalized Agents updates must reach every active agent and serving deployment in the agreed
+environment, including customer website widgets and connected channels. Local implementation or
+verification alone does not complete delivery. Inventory serving API/worker/UI releases and
+published runtime bindings, roll out the update, and verify new conversations use it. Preserve
+custom configuration, permissions and accepted in-flight work. Do not leave active agents on an
+older runtime until an owner manually republishes them. Report any blocked or excluded deployment
+explicitly; do not describe partial rollout as complete.
+
 For any non-trivial feature, API, data, integration, background-worker, or operational change,
 read [`products/growth/docs/internal/operations/release-process.md`](products/growth/docs/internal/operations/release-process.md)
 and account for release impact in the written plan. Before considering the work complete, record

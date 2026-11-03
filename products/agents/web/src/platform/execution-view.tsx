@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AgentExecutionView, AgentSubagentModal, type AgentExecution, type AgentSubagent } from "@kasitek-labs/ui/agent";
+import { AgentExecutionView, AgentSubagentModal, agentRuntimePresentation, type AgentExecution, type AgentSubagent } from "@kasitek-labs/ui/agent";
 import { api, ApiError, loadTaskDetail, message, terminal, type Task, type TaskDetail, type TaskOperation } from "./api";
 import { Button } from "@/components/ui/button";
 import { TaskSources } from "./cited-passages";
@@ -11,14 +11,17 @@ import { taskErrorLabel } from "./task-errors";
 /** Product records become shared presentation data; authority remains in the API. */
 export function taskExecution(task: Task): AgentExecution {
   if (task.outputAvailability === "unavailable") return { id: task.id, state: task.state, label: "Activity unavailable", output: null };
+  const measurements=agentRuntimePresentation(task.runtime);
   return {
+    ...measurements,
     id: task.id, state: task.state,
-    elapsedMs: terminal(task.state) && task.createdAt && task.updatedAt ? Date.parse(task.updatedAt) - Date.parse(task.createdAt) : undefined,
+    elapsedMs: task.elapsedMs !== undefined ? task.elapsedMs : measurements.elapsedMs,
+    observedAt: task.observedAt??measurements.observedAt,
     label: task.errorCode ? taskErrorLabel(task.errorCode) : undefined,
     updates: task.publicUpdates?.map(update => ({ id: update.id, text: update.text, createdAt: update.createdAt })),
     operations: task.operations?.map((operation, index) => ({
       id: operation.operationId ?? operation.id ?? `${task.id}:operation:${index}`,
-      label: (operation.providerOperation ?? operation.toolName ?? operation.name ?? operation.kind ?? "Operation").replaceAll("_", " "),
+      label: operation.label ?? "Using a tool", category: operation.category, source: operation.source, activityKind: operation.activityKind, technicalName: operation.technicalName, durationMs: operation.durationMs,
       state: operation.state, kind: operation.kind, startedAt: operation.startedAt,
       details: <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1"><dt>Status</dt><dd>{operation.state.replaceAll("_", " ")}</dd>{operation.transport ? <><dt>Transport</dt><dd>{operation.transport === "native_http" ? "API" : "MCP"}</dd></> : null}{operation.errorCode ? <><dt>Outcome</dt><dd>Operation could not finish.</dd></> : null}</dl>,
       detailAvailability: "available" as const,
@@ -27,6 +30,7 @@ export function taskExecution(task: Task): AgentExecution {
     children: task.children?.map(child => ({ id: child.id, name: child.agentName, state: child.state, assignment: child.assignment, createdAt: child.createdAt })),
     output: task.output,
     diagnostics: [
+      ...(measurements.diagnostics??[]),
       { label: "Task", value: task.id },
       ...(task.versionId ? [{ label: "Configuration snapshot", value: task.versionId }] : []),
       ...(task.turnSequence ? [{ label: "Conversation turn", value: task.turnSequence }] : []),
@@ -52,6 +56,7 @@ export function TaskExecutionBody({ task, endpoint, token, onRefresh, onUnavaila
   const selected = selectionScope.current.endpoint === endpoint && selectionScope.current.token === token ? selection.at(-1) : undefined;
   const selectedEndpoint = selected ? `${endpoint.slice(0, endpoint.lastIndexOf("/"))}/${encodeURIComponent(selected.id)}` : "";
   const selectionKey = selected?.id ?? "";
+  const visibleTask = selectedTask?.id === selectionKey ? selectedTask : null;
   useEffect(() => { setSelection([]); setSelectedTask(null); setError(""); }, [endpoint, token]);
   useEffect(() => {
     if (!selectedEndpoint) return;
@@ -85,7 +90,7 @@ export function TaskExecutionBody({ task, endpoint, token, onRefresh, onUnavaila
   }} />;
   return <>
     {body(task, endpoint, onUnavailable, false)}
-    <AgentSubagentModal open={Boolean(selected)} onOpenChange={value => { if (!value) { setSelection([]); setSelectedTask(null); setError(""); } }} assignment={selectedTask?.errorCode === "EVIDENCE_UNAVAILABLE" ? undefined : selectedTask?.input} title={selected?.name ?? "Agent"} state={selectedTask?.state} elapsedMs={selectedTask ? taskExecution(selectedTask).elapsedMs : undefined}
+    <AgentSubagentModal open={Boolean(selected)} onOpenChange={value => { if (!value) { setSelection([]); setSelectedTask(null); setError(""); } }} assignment={visibleTask?.errorCode === "EVIDENCE_UNAVAILABLE" ? undefined : visibleTask?.input} title={selected?.name ?? "Agent"} state={visibleTask?.state} errorCode={visibleTask?.outputAvailability === "unavailable" ? undefined : visibleTask?.errorCode} observedAt={visibleTask?.observedAt} elapsedMs={visibleTask ? taskExecution(visibleTask).elapsedMs : undefined}
       loading={busy} error={error} viewKey={`${endpoint}:${selectionKey}`}
       onBack={selection.length > 1 ? () => setSelection(previous => previous.slice(0, -1)) : undefined}
       onCloseAutoFocus={event => { event.preventDefault(); if (trigger.current?.isConnected) trigger.current.focus({ preventScroll: true }); }}>

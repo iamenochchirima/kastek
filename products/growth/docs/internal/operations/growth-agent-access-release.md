@@ -98,3 +98,76 @@ outcomes before enabling retries. No destructive down migration is part of this 
 
 Post-release review date: not applicable until an owner schedules a deployment; deployment
 owner must set a dated review before promotion.
+
+## Read-result access references
+
+Owner: iamenochchirima. Risk: standard. The Growth capability endpoint supports negotiated private
+`access-v1` references for canonical reads. Growth keeps the returned value and existing published
+operation descriptors unchanged. The additive Growth Prisma migration
+`20261103100000_growth_read_access_handles` widens the existing `GrowthAgentSourceHandle` ID
+constraint for two private reference namespaces and preserves existing source handles. A retry with the same operation identity and changed
+result or source scope is rejected. Resource checks cover the stored read scope and current
+entitlements, with reporting-scope checks that do not rerun reports.
+
+The focused signed HTTP/PostgreSQL checks cover pre-chunk post references, old-worker response
+compatibility, receipt replay, stable scope reuse, user and binding isolation, entitlement and
+resource withdrawal, and an Inbox preview whose original message is deleted. They do not establish
+live-provider, production, or hosted behavior. API typecheck and product boundary checks are recorded
+in the local audit. New analytics events, logs, metrics, Collector settings and alerts: not applicable.
+
+Apply the Growth migration, then roll out the Growth endpoint before workers that request `access-v1`.
+Stop new negotiated reads
+before rolling back the endpoint, and retain compatible Growth and Agents workers until accepted
+references have settled. Keep the widened constraint and reference rows during rollback; existing
+action reviews and receipts are preserved. Production release ID,
+rollout, rollback demonstration and review date are not applicable until separately authorized.
+
+## Reviewed-effect status scope
+
+Owner: iamenochchirima. Risk: standard. The Growth endpoint accepts a separate
+`effect-status-v1` observation on canonical or retained draft review/commit calls. It stores the
+saved review identity in the existing private handle namespaces. The matching Agents worker keeps
+the exact native receipt, gives models only a saved status and opaque review reference, and checks
+the retained recipient/provider audience. The observation does not authorize the private review
+body or the current content of a business record. Embedded staging-transfer responses use
+`access-v1` with current owner, state and expiry checks. Direct Growth REST behavior is unchanged.
+
+The controlled worker fixture covers a saved draft after a lost commit acknowledgement, the model
+projection, private native receipt, retained history and current entitlement/provider denial. A
+separate owned Growth database check covers staging owner, inactive state and expiry. There is no
+live-provider or hosted deployment claim. New analytics, logging, metrics, dashboards and alerts:
+not applicable; existing operation and review receipts remain. Apply the existing Growth handle
+migration and Agents schema107 first, then deploy the matching Growth endpoint before the worker.
+Stop new negotiated actions and retain a compatible worker until accepted work settles before
+rollback; do not delete receipts or replay an unknown effect. Production release identity, rollout,
+rollback demonstration and post-release review date remain unassigned.
+
+## Reviewed resource revisions
+
+Owner: iamenochchirima. Risk: standard. The additive
+`20261103120000_agent_review_row_versions` migration adds private bigint revisions and update
+triggers to Conversation, ExternalConnection, SocialPost, SocialChannelConnection, WhatsappContact
+and WhatsappContactListMembership. Prisma records the fields; existing `updatedAt` timestamps keep
+their audit meaning. Every writer advances the relevant revision, and overflow rejects the update.
+Review snapshots hold revisions as exact decimal strings or bind them into account digests, including
+the older draft-review path. Existing unstarted reviews without the new snapshot contract require a new review; started and
+uncertain effects keep their original identity and receipt-only reconciliation. A remotely accepted
+published edit that cannot be finalized locally remains uncertain and cannot be resent under a new
+identity by reconciliation. Ordinary product clients that use only `expectedUpdatedAt` retain that timestamp check;
+they do not gain a revision-based compare-and-swap precondition from this change.
+
+Controlled PostgreSQL fixtures cover two simultaneous reviewed conversation writes with the same
+millisecond timestamp, an ordinary writer changing a reviewed post, exact values above JavaScript's
+safe integer range, overflow, stale old reviews and recovery of a prior draft receipt. The provider
+fixture confirms a changed post after remote acceptance remains uncertain without a second send.
+The existing older draft-review fixture checks an unchanged-timestamp account edit, stale legacy
+approval and lost-reply receipt recovery. A signed worker fixture checks one saved draft after a lost
+acknowledgement.
+These checks do not establish live-provider or hosted behavior. New analytics, logs, metrics,
+Collector settings, dashboards and alerts: not applicable; existing review events remain.
+
+Pause new reviewed admissions and commits, settle or preserve existing effects, and apply the
+additive migration before the matching Growth API. Resume only with the revision-aware API. Keep
+the columns, triggers and receipts on rollback, and keep reviewed writes paused if the former API is
+restored because it uses timestamp-only preconditions. Never replay an uncertain effect to recover
+it. Hosted release ID, deployment, rollback demonstration and post-release review remain unassigned.

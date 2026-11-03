@@ -43,14 +43,15 @@ function postMetadata(requested: unknown, existing: unknown = null): unknown {
     ? Object.fromEntries(Object.entries(existing).filter(([key]) => key.startsWith("_kasitek_"))) : {};
   return { ...publicFields, ...privateFields };
 }
-export interface PostMutationOptions { expectedPostRevision?: string; expectedAccounts?: Record<string, string> }
+export interface PostMutationOptions { expectedPostRevision?: string; expectedPostAgentRevision?: string; expectedAccounts?: Record<string, string>; reviewedSourcePostId?: string }
 export async function lockSocialPost(tx: PoolClient, orgId: string, postId: string, options: PostMutationOptions = {}) {
   await tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`growth.content.post:${orgId}:${postId}`]);
-  const post = (await tx.query<{ id: string; updated_at: Date; status: string }>(
-    'SELECT id,"updatedAt" AS updated_at,status::text FROM "SocialPost" WHERE id=$1 AND "orgId"=$2 FOR UPDATE', [postId, orgId],
+  const post = (await tx.query<{ id: string; updated_at: Date; status: string; agent_review_revision:string }>(
+    'SELECT id,"updatedAt" AS updated_at,status::text,"agentReviewRevision"::text AS agent_review_revision FROM "SocialPost" WHERE id=$1 AND "orgId"=$2 FOR UPDATE', [postId, orgId],
   )).rows[0];
   if (!post) throw missing("Post not found");
-  if (options.expectedPostRevision && epochMicros(post.updated_at) !== epochMicros(parseOptionalDatetime(options.expectedPostRevision)!))
+  if (options.expectedPostRevision && epochMicros(post.updated_at) !== epochMicros(parseOptionalDatetime(options.expectedPostRevision)!) ||
+      options.expectedPostAgentRevision !== undefined && post.agent_review_revision !== options.expectedPostAgentRevision)
     throw new ApiError(409, "conflict", "The reviewed content changed. Review it again before continuing");
   return post;
 }
@@ -362,6 +363,7 @@ export async function createSocialPostIdempotent(
   const title = trimmed(request.title) ?? generatedSocialPostTitle(content);
   const id = createId();
   const createdId = await transaction(pool, async (tx) => {
+    if(options.reviewedSourcePostId)await lockSocialPost(tx,orgId,options.reviewedSourcePostId,options);
     await lockReviewedSocialAccounts(tx, orgId, options.expectedAccounts);
     if (key) {
       await tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [

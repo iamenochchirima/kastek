@@ -62,6 +62,28 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     return inbox.command({ ...f.scope, accountId }, f.conversation.id, { commandId: randomUUID(), expectedRevision: current.conversation.revision, action, ...extra });
   }
   function binding(f: Awaited<ReturnType<typeof fixture>>, messageId: string, generation = "1"): ChannelBinding { return { customerConversationId: f.conversation.id, ownershipGeneration: generation, inputMessageId: messageId }; }
+  it("projects the latest visitor reply status without exposing execution errors or stale failures", async () => {
+    const f = await fixture(), other = await fixture();
+    expect((await inbox.readVisitor(f.visitor, f.conversation.id)).responseStatus).toBeNull();
+    const input = await inbox.ingress(f.visitor, f.conversation.id, { requestKey: randomUUID(), body: "What can you help with?" });
+    expect((await inbox.readVisitor(f.visitor, f.conversation.id)).responseStatus).toBe("working");
+    await pool.query("UPDATE agents_platform.tasks SET state='incomplete',error_code='PRIVATE_EXECUTION_DETAIL' WHERE id=$1", [input.message.task_id]);
+    const app = Fastify();
+    registerInboxRoutes(app, { inbox, resolveScope: async () => f.scope, resolveVisitor: async () => f.visitor });
+    try {
+      const response = await app.inject({ url: `/api/website/${f.deployment.id}/customer-conversations/${f.conversation.id}/messages` });
+      expect(response.json().responseStatus).toBe("incomplete");
+      expect(response.body).not.toContain("PRIVATE_EXECUTION_DETAIL");
+      expect(response.body).not.toContain(input.message.task_id!);
+      expect((await app.inject({ url: `/api/website/${f.deployment.id}/customer-conversations/${other.conversation.id}/messages` })).statusCode).toBe(403);
+    } finally { await app.close(); }
+    const next = await inbox.ingress(f.visitor, f.conversation.id, { requestKey: randomUUID(), body: "Can we continue?" });
+    expect((await inbox.readVisitor(f.visitor, f.conversation.id)).responseStatus).toBe("working");
+    await pool.query("UPDATE agents_platform.tasks SET state='failed' WHERE id=$1", [next.message.task_id]);
+    expect((await inbox.readVisitor(f.visitor, f.conversation.id)).responseStatus).toBe("failed");
+    await transaction(pool, db => inbox.publishAutomated(db, { taskId: next.message.task_id!, binding: binding(f, next.message.id), output: "How can I help?" }));
+    expect((await inbox.readVisitor(f.visitor, f.conversation.id)).responseStatus).toBeNull();
+  });
   it("reports the website channel as unavailable when paused or revoked", async () => {
     const f = await fixture();
     expect((await inbox.readStaff(f.scope, f.conversation.id)).channelAvailable).toBe(true);

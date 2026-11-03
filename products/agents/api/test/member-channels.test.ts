@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import { orchestrationTools } from "../src/contracts/orchestration";
 import { closeOrchestrationInstructions,orchestrationInstructionGroups } from "../src/execution/delegation/progress";
 import { settleTask } from "../src/execution/lifecycle/execution";
@@ -100,7 +101,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const authority = { product: "agents" as const, organizationId: f.scope.organizationId, resourceId: agent.id, callerClientId: "agents-execution",
       principal: { kind: "human" as const, issuer: owner.issuer, subject: owner.subject } };
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id, operations: operationsForConfiguration(configuration, true), sourceRevisionIds: [], connectedToolBindingIds: [binding!.id],
-      maxInputBytes: configuration.model.maxInputBytes, maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: configuration.context.maxInputTokens, expiresAt: new Date(Date.now() + 300000).toISOString(), revokedAt: null });
+      maxInputBytes: configuration.model.maxInputBytes, maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(configuration), expiresAt: new Date(Date.now() + 300000).toISOString(), revokedAt: null });
     await platform.createGrant({ accountId: owner.id, grant });
     const { task } = await platform.admitTask({ authority, grantId: grant.id, versionId: version.id, input: "Prepare a reviewed operation", requestKey: randomUUID() });
     const delivery = worker(async () => kind === "telegram" ? Response.json({ ok: true, result: { message_id: 888 } }) : Response.json({ messages: [{ id: "wamid.review" }] }));

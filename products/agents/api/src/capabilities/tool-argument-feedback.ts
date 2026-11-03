@@ -22,13 +22,13 @@ const types=new Set(["array","string","number","int","object","boolean","null","
 const bounded=(value:unknown):value is number=>typeof value==="number"&&Number.isFinite(value)&&Math.abs(value)<=2147483647;
 
 /** Error observations explain the fixed input contract without quoting submitted values or validator text. */
-export function builtinArgumentFeedback(name:string,argumentsJson:string,errorCode:string):{argumentIssues:ToolArgumentIssue[]}|undefined{
+export function builtinArgumentFeedback(name:string,argumentsJson:string,errorCode:string,version?:string):{argumentIssues:ToolArgumentIssue[]}|undefined{
   if(errorCode!=="TOOL_ARGUMENTS_INVALID")return;
-  const contract=builtinContract(name);if(!contract)return;
+  const contract=builtinContract(name,version);if(!contract)return;
   let value:unknown;
   try{value=JSON.parse(argumentsJson);}catch{return{argumentIssues:[{path:[],code:"invalid_json",message:"Use valid JSON matching the tool schema."}]};}
   const parsed=contract.input.safeParse(value);if(parsed.success)return;
-  const schema=capabilityContractMetadata(name).inputSchema;
+  const schema=capabilityContractMetadata(name,false,version).inputSchema;
   const issues:ToolArgumentIssue[]=parsed.error.issues.slice(0,6).map(issue=>{
     const result:ToolArgumentIssue={path:safePath(issue.path,schema),code:issue.code,message:"Check this field against the tool schema."};
     if(issue.code==="too_big"&&bounded(issue.maximum)){

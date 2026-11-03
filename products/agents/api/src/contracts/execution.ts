@@ -12,6 +12,9 @@ export const LEGACY_ADAPTIVE_HARNESS_RELEASE = "product-capabilities-v13";
 export const LEGACY_ADAPTIVE_WORKFLOW_NAME = "AgentsBusinessRunV23";
 export const ADAPTIVE_HARNESS_RELEASE = "product-capabilities-v14";
 export const ADAPTIVE_WORKFLOW_NAME = "AgentsBusinessRunV24";
+export const SHARED_HARNESS_RELEASE = "product-capabilities-v15";
+export const SHARED_WORKFLOW_NAME = "AgentsBusinessRunV25";
+export const CONTEXT_COMPACTION_WORKFLOW = "AgentsContextCompactionV1";
 export const dispatcherPhases = ["dispatch", "capacity", "capacity_notifications", "controls", "reconciliation"] as const;
 export type DispatcherPhase = typeof dispatcherPhases[number];
 export interface Execution { task: TaskRecord & { turn_sequence: string; history_cutoff: string | null;
@@ -20,6 +23,9 @@ export interface Execution { task: TaskRecord & { turn_sequence: string; history
   toolBindings:{name:string;version:string;digest:string}[]; connectedBindings: CapabilityBinding[]; models: AcceptedModelRoutes }
 export interface MemoryFence { id: string; generation: number; expiresAt?: number }
 export interface OperationRequest { id: string; kind: "model" | "compaction" | "tool" | "delegation" | "resource"; name: string;
+  instructionHead?:string;
+  workload?:"background";
+  primaryReserve?:{tokens:number;activeMs:number};
   request: unknown; reservedTokens: number; reservedMs: number; memoryFence?: MemoryFence; evidenceManifest?: DependencyManifest; retrySafe?: boolean; reconcile?: boolean; maxResultBytes?:number }
 export interface OperationRecord { kind: OperationRequest["kind"]; id: string; task_id: string; state: "started" | "completed" | "failed" | "uncertain";
   output: unknown; error_code: string | null; reserved_tokens: number; reserved_ms: number; accounted_tokens: number; started_at: Date; attempt_id: string }

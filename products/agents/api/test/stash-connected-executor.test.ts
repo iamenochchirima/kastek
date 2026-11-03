@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {connectFixtureModel} from "./model-fixture";
 import { randomBytes, randomUUID } from "node:crypto";
@@ -45,7 +46,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const bindings=await executor.catalogs.selectBindings(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,catalogId:catalog.id,selections:["get_item","read_project_document"].map(providerOperation=>({providerOperation,resources:connection.resources}))});
   const configuration={...defaultBusinessConfiguration(),connectedToolBindingIds:bindings.map(binding=>binding.id)},agent=await platform.createAgent({...scope,name:"Stash reader",configuration}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
   const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};
-  const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","connected.read"],sourceRevisionIds:[],connectedToolBindingIds:configuration.connectedToolBindingIds,maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:configuration.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};await platform.createGrant({accountId:account.id,grant});
+  const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","connected.read"],sourceRevisionIds:[],connectedToolBindingIds:configuration.connectedToolBindingIds,maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(configuration),rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};await platform.createGrant({accountId:account.id,grant});
   const{task}=await platform.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Read only the approved Stash note"});return{scope,connection,bindings,task,grant,catalog};
  }
  async function start(f:Awaited<ReturnType<typeof fixture>>,name:string,args:object){const binding=f.bindings.find(binding=>binding.definition.providerOperation===name)!,operationId=`stash:${f.task.id}:${randomUUID()}`;await beginOperation(pool,f.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:30000,retrySafe:true});return{binding,operationId,args};}

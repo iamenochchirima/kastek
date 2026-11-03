@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { agentConfigurationSchema, PlatformError } from "../../contracts/contracts";
+import { agentConfigurationSchema, configuredContext, PlatformError } from "../../contracts/contracts";
 import { compileEffectiveExecutionPolicy } from "../../execution/models/policy";
-import { executionModelLayers, modelServicePolicy } from "../../execution/models/settings";
+import { contextGrantCeiling, executionModelLayers, modelServicePolicy } from "../../execution/models/settings";
 import { modelControls, validateGeneration } from "../../adapters/models/model-controls";
 import type { ActionScope } from "../../contracts/connections";
 import { requireActionMember } from "../../infrastructure/action-authority";
@@ -28,17 +28,18 @@ export function registerModelPolicyRoutes(app: FastifyInstance, options: {
     const context = model.contextTokens.value === null ? null : Math.min(model.contextTokens.value,service.contextTokens);
     const output = Math.min(configuration.model.maxOutputTokens,service.maxOutputTokens,model.maxOutputTokens.value??service.maxOutputTokens);
     const inputLimit = context === null ? null : Math.max(0,Math.min(model.maxInputTokens.value??service.maxInputTokens,service.maxInputTokens,context-output-service.safetyTokens,...(root === null ? [] : [root-output])));
-    const outputLimit = context === null || model.maxOutputTokens.value === null ? null : Math.max(0,Math.min(model.maxOutputTokens.value,service.maxOutputTokens,context-configuration.context.maxInputTokens-service.safetyTokens,...(root === null ? [] : [root-configuration.context.maxInputTokens])));
+    const savedContext=configuredContext(configuration),inputReserve=savedContext?.maxInputTokens??2;
+    const outputLimit = context === null || model.maxOutputTokens.value === null ? null : Math.max(0,Math.min(model.maxOutputTokens.value,service.maxOutputTokens,context-inputReserve-service.safetyTokens,...(root === null ? [] : [root-inputReserve])));
     const errors: Array<{field:string;message:string}> = [];
     let effectivePolicy = null;
     try {
       effectivePolicy = compileEffectiveExecutionPolicy(model,executionModelLayers(configuration,{id:`configuration-preview:${agentId}`,rootTokenLimit:root,
-        maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:configuration.context.maxInputTokens})).policy;
+        maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(configuration)})).policy;
     } catch {
       if (inputLimit === null || outputLimit === null) errors.push({field:"model.selection",message:"Model capacity metadata is required."});
-      if (inputLimit !== null && configuration.context.maxInputTokens > inputLimit) errors.push({field:"context.maxInputTokens",message:"Input and output must fit the context and run allowance."});
+      if (inputLimit !== null && savedContext && savedContext.maxInputTokens > inputLimit) errors.push({field:"context.maxInputTokens",message:"Input and output must fit the context and run allowance."});
       if (outputLimit !== null && configuration.model.maxOutputTokens > outputLimit) errors.push({field:"model.maxOutputTokens",message:"Reply allowance exceeds the available context or run allowance."});
-      if (configuration.context.compactAtTokens >= Math.min(configuration.context.maxInputTokens,inputLimit??configuration.context.maxInputTokens)) errors.push({field:"context.compactAtTokens",message:"Compact before the input allowance is reached."});
+      if (savedContext && savedContext.compactAtTokens >= Math.min(savedContext.maxInputTokens,inputLimit??savedContext.maxInputTokens)) errors.push({field:"context.compactAtTokens",message:"Compact before the input allowance is reached."});
       if (!errors.length) errors.push({field:"model",message:"These settings do not fit the effective execution policy."});
     }
     const controls = modelControls(model,{maxOutputTokens:output},connection.endpoint);

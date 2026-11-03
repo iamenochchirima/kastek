@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {randomUUID} from 'node:crypto';
 import {execFileSync,spawn,type ChildProcess} from 'node:child_process';
@@ -30,7 +31,7 @@ const enabled=process.env.AGENTS_TEST_DATABASE_URL&&process.env.AGENTS_OPERATION
  async function fixture(){const store=new PlatformStore(pool),account=await store.ensureAccount({issuer:'https://receipt.fixture.test',subject:randomUUID(),email:'fixture@example.com',displayName:'Receipt fixture'}),org=await store.createOrganization(account.id,'Disposable receipt fixture'),configuration=defaultBusinessConfiguration();configuration.tools=[];
   const agent=await store.createAgent({accountId:account.id,organizationId:org.id,name:'Receipt fixture',configuration}),version=await store.createVersion({accountId:account.id,organizationId:org.id,agentId:agent.id,expectedRevision:1});
   const authority={product:'agents' as const,organizationId:org.id,resourceId:agent.id,callerClientId:'agents-execution',principal:{kind:'human' as const,issuer:account.issuer,subject:account.subject}};
-  const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:['model.reply'],sourceRevisionIds:[],connectedToolBindingIds:[],maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:configuration.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};await store.createGrant({accountId:account.id,grant});return(await store.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:'Answer briefly'})).task;
+  const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:['model.reply'],sourceRevisionIds:[],connectedToolBindingIds:[],maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(configuration),rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};await store.createGrant({accountId:account.id,grant});return(await store.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:'Answer briefly'})).task;
  }
  async function terminal(id:string){let result:any;await eventually(async()=>{await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl:runtimeAdmin});result=(await pool.query('SELECT * FROM agents_platform.tasks WHERE id=$1',[id])).rows[0];return terminalTaskStates.has(result.state);});return result;}
  it('recovers a journaled model result after SIGKILL and repeated receipt failures without another physical call',async()=>{

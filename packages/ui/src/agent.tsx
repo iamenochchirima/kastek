@@ -7,16 +7,23 @@ import { PiArrowDown, PiArrowUp, PiArrowLeft, PiArrowSquareOut, PiCheck, PiCaret
 import { Button } from "./button.js";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./dialog.js";
 import { cn } from "./utils.js";
-import { agentIsActive, agentStateLabel, formatAgentDuration, safeAgentLink, orderAgentEntries } from "./agent-state.js";
+import { agentFailureLabel, agentIsActive, agentStateLabel, formatAgentDuration, safeAgentLink, orderAgentEntries } from "./agent-state.js";
 
-export { agentIsActive, agentStateLabel, formatAgentDuration, mergeAgentEntries, safeAgentLink, orderAgentEntries } from "./agent-state.js";
+export { agentIsActive, agentStateLabel, agentFailureLabel, formatAgentDuration, mergeAgentEntries, safeAgentLink, orderAgentEntries } from "./agent-state.js";
 
 export interface AgentOperation {
   id: string;
   label: string;
+  category?: string;
+  source?: "runtime" | "product" | "connection";
+  activityKind?: "capability_discovery" | "capability_loading";
+  technicalName?: string;
+  taskId?: string;
   state: string;
   kind?: string;
   startedAt?: string;
+  durationMs?: number | null;
+  errorCode?: string | null;
   details?: React.ReactNode;
   detailAvailability?: "available" | "unavailable" | "redacted" | "unsupported";
 }
@@ -26,15 +33,63 @@ export interface AgentExecution {
   id: string;
   state: string;
   label?: string;
+  errorCode?: string | null;
   updates?: { id: string; text: string; createdAt?: string }[];
   operations?: AgentOperation[];
   children?: AgentSubagent[];
   output?: string | null;
-  context?: { estimatedInputTokens?: number | null; windowTokens?: number | null; utilizationPercent?: number | null };
+  context?: { estimatedInputTokens?: number | null; inputLimitTokens?: number | null; windowTokens?: number | null; utilizationPercent?: number | null };
   diagnostics?: { label: string; value: string | number | null }[];
   elapsedMs?: number | null;
   observedAt?: string;
   approach?: { objective: string; steps: { id: string; title: string; state: string }[]; questions: string[] };
+}
+
+export interface AgentRuntimeMeasurements {
+  observedAt:string;elapsedMs:number|null;workElapsedMs?:number|null;
+  model:{id:string|null;latencyMs:number|null;firstTokenMs:number|null};
+  context:NonNullable<AgentExecution["context"]>&{inputLimitTokens?:number|null;reservedOutputTokens?:number|null;
+    compactionCount?:number|null;pressure?:"normal"|"compaction_due"|null;decision?:"prepared"|"compacting"|"compacted"|null};
+  usage:{accountedTokens:number;inputTokens:number|null;outputTokens:number|null;modelCalls:number;toolCalls:number;observedModelCalls:number};
+}
+
+/** Shared scalar presentation; consumer adapters keep authorization and transport ownership. */
+export function agentRuntimePresentation(runtime:AgentRuntimeMeasurements|undefined):Pick<AgentExecution,"context"|"diagnostics"|"elapsedMs"|"observedAt"> {
+  if(!runtime)return {};
+  const valid=(value:unknown):value is number=>typeof value==="number"&&Number.isFinite(value)&&value>=0;
+  const count=(value:unknown)=>valid(value)?Math.round(value).toLocaleString():null;
+  const duration=(value:unknown)=>valid(value)?`${(value/1000).toFixed(value<10000?1:0)} s`:null;
+  return {context:runtime.context,elapsedMs:runtime.elapsedMs,observedAt:runtime.observedAt,diagnostics:[
+    {label:"Model",value:runtime.model.id},
+    {label:"Elapsed",value:duration(runtime.elapsedMs)},
+    ...(runtime.workElapsedMs!==runtime.elapsedMs&&valid(runtime.workElapsedMs)?[{label:"Work elapsed",value:duration(runtime.workElapsedMs)}]:[]),
+    {label:"Model latency",value:duration(runtime.model.latencyMs)},
+    {label:"First visible token",value:duration(runtime.model.firstTokenMs)},
+    {label:"Model calls",value:count(runtime.usage.modelCalls)},
+    {label:"Tool calls",value:count(runtime.usage.toolCalls)},
+    {label:"Accounted tokens",value:count(runtime.usage.accountedTokens)},
+    {label:"Observed input / output",value:`${count(runtime.usage.inputTokens)??"Unavailable"} / ${count(runtime.usage.outputTokens)??"Unavailable"}`},
+    {label:"Calls with observed usage",value:`${count(runtime.usage.observedModelCalls)??"Unavailable"} / ${count(runtime.usage.modelCalls)??"Unavailable"}`},
+    {label:"Compactions",value:count(runtime.context.compactionCount)},
+    {label:"Compaction state",value:runtime.context.decision?({prepared:"Prepared",compacting:"Compacting",compacted:"Compacted"})[runtime.context.decision]:null},
+    {label:"Input limit",value:count(runtime.context.inputLimitTokens)},
+    {label:"Output reserve",value:count(runtime.context.reservedOutputTokens)},
+    {label:"Context pressure",value:runtime.context.pressure==="compaction_due"?"Compaction due":runtime.context.pressure==="normal"?"Normal":null},
+  ]};
+}
+
+function useAgentElapsedTime(identity: string, state: string | undefined, elapsedMs: number | null | undefined, observedAt?: string, enabled = true) {
+  const active = enabled && Boolean(state && agentIsActive(state));
+  const available = typeof elapsedMs === "number" && Number.isFinite(elapsedMs) && elapsedMs >= 0;
+  const key = `${identity}:${observedAt ?? ""}:${elapsedMs}`;
+  const [sample, setSample] = React.useState<{ key: string; value: number } | null>(null);
+  React.useEffect(() => {
+    if (!active || !available) return;
+    const started = performance.now();
+    const timer = setInterval(() => setSample({ key, value: elapsedMs! + performance.now() - started }), 1000);
+    return () => clearInterval(timer);
+  }, [active, available, elapsedMs, key]);
+  return available ? active && sample?.key === key ? sample.value : elapsedMs : null;
 }
 
 export function AgentMessageContent({ text, resolveLink, remarkPlugins = [], format = "markdown" }: { text: string; resolveLink?: (href: string) => string | null; remarkPlugins?: React.ComponentProps<typeof ReactMarkdown>["remarkPlugins"]; format?: "markdown" | "plain" }) {
@@ -68,6 +123,20 @@ export function AgentMessage({ role, text, children, label, createdAt, id, class
   </article>;
 }
 
+export interface AgentResultFile { id: string; title: string }
+
+/** Transport and authorization remain with the product that owns the result. */
+export function AgentResultFiles({ files, busyId, error, onSelect }: {
+  files: readonly AgentResultFile[]; busyId?: string | null; error?: string | null; onSelect: (file: AgentResultFile) => void;
+}) {
+  if (!files.length) return null;
+  return <div className="space-y-2"><div className="flex flex-wrap gap-2">{files.map(file =>
+    <Button key={file.id} type="button" variant="outline" size="sm" className="max-w-full" disabled={Boolean(busyId)} aria-busy={busyId === file.id || undefined} onClick={() => onSelect(file)}>
+      {busyId === file.id ? <PiSpinnerGap aria-hidden className="size-4 shrink-0 animate-spin motion-reduce:animate-none" /> : <PiFileText aria-hidden className="size-4 shrink-0" />}
+      <span className="truncate">{file.title}</span>
+    </Button>)}</div>{error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}</div>;
+}
+
 export function AgentComposer({ value, onChange, onSubmit, disabled = false, maxLength, placeholder = "Message your agent…", textareaRef, context, actions, sendButton, sendLabel = "Send message", sending = false, rows = 2, label = "Message agent", className, autoFocus }: {
   value: string; onChange: (value: string) => void; onSubmit: () => void; disabled?: boolean; maxLength?: number;
   placeholder?: string; textareaRef?: React.Ref<HTMLTextAreaElement>; context?: React.ReactNode; actions?: React.ReactNode;
@@ -91,15 +160,48 @@ function StateIcon({ state }: { state: string }) {
 }
 
 export function AgentToolRow({ operation }: { operation: AgentOperation }) {
-  const availability = operation.detailAvailability ?? (operation.details ? "available" : "unsupported");
+  const measured=typeof operation.durationMs==="number"&&Number.isFinite(operation.durationMs)&&operation.durationMs>=0;
+  const details=operation.details??(measured||operation.errorCode?`${measured?`Duration: ${(operation.durationMs!/1000).toFixed(1)} s`:""}${operation.errorCode?`${measured?" · ":""}${operation.errorCode}`:""}`:undefined);
+  const availability = operation.detailAvailability ?? (details ? "available" : "unsupported");
   return <details data-operation-id={operation.id} className="group min-w-0 text-sm">
     <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-md px-2 py-2 text-muted-foreground hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-      <StateIcon state={operation.state} /><span className="min-w-0 flex-1 break-words">{operation.label}</span><span className="shrink-0 text-xs">{agentStateLabel(operation.state)}</span><PiCaretRight aria-hidden className="size-3 shrink-0 transition-transform group-open:rotate-90" />
+      <StateIcon state={operation.state} /><span className="min-w-0 flex-1 break-words" title={operation.category}><span className="block">{operation.label}</span>{operation.source === "connection" ? <span className="block text-xs">Connected service</span> : null}</span><span className="shrink-0 text-xs">{agentStateLabel(operation.state)}</span><PiCaretRight aria-hidden className="size-3 shrink-0 transition-transform group-open:rotate-90" />
     </summary>
     <div className="mb-2 ml-4 min-w-0 border-l border-border py-2 pl-4 text-xs leading-6 text-muted-foreground [overflow-wrap:anywhere]">
-      {availability === "available" && operation.details ? operation.details : availability === "redacted" ? "Details are restricted." : availability === "unavailable" ? "Details are unavailable." : "No additional details recorded."}
+      {availability === "available" && details ? details : availability === "redacted" ? "Details are restricted." : availability === "unavailable" ? "Details are unavailable." : "No additional details recorded."}
+      {availability !== "redacted" && availability !== "unavailable" && operation.technicalName ? <details className="mt-2"><summary className="min-h-9 cursor-pointer">Technical details</summary><dl className="grid grid-cols-[auto_1fr] gap-x-3"><dt>Tool</dt><dd className="break-all font-mono">{operation.technicalName}</dd><dt>Operation</dt><dd className="break-all font-mono">{operation.id}</dd></dl></details> : null}
     </div>
   </details>;
+}
+
+type ActivityEntry = { id: string; startedAt?: string; createdAt?: string; content: React.ReactNode; operation?: AgentOperation };
+function CapabilityLookup({ operations }: { operations: AgentOperation[] }) {
+  const failures = operations.filter(operation => ["failed", "uncertain", "incomplete", "refused"].includes(operation.state));
+  const state = operations.some(operation => agentIsActive(operation.state) || operation.state === "started") ? "started"
+    : failures.some(operation => operation.state === "uncertain") ? "uncertain" : failures.length ? "failed" : "completed";
+  const measured = operations.every(operation => operation.startedAt && Number.isFinite(Date.parse(operation.startedAt)) && typeof operation.durationMs === "number" && Number.isFinite(operation.durationMs) && operation.durationMs >= 0);
+  const elapsed = measured ? Math.max(...operations.map(operation => Date.parse(operation.startedAt!) + operation.durationMs!)) - Math.min(...operations.map(operation => Date.parse(operation.startedAt!))) : null;
+  return <details data-capability-lookup className="min-w-0 text-sm"><summary className="flex min-h-10 cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 rounded-md px-2 py-2 text-muted-foreground hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring">
+    <StateIcon state={state} /><span>Capability lookup</span><span className="text-xs">· {operations.length} calls</span>{failures.length ? <span className="text-xs">· {failures.length} {failures.some(operation => operation.state === "uncertain") ? "failed or unknown" : "failed"}</span> : null}{elapsed !== null ? <span className="text-xs" title="Elapsed time across these recorded calls">· {formatAgentDuration(elapsed)}</span> : null}<PiCaretRight aria-hidden className="ml-auto size-3" />
+    </summary><div className="ml-3 space-y-1 border-l border-border pl-2">{operations.map(operation => <AgentToolRow key={operation.id} operation={operation} />)}</div></details>;
+}
+function groupCapabilityLookups(entries: ActivityEntry[]): ActivityEntry[] {
+  const grouped: ActivityEntry[] = [];
+  for (let index = 0; index < entries.length;) {
+    const entry = entries[index]!;
+    if (!entry.operation?.activityKind) { grouped.push(entry); index++; continue; }
+    const operations = [entry.operation]; let end = index + 1;
+    while (end < entries.length && entries[end]!.operation?.activityKind && entries[end]!.operation!.taskId === entry.operation.taskId) { operations.push(entries[end]!.operation!); end++; }
+    grouped.push(operations.length === 1 ? entry : { ...entry, id: `lookup:${entry.id}`, content: <CapabilityLookup operations={operations} /> });
+    index = end;
+  }
+  return grouped;
+}
+
+function AgentModelActivity() {
+  return <div role="status" className="flex min-h-10 items-center gap-2 rounded-md px-2 py-2 text-sm text-muted-foreground">
+    <StateIcon state="started" /><span>Generating response</span>
+  </div>;
 }
 
 export function AgentSubagentRow({ child, onOpen }: { child: AgentSubagent; onOpen?: (child: AgentSubagent, trigger: HTMLButtonElement) => void }) {
@@ -111,7 +213,7 @@ export function AgentContextUsage({ context, diagnostics }: Pick<AgentExecution,
   if (!context && !diagnostics?.length) return null;
   const percent = context?.utilizationPercent;
   return <details data-agent-context data-dialog-disclosure className="relative min-w-0 text-xs text-muted-foreground" onKeyDown={event => { if (event.key === "Escape" && event.currentTarget.open) { event.preventDefault(); event.stopPropagation(); event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}><summary className="min-h-9 w-fit cursor-pointer py-2">{context ? `Context${typeof percent === "number" && Number.isFinite(percent) ? ` · ${Math.round(percent)}%` : ""}` : "Execution details"}</summary>
-    <div className="absolute bottom-full left-0 z-50 mb-2 max-h-[min(60dvh,24rem)] w-[min(80vw,24rem)] space-y-3 overflow-auto rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-lg">{context ? <><p>Context capacity, not task progress.</p><dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1"><dt>Estimated input</dt><dd>{context.estimatedInputTokens?.toLocaleString() ?? "Unavailable"}</dd><dt>Model window</dt><dd>{context.windowTokens?.toLocaleString() ?? "Unavailable"}</dd></dl></> : null}
+    <div className="absolute bottom-full left-0 z-50 mb-2 max-h-[min(60dvh,24rem)] w-[min(80vw,24rem)] space-y-3 overflow-auto rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-lg">{context ? <><p>Context capacity</p><dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1"><dt>Estimated input</dt><dd>{context.estimatedInputTokens?.toLocaleString() ?? "Unavailable"}</dd><dt>Input limit</dt><dd>{context.inputLimitTokens?.toLocaleString() ?? "Unavailable"}</dd><dt>Model window</dt><dd>{context.windowTokens?.toLocaleString() ?? "Unavailable"}</dd></dl></> : null}
       {diagnostics?.length ? <details><summary className="min-h-9 cursor-pointer py-2">{context ? "Execution details" : "Measurements"}</summary><dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1">{diagnostics.map(item => <React.Fragment key={item.label}><dt>{item.label}</dt><dd className="max-w-48 break-words text-right">{item.value ?? "Unavailable"}</dd></React.Fragment>)}</dl></details> : null}
     </div>
   </details>;
@@ -121,25 +223,31 @@ export const AgentContextDetails = AgentContextUsage;
 
 export function AgentExecutionView({ execution, onOpenSubagent, children, renderOutput, showContext = false, showStatus = true }: { execution: AgentExecution; onOpenSubagent?: (child: AgentSubagent, trigger: HTMLButtonElement) => void; children?: React.ReactNode; renderOutput?: (text: string) => React.ReactNode; showContext?: boolean; showStatus?: boolean }) {
   const active = agentIsActive(execution.state);
-  const elapsed = formatAgentDuration(execution.elapsedMs);
+  const elapsed = formatAgentDuration(useAgentElapsedTime(execution.id, execution.state, execution.elapsedMs, execution.observedAt, showStatus));
   const [activityOpen, setActivityOpen] = React.useState(active);
   const manuallyOpened = React.useRef(false);
   const inspectSubagent = onOpenSubagent ? (child: AgentSubagent, trigger: HTMLButtonElement) => { manuallyOpened.current = true; onOpenSubagent(child, trigger); } : undefined;
   React.useEffect(() => { if (!active && !manuallyOpened.current) setActivityOpen(false); }, [active]);
-  const operations = execution.operations ?? [], specialists = execution.children ?? [];
-  const hasActivity = operations.length > 0 || specialists.length > 0;
+  const modelGeneration = (execution.operations ?? []).find(operation => operation.kind === "model" && ["started", "running"].includes(operation.state));
+  const operations = (execution.operations ?? []).filter(operation => operation.kind !== "model"), specialists = execution.children ?? [];
+  const unfinishedSpecialist = specialists.some(child => ["incomplete", "failed", "refused", "cancelled"].includes(child.state));
+  const uncertainSpecialist = specialists.some(child => child.state === "uncertain");
+  const activityCount = operations.length + specialists.length + Number(Boolean(modelGeneration));
+  const hasActivity = activityCount > 0;
   const updates = execution.updates ?? [];
-  const timeline = orderAgentEntries([
+  const timeline = groupCapabilityLookups(orderAgentEntries<ActivityEntry>([
     ...updates.map(update => ({ id: `update:${update.id}`, createdAt: update.createdAt, content: <AgentMessage key={update.id} id={update.id} role="assistant" text={update.text} /> })),
-    ...operations.map(operation => ({ id: `operation:${operation.id}`, startedAt: operation.startedAt, content: <AgentToolRow key={operation.id} operation={operation} /> })),
+    ...(modelGeneration ? [{ id: "model-generation", startedAt: modelGeneration.startedAt, content: <AgentModelActivity key="model-generation" /> }] : []),
+    ...operations.map(operation => ({ id: `operation:${operation.id}`, startedAt: operation.startedAt, operation, content: <AgentToolRow key={operation.id} operation={operation} /> })),
     ...specialists.map(child => ({ id: `child:${child.id}`, createdAt: child.createdAt, content: <AgentSubagentRow key={child.id} child={child} onOpen={inspectSubagent} /> })),
-  ]);
+  ]));
   const latestUpdate = orderAgentEntries(updates).at(-1);
   return <section data-execution-id={execution.id} aria-label="Agent work" className="agent-execution min-w-0 space-y-3">
-    {showStatus ? <div className="flex min-h-8 items-center gap-2 text-sm text-muted-foreground" role="status"><StateIcon state={execution.state} /><span>{execution.label ?? (execution.state === "completed" && execution.output ? "Response ready" : agentStateLabel(execution.state))}</span>{elapsed ? <span aria-label="Execution time" title="Time since acceptance, including waiting and specialist work." className="text-xs">· {elapsed}</span> : null}{active && specialists.length ? <span className="text-xs">· {specialists.length} {specialists.length === 1 ? "agent" : "agents"}</span> : null}</div> : null}
+    {showStatus ? <div className="flex min-h-8 items-center gap-2 text-sm text-muted-foreground" role="status"><StateIcon state={execution.state} /><span>{execution.label ?? (execution.errorCode ? agentFailureLabel(execution.state, execution.errorCode) : execution.state === "completed" && execution.output ? "Response ready" : agentStateLabel(execution.state))}</span>{elapsed ? <span aria-label="Execution time" title="Time since acceptance, including waiting and specialist work." className="text-xs">· {elapsed}</span> : null}{active && specialists.length ? <span className="text-xs">· {specialists.length} {specialists.length === 1 ? "agent" : "agents"}</span> : null}</div> : null}
     {!hasActivity ? updates.map(update => <AgentMessage key={update.id} id={update.id} role="assistant" text={update.text} />) : !activityOpen && latestUpdate ? <AgentMessage id={latestUpdate.id} role="assistant" text={latestUpdate.text} /> : null}
     {execution.approach ? <details className="text-xs text-muted-foreground"><summary className="min-h-9 cursor-pointer py-2">Approach</summary><div className="space-y-3 py-2"><p className="whitespace-pre-wrap break-words">{execution.approach.objective}</p>{execution.approach.steps.length ? <ol className="space-y-2">{execution.approach.steps.map(step => <li key={step.id} className="flex flex-wrap justify-between gap-x-3 gap-y-1"><span>{step.title}</span><span>{agentStateLabel(step.state)}</span></li>)}</ol> : null}{execution.approach.questions.length ? <ul className="list-disc space-y-1 pl-4">{execution.approach.questions.map((question, index) => <li key={index}>{question}</li>)}</ul> : null}</div></details> : null}
-    {hasActivity ? <div className="min-w-0"><button type="button" className="flex min-h-9 items-center gap-2 rounded-md text-xs text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring" aria-expanded={activityOpen} onClick={() => { manuallyOpened.current = true; setActivityOpen(value => !value); }}><PiCaretRight aria-hidden className={cn("size-3", activityOpen && "rotate-90")} />Activity{!active ? ` · ${operations.length + specialists.length} items` : ""}</button>{activityOpen ? <div className="space-y-2" onPointerDownCapture={() => { manuallyOpened.current = true; }} onKeyDownCapture={() => { manuallyOpened.current = true; }}>{timeline.map(entry => <React.Fragment key={entry.id}>{entry.content}</React.Fragment>)}</div> : null}</div> : null}
+    {hasActivity ? <div className="min-w-0"><button type="button" className="flex min-h-9 items-center gap-2 rounded-md text-xs text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring" aria-expanded={activityOpen} onClick={() => { manuallyOpened.current = true; setActivityOpen(value => !value); }}><PiCaretRight aria-hidden className={cn("size-3", activityOpen && "rotate-90")} />Activity{!active ? ` · ${activityCount} ${activityCount === 1 ? "item" : "items"}` : ""}</button>{activityOpen ? <div className="space-y-2" onPointerDownCapture={() => { manuallyOpened.current = true; }} onKeyDownCapture={() => { manuallyOpened.current = true; }}>{timeline.map(entry => <React.Fragment key={entry.id}>{entry.content}</React.Fragment>)}</div> : null}</div> : null}
+    {execution.state === "completed" && (unfinishedSpecialist || uncertainSpecialist) ? <div role="status" className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"><PiWarningCircle aria-hidden className="mt-0.5 size-4 shrink-0" /><span>{unfinishedSpecialist ? "Some specialist work did not finish." : null}{unfinishedSpecialist && uncertainSpecialist ? " " : null}{uncertainSpecialist ? "Some specialist outcomes are unknown." : null}</span></div> : null}
     {execution.output ? <div className="pt-1">{renderOutput ? renderOutput(execution.output) : <AgentMessage role="assistant" text={execution.output} />}</div> : null}
     {children}
     {showContext ? <AgentContextUsage context={execution.context} diagnostics={execution.diagnostics} /> : null}
@@ -207,12 +315,12 @@ export const AgentConversationScroll = React.forwardRef<HTMLDivElement, React.HT
   return <div className="relative flex min-h-0 min-w-0 flex-1 flex-col"><div {...props} ref={viewport} data-agent-message-scroll className={cn("min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5", className)} onScroll={event => { if (!pausedRef.current) { const node = event.currentTarget; following.current = node.scrollHeight - node.scrollTop - node.clientHeight < 64; if (following.current) setHasNew(false); captureAnchor(); if (pendingRestore.current === null) remember(); } onScroll?.(event); }}><div ref={content} className="mx-auto min-w-0 max-w-3xl space-y-6">{children}</div></div>{hasNew ? <Button type="button" variant="secondary" size="sm" className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full shadow-sm" onClick={bottom}><PiArrowDown aria-hidden className="size-3" />Jump to latest</Button> : null}</div>;
 });
 
-export function AgentSubagentModal({ open, onOpenChange, title, assignment, state, elapsedMs, children, loading, error, onBack, onCloseAutoFocus, viewKey }: { open: boolean; onOpenChange: (open: boolean) => void; title: string; assignment?: string; state?: string; elapsedMs?: number | null; children?: React.ReactNode; loading?: boolean; error?: string | null; onBack?: () => void; onCloseAutoFocus?: React.ComponentProps<typeof DialogContent>["onCloseAutoFocus"]; viewKey?: string }) {
-  const elapsed = formatAgentDuration(elapsedMs);
+export function AgentSubagentModal({ open, onOpenChange, title, assignment, state, errorCode, elapsedMs, observedAt, children, loading, error, onBack, onCloseAutoFocus, viewKey }: { open: boolean; onOpenChange: (open: boolean) => void; title: string; assignment?: string; state?: string; errorCode?: string | null; elapsedMs?: number | null; observedAt?: string; children?: React.ReactNode; loading?: boolean; error?: string | null; onBack?: () => void; onCloseAutoFocus?: React.ComponentProps<typeof DialogContent>["onCloseAutoFocus"]; viewKey?: string }) {
+  const elapsed = formatAgentDuration(useAgentElapsedTime(viewKey ?? title, state, elapsedMs, observedAt, open));
   const active = state ? agentIsActive(state) : false;
   const assignmentTitle = assignment?.split("\n").find(line => line.trim())?.trim();
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent data-agent-subagent-modal onCloseAutoFocus={onCloseAutoFocus} className="inset-0 left-0 top-0 flex h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none p-0 sm:left-1/2 sm:top-1/2 sm:h-[86dvh] sm:max-h-[calc(100dvh-3rem)] sm:max-w-4xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:p-0">
-    <header className="agent-specialist-header">{onBack ? <Button type="button" variant="ghost" size="icon" aria-label="Back to previous agent" onClick={onBack}><PiArrowLeft className="size-4" /></Button> : null}<span className="agent-specialist-avatar" aria-hidden><PiMagnifyingGlass /></span><div className="min-w-0 flex-1"><DialogTitle className="agent-specialist-title">{title}</DialogTitle><DialogDescription className={assignmentTitle ? "agent-specialist-subtitle" : "sr-only"} title={assignmentTitle}>{assignmentTitle || "Subagent conversation and live activity"}</DialogDescription>{state ? <div className="agent-specialist-status" role="status" data-active={active}><StateIcon state={state} /><span>{agentStateLabel(state)}</span>{elapsed ? <span aria-label="Execution time" title="Time since acceptance, including waiting and specialist work.">· {elapsed}</span> : null}</div> : null}</div></header>
+    <header className="agent-specialist-header">{onBack ? <Button type="button" variant="ghost" size="icon" aria-label="Back to previous agent" onClick={onBack}><PiArrowLeft className="size-4" /></Button> : null}<span className="agent-specialist-avatar" aria-hidden><PiMagnifyingGlass /></span><div className="min-w-0 flex-1"><DialogTitle className="agent-specialist-title">{title}</DialogTitle><DialogDescription className={assignmentTitle ? "agent-specialist-subtitle" : "sr-only"} title={assignmentTitle}>{assignmentTitle || "Subagent conversation and live activity"}</DialogDescription>{state ? <div className="agent-specialist-status" role="status" data-active={active}><StateIcon state={state} /><span>{errorCode ? agentFailureLabel(state, errorCode) : agentStateLabel(state)}</span>{elapsed ? <span aria-label="Execution time" title="Time since acceptance, including waiting and specialist work.">· {elapsed}</span> : null}</div> : null}</div></header>
     <AgentConversationScroll resetKey={viewKey} paused={!open} className="agent-specialist-transcript">
       {assignment ? <details data-agent-assignment className="agent-specialist-assignment"><summary><PiFileText aria-hidden /><span><strong>Assignment</strong><span>{assignmentTitle}</span></span><PiCaretRight aria-hidden /></summary><div><AgentMessageContent text={assignment} /></div></details> : null}
       {loading ? <div role="status" aria-label="Loading agent activity" className="space-y-3"><div className="h-4 w-2/3 animate-pulse rounded bg-secondary motion-reduce:animate-none" /><div className="h-4 w-5/6 animate-pulse rounded bg-secondary motion-reduce:animate-none" /></div> : null}{error ? <p role="alert" className="text-sm text-muted-foreground">{error}</p> : null}{children}

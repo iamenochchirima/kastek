@@ -8,7 +8,13 @@ import Fastify from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MemoryStore } from "../src/execution/memory/memory";
 import { registerMemoryRoutes } from "../src/product/agents/memory-routes";
-import { defaultBusinessConfiguration } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration, type AgentConfiguration } from "../src/contracts/contracts";
+import { contextGrantCeiling } from "../src/execution/models/settings";
+import { orchestrationTools } from "../src/contracts/orchestration";
+import { SHARED_HARNESS_RELEASE, SHARED_WORKFLOW_NAME } from "../src/contracts/execution";
+import { admitChildren } from "../src/execution/delegation/delegation";
+import { beginOperation, finishOperation, settleTask } from "../src/execution/lifecycle/execution";
+import { dispatchTasksOnce } from "../src/execution/lifecycle/dispatcher";
 import { PlatformStore } from "../src/product/agents/store";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
@@ -59,6 +65,27 @@ suite("scoped PostgreSQL memory and immutable skills", () => {
     expect((await memory.propose(f.scope, input)).status).toBe("forgotten");
     for (const content of [input.content, corrected.content]) await expect(memory.propose(f.scope, { ...input, operationId: randomUUID(), content })).rejects.toMatchObject({ code: "MEMORY_SUPPRESSED" });
   });
+  it("retains scenario and conflict assertions through exact review and correction without verifying them", async () => {
+    const f = await fixture();
+    const candidate = await memory.propose(f.scope, { operationId: randomUUID(), kind: "semantic", content: "For the hypothetical pilot, bookings are free.",
+      assertion: { context: "hypothetical", conflict: "not_assessed" } });
+    await expect(memory.mutate(f.management, candidate.id, { operationId: randomUUID(), expectedRevision: 1, action: "accept", content: "Unreviewed replacement" })).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    const accepted = await memory.mutate(f.management, candidate.id, { operationId: randomUUID(), expectedRevision: 1, action: "accept",
+      assertion: { context: "hypothetical", conflict: "reported" } });
+    expect(accepted).toMatchObject({ revision: 2, verified: false, assertion: { context: "hypothetical", conflict: "reported" } });
+    const before = await memory.read(f.scope), operationId = randomUUID();
+    const correction = { operationId, expectedRevision: 2, action: "correct" as const, content: "Current bookings have the quoted fee.",
+      assertion: { context: "current" as const, conflict: "resolved" as const } };
+    const corrected = await memory.mutate(f.management, candidate.id, correction);
+    expect(corrected).toMatchObject({ revision: 3, origin: "user_supplied", verified: false, assertion: correction.assertion });
+    expect((await memory.read(f.scope)).generation).toBe(before.generation + 1);
+    expect(await memory.mutate(f.management, candidate.id, correction)).toEqual(corrected);
+    await expect(memory.mutate(f.management, candidate.id, { ...correction, assertion: { context: "hypothetical", conflict: "reported" } })).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+    await expect(memory.mutate(f.management, candidate.id, { ...correction, operationId: randomUUID() })).rejects.toMatchObject({ code: "MEMORY_CONFLICT" });
+    const revisions = (await pool.query("SELECT revision,assertion_context,assertion_conflict,assertion_origin,actor FROM agents_platform.memory_revisions WHERE memory_id=$1 ORDER BY revision", [candidate.id])).rows;
+    expect(revisions.map(row => [row.revision, row.assertion_context, row.assertion_conflict])).toEqual([[1, "hypothetical", "not_assessed"], [2, "hypothetical", "reported"], [3, "current", "resolved"]]);
+    expect(revisions.every(row => row.assertion_origin === "user_supplied" && row.actor)).toBe(true);
+  });
   it("serializes namespace generation against dispatch and denies revoked membership", async () => {
     const f = await fixture(), reading = await memory.read(f.scope), db = await pool.connect();
     await db.query("BEGIN"); await db.query("SELECT id FROM agents_platform.memory_scopes WHERE id=$1 FOR SHARE", [reading.scope.id]);
@@ -82,23 +109,80 @@ suite("scoped PostgreSQL memory and immutable skills", () => {
   });
   it("deletes owned source history, cancels open tasks and suppresses linked memory without resurrection", async () => {
     const f = await fixture(), config=defaultBusinessConfiguration();
-    const version=await platform.createVersion({accountId:f.account.id,organizationId:f.organization.id,agentId:f.agent.id,expectedRevision:1});
+    const management={accountId:f.account.id,organizationId:f.organization.id};
+    async function publish(name:string,configuration:AgentConfiguration){const agent=await platform.createAgent({...management,name,configuration});return platform.createVersion({...management,agentId:agent.id,expectedRevision:1});}
+    const leaf=await publish("Source deletion leaf",defaultBusinessConfiguration());
+    const role=(id:string,versionId:string)=>({id,versionId,tools:[],sourceRevisionIds:[],connectedToolBindingIds:[],maxTokens:null,maxActiveMs:null});
+    const middleConfig=defaultBusinessConfiguration();middleConfig.program={id:"tool-directed",version:"4"};middleConfig.tools=[...orchestrationTools];
+    middleConfig.capabilities.delegation={enabled:true,maxChildren:2,maxDepth:null,policy:{maxTasks:null,maxStalls:3},bindings:[role("leaf",leaf.id)]};
+    const middle=await publish("Source deletion specialist",middleConfig);
+    config.program={id:"tool-directed",version:"4"};config.tools=["knowledge.search",...orchestrationTools];
+    config.capabilities.delegation={enabled:true,maxChildren:2,maxDepth:null,policy:{maxTasks:null,maxStalls:3},bindings:[role("middle",middle.id),role("completed",leaf.id)]};
+    const draft=await platform.updateDraft({...management,agentId:f.agent.id,configuration:config,expectedRevision:1});
+    const version=await platform.createVersion({...management,agentId:f.agent.id,expectedRevision:draft.draft_revision});
     const authority={product:"agents" as const,organizationId:f.organization.id,resourceId:f.agent.id,callerClientId:"agents-execution",principal:f.scope.principal};
-    const grant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply" as const,"knowledge.read" as const],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:8192,rootTokenLimit:32000,expiresAt:new Date(Date.now()+60_000).toISOString(),revokedAt:null};
+    const grant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply" as const,"knowledge.read" as const,"delegation.execute" as const],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(config),rootTokenLimit:32000,expiresAt:new Date(Date.now()+60_000).toISOString(),revokedAt:null};
     await platform.createGrant({accountId:f.account.id,grant});
-    const admitted=await platform.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:"My preference is detailed reports."});
+    const prior=await platform.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:"Earlier permitted work."});
+    const operationId=`tool:${prior.task.id}:search`;
+    await beginOperation(pool,prior.task.id,{id:operationId,kind:"tool",name:"knowledge.search",request:{query:"earlier"},reservedTokens:0,reservedMs:30000,retrySafe:true});
+    await finishOperation(pool,prior.task.id,operationId,"completed",{profile:"lexical-v1",passages:[],omitted:0},null,0);
+    await settleTask(pool,prior.task.id,{state:"completed",output:"Earlier answer."});
+    const receipt=(await pool.query("SELECT state,output,error_code,accounted_tokens FROM agents_platform.operations WHERE id=$1",[operationId])).rows[0];
+    const admitted=await platform.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),conversationId:prior.task.conversation_id,input:"My preference is detailed reports."});
+    const unrelated=await platform.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:"Unrelated conversation."});
+    const children=await admitChildren(pool,admitted.task.id,"source-delete:children",{requests:[{bindingId:"middle",brief:"Review this conversation."},{bindingId:"completed",brief:"Finish independent work."}]},{adaptive:true});
+    const child=children[0]!,terminal=children[1]!;
+    const [grandchild]=await admitChildren(pool,child.taskId,"source-delete:grandchild",{requests:[{bindingId:"leaf",brief:"Review the selected details."}]},{adaptive:true});
+    await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[terminal.taskId]);
+    await settleTask(pool,terminal.taskId,{state:"completed",output:"Retained specialist finding."});
+    const active=[admitted.task.id,child.taskId,grandchild!.taskId];
+    await pool.query(`UPDATE agents_platform.tasks SET state=CASE id WHEN $1::uuid THEN 'waiting_children' WHEN $2::uuid THEN 'waiting_review' ELSE 'reconciling' END,runtime_invocation_id='inv_source_delete_'||id::text WHERE id=ANY($3::uuid[])`,[admitted.task.id,child.taskId,active]);
+    await pool.query("UPDATE agents_platform.task_outbox SET dispatched_at=now() WHERE task_id=ANY($1::uuid[])",[[...active,unrelated.task.id]]);
     const proposed=await memory.propose(f.scope,{operationId:randomUUID(),kind:"semantic",content:"Prefer detailed reports.",sourceTaskId:admitted.task.id});
     await memory.mutate(f.management,proposed.id,{operationId:randomUUID(),expectedRevision:1,action:"accept"});
     const other=await fixture();
     await expect(memory.deleteConversationSources(other.management,admitted.task.conversation_id)).rejects.toMatchObject({code:"NOT_FOUND"});
-    const deleted=await memory.deleteConversationSources(f.management,admitted.task.conversation_id);
-    expect(deleted.taskIds).toEqual([admitted.task.id]);
+    const childConversation=(await pool.query("SELECT conversation_id FROM agents_platform.tasks WHERE id=$1",[child.taskId])).rows[0].conversation_id;
+    await memory.deleteConversationSources({...management,agentId:middle.agent_id},childConversation);
+    expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=ANY($1::uuid[]) ORDER BY id",[[child.taskId,grandchild!.taskId]])).rows.map(row=>row.state)).toEqual(["cancel_requested","cancel_requested"]);
+    expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[admitted.task.id])).rows[0].state).toBe("waiting_children");
+    expect((await pool.query("SELECT state,output FROM agents_platform.tasks WHERE id=$1",[terminal.taskId])).rows[0]).toEqual({state:"completed",output:"Retained specialist finding."});
+    const deleted=await (async()=>{
+      const writer=await pool.connect();let deleting:ReturnType<MemoryStore["deleteConversationSources"]>|undefined,committed=false;
+      try{
+        await writer.query("BEGIN");await writer.query("SET LOCAL lock_timeout='1s'");
+        await writer.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[f.organization.id]);
+        let finished=false;deleting=memory.deleteConversationSources(f.management,admitted.task.conversation_id).then(value=>{finished=true;return value;});
+        await new Promise(resolve=>setTimeout(resolve,50));expect(finished).toBe(false);
+        await writer.query("SELECT id FROM agents_platform.tasks WHERE id=$1 FOR NO KEY UPDATE",[admitted.task.id]);
+        await writer.query("COMMIT");committed=true;return await deleting;
+      }finally{if(!committed)await writer.query("ROLLBACK");writer.release();await deleting?.catch(()=>{});}
+    })();
+    expect(deleted.taskIds).toEqual([prior.task.id,admitted.task.id].sort());
     expect((await memory.read(f.scope)).memories).toEqual([]);
     expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[admitted.task.id])).rows[0].state).toBe("cancel_requested");
+    expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[unrelated.task.id])).rows[0].state).toBe("accepted");
+    const cancellationEvents=(await pool.query("SELECT task_id,event_key FROM agents_platform.task_events WHERE task_id=ANY($1::uuid[]) AND kind='cancel_requested' ORDER BY task_id",[active])).rows;
+    expect(cancellationEvents).toHaveLength(3);
     await expect(memory.propose(f.scope,{operationId:randomUUID(),kind:"semantic",content:"Fresh inference",sourceTaskId:admitted.task.id})).rejects.toMatchObject({code:"MEMORY_SCOPE_DENIED"});
     const generation=(await memory.read(f.scope)).generation;
-    await memory.deleteConversationSources(f.management,admitted.task.conversation_id);
+    expect(await memory.deleteConversationSources(f.management,admitted.task.conversation_id)).toEqual(deleted);
     expect((await memory.read(f.scope)).generation).toBe(generation);
+    expect((await pool.query("SELECT task_id,event_key FROM agents_platform.task_events WHERE task_id=ANY($1::uuid[]) AND kind='cancel_requested' ORDER BY task_id",[active])).rows).toEqual(cancellationEvents);
+    const cancelled:string[]=[];
+    const options={ingressUrl:"http://runtime.fixture",adminUrl:"http://runtime.fixture",runtimeRoutes:{[SHARED_HARNESS_RELEASE]:{ingressUrl:"http://runtime.fixture",adminUrl:"http://runtime.fixture",workflowName:SHARED_WORKFLOW_NAME}},fetch:(async(url,init)=>{
+      const path=new URL(String(url)).pathname;
+      if(init?.method==="PATCH"&&path.endsWith("/cancel")){cancelled.push(path);return Response.json({});}
+      if(path.startsWith("/restate/output/"))return Response.json({message:"Invocation cancelled"},{status:409});
+      throw Error("Source deletion must not dispatch new work");
+    }) as typeof fetch};
+    for(let n=0;n<3;n++)await dispatchTasksOnce(pool,options);
+    expect(cancelled.some(path=>path.includes(admitted.task.id))).toBe(true);expect(cancelled.some(path=>path.includes(child.taskId))).toBe(true);expect(cancelled.some(path=>path.includes(grandchild!.taskId))).toBe(true);
+    expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=ANY($1::uuid[])",[active])).rows.map(row=>row.state)).toEqual(["cancelled","cancelled","cancelled"]);
+    expect((await pool.query("SELECT state,output FROM agents_platform.tasks WHERE id=$1",[prior.task.id])).rows[0]).toEqual({state:"completed",output:"Earlier answer."});
+    expect((await pool.query("SELECT state,output,error_code,accounted_tokens FROM agents_platform.operations WHERE id=$1",[operationId])).rows[0]).toEqual(receipt);
+    expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[unrelated.task.id])).rows[0].state).toBe("accepted");
   });
   it("expires memory before retrieval and distinguishes backend failure from an empty result", async () => {
     const f = await fixture();

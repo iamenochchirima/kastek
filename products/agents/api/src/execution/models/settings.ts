@@ -1,6 +1,6 @@
 import { validateGeneration, modelControlsRevision } from "../../adapters/models/model-controls";
 import { ProviderTransportError } from "../../contracts/model-transport";
-import { requestDigest } from "../../contracts/contracts";
+import { requestDigest,configuredContext } from "../../contracts/contracts";
 import { z } from "zod";
 import type { AgentConfiguration, ExecutionGrant } from "../../contracts/contracts";
 import { effectiveExecutionPolicySchema } from "../../contracts/model-providers";
@@ -34,6 +34,11 @@ export function modelServicePolicy(environment: NodeJS.ProcessEnv = process.env)
   return serviceSchema.parse({ ...modelServiceDefaults, maxRequestBytes: 2097152, ...configured });
 }
 
+/** Automatic grants use a trusted compilation ceiling; admission still applies the selected model. */
+export function contextGrantCeiling(configuration:AgentConfiguration,environment:NodeJS.ProcessEnv=process.env):number {
+  return configuredContext(configuration)?.maxInputTokens??modelServicePolicy(environment).maxInputTokens;
+}
+
 export function delegatedModelRoutes(parent: AcceptedModelRoutes, configuration: AgentConfiguration,
   maxTokens: number | null, maxActiveMs: number | null): AcceptedModelRoutes {
   if (configuration.model.maxCostMicros !== null) throw new PlatformError("MODEL_COST_CAP_UNSUPPORTED", 422, "A strict spending cap is unavailable for this specialist route");
@@ -43,12 +48,13 @@ export function delegatedModelRoutes(parent: AcceptedModelRoutes, configuration:
   }
   const output = Math.min(inherited.policy.maxOutputTokens, configuration.model.maxOutputTokens);
   const { revision: _revision, digest: _digest, ...parentLimits } = inherited.policy;
-  const input = Math.min(inherited.policy.maxInputTokens, configuration.context.maxInputTokens, maxTokens === null ? inherited.policy.maxInputTokens : maxTokens - output);
+  const savedContext=configuredContext(configuration);
+  const input = Math.min(inherited.policy.maxInputTokens, savedContext?.maxInputTokens??inherited.policy.maxInputTokens, maxTokens === null ? inherited.policy.maxInputTokens : maxTokens - output);
   if (input < 2) throw new PlatformError("MODEL_DELEGATION_BUDGET_INVALID", 422, "Specialist allocation cannot fit a model call");
   const compiled = compileEffectiveExecutionPolicy(inherited.model, [
     { kind: "platform", reference: `parent-policy:${inherited.policy.digest}`, limits: parentLimits },
     { kind: "agent", reference: "specialist-allocation", limits: { maxInputTokens: input, maxOutputTokens: output,
-      compactAtTokens: Math.min(configuration.context.compactAtTokens, inherited.policy.compactAtTokens, input - 1),
+      compactAtTokens: Math.min(savedContext?.compactAtTokens??inherited.policy.compactAtTokens, inherited.policy.compactAtTokens, input - 1),
       maxRootTokens: maxTokens, maxDurationMs: maxActiveMs, maxCallDurationMs: maxActiveMs === null ? configuration.model.maxDurationSeconds * 1000 : Math.min(maxActiveMs, configuration.model.maxDurationSeconds * 1000),
       maxInputBytes: configuration.model.maxInputBytes } },
   ]);
@@ -64,12 +70,15 @@ export function delegatedModelRoutes(parent: AcceptedModelRoutes, configuration:
 export function executionModelLayers(configuration: AgentConfiguration, grant: Pick<ExecutionGrant, "id" | "maxInputBytes" | "maxOutputTokens" | "maxContextTokens" | "rootTokenLimit">,
   environment: NodeJS.ProcessEnv = process.env): ExecutionPolicyLayer[] {
   const platform = modelServicePolicy(environment);
+  const savedContext=configuredContext(configuration);
+  const grantInput=savedContext?grant.maxContextTokens:Math.min(grant.maxContextTokens,
+    grant.rootTokenLimit===null?platform.maxInputTokens:grant.rootTokenLimit-grant.maxOutputTokens);
   return [
     { kind: "platform", reference: "model-service-v2:AGENTS_MODEL_POLICY_JSON", limits: platform },
     { kind: "product", reference: `execution-grant:${grant.id}`, limits: { maxInputBytes: grant.maxInputBytes,
-      maxInputTokens: grant.maxContextTokens, maxOutputTokens: grant.maxOutputTokens, maxRootTokens: grant.rootTokenLimit } },
-    { kind: "agent", reference: "saved-agent-configuration", limits: { maxInputBytes: configuration.model.maxInputBytes,
-      maxInputTokens: configuration.context.maxInputTokens, compactAtTokens: configuration.context.compactAtTokens,
+      maxInputTokens: grantInput, maxOutputTokens: grant.maxOutputTokens, maxRootTokens: grant.rootTokenLimit } },
+    { kind: "agent", reference: "saved-agent-configuration",...(!savedContext?{contextMode:"automatic" as const}:{}),limits: { maxInputBytes: configuration.model.maxInputBytes,
+      ...(savedContext?{maxInputTokens:savedContext.maxInputTokens,compactAtTokens:savedContext.compactAtTokens}:{}),
       maxOutputTokens: configuration.model.maxOutputTokens, maxCallDurationMs: configuration.model.maxDurationSeconds * 1000,
       maxCostMicros: configuration.model.maxCostMicros } },
   ];

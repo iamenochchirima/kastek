@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { HarnessMessage, ToolDefinition } from "../../contracts/model-messages";
+import type { ModelFailureDiagnostics } from "../../contracts/model-transport";
 export type { HarnessToolCall, HarnessMessage, ToolDefinition } from "../../contracts/model-messages";
 export interface ModelRequest {
   messages: HarnessMessage[]; tools?: ToolDefinition[]; maxOutputTokens: number;
@@ -7,12 +8,13 @@ export interface ModelRequest {
   toolChoice?: "auto" | "none" | { type: "function"; function: { name: string } };
 }
 export interface ModelResponse {
+  contextDisposition?: "quarantined"; guardCode?: string;
   message: HarnessMessage; finishReason: "stop" | "tool_calls" | "length" | "refusal";
   usage: { observed?: boolean; inputTokens?: number; outputTokens?: number; cachedInputTokens?: number;
     cacheWriteTokens?: number; reasoningTokens?: number }; providerRequestId?: string;
 }
 export class ModelOperationError extends Error {
-  constructor(public readonly code: string, public readonly outcome: "rejected" | "uncertain", public readonly status = 502) {
+  constructor(public readonly code: string, public readonly outcome: "rejected" | "uncertain", public readonly status = 502,public readonly diagnostics?:ModelFailureDiagnostics) {
     super(code); this.name = "ModelOperationError";
   }
 }

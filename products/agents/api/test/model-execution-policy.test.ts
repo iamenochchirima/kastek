@@ -4,7 +4,8 @@ import {
   compileEffectiveExecutionPolicy, type ExecutionPolicyLayer,
 } from "../src/execution/models/policy";
 
-import { modelServicePolicy } from "../src/execution/models/settings";
+import { contextGrantCeiling, executionModelLayers, modelServicePolicy } from "../src/execution/models/settings";
+import { agentConfigurationSchema, defaultBusinessConfiguration, requestDigest } from "../src/contracts/contracts";
 
 it("accepts explicit call allowances beyond 32-bit counters without weakening transport bounds",()=>{
   const limits={maxModelCalls:3000000000,maxToolCalls:3000000000,maxRootModelCalls:4000000000,maxRootToolCalls:4000000000,maxDurationMs:4000000000};
@@ -41,9 +42,27 @@ describe("shared effective model execution policy compiler", () => {
       maxCallDurationMs: 120000, maxInputTokens: 196608, maxOutputTokens: 32768 });
     const model = descriptor(); model.contextTokens.value = 262144;
     const result = compileEffectiveExecutionPolicy(model, [{ kind: "platform", reference: "service", limits: modelServicePolicy({}) }]);
-    expect(result.policy.revision).toBe("model-execution-policy-v2");
+    expect(result.policy.revision).toBe("model-execution-policy-v3");
     expect(result.policy.maxRootTokens).toBeNull();
     expect(result.policy.maxDurationMs).toBeNull();
+  });
+
+  it("uses selected model capacity for automatic context and preserves explicit numeric configuration",()=>{
+    const automatic=defaultBusinessConfiguration(),model=descriptor();model.contextTokens.value=262144;
+    const compile=(configuration:typeof automatic,rootTokenLimit:number|null=null)=>compileEffectiveExecutionPolicy(model,executionModelLayers(configuration,{
+      id:"automatic-context-fixture",maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,
+      maxContextTokens:contextGrantCeiling(configuration,{}),rootTokenLimit},{}));
+    expect(automatic.context).toEqual({mode:"automatic"});
+    const selected=compile(automatic);
+    expect(selected.policy).toMatchObject({maxInputTokens:196608,compactAtTokens:131072});
+    expect(selected.decisions.find(row=>row.field==="maxInputTokens")?.sources).toContainEqual(expect.objectContaining({kind:"derived",reference:expect.stringContaining("automatic-context-v1")}));
+    const finite={...automatic,context:{maxInputTokens:8192,compactAtTokens:6144}},before=requestDigest(finite);
+    expect(compile(finite).policy).toMatchObject({maxInputTokens:8192,compactAtTokens:6144});
+    expect(agentConfigurationSchema.parse(finite).context).toEqual(finite.context);
+    expect(requestDigest(agentConfigurationSchema.parse(finite))).toBe(before);
+    expect(compile(automatic,20000).policy.maxInputTokens).toBe(15904);
+    model.contextTokens.value=8192;
+    expect(compile(automatic).policy).toMatchObject({maxInputTokens:3072,compactAtTokens:2048});
   });
 
   it("keeps local and shared call limits independent and prevents null from erasing finite authority", () => {

@@ -3,16 +3,19 @@ import { createHash } from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { randomUUID } from "node:crypto";
 import { GROWTH_AGENT_FEATURE_IDS, GrowthAgentContractError, parseGrowthAgentContext as parseContextWire, parseGrowthDraftProposal as parseDraftWire, parseGrowthAgentCommand,
+  GROWTH_RESOURCE_FIELDS, type GrowthAgentResourceOperation,
   type GrowthAgentBootstrap, type GrowthAgentCommandInputs, type GrowthAgentCommandOperation, type GrowthAgentFeatureId } from "@kasitek-labs/contracts";
 import type { CoreContext } from "../context.js";
 import { ApiError } from "../error.js";
 import { extractUser, resolveActiveOrgId, requireOrigin } from "../identity/session.js";
+import { growthAgentPublication } from "./manifest.js";
 import { GrowthAgentClient, type GrowthAgentTransport } from "./client.js";
 import { growthAgentActor } from "./security.js";
 import { authorizeGrowthAgentScope, readGrowthAgentContext, type GrowthAgentScope } from "./scope.js";
 import { GrowthAgentReviewStore } from "./reviews.js";
 import { ensureGrowthAgentSetup } from "./setup.js";
 import { enqueueGrowthAgentCommand } from "./analytics.js";
+import { requireAdmin } from "../services/orgs.js";
 function contract<T>(run: () => T): T {
   try { return run(); } catch (error) {
     if (error instanceof GrowthAgentContractError) throw new ApiError(400, "agent_request_invalid", "Check the request fields");
@@ -32,6 +35,13 @@ function string(value: unknown, label = "request field", max = 256): string {
 }
 function strict(item: Record<string, unknown>, fields: string[]): void {
   if (Object.keys(item).some(key => !fields.includes(key))) throw new ApiError(400, "agent_request_invalid", "Check the request fields");
+}
+function artifactChild(request:FastifyRequest):{childTaskId?:string}{
+  const query=request.query as Record<string,unknown>??{};strict(query,["childTaskId"]);
+  if(query.childTaskId===undefined)return {};
+  const childTaskId=string(query.childTaskId,"child task");
+  if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(childTaskId))throw new ApiError(400,"agent_request_invalid","Check the child task");
+  return {childTaskId};
 }
 function page(request: FastifyRequest, fields: string[]) {
   const query = request.query as Record<string, unknown> ?? {};
@@ -96,15 +106,83 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
         reasons: [{ code: error.code, message: setup.state === "pending" || setup.state === "running" ? "Setting up" : setup.state === "blocked" || setup.state === "failed" ? "Setup needs attention" : "Agents is temporarily unavailable" }] })), model: null };
     }
     data.features = await Promise.all(data.features.map(async feature => {
-      try { await authorizeGrowthAgentScope(core, auth, feature.id); return feature; }
+      const visible=business.canConfigureAgents?feature:{...feature,specialists:undefined};
+      try { await authorizeGrowthAgentScope(core, auth, feature.id); return visible; }
       catch (error) {
         if (!(error instanceof ApiError) || error.status !== 403) throw error;
-        return { ...feature, ready: false, reasons: [{ code: error.code, message: "Unavailable for this business", route: "/billing" }] };
+        return { ...visible, specialists: undefined, ready: false, reasons: [{ code: error.code, message: "Unavailable for this business", route: "/billing" }] };
       }
     }));
-    const result: GrowthAgentBootstrap = { ...data, setup, defaultFeatureId: "assistant", scope: { businessId: auth.tenantId, userId: auth.actor.subject, businessName: business.businessName } };
+    const result: GrowthAgentBootstrap = { ...data, setup, defaultFeatureId: "assistant", scope: { businessId: auth.tenantId, userId: auth.actor.subject, businessName: business.businessName,canConfigureAgents:business.canConfigureAgents } };
     return result;
   });
+  app.post("/api/agents/features/:featureId/upgrade/preview", async (request,reply) => {
+    const auth=await scope(request);await requireAdmin(core.pool,auth.tenantId,auth.actor.subject);strict(body(request),[]);reply.header("Cache-Control","no-store");
+    return invoke(request,"features.upgrade.preview",{featureId:id(request,"featureId") as GrowthAgentFeatureId,publication:growthAgentPublication});
+  });
+  app.post("/api/agents/features/:featureId/upgrade/apply", async request => {
+    const auth=await scope(request);await requireAdmin(core.pool,auth.tenantId,auth.actor.subject);const input=body(request);strict(input,["requestId","targetPublicationDigest","diffDigest","expectedRevisions","resolutions"]);
+    return invoke(request,"features.upgrade.apply",{featureId:id(request,"featureId") as GrowthAgentFeatureId,publication:growthAgentPublication,
+      targetPublicationDigest:input.targetPublicationDigest as string,diffDigest:input.diffDigest as string,expectedRevisions:input.expectedRevisions as GrowthAgentCommandInputs["features.upgrade.apply"]["expectedRevisions"],resolutions:input.resolutions as GrowthAgentCommandInputs["features.upgrade.apply"]["resolutions"]},string(input.requestId));
+  });
+  app.get("/api/agents/features/:featureId/models", async (request, reply) => {
+    const auth=await scope(request);await requireAdmin(core.pool,auth.tenantId,auth.actor.subject);
+    strict(request.query as Record<string,unknown>??{},[]);reply.header("Cache-Control","no-store");
+    return invoke(request,"models.list",{featureId:id(request,"featureId") as GrowthAgentFeatureId});
+  });
+  app.patch("/api/agents/features/:featureId/model", async request => {
+    const auth=await scope(request);await requireAdmin(core.pool,auth.tenantId,auth.actor.subject);
+    const input=body(request);strict(input,["requestId","expectedRevision","selection"]);
+    return invoke(request,"models.select",{featureId:id(request,"featureId") as GrowthAgentFeatureId,
+      expectedRevision:Number(input.expectedRevision),selection:input.selection as GrowthAgentCommandInputs["models.select"]["selection"]},string(input.requestId));
+  });
+  app.get("/api/agents/features/:featureId/memory",request=>{
+    const query=request.query as Record<string,unknown>??{};strict(query,["offset","limit"]);
+    return invoke(request,"memory.list",{featureId:id(request,"featureId") as GrowthAgentFeatureId,
+      ...(query.offset===undefined?{}:{offset:Number(query.offset)}),...(query.limit===undefined?{}:{limit:Number(query.limit)})});
+  });
+  app.post("/api/agents/features/:featureId/memory/:memoryId",request=>{
+    const input=body(request);strict(input,["requestId","expectedRevision","action","content","assertion"]);
+    return invoke(request,"memory.mutate",{featureId:id(request,"featureId") as GrowthAgentFeatureId,memoryId:id(request,"memoryId"),
+      expectedRevision:Number(input.expectedRevision),action:input.action as "accept"|"correct"|"forget",...(input.content===undefined?{}:{content:string(input.content,"memory",8192)}),
+      ...(input.assertion===undefined?{}:{assertion:input.assertion as GrowthAgentCommandInputs["memory.mutate"]["assertion"]})},string(input.requestId));
+  });
+  app.patch("/api/agents/features/:featureId/memory/settings",async request=>{
+    const input=body(request);strict(input,["requestId","expectedRevision","enabled"]);
+    const auth=await scope(request);await requireAdmin(core.pool,auth.tenantId,auth.actor.subject);
+    return invoke(request,"memory.configure",{featureId:id(request,"featureId") as GrowthAgentFeatureId,
+      expectedRevision:Number(input.expectedRevision),enabled:input.enabled as boolean},string(input.requestId));
+  });
+  async function resourceOwner(request: FastifyRequest) {
+    const auth = await scope(request);
+    await requireAdmin(core.pool, auth.tenantId, auth.actor.subject);
+  }
+  app.get("/api/agents/features/:featureId/resources", async (request, reply) => {
+    await resourceOwner(request); strict(request.query as Record<string, unknown> ?? {}, []);
+    reply.header("Cache-Control", "no-store");
+    return invoke(request, "resources.list", { featureId: id(request, "featureId") as GrowthAgentFeatureId });
+  });
+  app.get("/api/agents/features/:featureId/resources/preview", async (request, reply) => {
+    await resourceOwner(request);
+    const query = request.query as Record<string, unknown> ?? {}; strict(query, ["kind", "sourceId", "revisionId", "skillId", "path"]);
+    reply.header("Cache-Control", "no-store");
+    return invoke(request, "resources.preview", { ...query, featureId: id(request, "featureId") } as GrowthAgentCommandInputs["resources.preview"]);
+  });
+  function resourceMutation<K extends GrowthAgentResourceOperation>(path: string, operation: K) {
+    app.post(`/api/agents/features/:featureId/${path}`, { bodyLimit: 4194304 }, async request => {
+      await resourceOwner(request);
+      const input = body(request); strict(input, ["requestId", ...GROWTH_RESOURCE_FIELDS[operation].filter(key => key !== "featureId")]);
+      const { requestId, ...fields } = input;
+      return invoke(request, operation, { ...fields, featureId: id(request, "featureId") } as GrowthAgentCommandInputs[K], string(requestId));
+    });
+  }
+  resourceMutation("sources", "sources.import");
+  resourceMutation("sources/review", "sources.review");
+  resourceMutation("sources/state", "sources.state");
+  resourceMutation("skills", "skills.import");
+  resourceMutation("skills/review", "skills.review");
+  resourceMutation("skills/state", "skills.state");
+  resourceMutation("resources/select", "resources.select");
   app.get("/api/agents/conversations", request => invoke(request, "conversations.list", page(request, ["featureId", "search"])));
   app.post("/api/agents/conversations", async (request, reply) => {
     const input = body(request); strict(input, ["requestId", "featureId", "title", "context"]);
@@ -220,16 +298,17 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     await scope(request);
     throw new ApiError(400, "agent_review_task_required", "Open the task to review this draft");
   });
-  app.get("/api/agents/tasks/:taskId/artifacts", request => invoke(request, "artifacts.list", { taskId: id(request, "taskId") }));
+  app.get("/api/agents/tasks/:taskId/artifacts", request => invoke(request, "artifacts.list", { taskId: id(request, "taskId"), ...artifactChild(request) }));
   app.get("/api/agents/tasks/:taskId/artifacts/:artifactId/download", async (request, reply) => {
-    const chunks: Buffer[] = []; let offset = 0, digest: string | undefined, bytes: number | undefined, mediaType = "application/octet-stream";
+    const selected=artifactChild(request),artifactId=id(request,"artifactId");
+    const chunks: Buffer[] = []; let offset = 0, digest: string | undefined, bytes: number | undefined, mediaType = "application/octet-stream", name:string|undefined;
     do {
-      const result = await invoke(request, "artifacts.get", { taskId: id(request, "taskId"), artifactId: id(request, "artifactId"), offset });
+      const result = await invoke(request, "artifacts.get", { taskId: id(request, "taskId"), artifactId, offset, ...selected });
       const part = result.artifact.chunk;
       if (!part || part.offset !== offset || !Number.isSafeInteger(part.bytes) || part.bytes < 0 || part.bytes > 1048576 ||
-        !/^[a-f0-9]{64}$/.test(part.digest) || (digest !== undefined && (digest !== part.digest || bytes !== part.bytes)))
+        result.artifact.id!==artifactId || !/^[a-f0-9]{64}$/.test(part.digest) || (digest !== undefined && (digest !== part.digest || bytes !== part.bytes || mediaType!==result.artifact.mediaType || name!==result.artifact.title)))
         throw new ApiError(502, "agent_artifact_invalid", "Artifact is unavailable");
-      digest = part.digest; bytes = part.bytes; mediaType = result.artifact.mediaType;
+      digest = part.digest; bytes = part.bytes; mediaType = result.artifact.mediaType; name=result.artifact.title;
       const chunk = Buffer.from(part.base64, "base64"), end = offset + chunk.length;
       if (chunk.length > 65536 || end > bytes || part.nextOffset !== (end < bytes ? end : null) || end === offset && end !== bytes)
         throw new ApiError(502, "agent_artifact_invalid", "Artifact is unavailable");
@@ -240,8 +319,8 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     if (content.length !== bytes || createHash("sha256").update(content).digest("hex") !== digest)
       throw new ApiError(502, "agent_artifact_invalid", "Artifact is unavailable");
     reply.header("Cache-Control", "no-store").header("X-Content-Type-Options", "nosniff")
-      .header("Content-Disposition", 'attachment; filename="agent-result.bin"');
+      .header("Content-Disposition", `attachment; filename="${name&&/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$/.test(name)?name:"agent-result.bin"}"`);
     return reply.type(mediaType).send(content);
   });
-  app.get("/api/agents/tasks/:taskId/artifacts/:artifactId", request => invoke(request, "artifacts.get", { taskId: id(request, "taskId"), artifactId: id(request, "artifactId") }));
+  app.get("/api/agents/tasks/:taskId/artifacts/:artifactId", request => invoke(request, "artifacts.get", { taskId: id(request, "taskId"), artifactId: id(request, "artifactId"), ...artifactChild(request) }));
 }

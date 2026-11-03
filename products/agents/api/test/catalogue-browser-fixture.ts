@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {nativeProviderConnectors} from "../src/adapters/providers/connector-registry";
 import {connectFixtureModel} from "./model-fixture";
 import assert from "node:assert/strict";
@@ -89,7 +90,7 @@ async function main() {
     const bookingDraft = await store.updateDraft({ ...scope, agentId: operatorAgent.id, configuration: bookingConfiguration, expectedRevision: 1 });
     const bookingVersion = await store.createVersion({ ...scope, agentId: operatorAgent.id, expectedRevision: bookingDraft.draft_revision });
     const authority: AdmissionAuthority = { product: "agents", organizationId: organization.id, resourceId: operatorAgent.id, callerClientId: "agents-execution", principal: { kind: "human", issuer: account.issuer, subject: account.subject } };
-    const grant: ExecutionGrant = { ...authority, id: randomUUID(), versionId: bookingVersion.id, operations: ["model.reply", "knowledge.read", "booking.read", "booking.execute"], sourceRevisionIds: [], connectedToolBindingIds: [], maxInputBytes: bookingConfiguration.model.maxInputBytes, maxOutputTokens: bookingConfiguration.model.maxOutputTokens, maxContextTokens: bookingConfiguration.context.maxInputTokens, rootTokenLimit: 32000, expiresAt: new Date(Date.now() + 300000).toISOString(), revokedAt: null };
+    const grant: ExecutionGrant = { ...authority, id: randomUUID(), versionId: bookingVersion.id, operations: ["model.reply", "knowledge.read", "booking.read", "booking.execute"], sourceRevisionIds: [], connectedToolBindingIds: [], maxInputBytes: bookingConfiguration.model.maxInputBytes, maxOutputTokens: bookingConfiguration.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(bookingConfiguration), rootTokenLimit: 32000, expiresAt: new Date(Date.now() + 300000).toISOString(), revokedAt: null };
     await store.createGrant({ accountId: account.id, grant });
     const { task } = await store.admitTask({ authority, grantId: grant.id, versionId: bookingVersion.id, requestKey: randomUUID(), input: "Propose a consultation." });
     const startsAt = new Date(Date.now() + 86400000); startsAt.setUTCHours(8, 0, 0, 0);

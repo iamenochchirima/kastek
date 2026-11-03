@@ -1,0 +1,8 @@
+{
+  "feature_id": "assistant",
+  "conversation_id": null,
+  "task_id": null,
+  "operation": "memory.mutate",
+  "outcome": "accepted",
+  "failure_code": null
+}

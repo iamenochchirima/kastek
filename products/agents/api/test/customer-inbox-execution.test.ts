@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {connectFixtureModel} from "./model-fixture";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -58,7 +59,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await pool.query("INSERT INTO agents_platform.customer_conversations(id,organization_id,deployment_id,agent_id,version_id,session_id,next_sequence) VALUES($1,$2,$3,$4,$5,$6,2)", [conversationId, scope.organizationId, deployment.id, agent.id, version.id, sessionId]);
     await pool.query("INSERT INTO agents_platform.customer_messages(id,conversation_id,sequence,author_kind,body,request_key,request_digest,ownership_generation) VALUES($1,$2,1,'visitor',$3,$4,$5,1)", [inputMessageId, conversationId, input, randomUUID(), requestDigest({ input })]);
     const binding = { customerConversationId: conversationId, ownershipGeneration: "1", inputMessageId }, authority = { product: "agents" as const, organizationId: scope.organizationId, resourceId: agent.id, callerClientId: "agents-execution", principal: { kind: "human" as const, issuer: account.issuer, subject: account.subject } };
-    const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id, operations: ["model.reply", "knowledge.read", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver"], maxInputBytes: configuration.model.maxInputBytes, maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: configuration.context.maxInputTokens, rootTokenLimit: 32000, expiresAt: new Date(Date.now() + 600_000).toISOString(), revokedAt: null });
+    const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id, operations: ["model.reply", "knowledge.read", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver"], maxInputBytes: configuration.model.maxInputBytes, maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(configuration), rootTokenLimit: 32000, expiresAt: new Date(Date.now() + 600_000).toISOString(), revokedAt: null });
     await store.createGrant({ accountId: account.id, grant });
     const admitted = await store.admitTask({ authority, versionId: version.id, grantId: grant.id, requestKey: randomUUID(), input, channelBinding: binding });
     await pool.query("UPDATE agents_platform.customer_messages SET task_id=$2 WHERE id=$1", [inputMessageId, admitted.task.id]);

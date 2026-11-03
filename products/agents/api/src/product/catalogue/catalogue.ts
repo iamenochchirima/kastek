@@ -1,5 +1,5 @@
 import { defaultConnectorRegistry, type ConnectorConfiguration } from "../../adapters/providers/connector-registry";
-import { missingSkillRequirements } from "../../capabilities/skills/requirement-authority";
+import { configurationSkillAuthority, missingSkillRequirements } from "../../capabilities/skills/requirement-authority";
 import type { SkillRequirements } from "../../capabilities/skills/requirements";
 import { z } from "zod";
 import { requestDigest, type AgentConfiguration, type AgentExecutionKind, type Product } from "../../contracts/contracts";
@@ -82,6 +82,26 @@ export interface CatalogueContext {
   bindings: readonly CapabilityBinding[]; skills?: readonly CatalogueSkill[]; now?: Date; connectorReadiness?:Record<string,{available:boolean;reasons?:{code:string;message:string}[]}>;connectorRecords?:readonly ConnectorConfiguration[];
 }
 
+function currentConnection(binding: CapabilityBinding, context: CatalogueContext): CatalogueConnection | undefined {
+  const reference = binding.connection;
+  if (!reference) return undefined;
+  const connection = context.connections.find(item => item.id === reference.id && item.profileId === reference.profileId);
+  return connection?.state === "active" && Date.parse(connection.expiresAt) > (context.now ?? new Date()).getTime() &&
+    connection.policyRevision === reference.policyRevision ? connection : undefined;
+}
+
+function connectionFailure(binding: CapabilityBinding, context: CatalogueContext): "revoked" | "expired" | "changed" | "unavailable" | undefined {
+  const reference = binding.connection;
+  if (!reference || currentConnection(binding, context)) return undefined;
+  const connection = context.connections.find(item => item.id === reference.id && item.profileId === reference.profileId);
+  if (!connection) return "unavailable";
+  if (connection.state === "revoked") return "revoked";
+  const expiresAt = Date.parse(connection.expiresAt);
+  if (!Number.isFinite(expiresAt)) return "unavailable";
+  if (expiresAt <= (context.now ?? new Date()).getTime()) return "expired";
+  return "changed";
+}
+
 function item(definition: Definition, context: CatalogueContext, pinnedDigest?: string): CatalogueItemDTO {
   const { configuration } = context;
   const capability = definition.selection?.kind === "capability" ? definition.selection : undefined;
@@ -102,9 +122,12 @@ function item(definition: Definition, context: CatalogueContext, pinnedDigest?: 
   if (configuration && !definition.executionKinds.includes(configuration.executionKind)) reasons.push({ code: "RUNTIME_UNSUPPORTED", message: "Unavailable for this agent runtime." });
   if (definition.requires.permissions.some(permission => !context.permissions.includes(permission))) reasons.push({ code: "PERMISSION_REQUIRED", message: "Agent configuration permission is required." });
   if(configuration&&definition.runtimeRequirements) {
-    const selected=context.bindings.filter(binding=>configuration.connectedToolBindingIds.includes(binding.id)).flatMap(binding=>binding.connection?[binding.connection.profileId]:[]);
-    const missing=missingSkillRequirements(definition.runtimeRequirements,configuration,selected);
-    if(Object.values(missing).some(values=>values.length))reasons.push({code:"SKILL_REQUIREMENTS_UNAVAILABLE",message:"Configure the connections and runtime required by this skill."});
+    const selected=context.bindings.filter(binding=>configuration.connectedToolBindingIds.includes(binding.id)&&currentConnection(binding,context));
+    const profiles=selected.flatMap(binding=>binding.connection?[binding.connection.profileId]:[]);
+    const permissions=configurationSkillAuthority(configuration).filter(permission=>selected.length>0||!["connected.read","connected.execute"].includes(permission));
+    const missing=missingSkillRequirements(definition.runtimeRequirements,configuration,profiles,permissions);
+    const missingLabels=[...(missing.connectionProfiles.length?["connections"]:[]),...(missing.permissions.length?["permissions"]:[]),...(missing.runtimes.length?["runtime"]:[])];
+    if(missingLabels.length)reasons.push({code:"SKILL_REQUIREMENTS_UNAVAILABLE",message:`Missing required ${missingLabels.join(", ")}.`});
   }
   const provider=definition.connectorId?context.connectorReadiness?.[definition.connectorId]:undefined;
   if(definition.connectorId && provider && !provider.available) reasons.push(...(provider.reasons?.length?provider.reasons:[{code:"CONNECTOR_UNAVAILABLE",message:"This integration is not configured on the server."}]));
@@ -112,7 +135,15 @@ function item(definition: Definition, context: CatalogueContext, pinnedDigest?: 
   if(definition.connectorId && !provider && connectorAuth && ["oidc","oauth2"].includes(connectorAuth)) reasons.push(definition.providerUnavailable??{code:"CONNECTOR_UNAVAILABLE",message:"This integration is not configured on the server."});
   if (definition.unavailableReason) reasons.push({ code: "DEPENDENCY_UNAVAILABLE", message: definition.unavailableReason });
   let state: CatalogueItemDTO["readiness"]["state"] = reasons.length ? "unavailable" : "ready";
-  if (state === "ready" && definition.requires.connectionProfiles.length && !connections.length) {
+  const selectedFailure=selectedBindings.map(binding=>connectionFailure(binding,context)).find(Boolean);
+  if (state === "ready" && selectedFailure === "changed") {
+    state="needs_configuration"; reasons.push({code:"BINDING_CHANGED",message:"Review changed connection permissions."});
+  } else if(state === "ready" && selectedFailure) {
+    state="needs_connection";
+    reasons.push(selectedFailure==="revoked" ? {code:"CONNECTION_REVOKED",message:"The selected connection was revoked. Reconnect and review access."}
+      : selectedFailure==="expired" ? {code:"CONNECTION_EXPIRED",message:"The selected connection expired. Reconnect and review access."}
+      : {code:"CONNECTION_UNAVAILABLE",message:"The selected connection is unavailable."});
+  } else if (state === "ready" && definition.requires.connectionProfiles.length && !connections.length) {
     state = "needs_connection"; reasons.push({ code: "CONNECTION_REQUIRED", message: "Connect an account and select approved resources." });
   } else if (state === "ready" && capability) {
     state = "needs_configuration"; reasons.push(definition.configurationRequired??{code:"CAPABILITY_CONFIGURATION_REQUIRED",message:"Configure the permitted actions for this agent."});
@@ -126,12 +157,13 @@ function item(definition: Definition, context: CatalogueContext, pinnedDigest?: 
   if (state === "ready" && definition.tools.some(tool => tool.startsWith("knowledge.")) && !configuration?.sourceRevisionIds.length) {
     state = "needs_configuration"; reasons.push({ code: "KNOWLEDGE_REQUIRED", message: "Select approved knowledge." });
   }
-  const action: CatalogueItemDTO["action"] = { kind: state === "unavailable" || added && !capability ? "none" : state === "needs_connection" ? "connect" : state === "needs_configuration" ? "configure" : "add" };
+  const action: CatalogueItemDTO["action"] = { kind: state === "unavailable" ? "none" : state === "needs_connection" ? "connect" : state === "needs_configuration" ? "configure" : added && !capability ? "none" : "add" };
   if (capability && state === "needs_configuration") {
     action.configurationSection = "configuration"; action.configurationSetup = capability.setup;
     if (connections.length === 1) action.connectionId = connections[0]!.id;
   }
   if(definition.connectionId)action.connectionId=definition.connectionId;
+  else if (["needs_connection", "needs_configuration"].includes(state) && selectedBindings.length && new Set(selectedBindings.map(binding => binding.connection?.id)).size === 1) action.connectionId = selectedBindings[0]!.connection!.id;
   if (definition.requires.connectionProfiles[0]) action.connectionProfileId = definition.requires.connectionProfiles[0];
   return { id: definition.id, revision: definition.revision, digest: pinnedDigest ?? requestDigest(definition), kind: definition.kind,
     ...(definition.selection?{selection:definition.selection}:{}),...(definition.connectorId?{connectorId:definition.connectorId}:{}),

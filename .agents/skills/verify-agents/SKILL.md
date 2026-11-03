@@ -147,11 +147,22 @@ acceptance limits. Passing controlled checks does not enable private phone acces
 
 ## Adaptive specialist orchestration
 
-Current Growth defaults revision5 retains revision4 rolling specialist scopes and original revisions2–4 publication identities. Verify upgrades preserve custom configurations, disabled features, selected models and accepted versions.
+Current Growth defaults, manifest and capability policy use revision11 with native operation
+adapter6. Earlier publication and accepted-task identities remain pinned. Verify upgrades preserve
+custom configurations, disabled features, selected models and accepted versions.
 
-New programv4 publications use schemas096–098, policyv2, `product-capabilities-v14` and
-`AgentsBusinessRunV24`; retain v13/V23 and older handlers for their accepted tasks. The [operation reference](../../../products/agents/docs/operations/adaptive-orchestration.md)
-is authoritative for policy, tool semantics, permissions and rollout. Select focused checks from:
+Fresh publications for every program use `product-capabilities-v15` / `AgentsBusinessRunV25`;
+current setup includes schemas099–115 and model policy compiler `model-execution-policy-v3`.
+Retain V11–V14 / V21–V24 handlers and exact earlier tool schemas for their accepted tasks. The
+[shared runtime reference](../../../products/agents/docs/operations/shared-runtime.md) records
+current identities and retention; the [orchestration reference](../../../products/agents/docs/operations/adaptive-orchestration.md)
+records tool semantics and retained policy behavior. Select focused checks from:
+
+The legacy `agents.delegate` result is presented to the coordinator through a model-only view that
+labels child reports `agent_reported` with correctness and coverage `not_assessed`; source and
+connection IDs describe permitted scope. The stored receipt and tool schema retain their original
+shape. Run `test/tool-observation-feedback.test.ts` for the view and, with an owned PostgreSQL
+fixture, the pinned specialist case in `test/platform-business.test.ts` for the parent model message.
 
 ```sh
 pnpm --filter @kasitek/agents exec vitest run --no-file-parallelism test/orchestration-contracts.test.ts test/orchestration-discovery-progress.test.ts test/adaptive-orchestration.test.ts test/continuation.test.ts test/platform-delegation-provenance.test.ts test/adaptive-specialist-skills.test.ts test/orchestration-routes.test.ts test/schema-upgrade-096.test.ts test/model-policy-snapshots.test.ts test/optional-execution-limits.test.ts test/work-continuation.test.ts test/orchestration-progress-policy.test.ts
@@ -219,3 +230,80 @@ to make a failed answer pass. Preserve failed trials separately. Grade useful de
 grounding, proportionate clarification and specialist use, correction retention and authorized effects.
 A coached correction establishes only that correction's mechanics. Model selection, live-provider
 behavior and deterministic invariants are distinct evidence; record the exact model for every trial.
+
+## Effective capabilities and discovery
+
+New publications pin `tools.discover`/`tools.load` version3; the runtime remains v15/V25. Verify
+currently authorized direct tools, selected reviewed skills and permitted specialists through the
+shared capability directory. Deferred tools have exact safe handles that load without prior
+search. Eager hints and automatic schemas are measured, and oversized loads return recoverable
+`TOOL_SCHEMA_LIMIT` before a successful receipt. Check explicit catalogue totals/omissions and
+browse/search paging; a partial page is not full capability coverage. External connection metadata
+must remain reference data, and child-only tools must not enter the parent's direct catalogue.
+
+For changed discovery/directory behavior, select the relevant cases from
+`test/progressive-tools-skills.test.ts`. The existing PostgreSQL/Restate case named
+`bootstraps a reviewed product skill` in `test/platform-business.test.ts` exercises product authority,
+selected skill loading and subsequent context through a controlled provider. These checks do not
+establish autonomous model quality. Retained version1/2 pins and request snapshots must keep their
+old schemas and selection policy; do not silently upgrade an already accepted task.
+
+Growth capability preview/apply is separate from publishing new defaults. Check current feature
+revision, reviewed target/diff, preserved custom instructions/model/resources and dependent roster
+pins. For a stale test organization, inspect applied capability revision before attributing missing
+tools to search. Normal configured restrictions and current product authorization still apply.
+
+Reuse recorded focused evidence. For this implementation milestone, run at most three ordinary
+smoke prompts across affected hosts; do not force delegation, repeat prompts to obtain a passing
+answer, switch models in a loop or run an evaluation suite. Record unsupported/unavailable
+capabilities and provider/model behavior separately from implementation defects.
+
+
+## Growth context and live reporting
+
+The optional task runtime projection and `/api/agents/tasks/:taskId/live` connection use current
+Agents operation/context/usage records, not the removed legacy timeline. Focused checks:
+
+```sh
+pnpm --filter @kasitek/agents exec vitest run test/growth-runtime-reporting.test.ts test/model-runtime-reporting.test.ts test/growth-runtime-evidence-visibility.test.ts test/model-telemetry.test.ts
+pnpm --filter @kasitek/growth-core exec tsx --test tests/growth-agent-live.test.ts tests/route-census.test.ts
+pnpm --filter @kasitek/growth-core exec tsx --tsconfig ../web/tsconfig.json --test ../web/scripts/growth-agent-stream.test.ts
+```
+
+After the Growth production build, run the runtime cases in `web/e2e/growth-agents.spec.ts` with
+`playwright.agents.config.ts`. They verify responsive light/dark rendering, streamed observations,
+fallback, scope loss, stale-response redaction and restoration. The default route fixture explicitly
+reports live transport unavailable; focused streaming cases supply controlled SSE. Neither proves
+live provider execution. Owner-authorized actual CUA should submit an ordinary request, observe
+changing native activity/context values, reload during execution and inspect final persisted history.
+Record the exact model/root task and compare the displayed measurements with native records.
+Missing timing stays unavailable; compaction need not occur in every real journey.
+
+
+## Shared agent conversation and running specialist modal
+
+The common renderer and composer are exported by `@kasitek-labs/ui/agent`. Run `pnpm test:shared` for shared controls, safe content and consumer-import checks. Growth roots and specialists use the current-authority `/activity` and `/activity/live` projection, never execution exports for inspection. Event replay and operation history use independent scope-bound cursors.
+
+Run the existing Growth agents suite and focused `products/growth/web/playwright.shared-agent-ui.config.ts` cases against a stable production build; do not rebuild/delete frontend assets during a browser run. The focused cases use isolated fixture ports and cover mobile light/dark nested dialogs, Context bounds/Escape, tool expansion, focus, no duplicate admissions and preserving reading position through live updates, completion and reopen. Run the affected standalone chat/execution, source, review and restricted customer-history cases separately.
+
+For authorized actual in-app acceptance, submit ordinary business requests without prescribing tool or specialist order. Record when the model does not delegate; it does not pass a running-child requirement. Open a real running child, observe its loaded assignment/activity, close/reopen without new task admission, and inspect the same result after completion/reload. Capture browser evidence plus native root/child/model identities. Distinguish a skeleton displaying stale parent status from a loaded authorized child observation. Model grounding and autonomous orchestration quality remain separate from presentation correctness. Preserve failed trials, and never describe a completed task as factually verified.
+
+## Agency client authority and memory
+
+For Agency changes, the existing `agency-product-runtime.test.ts` creates disposable Agency and
+Agents databases and serves both actual APIs. Its staff-command case covers strict reviewed-memory
+mutations and current client assignment. The optional browser case needs Playwright Chromium and
+an explicit Agency production artifact; build it outside the live frontend directory:
+
+```sh
+pnpm --filter tenant-portal exec vite build --outDir ../../../.audit/agency-authority-build
+AGENTS_TEST_ADMIN_URL="$AGENTS_TEST_DATABASE_URL" AGENTS_AGENCY_BROWSER=1 AGENCY_BROWSER_ASSET_ROOT="$PWD/.audit/agency-authority-build" pnpm --filter @kasitek/agents exec vitest run test/agency-product-runtime.test.ts -t 'admits actual Agency staff commands'
+```
+
+The case drives the shared Memory panel and a mobile inspection modal, revokes the actual fixture
+client assignment, and checks that terminal messages and the open child body disappear without a
+reload. It restores the assignment and requires fresh authorized reads before showing results.
+UI identity and one child-observation DTO are controlled; this does not create or prove a real
+running child. Inspect `.audit/shared-agent-ui/agency-authority/before-revocation.png` and
+`after-revocation.png`. Run only one fixture using these evidence paths at a time. The fixture closes
+its browser and APIs and removes only its owned databases.

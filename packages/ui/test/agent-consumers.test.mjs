@@ -14,6 +14,7 @@ test("agent presentation consumers use the shared public module", async () => {
     "products/agents/web/src/platform/execution-view.tsx",
     "products/agents/web/src/platform/message-content.tsx",
     "products/agency/web/src/screens/client-conversation-detail.tsx",
+    "products/agency/web/src/screens/client-agent.tsx",
     "apps/admin-site/src/app/(dashboard)/conversations/[id]/page.tsx",
   ];
   for (const path of consumers) assert.match(await source(path), /from ["']@kasitek-labs\/ui\/agent["']/, `${path} must consume the shared agent UI export`);

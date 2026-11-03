@@ -6,7 +6,9 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { defaultBusinessConfiguration, type AdmissionAuthority, type ExecutionGrant } from "../src/contracts/contracts";
 import { PlatformStore } from "../src/product/agents/store";
+import { controlPlatformAdmissions } from "../src/product/agents/platform-admission-control";
 import { setupPlatformSchema } from "../src/composition/setup";
+import { contextGrantCeiling } from "../src/execution/models/settings";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 const suite = databaseUrl ? describe : describe.skip;
@@ -39,6 +41,7 @@ suite("fresh platform PostgreSQL store", () => {
       principal: { kind: "human", issuer: account.issuer, subject: account.subject } };
     const grant: ExecutionGrant = { ...authority, id: randomUUID(), versionId: version.id, operations: ["model.reply", "knowledge.read"],
       maxInputBytes: config.model.maxInputBytes, maxOutputTokens: config.model.maxOutputTokens,
+      maxContextTokens: contextGrantCeiling(config),
       expiresAt: new Date(Date.now() + 20 * 60_000).toISOString(), revokedAt: null };
     await store.createGrant({ accountId: account.id, grant });
     return { account, org, config, agent, version, authority, grant,
@@ -123,6 +126,44 @@ suite("fresh platform PostgreSQL store", () => {
     const tokens = (await pool.query("SELECT reserved_tokens FROM agents_platform.usage_accounts WHERE organization_id=$1", [f.org.id])).rows[0].reserved_tokens;
     expect(tokens).toBe(32000);
     await expect(store.admitTask({ ...f.request, input: "Different question" })).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+  });
+
+  it("fences stale admission controls while preserving accepted roots and immutable operator receipts", async () => {
+    const f = await fixture();
+    const accepted = await store.admitTask(f.request);
+    const actor = "platform-operator-test";
+    let paused = false, revision = Number((await pool.query("SELECT revision FROM agents_platform.platform_admission_gate WHERE id=1")).rows[0].revision);
+    try {
+      const drained = await controlPlatformAdmissions(pool, { action: "drain", actor, reason: "Focused admission-gate verification", expectedRevision: revision });
+      paused = true; revision = drained.revision;
+      expect(drained).toMatchObject({ action: "drain", acceptingRoots: false, changed: true });
+      expect(drained.eventId).toMatch(/^[0-9a-f-]{36}$/);
+
+      const replay = await store.admitTask(f.request);
+      expect(replay).toMatchObject({ replayed: true, task: { id: accepted.task.id } });
+      await expect(store.admitTask({ ...f.request, requestKey: "new-root-during-drain" }))
+        .rejects.toMatchObject({ code: "PLATFORM_ADMISSIONS_PAUSED" });
+      expect((await pool.query("SELECT count(*)::int n FROM agents_platform.tasks WHERE organization_id=$1", [f.org.id])).rows[0].n).toBe(1);
+
+      const staleRevision = revision;
+      const repeatedDrain = await controlPlatformAdmissions(pool, { action: "drain", actor, reason: "Repeated drain command", expectedRevision: revision });
+      revision = repeatedDrain.revision;
+      expect(repeatedDrain).toMatchObject({ acceptingRoots: false, changed: false });
+      expect(repeatedDrain.eventId).toMatch(/^[0-9a-f-]{36}$/);
+      await expect(controlPlatformAdmissions(pool, { action: "resume", actor, reason: "Stale resume", expectedRevision: staleRevision }))
+        .rejects.toMatchObject({ code: "ADMISSION_CONTROL_REVISION_CONFLICT", statusCode: 409 });
+      const resumed = await controlPlatformAdmissions(pool, { action: "resume", actor, reason: "Verification complete", expectedRevision: revision });
+      revision = resumed.revision; paused = false;
+      expect(resumed).toMatchObject({ action: "resume", acceptingRoots: true, changed: true });
+      const admitted = await store.admitTask({ ...f.request, requestKey: "new-root-after-resume" });
+      expect(admitted.replayed).toBe(false);
+      expect((await pool.query("SELECT action,revision,actor FROM agents_platform.platform_admission_gate_events ORDER BY revision")).rows)
+        .toEqual([{ action: "drain", revision: String(drained.revision), actor }, { action: "drain", revision: String(repeatedDrain.revision), actor }, { action: "resume", revision: String(resumed.revision), actor }]);
+      await expect(pool.query("DELETE FROM agents_platform.platform_admission_gate_events WHERE revision=$1", [drained.revision]))
+        .rejects.toMatchObject({ code: "23514" });
+    } finally {
+      if (paused) await controlPlatformAdmissions(pool, { action: "resume", actor, reason: "Test cleanup", expectedRevision: revision });
+    }
   });
 
   it("serializes three concurrent admissions to the two-task limit without partial rows", async () => {

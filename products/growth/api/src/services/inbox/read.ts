@@ -45,10 +45,14 @@ export async function listInboxConversations(
   options: InboxOptions,
 ) {
   const conversations = arr(
-    (await options.whatsapp.listInboxConversations(pool, orgId)).conversations,
+    (await options.whatsapp.listInboxConversations(pool, orgId,options.captureReadSource)).conversations,
   ).map(obj);
-  for (const row of (await pool.query(sql.LIST_INBOX_CONVERSATIONS_0, [orgId]))
+  const socialSql=options.captureReadSource?sql.LIST_INBOX_CONVERSATIONS_0.replace("last_message.content AS last_message_content", "last_message.content AS last_message_content, last_message.id AS access_message_id, connection.id AS access_external_connection_id")
+    .replace("SELECT m.content", "SELECT m.id, m.content"):sql.LIST_INBOX_CONVERSATIONS_0;
+  for (const row of (await pool.query(socialSql, [orgId]))
     .rows)
+    {
+    options.captureReadSource?.({conversationId:row.id,messageId:row.access_message_id??null,connectionId:row.channel_connection_id??null,connectionKind:"social",externalConnectionId:row.access_external_connection_id??null});
     conversations.push({
       id: row.id,
       channel: row.channel,
@@ -65,8 +69,13 @@ export async function listInboxConversations(
       connectionLabel: row.channel_label,
       lastMessage: row.last_message_content ?? 'No messages yet',
     });
-  for (const row of (await pool.query(sql.LIST_INBOX_CONVERSATIONS_1, [orgId]))
+    }
+  const emailSql=options.captureReadSource?sql.LIST_INBOX_CONVERSATIONS_1.replace("last_message.content AS last_message_content,", "last_message.content AS last_message_content, last_message.id AS access_message_id, source.id AS access_external_connection_id,")
+    .replace("SELECT m.content,", "SELECT m.id, m.content,"):sql.LIST_INBOX_CONVERSATIONS_1;
+  for (const row of (await pool.query(emailSql, [orgId]))
     .rows)
+    {
+    options.captureReadSource?.({conversationId:row.id,messageId:row.access_message_id??null,connectionId:row.access_external_connection_id??null,connectionKind:"external"});
     conversations.push({
       id: row.id,
       channel: 'email',
@@ -85,6 +94,7 @@ export async function listInboxConversations(
       subject: row.last_message_subject ?? '(no subject)',
       from: row.last_message_from,
     });
+    }
   const time = (value: unknown) =>
     value instanceof Date ? value.toISOString() : (str(value) ?? '');
   conversations.sort((a, b) => {

@@ -52,8 +52,9 @@ function omit(coverage: Coverage, key: keyof Coverage, reason: string) {
   if (!value.omissions.includes(reason)) value.omissions.push(reason);
 }
 const integer = (value: unknown): number | null => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+const privateProductEffect=(row:OperationRow)=>Boolean(row.request?.productBindingId&&row.request?.productReviewId);
 const receipt = (row: OperationRow) => ({ operationId: row.id, name: row.name, kind: row.kind, state: row.state,
-  request: row.request, output: row.output, errorCode: row.error_code });
+  request: row.request, output: privateProductEffect(row)?null:row.output, errorCode: row.error_code });
 
 /** Pair only the worker's persisted model/step/index identity, never text in a later prompt. */
 export function exportModelCalls(taskId: string, operations: OperationRow[], children: { id: string; parent_task_id: string | null; delegation_operation_id: string | null }[], coverage: Coverage, models: { primary: Pick<AcceptedModelRoutes["primary"], "binding" | "policy"> }): NativeModelCall[] {
@@ -97,8 +98,9 @@ export function exportModelCalls(taskId: string, operations: OperationRow[], chi
       const observations = observedGroup.filter(message => message.tool_call_id === call.id);
       const observed = observations.length === 1 ? observations[0] : undefined;
       if (!observed) omit(coverage, "toolResults", "Native receipt has no exact recorded model-visible tool observation");
+      if(privateProductEffect(tool))omit(coverage,"toolResults","Private product effect receipt is retained but not exported");
       toolResults.push({ toolCallId: call.id, operationId: tool.id, name: call.function.name, state: tool.state,
-        content: observed ? observed.content : null, observedByOperationId: observed ? next!.id : null, nativeOutput: tool.output, errorCode: tool.error_code,
+        content: observed ? observed.content : null, observedByOperationId: observed ? next!.id : null, nativeOutput: privateProductEffect(tool)?null:tool.output, errorCode: tool.error_code,
         childTaskIds: children.filter(child => child.parent_task_id === taskId && child.delegation_operation_id === tool.id).map(child => child.id) });
     }
     calls.push({ operationId: row.id, step: Number(match[1]), model: models.primary.binding.modelId, state: row.state, modelBinding: models.primary.binding, effectivePolicy: models.primary.policy,
@@ -171,6 +173,7 @@ export async function exportExecutionHistory(pool: Pool, rootTaskId: string, aut
       }
       const operations: OperationRow[] = authorized ? (await db.query("SELECT * FROM agents_platform.operations WHERE task_id=$1 ORDER BY started_at,id LIMIT 4097", [task.id])).rows : [];
       if (operations.length > 4096) throw new PlatformError("EXPORT_LIMIT", 413, "Execution history exceeds the export limit");
+      if(operations.some(row=>privateProductEffect(row)&&!row.id.startsWith("tool:")))omit(coverage,"toolResults","Private product effect receipt is retained but not exported");
       tasks.push({ id: task.id, agentId: task.agent_id, versionId: task.version_id, effectiveComposition: task.effective_composition, parentTaskId: task.parent_task_id, parentOperationId: task.delegation_operation_id ?? null, state: task.state,
         productBindings:authorized?(await db.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1",[task.version_id])).rows[0]?.configuration?.productBindings??[]:[],
         input: authorized ? task.input : null, output: authorized ? task.output : null,

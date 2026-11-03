@@ -1,7 +1,8 @@
+import { contextGrantCeiling } from "../../execution/models/settings";
 import { createHash,randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import {
-agentConfigurationSchema,
+agentConfigurationSchema,connectedToolAuthorityIds,sourceAuthorityIds,
 assertRuntimeAvailable,
 executionGrantSchema,
 parseAllowedOrigin,normalizeWebsiteDomain,PlatformError,
@@ -12,6 +13,7 @@ type ExecutionGrant
 import type { VersionRecord, WebsiteDeployment } from "../../contracts/records";
 import { assertPublicSkillPolicy } from "../../capabilities/skills/public-policy";
 import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
+import { delegatedConfiguration } from "../../execution/delegation/scope";
 import { loadBookingPolicy } from "../../workflows/booking/policy";
 import { AuthorityStore } from "../../execution/admission/authority-store";
 
@@ -67,16 +69,36 @@ export class DeploymentStore extends AuthorityStore {
   async assertWebsiteConfigurationInTransaction(db:PoolClient,input:{organizationId:string;agentId:string;version:VersionRecord}):Promise<void> {
       const {version}=input;
       if(version.organization_id!==input.organizationId||version.agent_id!==input.agentId)denied();
-      if (version.configuration.capabilities.delegation.enabled || version.configuration.capabilities.sandbox.enabled || version.configuration.capabilities.workflows.enabled) throw new PlatformError("WEBSITE_CAPABILITY_DENIED",409,"Website agents cannot delegate or run analysis");
+      if (version.configuration.capabilities.sandbox.enabled || version.configuration.capabilities.workflows.enabled) throw new PlatformError("WEBSITE_CAPABILITY_DENIED",409,"Customer agents cannot run analysis or private workflows");
       assertRuntimeAvailable(version.configuration);
       const websiteConfig = agentConfigurationSchema.parse(version.configuration);
       if (websiteConfig.memory.enabled || websiteConfig.tools.some(name=>name.startsWith("memory.")))
         throw new PlatformError("PRIVATE_AGENT_CONFIGURATION",409,"Website agents cannot use personal memory or protected skills");
       await assertPublicSkillPolicy(db,input.organizationId,input.agentId,websiteConfig.skillIds);
-      await assertCustomerNativeBindings(db,input.organizationId,websiteConfig.connectedToolBindingIds);
+      await assertCustomerNativeBindings(db,input.organizationId,connectedToolAuthorityIds(websiteConfig));
+      await this.assertCustomerSubtreeInTransaction(db,version,websiteConfig,new Set());
       if(websiteConfig.capabilities.businessActions.enabled)await loadBookingPolicy(db,input.organizationId,input.agentId,websiteConfig.capabilities.businessActions);
       if ((await db.query(`SELECT 1 FROM agents_platform.version_sources v JOIN agents_platform.sources s ON s.id=v.source_id
         JOIN agents_platform.source_revision_policy p ON p.revision_id=v.revision_id WHERE v.version_id=$1 AND (s.state<>'active' OR s.visibility<>'public' OR p.state<>'approved')`, [version.id])).rowCount) throw new PlatformError("PRIVATE_KNOWLEDGE", 409, "Website agents require approved public knowledge");
+  }
+  private async assertCustomerSubtreeInTransaction(db:PoolClient,version:VersionRecord,configuration:VersionRecord["configuration"],trail:Set<string>):Promise<void> {
+    if(trail.has(version.id))throw new PlatformError("DELEGATION_SCOPE_DENIED",409,"Specialist publication contains a cycle");
+    if(configuration.memory.enabled || configuration.capabilities.sandbox.enabled || configuration.capabilities.workflows.enabled ||
+       configuration.productBindings.length || configuration.commissionableProductBindings?.length || configuration.tools.some(name=>name.startsWith("memory.")))
+      throw new PlatformError("PRIVATE_AGENT_CONFIGURATION",409,"Customer specialists require public capabilities");
+    await assertPublicSkillPolicy(db,version.organization_id,version.agent_id,configuration.skillIds);
+    await assertCustomerNativeBindings(db,version.organization_id,connectedToolAuthorityIds(configuration));
+    if((await db.query(`SELECT 1 FROM agents_platform.source_revisions r JOIN agents_platform.sources s ON s.id=r.source_id
+      JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id WHERE r.organization_id=$1 AND r.id=ANY($2::uuid[])
+      AND (s.state<>'active' OR s.visibility<>'public' OR p.state<>'approved')`,[version.organization_id,sourceAuthorityIds(configuration)])).rowCount)
+      throw new PlatformError("PRIVATE_KNOWLEDGE",409,"Customer specialists require approved public knowledge");
+    if(configuration.capabilities.delegation.enabled) {
+      const next=new Set([...trail,version.id]);
+      for(const binding of configuration.capabilities.delegation.bindings) {
+        const child=await this.version(db,version.organization_id,binding.versionId);
+        await this.assertCustomerSubtreeInTransaction(db,child,delegatedConfiguration(configuration,binding,agentConfigurationSchema.parse(child.configuration)),next);
+      }
+    }
   }
   async getWebsiteDeployment(deploymentId: string): Promise<WebsiteDeployment> {
     return (await this.pool.query<WebsiteDeployment>("SELECT * FROM agents_platform.website_deployments WHERE id=$1 AND revoked_at IS NULL", [deploymentId])).rows[0] ?? absent();
@@ -91,8 +113,8 @@ export class DeploymentStore extends AuthorityStore {
       assertRuntimeAvailable(version.configuration);
       const grant = executionGrantSchema.parse({ id: randomUUID(), product: "agents", organizationId: deployment.organization_id,
         resourceId: deployment.id, callerClientId: "agents-website", principal: { kind: "visitor", deploymentId: deployment.id, sessionId: input.sessionId },
-        versionId: version.id, operations: ["model.reply", "knowledge.read", ...(version.configuration.capabilities.enquiries?.enabled?["enquiry.submit",...(version.configuration.tools.includes("enquiry.read")?["enquiry.read"]:[]),...(version.configuration.tools.includes("enquiry.amend")?["enquiry.amend"]:[])]:[]), ...(version.configuration.connectedToolBindingIds.length?["connected.read","connected.execute"]:[]), ...(version.configuration.skillIds.length?["skill.read"]:[]),...(version.configuration.capabilities.businessActions.enabled?["booking.read",...(version.configuration.capabilities.businessActions.permittedOperations.includes("calendar.book")?["booking.execute"]:[])]:[]), ...(version.configuration.tools.includes("channel.request_handoff") ? ["channel.handoff"] : [])], sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: version.configuration.connectedToolBindingIds,
-        maxInputBytes: version.configuration.model.maxInputBytes, maxOutputTokens: version.configuration.model.maxOutputTokens, maxContextTokens:version.configuration.context.maxInputTokens,
+        versionId: version.id, operations: ["model.reply", "knowledge.read",...(version.configuration.capabilities.delegation.enabled?["delegation.execute"]:[]), ...(version.configuration.capabilities.enquiries?.enabled?["enquiry.submit",...(version.configuration.tools.includes("enquiry.read")?["enquiry.read"]:[]),...(version.configuration.tools.includes("enquiry.amend")?["enquiry.amend"]:[])]:[]), ...(connectedToolAuthorityIds(version.configuration).length?["connected.read","connected.execute"]:[]), ...(version.configuration.skillIds.length?["skill.read"]:[]),...(version.configuration.capabilities.businessActions.enabled?["booking.read",...(version.configuration.capabilities.businessActions.permittedOperations.includes("calendar.book")?["booking.execute"]:[])]:[]), ...(version.configuration.tools.includes("channel.request_handoff") ? ["channel.handoff"] : [])], sourceRevisionIds: sourceAuthorityIds(version.configuration), connectedToolBindingIds: connectedToolAuthorityIds(version.configuration),
+        maxInputBytes: version.configuration.model.maxInputBytes, maxOutputTokens: version.configuration.model.maxOutputTokens, maxContextTokens:contextGrantCeiling(version.configuration),
         ...(input.rootTokenLimit?{rootTokenLimit:input.rootTokenLimit}:{}),
         expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), revokedAt: null });
       return this.insertGrant(db, grant);
@@ -115,10 +137,10 @@ export class DeploymentStore extends AuthorityStore {
     const config = agentConfigurationSchema.parse(version.configuration);
     const grant = executionGrantSchema.parse({ id: randomUUID(), product: "agents", organizationId: deployment.organization_id,
       resourceId: deployment.id, callerClientId: "agents-channel", principal: { kind: "channel_customer", deploymentId: deployment.id, participantId: input.participantId },
-      versionId: version.id, operations: ["model.reply", "knowledge.read", ...(config.connectedToolBindingIds.length?["connected.read","connected.execute"]:[]), ...(config.skillIds.length ? ["skill.read"] : []),
+      versionId: version.id, operations: ["model.reply", "knowledge.read",...(config.capabilities.delegation.enabled?["delegation.execute"]:[]), ...(connectedToolAuthorityIds(config).length?["connected.read","connected.execute"]:[]), ...(config.skillIds.length ? ["skill.read"] : []),
         ...(config.capabilities.businessActions.enabled ? ["booking.read", ...(config.capabilities.businessActions.permittedOperations.includes("calendar.book")?["booking.execute"]:[])] : []), ...(config.capabilities.enquiries?.enabled ? ["enquiry.submit",...(config.tools.includes("enquiry.read")?["enquiry.read"]:[]),...(config.tools.includes("enquiry.amend")?["enquiry.amend"]:[])] : []), ...(config.tools.includes("channel.request_handoff") ? ["channel.handoff"] : [])],
-      sourceRevisionIds: config.sourceRevisionIds, connectedToolBindingIds: config.connectedToolBindingIds, maxInputBytes: config.model.maxInputBytes,
-      maxOutputTokens: config.model.maxOutputTokens, maxContextTokens: config.context.maxInputTokens,
+      sourceRevisionIds: sourceAuthorityIds(config), connectedToolBindingIds: connectedToolAuthorityIds(config), maxInputBytes: config.model.maxInputBytes,
+      maxOutputTokens: config.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(config),
       ...(input.rootTokenLimit===undefined?{}:{rootTokenLimit:input.rootTokenLimit}),
       expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), revokedAt: null });
     return this.insertGrant(db, grant);

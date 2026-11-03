@@ -1,0 +1,55 @@
+import { randomUUID, createHash } from "node:crypto";
+import { Pool } from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { setupPlatformSchema } from "../src/composition/setup";
+import { PlatformStore } from "../src/product/agents/store";
+import { defaultBusinessConfiguration } from "../src/contracts/contracts";
+import { MemoryStore } from "../src/execution/memory/memory";
+import { purgeMemoryRevisionContent, exportMemoryDeletionLedger, replayMemoryDeletionLedger } from "../src/execution/memory/retention";
+import { dropClosedTestDatabase } from "./support/database-cleanup";
+
+const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
+(databaseUrl ? describe : describe.skip)("memory retention", () => {
+  let admin: Pool, pool: Pool;
+  const database = `agents_memory_retention_${randomUUID().replaceAll("-", "")}`;
+  beforeAll(async () => {
+    admin = new Pool({connectionString:databaseUrl}); await admin.query(`CREATE DATABASE "${database}"`);
+    const url = new URL(databaseUrl!); url.pathname = `/${database}`;
+    pool = new Pool({connectionString:url.href}); await setupPlatformSchema(pool);
+  });
+  afterAll(async () => { await pool?.end(); if(admin){await dropClosedTestDatabase(admin,database);await admin.end();} });
+  it("prunes old revision bodies without losing Forget suppression, and fences a restored memory", async () => {
+    const platform = new PlatformStore(pool), memory = new MemoryStore(pool);
+    const account = await platform.ensureAccount({issuer:"http://localhost/retention",subject:randomUUID(),email:"retention@example.test",displayName:"Retention"});
+    const organization = await platform.createOrganization(account.id,"Retention");
+    const agent = await platform.createAgent({accountId:account.id,organizationId:organization.id,name:"Retention",configuration:defaultBusinessConfiguration()});
+    const scope={accountId:account.id,organizationId:organization.id,agentId:agent.id};
+    const candidate=await memory.proposeManaged(scope,{operationId:randomUUID(),kind:"semantic",content:"Original preference"});
+    const accepted=await memory.mutate(scope,candidate.id,{operationId:randomUUID(),expectedRevision:1,action:"accept"});
+    const corrected=await memory.mutate(scope,candidate.id,{operationId:randomUUID(),expectedRevision:accepted.revision,action:"correct",content:"Current preference"});
+    expect(await purgeMemoryRevisionContent(pool)).toBe(0);
+    await pool.query("UPDATE agents_platform.memory_revisions SET superseded_at=now()-interval '31 days' WHERE memory_id=$1 AND revision<$2",[candidate.id,corrected.revision]);
+    expect(await purgeMemoryRevisionContent(pool)).toBe(2);
+    expect((await memory.list(scope)).memories[0].content).toBe("Current preference");
+    await memory.mutate(scope,candidate.id,{operationId:randomUUID(),expectedRevision:corrected.revision,action:"forget"});
+    expect(await purgeMemoryRevisionContent(pool)).toBe(1);
+    await expect(memory.proposeManaged(scope,{operationId:randomUUID(),kind:"semantic",content:"Original preference"})).rejects.toMatchObject({code:"MEMORY_SUPPRESSED"});
+    expect((await pool.query("SELECT count(*)::int n FROM agents_platform.memory_revisions WHERE memory_id=$1 AND content<>''",[candidate.id])).rows[0].n).toBe(0);
+    expect((await pool.query("SELECT purged_at FROM agents_platform.memory_deletion_tombstones WHERE memory_id=$1",[candidate.id])).rows[0].purged_at).toBeTruthy();
+    const ledger=await exportMemoryDeletionLedger(pool);
+    expect(ledger[0].fingerprints.some(f=>f.content_digest===createHash("sha256").update("Original preference").digest("hex"))).toBe(true);
+    const oldGeneration=(await memory.list(scope)).generation;
+    expect(await replayMemoryDeletionLedger(pool,ledger)).toBe(1);
+    expect(await replayMemoryDeletionLedger(pool,ledger)).toBe(1);
+    expect((await memory.list(scope)).generation).toBe(oldGeneration);
+    const other=await memory.proposeManaged(scope,{operationId:randomUUID(),kind:"semantic",content:"Restored stale preference"});
+    const originalDigest=createHash("sha256").update(other.content).digest("hex");
+    const namespace=(await memory.list(scope)).scope;
+    await pool.query("SELECT agents_platform.restore_memory_forget($1,$2,now(),$3::jsonb)",[other.id,namespace.id,JSON.stringify([{revision:other.revision,content_digest:originalDigest}])]);
+    expect((await memory.list(scope)).candidates).toHaveLength(0);
+    await expect(memory.proposeManaged(scope,{operationId:randomUUID(),kind:"semantic",content:other.content})).rejects.toMatchObject({code:"MEMORY_SUPPRESSED"});
+    await purgeMemoryRevisionContent(pool);
+    expect((await pool.query("SELECT content,status FROM agents_platform.memories WHERE id=$1",[other.id])).rows[0]).toEqual({content:"",status:"forgotten"});
+    await expect(pool.query("SELECT agents_platform.replay_memory_deletion_ledger($1::jsonb)",[JSON.stringify([{memoryId:other.id}])])).rejects.toThrow("Invalid memory deletion entry");
+  });
+});

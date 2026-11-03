@@ -1,7 +1,7 @@
 ---
 title: Growth agent access operations
 owner: engineering
-last_reviewed: 2026-11-02
+last_reviewed: 2026-11-03
 ---
 
 # Growth agent access operations
@@ -15,8 +15,10 @@ are [MCP integration](https://docs.kasitek.co.za/api/mcp-integration) and
 
 The [coverage matrix](../architecture/growth-operations.md) records implemented operation families
 and exclusions. [ADR 0001](https://github.com/Kasitek-Labs/kastek/blob/main/products/growth/docs/adr/0001-growth-owned-delegation-and-operation-parity.md) records
-the ownership decision. Managed defaults and publication both target revision `8` (adapter release `5`); retained
-requests at revisions `2`–`7` keep their matching publication. Upgrade an existing workspace
+the ownership decision. Managed defaults and publication target revision `11` (adapter release `6`);
+retained requests at revisions `2`–`10` keep their matching publication and adapter. Revision `11`
+lets the Assistant delegate to all three specialists and lets Content/Campaigns delegate focused
+evidence work to Research. Upgrade an existing workspace
 explicitly with `pnpm --filter @kasitek/growth-core agents:setup upgrade-defaults <organization-id>`;
 the setup worker must be running. Customized selections and existing task versions remain pinned.
 
@@ -50,6 +52,18 @@ Analytics separately requires `services/analytics/migrations/20261101160000_grow
 to permit the existing `core-customer-analytics` producer's Growth namespace. Its registry version
 is `20261101.1`. This is a separate product database migration; it preserves unrelated grants.
 Apply it through the Analytics release process before enabling lifecycle ingestion.
+
+The internal read-access protocol additionally requires the Growth Prisma migration
+`20261103100000_growth_read_access_handles`. It widens the existing source-handle ID check
+to admit separate receipt and access-scope namespaces while preserving existing handles.
+Apply it before starting any worker that requests `access-v1` or `effect-status-v1`; the local restoration described
+below does not establish that this newer migration has been applied.
+
+The same private handle store records a saved-review status scope for reviewed effects. It verifies
+the current actor, tenant, operation entitlement, exact review identity and saved state; it does not
+grant access to the review's private input, preview or result. Embedded media-transfer preparation
+also records its actor-owned transfer and expiry; failed, finalized or expired transfers cannot be
+reused in model context. Direct REST transfer behavior is unchanged.
 
 The Prisma migrations mirror API SQL. Do not run both copies against the same schema. Code changes do not automatically apply migrations. During local restoration, the three additive
 Growth migrations were explicitly applied to the current local API database on port `5433`, without
@@ -106,10 +120,53 @@ workspace, account owner and platform; token maintenance may rotate credentials 
 that identity. Workers check connection status and delegated authorization separately before provider
 calls. Existing domain status/retry rules remain authoritative for provider outcomes.
 
+Reviewed actions that depend on an existing post, publishing account, contact and list membership,
+conversation, or external connection also pin independent database revisions for those resources. These revisions
+advance for every database writer, independently of the millisecond `updatedAt` audit timestamp.
+The owning operation checks the pinned revision under its row lock or atomic claim; a concurrent
+change requires a new review. The revision is private and is stored as an exact decimal string in
+the review snapshot or its account digest. The older draft-review path also includes the publishing
+account revision in its digest. A previously proposed or approved review without the new revision
+contract requires a new review. Succeeded, executing and uncertain actions retain their existing
+receipt and status-only reconciliation path; a missing old revision never authorizes another external
+send. Existing product clients that supply only `expectedUpdatedAt` still use their timestamp
+precondition; this change does not turn those clients into revision-based compare-and-swap writes.
+An exhausted 64-bit revision rejects the update instead of wrapping.
+
 Observations are bounded to an 8 KiB envelope. Larger JSON uses digest-bound continuation chunks,
 with a 2 MiB total ceiling. Media transfers stage bytes separately and bind transfer identity to
 workspace, user and credential; staging alone cannot publish. Exact provider readiness, scheduled
 worker restarts and reconciliation require their own provider acceptance checks.
+
+For canonical Growth reads, a shared worker may request the internal `access-v1` observation
+protocol. Growth captures the authorized resource identities before result chunking, then returns
+an opaque private receipt and a reusable authorization scope. Both remain outside the model-visible
+result. Receipt identity binds the original task and operation; a retry with changed arguments,
+result or source identities is rejected. The reusable scope binds the actor, conversation, pinned
+operation and resource identities, so repeated reads of the same scope do not create a new policy
+dependency each time. Growth stores these references in `GrowthAgentSourceHandle` without copying
+the returned content.
+
+A read scope may contain at most 131,072 distinct resource and relationship references; the
+existing 2 MiB source-result ceiling also applies. A result above either bound is unavailable.
+Reference retention beyond the existing organization and user cascading deletes has not yet been
+established.
+
+An evidence check verifies the actor's current membership and operation entitlement, the original
+binding and conversation, and each captured resource or relationship. Reporting checks resolve the
+current product scope and issue the same actor-scoped grant without running the report again. Exact
+review ownership and entitlement are checked without repeating any reviewed effect. This protocol
+confirms current access to an observed result; it does not claim the business content is unchanged,
+create source citations or guarantee provider unlearning. Read results whose identities cannot be
+established are unavailable. A media preview reference expires with its signed URL. Inbox summaries
+retain the identity of the message that supplied their preview; messages with unattributable quoted
+text or withdrawn message content fail closed.
+
+`access-v1` is optional on the signed internal invocation. Older workers receive the previous
+response shape. New workers must treat a missing or invalid negotiated reference as unavailable and
+must preserve the reference and information audience before exposing the result to a model. Exact
+write-review, commit and reconciliation responses are not covered by this read protocol; their
+separate current-authority and receipt checks remain in force.
 
 Draft created/updated webhook events originate in canonical dispatch, so successful receipt
 replay does not enqueue them again on a typed alias. Enqueue failure is logged without turning

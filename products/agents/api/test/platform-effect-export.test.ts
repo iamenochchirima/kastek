@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import { randomUUID, randomBytes } from "node:crypto";
@@ -46,7 +47,7 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     const agent = await platform.createAgent({ ...scope, name: "Reporter", configuration });
     const version = await platform.createVersion({ ...scope, agentId: agent.id, expectedRevision: 1 });
     const authority = { product: "agents" as const, organizationId: org.id, resourceId: agent.id, callerClientId: "agents-execution", principal: { kind: "human" as const, issuer: account.issuer, subject: account.subject } };
-    const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id, sourceRevisionIds: [source.id], operations: ["model.reply", "knowledge.read", "artifact.read", "artifact.write", "effect.deliver"], maxInputBytes: configuration.model.maxInputBytes, maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: configuration.context.maxInputTokens, expiresAt: new Date(Date.now() + 60000).toISOString(), revokedAt: null });
+    const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id, sourceRevisionIds: [source.id], operations: ["model.reply", "knowledge.read", "artifact.read", "artifact.write", "effect.deliver"], maxInputBytes: configuration.model.maxInputBytes, maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(configuration), expiresAt: new Date(Date.now() + 60000).toISOString(), revokedAt: null });
     await platform.createGrant({ accountId: account.id, grant });
     const { task } = await platform.admitTask({ authority, versionId: version.id, grantId: grant.id, requestKey: randomUUID(), input: "Prepare fixture report" });
     const evidence = new EvidenceStore(pool, artifacts.objects), knowledgeId = `knowledge:${task.id}:initial`;

@@ -26,12 +26,13 @@ export interface ExecutionPolicyLayer {
   kind: ExecutionPolicyLayerKind;
   reference: string;
   limits: Partial<ExecutionPolicyLimits>;
+  contextMode?:"automatic";
   attestedModelCaps?: Partial<Record<ModelCapacityKey, AttestedModelCeiling>>;
   priceCeiling?: ExecutionPriceCeiling;
 }
 
 export interface PolicyLimitSource {
-  kind: ExecutionPolicyLayerKind | "model" | "attestation";
+  kind: ExecutionPolicyLayerKind | "model" | "attestation" | "derived";
   reference: string;
   value: number | null;
   metadata?: MetadataSource | null;
@@ -74,6 +75,7 @@ const layerSchema = z.strictObject({
   kind: z.enum(["platform", "product", "tenant", "agent"]),
   reference: z.string().trim().min(1).max(2048),
   limits: limitsSchema,
+  contextMode:z.literal("automatic").optional(),
   attestedModelCaps: z.strictObject({
     contextTokens: ceilingSchema.optional(), maxInputTokens: ceilingSchema.optional(), maxOutputTokens: ceilingSchema.optional(),
   }).optional(),
@@ -85,6 +87,7 @@ const layerSchema = z.strictObject({
   if (layer.kind !== "platform" && (layer.attestedModelCaps !== undefined || layer.priceCeiling !== undefined)) {
     context.addIssue({ code: "custom", message: "Only the platform may attest model capacity or pricing" });
   }
+  if(layer.contextMode&&layer.kind!=="agent")context.addIssue({code:"custom",message:"Automatic context is an agent configuration mode"});
   const limits = layer.limits;
   if (limits.contextTokens !== undefined &&
     BigInt(limits.maxInputTokens ?? 0) + BigInt(limits.maxOutputTokens ?? 0) + BigInt(limits.safetyTokens ?? 0) > BigInt(limits.contextTokens)) {
@@ -101,7 +104,7 @@ const layerSchema = z.strictObject({
 
 const fields = Object.keys(limitShape).sort() as (keyof ExecutionPolicyLimits)[];
 const capacityFields: readonly ModelCapacityKey[] = ["contextTokens", "maxInputTokens", "maxOutputTokens"];
-const compilerRevision = "model-execution-policy-v2";
+const compilerRevision = "model-execution-policy-v3";
 const optionalAllowanceFields = new Set<keyof ExecutionPolicyLimits>([
   "maxModelCalls", "maxToolCalls", "maxRootModelCalls", "maxRootToolCalls", "maxRootTokens", "maxDurationMs", "maxWallDurationMs", "maxCostMicros",
 ]);
@@ -162,6 +165,22 @@ export function compileEffectiveExecutionPolicy(
     const value = values.length ? (rule === "maximum" ? Math.max(...values) : Math.min(...values)) : null;
     Object.assign(resolved, { [field]: value });
     decisions.push({ field, value, rule, sources });
+  }
+
+  if(parsed.some(layer=>layer.contextMode==="automatic")){
+    const context=resolved.contextTokens!,output=resolved.maxOutputTokens!,safety=resolved.safetyTokens!;
+    const input=Math.min(resolved.maxInputTokens!,context-output-safety,
+      ...(resolved.maxRootTokens===null?[]:[resolved.maxRootTokens!-output]));
+    if(!Number.isSafeInteger(input)||input<2)throw new Error("The selected model cannot fit the configured output and context reserves");
+    const derived=(field:"maxInputTokens"|"compactAtTokens",value:number,reference:string)=>{
+      resolved[field]=value;
+      const decision=decisions.find(item=>item.field===field)!;decision.value=value;
+      decision.sources=[...decision.sources,{kind:"derived" as const,reference,value}].sort((a,b)=>canonicalJson(a)<canonicalJson(b)?-1:canonicalJson(a)>canonicalJson(b)?1:0);
+    };
+    derived("maxInputTokens",input,"automatic-context-v1:selected-window-minus-output-and-safety-with-service-product-ceilings");
+    const ratio=platform.limits.compactAtTokens!/platform.limits.maxInputTokens!;
+    const threshold=Math.max(1,Math.min(resolved.compactAtTokens!,input-1,Math.floor(input*ratio)));
+    derived("compactAtTokens",threshold,"automatic-context-v1:service-compaction-headroom-proportion");
   }
 
   const pricing = resolvePricing(model, platform as ExecutionPolicyLayer);

@@ -98,6 +98,24 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await finishOperation(pool,task!.id,input.id,'uncertain',null,'PREVIOUS_OUTCOME_UNCERTAIN',0,second.operation.attempt_id);
   expect(await finishOperation(pool,task!.id,input.id,'completed',{answer:'Late'},null,0,second.operation.attempt_id)).toMatchObject({state:'uncertain',output:null,error_code:'PREVIOUS_OUTCOME_UNCERTAIN'});
  });
+ it('fences stale interrupted effects while retaining completed receipts and status-only recovery',async()=>{
+  const [task]=await tasks(),request={instructionHead:'0'};
+  const inputs=['tool','delegation'].map(kind=>({id:randomUUID(),kind:kind as 'tool'|'delegation',name:kind==='tool'?'records.update':'agents.start',request,
+   instructionHead:'0',reservedTokens:0,reservedMs:1000,retrySafe:true}));
+  const completed={...inputs[0]!,id:randomUUID()},reconciled={...inputs[0]!,id:randomUUID(),retrySafe:false,reconcile:true};
+  for(const input of [...inputs,completed,reconciled])await beginOperation(pool,task!.id,input);
+  await finishOperation(pool,task!.id,completed.id,'completed',{receipt:'existing'},null,0);
+  await pool.query("INSERT INTO agents_platform.orchestration_instructions(task_id,request_key,instruction) VALUES($1,$2,'Stop the old action')",[task!.id,randomUUID()]);
+  for(const input of inputs){
+   expect(await beginOperation(pool,task!.id,input)).toMatchObject({replayed:true,operation:{state:'uncertain',error_code:'OPERATION_OUTCOME_UNCERTAIN'}});
+   expect((await pool.query("SELECT count(*)::int n FROM agents_platform.task_events WHERE task_id=$1 AND kind='operation.retried' AND payload->>'operationId'=$2",[task!.id,input.id])).rows[0].n).toBe(0);
+  }
+  expect(await beginOperation(pool,task!.id,completed)).toMatchObject({replayed:true,operation:{state:'completed',output:{receipt:'existing'}}});
+  const recovery=await beginOperation(pool,task!.id,reconciled);
+  expect(recovery).toMatchObject({replayed:false,recovering:true});
+  await finishOperation(pool,task!.id,reconciled.id,'completed',{receipt:'status-only'},null,0);
+  expect((await pool.query('SELECT tool_calls FROM agents_platform.execution_roots WHERE root_task_id=$1',[task!.id])).rows[0].tool_calls).toBe(4);
+ });
  it('reclaims only proven expired generation slots once without changing conservative accounting',async()=>{
   const [a,b]=await tasks(),inputs=[{id:randomUUID(),kind:'model' as const,name:'model.generate',request:{},reservedTokens:100,reservedMs:1000},{id:randomUUID(),kind:'compaction' as const,name:'context.compact',request:{},reservedTokens:100,reservedMs:1000}];
   for(const [i,input]of inputs.entries()){

@@ -14,5 +14,7 @@ const modelErrors: Record<string, string> = {
 };
 
 export function taskErrorLabel(code: string): string {
-  return modelErrors[code] ?? (code.startsWith("MODEL_") ? "Model call failed. Try again or contact your administrator." : code.replaceAll("_", " ").toLowerCase());
+  const shared=agentFailureLabel("incomplete",code);
+  return modelErrors[code] ?? (shared!=="Incomplete"?shared:code.startsWith("MODEL_")?"Model call failed. Try again or contact your administrator.":"Work could not finish.");
 }
+import { agentFailureLabel } from "@kasitek-labs/ui/agent";

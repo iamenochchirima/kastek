@@ -71,12 +71,13 @@ export function sanitizeConnectionMetadata(metadata: Metadata): Metadata { if (!
     return metadata; const safe = { ...metadata }; for (const key of ['permissions', 'scope', 'scopes', 'tasks', 'permissionsInspected', 'capabilityChecks', 'tokenType', 'dpopPrivateKey', 'dpopAuthorizationNonce'])
     delete safe[key]; return safe; }
 export async function listConnections(pool: Pool, orgId: string): Promise<ExternalConnection[]> { await syncOrgConnections(pool, orgId); await permissions.syncPermissionInventory(pool, orgId); return (await pool.query(sql.LIST_CONNECTIONS_0, [orgId])).rows.map(row => { const connection = camelRow(row); connection.permissions = permissions.permissionSnapshots(connection.provider, connection.metadata).map(v => v.definition); connection.metadata = sanitizeConnectionMetadata(connection.metadata); return connection; }); }
-export async function updateStatus(pool: Pool, orgId: string, id: string, status: string, expectedRevision?: string): Promise<ExternalConnection> { if (!isMutableStatus(status))
+export async function updateStatus(pool: Pool, orgId: string, id: string, status: string, expectedRevision?: string, expectedAgentRevision?: string): Promise<ExternalConnection> { if (!isMutableStatus(status))
     throw new ApiError(400, 'bad_request', 'Status must be CONNECTED, DISCONNECTED, or REVOKED'); await transaction(pool, async (tx) => { const previous = (await tx.query<{
     status: string;
     updatedAt: Date;
+    agentReviewRevision: string;
 }>(sql.UPDATE_STATUS_0, [id, orgId])).rows[0]; if (!previous)
-    notFound(); if (expectedRevision && epochMicros(previous!.updatedAt) !== epochMicros(expectedRevision)) throw new ApiError(409,'operation_review_conflict','The connection changed. Prepare a new review.'); const source = (await tx.query<{
+    notFound(); if (expectedRevision && epochMicros(previous!.updatedAt) !== epochMicros(expectedRevision) || expectedAgentRevision !== undefined && previous!.agentReviewRevision !== expectedAgentRevision) throw new ApiError(409,'operation_review_conflict','The connection changed. Prepare a new review.'); const source = (await tx.query<{
     sourceType: string;
     sourceId: string;
 }>(sql.UPDATE_STATUS_1, [status === 'CONNECTED' ? null : status, status, id, orgId])).rows[0]; if (!source)

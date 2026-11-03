@@ -1,0 +1,11 @@
+[Unit]
+Description=Agents restore-check schedule
+
+[Timer]
+OnCalendar=*-*-01 04:00:00
+Persistent=true
+RandomizedDelaySec=30s
+Unit=agents-backup-restore-check.service
+
+[Install]
+WantedBy=timers.target

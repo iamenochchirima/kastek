@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from "pg";
-import { supportHoursSchema } from "../../contracts/customer-setup";
+import { nextSupportOpening } from "../../capabilities/support-status";
+export { nextSupportOpening } from "../../capabilities/support-status";
 import { transaction } from "../../infrastructure/database";
 import { recordSupportLifecycle } from "../reporting/support-lifecycle";
 
@@ -7,24 +8,6 @@ export const SUPPORT_WAITING_POLICY = Object.freeze({ version: "support-waiting-
 export const SUPPORT_WAITING_NOTICE = "Your request is still waiting for a response from the support team. You can add details here while you wait.";
 export interface WaitingNotice { conversationId: string; taskId: string; ownershipGeneration: string; stage: 1 | 2; body: string }
 export type WaitingNoticePublisher = (db: PoolClient, notice: WaitingNotice) => Promise<boolean>;
-
-/** Unknown hours allow a factual waiting update; configured closed hours defer it. */
-export function nextSupportOpening(hours: unknown, at: Date): Date {
-  const parsed = supportHoursSchema.safeParse(hours);
-  if (!parsed.success) return at;
-  const formatter = new Intl.DateTimeFormat("en-US", { timeZone: parsed.data.timeZone, weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-  const open = (date: Date) => {
-    const parts = formatter.formatToParts(date), part = (name: string) => parts.find(value => value.type === name)?.value;
-    const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(part("weekday") ?? ""), time = `${part("hour")}:${part("minute")}`;
-    return parsed.data.intervals.some(interval => interval.day === day && interval.start <= time && time < interval.end);
-  };
-  if (open(at)) return at;
-  for (let minute = 1; minute <= 8 * 24 * 60; minute++) {
-    const candidate = new Date(Math.floor(at.getTime() / 60000) * 60000 + minute * 60000);
-    if (open(candidate)) return candidate;
-  }
-  return new Date(at.getTime() + 24 * 60 * 60000);
-}
 
 async function alertStaff(db: PoolClient, input: { taskId: string; conversationId: string; stage: number; kind: string }) {
   const created = await db.query(`INSERT INTO agents_platform.support_staff_alerts(id,organization_id,account_id,task_id,conversation_id,stage,kind)

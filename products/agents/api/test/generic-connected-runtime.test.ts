@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import {collectNativeMetrics} from "../src/observability/metrics";
@@ -115,7 +116,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       principal: { kind: "human" as const, issuer: account.issuer, subject: account.subject } };
     const grant: ExecutionGrant = { ...authority, id: randomUUID(), versionId: version.id, operations: ["model.reply", "knowledge.read", "connected.read", ...(executeGrant ? ["connected.execute" as const] : [])],
       sourceRevisionIds: [], connectedToolBindingIds: [binding.id], maxInputBytes: configuration.model.maxInputBytes, maxOutputTokens: configuration.model.maxOutputTokens,
-      maxContextTokens: configuration.context.maxInputTokens, rootTokenLimit: 32000, expiresAt: new Date(Date.now() + 300_000).toISOString(), revokedAt: null };
+      maxContextTokens: contextGrantCeiling(configuration), rootTokenLimit: 32000, expiresAt: new Date(Date.now() + 300_000).toISOString(), revokedAt: null };
     await platform.createGrant({ accountId: account.id, grant });
     const { task } = await platform.admitTask({ authority, versionId: version.id, grantId: grant.id, requestKey: randomUUID(), input: "Use the controlled tool" });
     return { scope, connection, binding, task, grant, catalog, resources:binding.resources };

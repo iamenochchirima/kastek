@@ -1,12 +1,11 @@
 import {createPublicKey} from "node:crypto";
 import { importSPKI, jwtVerify } from "jose";
-import type { GrowthAgentCommand } from "@kasitek-labs/contracts";
 import { PlatformError, requestDigest } from "../../contracts/contracts";
 export interface GrowthServiceTrust {issuer:string;actorIssuer:string;keys:Record<string,string>;controlKeys?:Record<string,string>;controlClientId?:string}
 export class GrowthServiceAuth {
   private readonly keys:Map<string,ReturnType<typeof importSPKI>>;
   private readonly controlKeys:Map<string,ReturnType<typeof importSPKI>>;
-  constructor(readonly trust:GrowthServiceTrust) {
+  constructor(readonly trust:GrowthServiceTrust,readonly product:"growth"|"agencies"="growth",readonly apiClientId=product==="growth"?"growth-api":"agency-api") {
     const readKeys=(values:Record<string,string>,required:boolean)=>{
       if(!values||typeof values!=="object"||Array.isArray(values)||Object.keys(values).length>8||required&&!Object.keys(values).length)throw Error("Invalid Growth service key set");
       return new Map(Object.entries(values).map(([id,pem])=>{
@@ -19,20 +18,20 @@ export class GrowthServiceAuth {
     this.keys=readKeys(trust.keys,true);
     this.controlKeys=readKeys(trust.controlKeys??{},false);
   }
-  async verify(token:string,command:GrowthAgentCommand):Promise<{clientId:string;jti:string;expiresAt:Date}> {
+  async verify(token:string,command:{actor:{issuer:string;subject:string};operation:string}):Promise<{clientId:string;jti:string;expiresAt:Date}> {
     try {
       const result=await jwtVerify(token,async header=>{
-        const keys=command.operation==="features.configure"?this.controlKeys:this.keys;
+        const keys=["features.configure","model.configure"].includes(command.operation)?this.controlKeys:this.keys;
         const key=header.kid?keys.get(header.kid):keys.size===1?[...keys.values()][0]:undefined;
         if(!key)throw Error("Unknown service key");return await key;
       },{issuer:this.trust.issuer,audience:"agents-product-api",algorithms:["RS256"],clockTolerance:5,
         requiredClaims:["sub","iat","exp","jti"]});
       const p=result.payload,now=Math.floor(Date.now()/1000);
-      if(p.product!=="growth"||p.requestDigest!==requestDigest(command)||typeof p.iat!=="number"||typeof p.exp!=="number"||
+      if(p.product!==this.product||p.requestDigest!==requestDigest(command)||typeof p.iat!=="number"||typeof p.exp!=="number"||
         p.exp-p.iat>120||p.exp<=p.iat||p.iat>now+5||typeof p.jti!=="string"||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.jti)||
-        !["growth-api",this.trust.controlClientId??"growth-control"].includes(p.sub!)||
+        ![this.apiClientId,this.trust.controlClientId??"growth-control"].includes(p.sub!)||
         command.actor.issuer!==this.trust.actorIssuer)throw Error("Service scope mismatch");
-      if(command.operation==="features.configure"&&p.sub!==(this.trust.controlClientId??"growth-control"))throw Error("Control plane denied");
+      if(["features.configure","model.configure"].includes(command.operation)&&p.sub!==(this.trust.controlClientId??"growth-control"))throw Error("Control plane denied");
       return {clientId:p.sub!,jti:p.jti,expiresAt:new Date(p.exp*1000)};
     } catch {throw new PlatformError("PRODUCT_SERVICE_DENIED",401,"The product service request is invalid");}
   }

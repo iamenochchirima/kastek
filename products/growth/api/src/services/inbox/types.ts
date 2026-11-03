@@ -1,13 +1,14 @@
 import type { Pool } from 'pg';
 import type { CoreConfig } from '../../config.js';
 export type ObjectValue = Record<string, unknown>;
+export interface InboxReadSource { conversationId:string; messageId:string|null; connectionId:string|null; connectionKind:"whatsapp"|"social"|"external"|null; externalConnectionId?:string|null }
 export interface SendMessageInput {
   text?: string | null;
   replyToMessageId?: string | null;
   [key: string]: unknown;
 }
 export interface WhatsappInboxPorts {
-  listInboxConversations(pool: Pool, orgId: string): Promise<ObjectValue>;
+  listInboxConversations(pool: Pool, orgId: string, capture?:(source:InboxReadSource)=>void): Promise<ObjectValue>;
   listConversationMessages(
     pool: Pool,
     orgId: string,
@@ -45,6 +46,7 @@ export interface InboxOptions {
   fetch?: typeof fetch;
   whatsapp: WhatsappInboxPorts;
   publishEvent?: (orgId: string, event: unknown) => Promise<void>;
+  captureReadSource?: (source:InboxReadSource)=>void;
 }
 export interface ConversationRow {
   id: string;

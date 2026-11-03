@@ -1,4 +1,10 @@
 import { z } from "zod";
+import type { ProductCapabilityInvocation, ProductCapabilityResult } from "@kasitek-labs/contracts";
+import type { AdapterManifest } from "./capability-catalog";
+
+export interface ProductAdapterInstallation {
+  registerAdapter(manifest:AdapterManifest,adapter:{handlers:readonly string[];invoke(command:ProductCapabilityInvocation,signal?:AbortSignal):Promise<ProductCapabilityResult>}):unknown;
+}
 
 /** Product records stay in their product. This assertion carries an exact execution ceiling. */
 export const productAssertionSchema = z.strictObject({

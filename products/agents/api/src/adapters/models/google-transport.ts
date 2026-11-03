@@ -135,8 +135,8 @@ export async function callGoogleProviderModel(request: ProviderTransportRequest,
     status = response.status;
     if (!response.ok) {
       await response.body?.cancel();
-      const codes: Record<number, string> = { 401: "MODEL_AUTHENTICATION_FAILED", 402: "MODEL_BILLING_REQUIRED", 403: "MODEL_ACCESS_DENIED", 404: "MODEL_UNAVAILABLE", 429: "MODEL_RATE_LIMITED" };
-      throw new ProviderTransportError(codes[status] ?? "MODEL_REQUEST_FAILED", status >= 400 && status < 500 ? "rejected" : "uncertain", status);
+      const codes: Record<number, string> = { 401: "MODEL_AUTHENTICATION_FAILED", 402: "MODEL_BILLING_REQUIRED", 403: "MODEL_ACCESS_DENIED", 404: "MODEL_UNAVAILABLE", 429: "MODEL_RATE_LIMITED", 503: "MODEL_PROVIDER_UNAVAILABLE" };
+      throw new ProviderTransportError(codes[status] ?? "MODEL_REQUEST_FAILED", status >= 400 && status < 500 || status === 503 ? "rejected" : "uncertain", status);
     }
     if (response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() !== "text/event-stream" || !response.body) throw invalid("MODEL_RESPONSE_INVALID");
     reader = response.body.getReader();

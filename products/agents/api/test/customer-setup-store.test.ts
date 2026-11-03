@@ -42,6 +42,49 @@ const setup=()=>customerSetupSchema.parse({business:{name:"Business"},responsibi
   await expect(store.saveConfiguration({...scope,agentId:created.agent.id,expectedRevision:1,configuration:created.agent.draft,setup:input})).rejects.toMatchObject({code:"DRAFT_CONFLICT"});
   expect((await store.getAgent(scope.accountId,scope.organizationId,created.agent.id)).setup).toEqual(changed);
  });
+ it("keeps direct support-hour edits in setup without regenerating manual configuration",async()=>{
+  const scope=await fixture(),input=customerSetupSchema.parse({...setup(),responsibilities:["customer-support","enquiries"],supportHours:{timeZone:"Africa/Johannesburg",intervals:[{day:1,start:"09:00",end:"17:00"}]}});
+  const created=await store.createConfiguredAgent({...scope,name:"Assistant",setup:input});
+  const hours={timeZone:"Africa/Johannesburg",intervals:[{day:1,start:"10:00",end:"16:00"},{day:3,start:"11:00",end:"18:00"}]};
+  const configuration={...created.agent.draft,instructions:"Owner-edited instructions. Do not replace them.",supportHours:hours};
+  const saved=await store.saveConfiguration({...scope,agentId:created.agent.id,expectedRevision:1,configuration});
+  expect(saved.agent.draft).toEqual(configuration);
+  expect(saved.snapshot.configuration).toEqual(configuration);
+  expect(saved.agent.setup).toEqual({...input,supportHours:hours});
+  const reloaded=await store.getAgent(scope.accountId,scope.organizationId,created.agent.id);
+  expect(reloaded.setup?.supportHours).toEqual(hours);
+  const resumed=await store.saveConfiguration({...scope,agentId:created.agent.id,expectedRevision:saved.agent.draft_revision,configuration:reloaded.draft,setup:reloaded.setup!,setupStep:"Preferences"});
+  expect(resumed.agent.draft.supportHours).toEqual(hours);
+  expect(resumed.agent.setup?.supportHours).toEqual(hours);
+ });
+ it("retains support-hour edits saved as a draft before a connection flow",async()=>{
+  const scope=await fixture(),input=customerSetupSchema.parse({...setup(),supportHours:{timeZone:"UTC",intervals:[{day:1,start:"09:00",end:"17:00"}]}});
+  const created=await store.createConfiguredAgent({...scope,name:"Assistant",setup:input});
+  const hours={timeZone:"UTC",intervals:[{day:2,start:"12:00",end:"18:00"}]};
+  const configuration={...created.agent.draft,supportHours:hours,instructions:"Preserve these manual instructions."};
+  const draft=await store.updateDraft({...scope,agentId:created.agent.id,expectedRevision:1,configuration});
+  expect(draft.setup).toEqual({...input,supportHours:hours});
+  expect(draft.draft).toEqual(configuration);
+  const saved=await store.saveConfiguration({...scope,agentId:created.agent.id,expectedRevision:draft.draft_revision,configuration:draft.draft});
+  expect(saved.agent.setup?.supportHours).toEqual(hours);
+  expect(saved.snapshot.configuration).toEqual(configuration);
+  const {supportHours:_hours,...withoutHours}=saved.agent.draft;
+  const removed=await store.updateDraft({...scope,agentId:created.agent.id,expectedRevision:saved.agent.draft_revision,configuration:withoutHours});
+  expect(removed.setup?.supportHours).toBeUndefined();
+ });
+ it("synchronizes removed support hours and leaves unrelated saves alone",async()=>{
+  const scope=await fixture(),input=customerSetupSchema.parse({...setup(),supportHours:{timeZone:"UTC",intervals:[{day:1,start:"09:00",end:"17:00"}]}});
+  const created=await store.createConfiguredAgent({...scope,name:"Assistant",setup:input});
+  const {supportHours:_hours,...configuration}=created.agent.draft;
+  const removed=await store.saveConfiguration({...scope,agentId:created.agent.id,expectedRevision:1,configuration});
+  expect(removed.agent.setup).toEqual((({supportHours:_removed,...other})=>other)(input));
+  expect(removed.agent.draft.supportHours).toBeUndefined();
+  const independentHours={timeZone:"UTC",intervals:[{day:2,start:"12:00",end:"16:00"}]};
+  await pool.query("UPDATE agents_platform.agents SET setup=jsonb_set(setup,'{supportHours}',$2::jsonb) WHERE id=$1",[created.agent.id,independentHours]);
+  const unrelated=await store.saveConfiguration({...scope,agentId:created.agent.id,expectedRevision:removed.agent.draft_revision,configuration:{...removed.agent.draft,instructions:"Additional manual context."}});
+  expect(unrelated.agent.setup?.supportHours).toEqual(independentHours);
+  expect(unrelated.agent.draft.instructions).toBe("Additional manual context.");
+ });
  it("rejects cross-workspace edits and rolls setup back when publication fails",async()=>{
   const scope=await fixture(),created=await store.createConfiguredAgent({...scope,name:"Assistant",setup:setup()}),other=await fixture();
   await expect(store.saveConfiguration({...other,agentId:created.agent.id,expectedRevision:1,configuration:created.agent.draft,setup:setup()})).rejects.toMatchObject({code:"NOT_FOUND"});

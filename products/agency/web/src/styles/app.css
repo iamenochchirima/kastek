@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @source "../../../../../packages/ui/src";
 @import "tw-animate-css";
+@import "@kasitek-labs/ui/agent.css";
 
 
 

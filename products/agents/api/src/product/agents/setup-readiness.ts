@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../../execution/models/settings";
 import type { Pool } from "pg";
 import { agentConfigurationSchema, PlatformError } from "../../contracts/contracts";
 import { transaction } from "../../infrastructure/database";
@@ -26,7 +27,7 @@ export async function customerSetupReadiness(pool: Pool, accountId: string, orga
     };
     requirements.model = await check(async () => {
       const routes = await resolveAcceptedModelRoutes(db, { organizationId, agentId, product: "agents", selection: configuration.model.selection, generation: configuration.model.generation,
-        layers: executionModelLayers(configuration, { id: `setup:${agentId}`, maxInputBytes: configuration.model.maxInputBytes, maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: configuration.context.maxInputTokens, rootTokenLimit: modelServicePolicy().maxRootTokens }),
+        layers: executionModelLayers(configuration, { id: `setup:${agentId}`, maxInputBytes: configuration.model.maxInputBytes, maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(configuration), rootTokenLimit: modelServicePolicy().maxRootTokens }),
         requiresTools: configuration.tools.length > 0 || configuration.connectedToolBindingIds.length > 0 || configuration.skillIds.length > 0 });
       const credential = await db.query("SELECT 1 FROM agents_platform.model_provider_credentials WHERE organization_id=$1 AND connection_id=$2 AND revision=$3 AND state='active'", [organizationId, routes.primary.binding.connectionId, routes.primary.binding.credentialRevision]);
       if (!credential.rowCount) throw new PlatformError("MODEL_CREDENTIAL_UNAVAILABLE", 409, "Reconnect the model provider");

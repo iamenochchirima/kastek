@@ -7,7 +7,7 @@ import {createInterface} from "node:readline";
 import {resolve,join} from "node:path";
 import {tmpdir} from "node:os";
 import {createServer as portServer} from "node:net";
-import {HARNESS_RELEASE,WORKFLOW_NAME,ADAPTIVE_HARNESS_RELEASE,ADAPTIVE_WORKFLOW_NAME} from "../src/contracts/execution";
+import {HARNESS_RELEASE,WORKFLOW_NAME,ADAPTIVE_HARNESS_RELEASE,ADAPTIVE_WORKFLOW_NAME,SHARED_HARNESS_RELEASE,SHARED_WORKFLOW_NAME} from "../src/contracts/execution";
 import {generateKeyPair,exportSPKI,exportPKCS8,SignJWT,jwtVerify} from "jose";
 import {Pool} from "pg";
 import {afterAll,beforeAll,describe,it,expect,vi} from "vitest";
@@ -25,14 +25,22 @@ import {ModelCredentialVault} from "../src/infrastructure/model-credential-vault
 import {ModelProviderStore} from "../src/product/model-providers/store";
 import {createBusinessWorkflow} from "../src/execution/business/business";
 import {dispatchTasksOnce} from "../src/execution/lifecycle/dispatcher";
-import {settleTask} from "../src/execution/lifecycle/execution";
+import {beginOperation,finishOperation,settleTask} from "../src/execution/lifecycle/execution";
+import {readHistory} from "../src/execution/context/journal";
 import {dispatchBoundModel} from "../src/execution/models/dispatch";
 import {assertCurrentEvidence,taskEvidenceManifest} from "../src/execution/context/evidence-policy";
+import {assertProductInformationForModel} from "../src/execution/products/product-information";
+import {createDependencyManifest} from "../src/contracts/source-contracts";
 import {requestDigest,terminalTaskStates} from "../src/contracts/contracts";
 
 import {verifyGrowthBrowser} from "./support/growth-browser";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {transaction} from "../src/infrastructure/database";
+import {TaskArtifactStore} from "../src/execution/artifacts/task-artifacts";
+import {privateStoreFromEnvironment} from "../src/infrastructure/object-store";
+import {loadExecution} from "../src/execution/lifecycle/state";
+import {currentProductInformation} from "../src/execution/products/product-information";
+import {startSpecialist} from "../src/execution/delegation/adaptive";
 import type {ModelFetch} from "../src/infrastructure/model-network";
 const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
 (adminUrl?describe:describe.skip)("Growth authenticated product HTTP and durable worker",()=>{
@@ -43,7 +51,7 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
   let app:Awaited<ReturnType<typeof buildPlatformApp>>,growth:ChildProcessWithoutNullStreams,provider:ReturnType<typeof httpServer>,worker:ReturnType<typeof http2Server>;
   let native:ReturnType<typeof spawn>|undefined,nativeDirectory:string|undefined;
   const binary=process.env.AGENTS_TEST_RESTATE_BINARY;
-  const runtimeRoutes=()=>({[HARNESS_RELEASE]:{ingressUrl:ingress,adminUrl:restAdmin,workflowName:WORKFLOW_NAME},[ADAPTIVE_HARNESS_RELEASE]:{ingressUrl:ingress,adminUrl:restAdmin,workflowName:ADAPTIVE_WORKFLOW_NAME}});
+  const runtimeRoutes=()=>({[SHARED_HARNESS_RELEASE]:{ingressUrl:ingress,adminUrl:restAdmin,workflowName:SHARED_WORKFLOW_NAME},[HARNESS_RELEASE]:{ingressUrl:ingress,adminUrl:restAdmin,workflowName:WORKFLOW_NAME},[ADAPTIVE_HARNESS_RELEASE]:{ingressUrl:ingress,adminUrl:restAdmin,workflowName:ADAPTIVE_WORKFLOW_NAME}});
   let ingress:string,restAdmin:string,origin:string,runtime:GrowthProductRuntime,workerFactory:()=>ReturnType<typeof http2Server>;
   const workerSessions=new Set<import("node:http2").ServerHttp2Session>();
   function trackWorker(){worker.on("session",session=>{workerSessions.add(session);session.once("close",()=>workerSessions.delete(session));});}
@@ -53,6 +61,9 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
   let adaptiveHold:Promise<void>|null=null,capacityFailureCalls=0;
   let canonicalPublication:import("@kasitek-labs/contracts").GrowthAgentPublication,canonicalMode=false;
   let modelCalls=0,growthOrigin:string,objects:ReturnType<typeof httpServer>;const artifactBytes=Buffer.alloc(90000,65);const controls:any[]=[];
+  const selectedContextInputs:string[]=[];
+  const savedEffectInputs:string[]=[];
+  const delegatedRequestContexts:any[][]=[];
   async function controlFixture(message:unknown,type:string){growth.stdin.write(JSON.stringify(message)+"\n");await until(async()=>controls.findIndex(item=>item.type===type)>=0?controls.splice(controls.findIndex(item=>item.type===type),1)[0]:false);}
   async function browser(path:string,body?:unknown,method=body===undefined?"GET":"POST"){return fetch(growthOrigin+path,{method,headers:{origin:growthOrigin,...(body===undefined?{}:{"content-type":"application/json"})},...(body===undefined?{}:{body:JSON.stringify(body)})});}
   async function browserOk(path:string,body?:unknown){const response=await browser(path,body),value=await response.json();expect(response.status,JSON.stringify(value)).toBeLessThan(300);return value as any;}
@@ -93,7 +104,13 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     vi.stubEnv("NODE_ENV","test");vi.stubEnv("AGENTS_OIDC_CLIENT_SECRET","isolated-growth-product-cursor-secret");
     vi.stubEnv("AGENTS_MODEL_POLICY_JSON",JSON.stringify({maxRootTokens:300000}));
     vi.stubEnv("AGENTS_SCHEDULING_POLICY_JSON",JSON.stringify({maxConcurrentRoots:10,dailyTokenAllowance:100000000}));
-    objects=httpServer((_req,res)=>res.end(artifactBytes));
+    const storedObjects=new Map<string,Buffer>();
+    objects=httpServer(async(req,res)=>{
+      const path=req.url??"/";
+      if(req.method==="PUT"){const chunks:Buffer[]=[];for await(const chunk of req)chunks.push(Buffer.from(chunk));storedObjects.set(path,Buffer.concat(chunks));res.end();return;}
+      if(req.method==="DELETE"){storedObjects.delete(path);res.end();return;}
+      res.end(storedObjects.get(path)??artifactBytes);
+    });
     const objectOrigin=await listen(objects);
     for(const [name,value] of Object.entries({AGENTS_S3_ENDPOINT:objectOrigin,AGENTS_S3_REGION:"test",AGENTS_S3_BUCKET:"growth-fixture",AGENTS_S3_ACCESS_KEY_ID:"fixture",AGENTS_S3_SECRET_ACCESS_KEY:"fixture"}))vi.stubEnv(name,value);
     canonicalPublication=ready.canonicalPublication;
@@ -109,10 +126,74 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     const scriptStates=new Map<string,{step:number;resourceId?:string;citations:string[]}>();
     provider=httpServer(async(req,res)=>{
       let raw="";for await(const chunk of req)raw+=chunk;const body=JSON.parse(raw);modelCalls++;
-      const last=body.messages.at(-1),userText=body.messages.filter((message:any)=>message.role==="user").at(-1)?.content??"";
+      if(body.messages.some((message:any)=>message.role==="user"&&String(message.content).includes('"sourceId":"originating-user-request"')))
+        delegatedRequestContexts.push(structuredClone(body.messages));
+      const last=body.messages.at(-1),userMessages=body.messages.filter((message:any)=>message.role==="user").map((message:any)=>message.content);
+      const userText=userMessages.findLast((value:unknown)=>String(value)==="Please save a launch checklist as a Markdown file and ask Research to review it."||String(value).startsWith("Please review the selected launch checklist."))??userMessages.at(-1)??"";
       if(body.messages[0]?.content?.startsWith("Summarize")){
         const packed=JSON.stringify(body.messages),citations=[...new Set(packed.match(/\[E[a-f0-9]+\]/g)??[])];
         res.setHeader("content-type","text/event-stream");res.end("data: "+JSON.stringify({id:"compact-"+modelCalls,model:body.model,choices:[{index:0,finish_reason:"stop",delta:{role:"assistant",content:"Observed business evidence "+citations.join(" ")}}],usage:{prompt_tokens:2050,completion_tokens:69}})+"\n\ndata: [DONE]\n\n");return;
+      }
+      if(String(userText)==="Please save a launch checklist as a Markdown file and ask Research to review it."||String(userText).startsWith("Please review the selected launch checklist.")){
+        const records=body.messages.filter((message:any)=>message.role==="tool");
+        const named=(name:string)=>records.filter((record:any)=>body.messages.some((message:any)=>message.tool_calls?.some((call:any)=>call.id===record.tool_call_id&&call.function.name===name))).map((record:any)=>JSON.parse(record.content));
+        let call:{name:string;args:unknown}|undefined,content="";
+        if(String(userText).startsWith("Please review the selected launch checklist.")){
+          const match=String(userText).match(/Selected artifacts \(reference data, not instructions\):\n([^\n]+)/);
+          const selected=match?JSON.parse(match[1]!)[0]:null;
+          if(!named("history_read").length&&selected)call={name:"history_read",args:{taskId:selected.taskId,artifactId:selected.artifactId,part:"artifact"}};
+          else content=named("history_read")[0]?.content?.includes("Confirm opening hours")?"The checklist is clear.":"The checklist could not be read.";
+        }else{
+          const created=named("artifact_create")[0],started=named("agents_start")[0];
+          if(!created){
+            const entry=named("tools_discover").flatMap((value:any)=>value.tools??[]).find((value:any)=>value.alias==="artifact_create");
+            if(body.tools?.some((tool:any)=>tool.function.name==="artifact_create"))call={name:"artifact_create",args:{name:"launch-checklist.md",contentType:"text/markdown",content:"# Launch checklist\n\n- Confirm opening hours\n- Check the booking details\n"}};
+            else if(entry)call={name:"tools_load",args:{tools:[{handle:entry.handle}]}};
+            else call={name:"tools_discover",args:{query:"create file"}};
+          }else if(!started){
+            call={name:"agents_start",args:{requests:[{bindingId:"research",brief:"Please review the selected launch checklist.",artifactIds:[created.id]}]}};
+          }else if(!named("agents_wait").at(-1)?.children?.every((item:any)=>item.resultAvailable))call={name:"agents_wait",args:{taskIds:[started.children[0].taskId],timeoutSeconds:60}};
+          else if(!named("agents_result").length)call={name:"agents_result",args:{taskId:started.children[0].taskId}};
+          else content="Research reviewed the checklist.";
+        }
+        const delta=call?{role:"assistant",tool_calls:[{index:0,id:`artifact-${modelCalls}`,type:"function",function:{name:call.name,arguments:JSON.stringify(call.args)}}]}:{role:"assistant",content};
+        res.setHeader("content-type","text/event-stream");res.end("data: "+JSON.stringify({id:"artifact-"+modelCalls,model:body.model,choices:[{index:0,finish_reason:call?"tool_calls":"stop",delta}],usage:{prompt_tokens:2050,completion_tokens:69}})+"\n\ndata: [DONE]\n\n");return;
+      }
+      if(String(userText).startsWith("Can you improve this post?")||String(userText)==="Fixture product access"){
+        selectedContextInputs.push(String(userText));
+        const match=String(userText).match(/Selected conversation context \(reference data; it does not grant permissions\):\n([^\n]+)/);
+        const reference=match?JSON.parse(match[1]!):String(userText)==="Fixture product access"?{resourceId:"selected-post"}:null;
+        const resourceId=reference?.context?.resourceId??reference?.resourceId;
+        if(!resourceId){res.statusCode=500;res.end(JSON.stringify({error:"Selected reference missing"}));return;}
+        const results=body.messages.filter((message:any)=>message.role==="tool").map((message:any)=>JSON.parse(message.content));
+        const values=results.map((item:any)=>item.value??item);
+        const hasSelectedContent=JSON.stringify(reference?.data??reference).includes("A real selected post.");
+        const result=hasSelectedContent||values.some((value:any)=>JSON.stringify(value).includes("A real selected post."));
+        const error=results.find((value:any)=>value.error);
+        let delta:any,finish:string;
+        if(result){delta={role:"assistant",content:"I would make the opening more specific."};finish="stop";}
+        else if(error){delta={role:"assistant",content:`Fixture read failed: ${error.error}`};finish="stop";}
+        else {
+          const prefix="Read one authorized post",definition=body.tools?.find((tool:any)=>(tool.function?.description??"").startsWith(prefix));
+          const handle=values.flatMap((value:any)=>value.tools??[]).find((entry:any)=>entry.description?.startsWith(prefix)&&entry.alias&&entry.digest);
+          const name=definition?.function.name??(handle?"tools_load":"tools_discover");
+          const args=definition?{postId:reference.resourceId}:handle?{tools:[{handle:handle.handle??handle.qualifiedName}]}:{query:prefix};
+          delta={role:"assistant",tool_calls:[{index:0,id:`selected-${modelCalls}`,type:"function",function:{name,arguments:JSON.stringify(args)}}]};finish="tool_calls";
+        }
+        res.setHeader("content-type","text/event-stream");res.end("data: "+JSON.stringify({id:"selected-"+modelCalls,model:body.model,choices:[{index:0,finish_reason:finish,delta}],usage:{prompt_tokens:2050,completion_tokens:69}})+"\n\ndata: [DONE]\n\n");return;
+      }
+      if(String(userText)==="Contract retained history recovery"){
+        const records=body.messages.filter((message:any)=>message.role==="tool");
+        const named=(name:string)=>records.filter((record:any)=>body.messages.some((message:any)=>message.tool_calls?.some((call:any)=>call.id===record.tool_call_id&&call.function.name===name))).map((record:any)=>{const value=JSON.parse(record.content);return value.value??value;});
+        const searches=named("history_search"),reads=named("history_read");
+        let call:{name:string;args:unknown}|undefined;
+        if(!searches.length)call={name:"history_search",args:{query:"ORCHID-419",since:"2000-01-01T00:00:00Z",before:"2100-01-01T00:00:00Z"}};
+        else if(!reads.length)call={name:"history_read",args:{taskId:searches[0].results[0]?.taskId}};
+        else if(!named("tools_discover").length)call={name:"tools_discover",args:{}};
+        else if(searches.length<2)call={name:"history_search",args:{part:"operations",query:"tools.discover"}};
+        else if(reads.length<2)call={name:"history_read",args:{operationId:searches[1].results[0]?.operationId}};
+        const delta=call?{role:"assistant",tool_calls:[{index:0,id:`history-${modelCalls}`,type:"function",function:{name:call.name,arguments:JSON.stringify(call.args)}}]}:{role:"assistant",content:"Recovered the retained ORCHID-419 turn and public discovery receipt."};
+        res.setHeader("content-type","text/event-stream");res.end("data: "+JSON.stringify({id:"history-"+modelCalls,model:body.model,choices:[{index:0,finish_reason:call?"tool_calls":"stop",delta}],usage:{prompt_tokens:2050,completion_tokens:69}})+"\n\ndata: [DONE]\n\n");return;
       }
       if(String(userText).includes("Growth adaptive HTTP")){
         const records=body.messages.filter((message:any)=>message.role==="tool");
@@ -144,6 +225,7 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
       if(String(userText).startsWith("Controlled capacity failure")){capacityFailureCalls++;res.destroy();return;}
       const state=scriptStates.get(String(userText))??{step:0,citations:[]};scriptStates.set(String(userText),state);
       const observations=body.messages.filter((message:any)=>message.role==="tool").map((message:any)=>JSON.parse(message.content));
+      if(String(userText)==="Save a draft using canonical operations")savedEffectInputs.push(...body.messages.filter((message:any)=>message.role==="tool").map((message:any)=>message.content));
       const values=observations.map((item:any)=>item.value??item);
       state.resourceId=values.find((value:any)=>value.data?.items)?.data.items?.[0]?.context.resourceId??state.resourceId;
       state.citations=[...new Set([...state.citations,...values.flatMap((value:any)=>value.passages??[]).map((passage:any)=>passage.citation)])];
@@ -163,8 +245,14 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
       if(zero)wantsTool=false;
       let delta:any,finish:string;
       if(wantsTool){
-        const tool=find(prefix);if(!tool){res.statusCode=500;res.end(JSON.stringify({error:"Required fixture operation is unavailable"}));return;}
-        state.step++;delta={role:"assistant",tool_calls:[{index:0,id:"call-"+modelCalls,type:"function",function:{name:tool,arguments:JSON.stringify(args)}}]};finish="tool_calls";
+        let tool=find(prefix);
+        if(!tool){
+          const handle=values.flatMap((value:any)=>value.tools??[]).find((entry:any)=>entry.description?.startsWith(prefix)&&entry.alias&&entry.digest);
+          if(handle){tool="tools_load";args={tools:[{handle:handle.handle??handle.qualifiedName}]};}
+          else {tool="tools_discover";args={query:prefix};}
+          if(!body.tools?.some((definition:any)=>definition.function?.name===tool)){res.statusCode=500;res.end(JSON.stringify({error:"Required fixture operation is unavailable"}));return;}
+        }else state.step++;
+        delta={role:"assistant",tool_calls:[{index:0,id:"call-"+modelCalls,type:"function",function:{name:tool,arguments:JSON.stringify(args)}}]};finish="tool_calls";
       }else{
         if(String(userText).includes("Artifact fixture")){artifactHeld=true;await artifactBarrier;}
         const citations=state.citations.join(" ");
@@ -173,9 +261,11 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
       res.setHeader("content-type","text/event-stream");res.end("data: "+JSON.stringify({id:"growth-fixture-"+modelCalls,model:body.model,choices:[{index:0,finish_reason:finish,delta}],usage:{prompt_tokens:2050,completion_tokens:69}})+"\n\ndata: [DONE]\n\n");
     });
     const providerOrigin=await listen(provider);
-    const workflow=(version?:{release:string;workflow:string})=>createBusinessWorkflow(pool,{modelProvider:new ModelProviderStore(pool,keyVault),product:runtime,evidence:runtime.evidence,
+    const artifactStore=new TaskArtifactStore(pool,privateStoreFromEnvironment());
+    const workflow=(version?:{release:string;workflow:string})=>createBusinessWorkflow(pool,{modelProvider:new ModelProviderStore(pool,keyVault),product:runtime,evidence:runtime.evidence,artifacts:artifactStore,
+      readRetainedArtifact:(taskId,originTaskId,artifactId)=>artifactStore.readRetainedForTask(taskId,originTaskId,artifactId),
       modelRuntime:{dispatch:input=>dispatchBoundModel(input,policy=>{const network=(async(url,init)=>{if(!policy.authorizeUrl(new URL(String(url))))throw Error("Model destination denied");await policy.beforeDispatch?.();return fetch(providerOrigin,init);}) as ModelFetch;network.markProgress=()=>{};return network;})}},version);
-    workerFactory=()=>http2Server(createEndpointHandler({services:[workflow(),workflow({release:ADAPTIVE_HARNESS_RELEASE,workflow:ADAPTIVE_WORKFLOW_NAME})]}));
+    workerFactory=()=>http2Server(createEndpointHandler({services:[workflow(),workflow({release:ADAPTIVE_HARNESS_RELEASE,workflow:ADAPTIVE_WORKFLOW_NAME}),workflow({release:SHARED_HARNESS_RELEASE,workflow:SHARED_WORKFLOW_NAME})]}));
     worker=workerFactory();trackWorker();
     await new Promise<void>(resolve=>worker.listen(0,"0.0.0.0",resolve));
     let workerHost="host.docker.internal";
@@ -203,8 +293,8 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
   async function currentConfiguration(featureId:string){
     return (await pool.query("SELECT v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.product='growth' AND f.tenant_id=$1 AND f.feature_id=$2",[tenantId,featureId])).rows[0].configuration;
   }
-  async function finished(taskId:string,state?:string){
-    return until(async()=>{await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl:restAdmin,runtimeRoutes:runtimeRoutes()});const task=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];return (state?task.state===state:terminalTaskStates.has(task.state))?task:false;},50000);
+  async function finished(taskId:string,state?:string,timeout=50000){
+    return until(async()=>{await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl:restAdmin,runtimeRoutes:runtimeRoutes()});const task=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];return (state?task.state===state:terminalTaskStates.has(task.state))?task:false;},timeout);
   }
   it("boots managed features and runs persistent scoped chat with zero standalone accounts",async()=>{
     expect((await browserOk("/api/agents/bootstrap")).features.every((f:any)=>!f.ready)).toBe(true);
@@ -235,6 +325,40 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     expect((await pool.query("SELECT count(*)::int n FROM agents_platform.memberships")).rows[0].n).toBe(0);
     const foreign=await send(command("conversations.get",{conversationId:conversation.id},{actor:{...actor,subject:randomUUID()}}));expect(foreign.status).toBe(404);
   },40000);
+  it("loads task list projections concurrently while preserving page order",async()=>{
+    await provisionGrowthModel(pool,keyVault,{tenantId,providerId:"openrouter",modelId:"fixture/growth",apiKey:"fixture-only-key"},{discoveryFetch:async()=>({status:200,body:JSON.stringify({data:[{id:"fixture/growth",name:"Fixture Growth model",context_length:262144,top_provider:{max_completion_tokens:32768},supported_parameters:["tools"],architecture:{input_modalities:["text"],output_modalities:["text"]},pricing:{prompt:"0",completion:"0"}}]})})});
+    expect((await browserOk("/api/agents/bootstrap")).features.every((feature:any)=>feature.ready)).toBe(true);
+    const conversation=(await ok(command("conversations.create",{featureId:"assistant"}))).conversation,taskIds:string[]=[];
+    for(let index=0;index<5;index++){
+      const task=(await ok(command("turns.submit",{conversationId:conversation.id,text:`Contract zero-tool task-list projection ${index}`}))).task;
+      expect((await finished(task.id)).state).toBe("completed");taskIds.push(task.id);
+    }
+    const expected=(await pool.query(`SELECT t.id FROM agents_platform.tasks t
+      JOIN agents_platform.product_task_contexts p ON p.task_id=t.id
+      WHERE t.product='growth' AND p.tenant_id=$1 AND t.conversation_id=$2 AND t.parent_task_id IS NULL
+      ORDER BY t.created_at DESC,t.id DESC`,[tenantId,conversation.id])).rows.map(row=>row.id);
+    expect(new Set(expected)).toEqual(new Set(taskIds));
+
+    const authorize=runtime.authorizeTask.bind(runtime);let active=0,peak=0;
+    runtime.authorizeTask=async taskId=>{
+      active++;peak=Math.max(peak,active);
+      try{await new Promise(resolve=>setTimeout(resolve,40));await authorize(taskId);}
+      finally{active--;}
+    };
+    try{
+      const service=new GrowthExecutionService(pool,{issuer,actorIssuer:actor.issuer,keys:{fixture:await exportSPKI(keys.publicKey)}},runtime);
+      const listed=await service.execute(command("tasks.list",{conversationId:conversation.id,limit:10})) as {tasks:Array<{id:string}>};
+      expect(listed.tasks.map((task:any)=>task.id)).toEqual(expected);
+      expect(peak).toBeGreaterThan(1);
+      expect(peak).toBeLessThanOrEqual(4);
+
+      active=0;peak=0;
+      const history=await service.execute(command("conversations.get",{conversationId:conversation.id,limit:10})) as {messages:Array<{role:string;taskId:string}>};
+      expect(history.messages.filter(message=>message.role==="user").map(message=>message.taskId)).toEqual([...expected].reverse());
+      expect(peak).toBeGreaterThan(1);
+      expect(peak).toBeLessThanOrEqual(4);
+    }finally{runtime.authorizeTask=authorize;}
+  },60000);
   it("does not advertise orchestration controls when a v4 Growth configuration disables delegation",async()=>{
     const original=await currentConfiguration("assistant");
     try {
@@ -248,6 +372,24 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
       expect((await finished(task.id)).state).toBe("completed");
     }finally{await ok(command("features.configure",{featureId:"assistant",configuration:original}),true);}
   },30000);
+
+  it("validates retained conversation and operation history through the shared business workflow",async()=>{
+    await provisionGrowthModel(pool,keyVault,{tenantId,providerId:"openrouter",modelId:"fixture/growth",apiKey:"fixture-only-key"},{discoveryFetch:async()=>({status:200,body:JSON.stringify({data:[{id:"fixture/growth",name:"Fixture Growth model",context_length:262144,top_provider:{max_completion_tokens:32768},supported_parameters:["tools"],architecture:{input_modalities:["text"],output_modalities:["text"]},pricing:{prompt:"0",completion:"0"}}]})})});
+    const conversation=(await ok(command("conversations.create",{featureId:"assistant"}))).conversation;
+    const original=(await ok(command("turns.submit",{conversationId:conversation.id,text:"Contract zero-tool ORCHID-419 retained seed"}))).task;
+    expect((await finished(original.id)).state).toBe("completed");
+    const current=(await ok(command("turns.submit",{conversationId:conversation.id,text:"Contract retained history recovery"}))).task;
+    const task=await finished(current.id);
+    expect(task.harness_release).toBe(SHARED_HARNESS_RELEASE);
+    expect(task.state,task.error_code).toBe("completed");
+    expect(task.output).toContain("Recovered the retained ORCHID-419");
+    const history=(await pool.query("SELECT name,state,output,error_code FROM agents_platform.operations WHERE task_id=$1 AND name IN ('history.search','history.read') ORDER BY started_at,id",[task.id])).rows;
+    expect(history.map(row=>[row.name,row.state,row.error_code])).toEqual([["history.search","completed",null],["history.read","completed",null],["history.search","completed",null],["history.read","completed",null]]);
+    expect(history[0].output.results[0].taskId).toBe(original.id);
+    expect(history[1].output.content).toContain("ORCHID-419 retained seed");
+    expect(history[2].output.results[0]).toMatchObject({name:"tools.discover",state:"completed"});
+    expect(history[3].output.content).toContain('"name":"tools.discover"');
+  },60000);
 
   it("runs real Growth specialist HTTP calls with pinned product authority and idempotent replay",async()=>{
     const conversation=(await ok(command("conversations.create",{featureId:"assistant"}))).conversation;
@@ -380,6 +522,7 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
   },30000);
 
   it("waits durably for the one Growth decision and confirms a single draft receipt",async()=>{
+    await provisionGrowthModel(pool,keyVault,{tenantId,providerId:"openrouter",modelId:"fixture/growth",apiKey:"fixture-only-key"},{discoveryFetch:async()=>({status:200,body:JSON.stringify({data:[{id:"fixture/growth",name:"Fixture Growth model",context_length:262144,top_provider:{max_completion_tokens:32768},supported_parameters:["tools"],architecture:{input_modalities:["text"],output_modalities:["text"]},pricing:{prompt:"0",completion:"0"}}]})})});
     const conversation=(await browserOk("/api/agents/conversations",{requestId:randomUUID(),featureId:"content"})).conversation;
     const turn={requestId:randomUUID(),text:"Save a draft"},task=(await browserOk("/api/agents/conversations/"+conversation.id+"/messages",turn)).task;
     expect((await browserOk("/api/agents/conversations/"+conversation.id+"/messages",turn)).task.id).toBe(task.id);
@@ -399,14 +542,23 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     expect((await browserOk("/api/agents/tasks/"+task.id+"/reviews")).reviews[0].state).toBe("saved");
   },40000);
   it("surfaces a specialist review on the root and wakes only its exact child after approval",async()=>{
+    await provisionGrowthModel(pool,keyVault,{tenantId,providerId:"openrouter",modelId:"fixture/growth",apiKey:"fixture-only-key"},{discoveryFetch:async()=>({status:200,body:JSON.stringify({data:[{id:"fixture/growth",name:"Fixture Growth model",context_length:262144,top_provider:{max_completion_tokens:32768},supported_parameters:["tools"],architecture:{input_modalities:["text"],output_modalities:["text"]},pricing:{prompt:"0",completion:"0"}}]})})});
     const conversation=(await browserOk("/api/agents/conversations",{requestId:randomUUID(),featureId:"assistant"})).conversation;
-    const task=(await browserOk(`/api/agents/conversations/${conversation.id}/messages`,{requestId:randomUUID(),text:"Growth adaptive HTTP child review"})).task;
+    const originalRequest="Growth adaptive HTTP child review. Create a Wheelhouse launch post, use the name Wheelhouse, do not invent offer details, and ask me if the current price is missing.";
+    const task=(await browserOk(`/api/agents/conversations/${conversation.id}/messages`,{requestId:randomUUID(),text:originalRequest})).task;
     await until(async()=>{await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl:restAdmin,runtimeRoutes:runtimeRoutes()});return (await pool.query("SELECT 1 FROM agents_platform.tasks WHERE parent_task_id=$1 AND state='waiting_review'",[task.id])).rowCount===1;},30000);
     const review=(await browserOk(`/api/agents/tasks/${task.id}/reviews`)).reviews[0];expect(review.taskId).toBe(task.id);
     const child=(await pool.query("SELECT task_id FROM agents_platform.product_review_projections WHERE review_id=$1",[review.id])).rows[0].task_id;expect(child).not.toBe(task.id);
     const activity=await browserOk(`/api/agents/tasks/${task.id}/activity?childTaskId=${child}`);
     expect(activity).toMatchObject({rootTaskId:task.id,parentTaskId:task.id,agentName:"Content",task:{id:child,state:"waiting_review",canSteer:false,canContinue:false}});
-    expect(activity.task.input).toBeTruthy();expect(activity.operations.length).toBeGreaterThan(0);
+    expect(activity.task.input).toBe("Prepare reviewed draft");expect(activity.operations.length).toBeGreaterThan(0);
+    const childPrompt=delegatedRequestContexts.find(messages=>messages.some((message:any)=>message.role==="user"&&String(message.content).includes('"sourceId":"originating-user-request"')));
+    expect(childPrompt).toBeDefined();
+    const childUserMessages=childPrompt.filter((message:any)=>message.role==="user");
+    expect(childUserMessages[0].content).toContain("do not invent offer details");
+    expect(childUserMessages[0].content).toContain("current price is missing");
+    expect(childUserMessages[1].content).toContain("Parent coordinator assignment");
+    expect(childUserMessages[1].content).toContain("Prepare reviewed draft");
     expect(activity.operations.every((operation:any)=>operation.taskId===child)).toBe(true);
     expect(JSON.stringify(activity)).not.toMatch(/privateModel|nativeState|authorizationHeader|request_digest|requestDigest|tool_calls/);
     const rootActivity=await browserOk(`/api/agents/tasks/${task.id}/activity`);
@@ -487,6 +639,102 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     const next=(await ok(command("turns.submit",{conversationId:conversation.id,text:"New settings"}))).task;
     expect((await pool.query("SELECT version_id FROM agents_platform.tasks WHERE id=$1",[next.id])).rows[0].version_id).not.toBe(old);
   });
+  it("keeps separate product export identities within a single operation",async()=>{
+    await provisionGrowthModel(pool,keyVault,{tenantId,providerId:"openrouter",modelId:"fixture/growth",apiKey:"fixture-only-key"},{discoveryFetch:async()=>({status:200,body:JSON.stringify({data:[{id:"fixture/growth",name:"Fixture Growth model",context_length:262144,top_provider:{max_completion_tokens:32768},supported_parameters:["tools"],architecture:{input_modalities:["text"],output_modalities:["text"]},pricing:{prompt:"0",completion:"0"}}]})})});
+    const conversation=(await browserOk("/api/agents/conversations",{requestId:randomUUID(),featureId:"assistant"})).conversation;
+    const task=(await browserOk(`/api/agents/conversations/${conversation.id}/messages`,{requestId:randomUUID(),text:"Export fixture"})).task;
+    const artifacts=new TaskArtifactStore(pool,privateStoreFromEnvironment());
+    for(const name of ["sandbox.analyze","skills.run"]){
+      const operationId=`export:${name}:${task.id}`;
+      const operation=await beginOperation(pool,task.id,{id:operationId,kind:"resource",name,request:{},reservedTokens:0,reservedMs:30000});
+      if(operation.waiting)throw Error("Unexpected fixture capacity wait");
+      const first={name:"summary.txt",contentType:"text/plain",content:Buffer.from("Summary")};
+      const second={name:"details.txt",contentType:"text/plain",content:Buffer.from("Details")};
+      const a=await artifacts.put(task.id,operationId,first),b=await artifacts.put(task.id,operationId,second);
+      expect(a.id).not.toBe(b.id);
+      expect((await artifacts.put(task.id,operationId,first)).id).toBe(a.id);
+      expect((await artifacts.put(task.id,operationId,second)).id).toBe(b.id);
+      await expect(artifacts.put(task.id,operationId,{...first,content:Buffer.from("Changed")})).rejects.toMatchObject({code:"IDEMPOTENCY_CONFLICT"});
+      await expect(artifacts.put(task.id,operationId,{...first,contentType:"text/markdown"})).rejects.toMatchObject({code:"IDEMPOTENCY_CONFLICT"});
+      await finishOperation(pool,task.id,operationId,"completed",{},null,0,operation.operation.attempt_id);
+    }
+    for(const name of ["artifact.create","report.prepare"]){
+      const operationId=`single:${name}:${task.id}`;
+      const operation=await beginOperation(pool,task.id,{id:operationId,kind:"resource",name,request:{},reservedTokens:0,reservedMs:30000});
+      if(operation.waiting)throw Error("Unexpected fixture capacity wait");
+      const input={name:"report.txt",contentType:"text/plain",content:Buffer.from("Report")};
+      const created=await artifacts.put(task.id,operationId,input);
+      expect((await artifacts.put(task.id,operationId,input)).id).toBe(created.id);
+      await expect(artifacts.put(task.id,operationId,{...input,name:"changed.txt"})).rejects.toMatchObject({code:"IDEMPOTENCY_CONFLICT"});
+      await finishOperation(pool,task.id,operationId,"completed",{},null,0,operation.operation.attempt_id);
+    }
+  },90000);
+  it("shows and downloads only the selected child's own file under current Growth authority",async()=>{
+    await provisionGrowthModel(pool,keyVault,{tenantId,providerId:"openrouter",modelId:"fixture/growth",apiKey:"fixture-only-key"},{discoveryFetch:async()=>({status:200,body:JSON.stringify({data:[{id:"fixture/growth",name:"Fixture Growth model",context_length:262144,top_provider:{max_completion_tokens:32768},supported_parameters:["tools"],architecture:{input_modalities:["text"],output_modalities:["text"]},pricing:{prompt:"0",completion:"0"}}]})})});
+    const conversation=(await browserOk("/api/agents/conversations",{requestId:randomUUID(),featureId:"assistant"})).conversation;
+    const root=(await browserOk(`/api/agents/conversations/${conversation.id}/messages`,{requestId:randomUUID(),text:"Please prepare a research note."})).task;
+    const artifacts=new TaskArtifactStore(pool,privateStoreFromEnvironment()),startId=`child-file-start:${root.id}`;
+    const admission=await beginOperation(pool,root.id,{id:startId,kind:"delegation",name:"agents.start",request:{},reservedTokens:0,reservedMs:30000});
+    if(admission.waiting)throw Error("Unexpected fixture capacity wait");
+    const children=(await startSpecialist(pool,root.id,startId,{requests:[{bindingId:"research",brief:"Prepare a research note."},{bindingId:"campaigns",brief:"Review the launch."}]},runtime.evidence,artifacts)).children;
+    const selected=children[0]!,sibling=children[1]!;
+    const writeId=`child-file-write:${selected.taskId}`;
+    const writeInput={id:writeId,kind:"resource" as const,name:"artifact.create",request:{},reservedTokens:0,reservedMs:30000,retrySafe:true};
+    const write=await beginOperation(pool,selected.taskId,writeInput);
+    if(write.waiting)throw Error("Unexpected fixture capacity wait");
+    const file=await artifacts.put(selected.taskId,writeId,{name:"research-note.md",contentType:"text/markdown",content:Buffer.from("A private research note.\n")});
+    const retry=await beginOperation(pool,selected.taskId,writeInput);
+    if(retry.waiting)throw Error("Unexpected fixture capacity wait");
+    expect(retry.replayed).toBe(false);expect(retry.operation.attempt_id).not.toBe(write.operation.attempt_id);
+    expect((await artifacts.put(selected.taskId,writeId,{name:"research-note.md",contentType:"text/markdown",content:Buffer.from("A private research note.\n")})).id).toBe(file.id);
+    await expect(artifacts.put(selected.taskId,writeId,{name:"changed.md",contentType:"text/markdown",content:Buffer.from("Changed")})).rejects.toMatchObject({code:"IDEMPOTENCY_CONFLICT"});
+    const before=await taskEvidenceManifest(pool,root.id);
+    const activity=await browserOk(`/api/agents/tasks/${root.id}/activity?childTaskId=${selected.taskId}`);
+    expect(activity.task.results).toEqual([{id:file.id,kind:"artifact",title:"research-note.md",artifactId:file.id}]);
+    expect((await taskEvidenceManifest(pool,root.id)).digest).toBe(before.digest);
+    const preview=(await browserOk(`/api/agents/tasks/${root.id}/artifacts/${file.id}?childTaskId=${selected.taskId}`)).artifact;
+    const download=await browser(preview.downloadPath);expect(download.status).toBe(200);expect(await download.text()).toBe("A private research note.\n");
+    expect(download.headers.get("content-disposition")).toContain("research-note.md");
+    expect((await browser(`/api/agents/tasks/${root.id}/artifacts/${file.id}?childTaskId=${sibling.taskId}`)).status).toBe(404);
+    expect((await browser(`/api/agents/tasks/${root.id}/artifacts/${file.id}?childTaskId=${randomUUID()}`)).status).toBe(404);
+    await controlFixture({type:"membership",enabled:false},"membership");
+    expect((await browser(preview.downloadPath)).status).toBe(403);
+    await controlFixture({type:"membership",enabled:true},"membership");
+  },90000);
+  it("creates a product file and shares it with Research",async()=>{
+    await provisionGrowthModel(pool,keyVault,{tenantId,providerId:"openrouter",modelId:"fixture/growth",apiKey:"fixture-only-key"},{discoveryFetch:async()=>({status:200,body:JSON.stringify({data:[{id:"fixture/growth",name:"Fixture Growth model",context_length:262144,top_provider:{max_completion_tokens:32768},supported_parameters:["tools"],architecture:{input_modalities:["text"],output_modalities:["text"]},pricing:{prompt:"0",completion:"0"}}]})})});
+    const conversation=(await browserOk("/api/agents/conversations",{requestId:randomUUID(),featureId:"assistant"})).conversation;
+    const submitted=(await browserOk(`/api/agents/conversations/${conversation.id}/messages`,{requestId:randomUUID(),text:"Please save a launch checklist as a Markdown file and ask Research to review it."})).task;
+    const done=await finished(submitted.id,undefined,110000);expect(done.state,done.error_code).toBe("completed");
+    const created=(await pool.query("SELECT id,name,product_owner,account_id FROM agents_platform.artifacts WHERE task_id=$1 AND state='available'",[done.id])).rows;
+    expect(created).toHaveLength(1);expect(created[0]).toMatchObject({name:"launch-checklist.md",product_owner:"growth",account_id:null});
+    const children=(await pool.query("SELECT id,output FROM agents_platform.tasks WHERE parent_task_id=$1",[done.id])).rows;
+    expect(children).toHaveLength(1);expect(children[0].output).toContain("checklist is clear");
+    expect((await pool.query("SELECT 1 FROM agents_platform.task_artifact_transfers WHERE artifact_id=$1 AND target_task_id=$2",[created[0].id,children[0].id])).rowCount).toBe(1);
+    const childRead=(await pool.query("SELECT output FROM agents_platform.operations WHERE task_id=$1 AND name='history.read' AND state='completed'",[children[0].id])).rows[0];
+    expect(childRead.output.content).toBe("# Launch checklist\n\n- Confirm opening hours\n- Check the booking details\n");
+    const manifest=await taskEvidenceManifest(pool,done.id),dependency=manifest.dependencies.find(value=>value.kind==="product_artifact"&&value.artifactId===created[0].id);
+    expect(dependency).toMatchObject({kind:"product_artifact",product:"growth",tenantId,taskId:done.id,artifactId:created[0].id});
+    await expect(assertProductInformationForModel(pool,done.id,manifest,"primary")).resolves.toBeUndefined();
+    await expect(assertProductInformationForModel(pool,children[0].id,manifest,"delegated")).resolves.toBeUndefined();
+    const restricted=structuredClone(dependency!);if(restricted.kind!=="product_artifact")throw Error("Missing artifact dependency");
+    restricted.information.providers=restricted.information.providers.map(provider=>{
+      const {destinationDigest:_digest,bindingDigest:_binding,...destination}=provider;destination.endpoint="https://unapproved-provider.invalid/";
+      return {...provider,endpoint:destination.endpoint,destinationDigest:requestDigest(destination)};
+    });
+    for(const [taskId,role] of [[done.id,"primary"],[done.id,"compaction"],[children[0].id,"delegated"]] as const)
+      await expect(assertProductInformationForModel(pool,taskId,createDependencyManifest([restricted]),role)).rejects.toMatchObject({code:"PRODUCT_INFORMATION_DENIED"});
+    const results=(await browserOk(`/api/agents/tasks/${done.id}/artifacts`)).artifacts;
+    const metadata=results.find((artifact:any)=>artifact.id===created[0].id);
+    const download=await browser(metadata.downloadPath);expect(download.status).toBe(200);
+    expect(await download.text()).toBe("# Launch checklist\n\n- Confirm opening hours\n- Check the booking details\n");
+    expect((await send(command("artifacts.get",{taskId:done.id,artifactId:created[0].id},{actor:{...actor,subject:randomUUID()}}))).status).toBe(404);
+    await controlFixture({type:"membership",enabled:false},"membership");
+    expect((await browser(metadata.downloadPath)).status).toBe(403);
+    await controlFixture({type:"membership",enabled:true},"membership");
+    expect((await pool.query("SELECT count(*)::int n FROM agents_platform.accounts")).rows[0].n).toBe(0);
+    expect((await pool.query("SELECT count(*)::int n FROM agents_platform.memberships")).rows[0].n).toBe(0);
+  },110000);
   it("downloads exact product-owned artifact bytes and rechecks private evidence without an Agents account",async()=>{
     const conversation=(await browserOk("/api/agents/conversations",{requestId:randomUUID(),featureId:"research"})).conversation;
     const task=(await browserOk(`/api/agents/conversations/${conversation.id}/messages`,{requestId:randomUUID(),text:"Artifact fixture"})).task;
@@ -494,7 +742,7 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     const row=(await pool.query("SELECT t.*,c.agent_id FROM agents_platform.tasks t JOIN agents_platform.conversations c ON c.id=t.conversation_id WHERE t.id=$1",[task.id])).rows[0],context=(await pool.query("SELECT * FROM agents_platform.product_task_contexts WHERE task_id=$1",[task.id])).rows[0],artifactId=randomUUID();
     const digest=createHash("sha256").update(artifactBytes).digest("hex");
     await pool.query("INSERT INTO agents_platform.artifacts(id,organization_id,agent_id,account_id,product_owner,operation_id,request_digest,object_key,content_type,bytes,content_digest,state,task_id,root_task_id,name) VALUES($1,$2,$3,NULL,'growth','fixture:artifact',$4,$5,'application/octet-stream',$6,$4,'available',$7,$7,'Private report')",[artifactId,row.organization_id,row.agent_id,digest,"fixture/"+artifactId,artifactBytes.length,task.id]);
-    await transaction(pool,async db=>runtime.evidence.deriveWithin(db,task.id,"artifact",artifactId,[{kind:"product",product:"growth",tenantId,taskId:task.id,contextRevision:context.sources.find((source:any)=>source.bindingId).revision,sourceId:context.sources.find((source:any)=>source.bindingId).id,bindingId:context.sources.find((source:any)=>source.bindingId).bindingId,bindingDigest:(await currentConfiguration("research")).productBindings.find((binding:any)=>binding.id===context.sources.find((source:any)=>source.bindingId).bindingId).digest}]));
+    await transaction(pool,async db=>runtime.evidence.deriveWithin(db,task.id,"artifact",artifactId,[{kind:"product",product:"growth",tenantId,taskId:task.id,contextRevision:context.sources.find((source:any)=>source.bindingId).revision,sourceId:context.sources.find((source:any)=>source.bindingId).id,bindingId:context.sources.find((source:any)=>source.bindingId).bindingId,bindingDigest:(await currentConfiguration("research")).productBindings.find((binding:any)=>binding.id===context.sources.find((source:any)=>source.bindingId).bindingId).digest},{kind:"product_artifact",version:"1",product:"growth",tenantId,taskId:task.id,artifactId,contentDigest:digest,name:"Private report",contentType:"application/octet-stream",bytes:artifactBytes.length,information:await currentProductInformation(db,await loadExecution(db,task.id))}]));
     releaseArtifact();expect((await completing).state).toBe("completed");
     const metadata=(await browserOk(`/api/agents/tasks/${task.id}/artifacts`)).artifacts[0];
     const download=await browser(metadata.downloadPath);expect(download.status).toBe(200);expect(Buffer.from(await download.arrayBuffer())).toEqual(artifactBytes);
@@ -535,11 +783,91 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     expect((await pool.query("SELECT count(*)::int n FROM agents_platform.memberships")).rows[0].n).toBe(0);
   },90000);
 
+  it("keeps canonical read custody private and fences later permission changes",async()=>{
+    await provisionGrowthModel(pool,keyVault,{tenantId,providerId:"openrouter",modelId:"fixture/growth",apiKey:"fixture-only-key"},{discoveryFetch:async()=>({status:200,body:JSON.stringify({data:[{id:"fixture/growth",name:"Fixture Growth model",context_length:262144,top_provider:{max_completion_tokens:32768},supported_parameters:["tools"],architecture:{input_modalities:["text"],output_modalities:["text"]},pricing:{prompt:"0",completion:"0"}}]})})});
+    const trust={issuer,actorIssuer:actor.issuer,keys:{fixture:await exportSPKI(keys.publicKey)}};
+    await new GrowthExecutionService(pool,trust,runtime).ensureTenant({tenantId,publication:canonicalPublication,defaultsRevision:canonicalPublication.manifest.revision,upgradeDefaults:true});
+    await controlFixture({type:"selected-post"},"selected-post");
+    const conversation=(await browserOk("/api/agents/conversations",{requestId:randomUUID(),featureId:"assistant"})).conversation;
+    const task=(await browserOk(`/api/agents/conversations/${conversation.id}/messages`,{requestId:randomUUID(),text:"Fixture product access"})).task;
+    const done=await finished(task.id);expect(done.state,done.error_code).toBe("completed");
+    const manifest=await taskEvidenceManifest(pool,task.id),access=manifest.dependencies.find(value=>value.kind==="product_access");
+    expect(access).toMatchObject({kind:"product_access",product:"growth",tenantId,taskId:task.id});
+    await expect(assertProductInformationForModel(pool,task.id,manifest,"primary")).resolves.toBeUndefined();
+    await expect(assertProductInformationForModel(pool,task.id,manifest,"compaction")).resolves.toBeUndefined();
+    const narrowed=structuredClone(access!);if(narrowed.kind!=="product_access")throw Error("Missing product access dependency");
+    narrowed.information.providers=narrowed.information.providers.map(provider=>({...provider,endpoint:"https://unapproved.example/"})).map(provider=>{
+      const {destinationDigest:_digest,bindingDigest:_binding,...destination}=provider;return {...provider,destinationDigest:requestDigest(destination)};
+    });
+    await expect(assertProductInformationForModel(pool,task.id,createDependencyManifest([narrowed]),"primary")).rejects.toMatchObject({code:"PRODUCT_INFORMATION_DENIED"});
+    const receipt=(await pool.query(`SELECT a.*,o.output FROM agents_platform.product_operation_access a
+      JOIN agents_platform.operations o ON o.id=a.operation_id WHERE a.task_id=$1`,[task.id])).rows[0];
+    expect(receipt?.reference).toEqual(expect.any(String));expect(receipt?.scope_reference).toEqual(expect.any(String));
+    await expect(pool.query("UPDATE agents_platform.product_operation_access SET result_digest=$2 WHERE operation_id=$1",[receipt.operation_id,"0".repeat(64)])).rejects.toMatchObject({code:"23514"});
+    expect(JSON.stringify(receipt.output)).not.toContain(receipt.reference);
+    const snapshots=(await pool.query("SELECT payload FROM agents_platform.context_snapshots WHERE task_id=$1",[task.id])).rows;
+    expect(JSON.stringify(snapshots)).not.toContain(receipt.reference);
+    await expect(assertCurrentEvidence(pool,task.id,manifest,{requireActiveTask:false})).resolves.toBeUndefined();
+    await controlFixture({type:"content-entitlement",enabled:false},"content-entitlement");
+    try {
+      await expect(assertCurrentEvidence(pool,task.id,manifest,{requireActiveTask:false})).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+      const unavailable=(await browserOk(`/api/agents/tasks/${task.id}`)).task;
+      expect(unavailable.output).toBeNull();expect(unavailable.errorCode).toBe("EVIDENCE_UNAVAILABLE");
+    } finally {await controlFixture({type:"content-entitlement",enabled:true},"content-entitlement");}
+    await pool.query("DELETE FROM agents_platform.product_operation_access WHERE operation_id=$1",[receipt.operation_id]);
+    const untracked=await browser(`/api/agents/tasks/${task.id}`);expect([403,409]).toContain(untracked.status);
+    expect(await untracked.text()).not.toContain("A real selected post.");
+  },45000);
+
+  it("uses a task-pinned selected post through the real product worker and fences access changes",async()=>{
+    await provisionGrowthModel(pool,keyVault,{tenantId,providerId:"openrouter",modelId:"fixture/growth",apiKey:"fixture-only-key"},{discoveryFetch:async()=>({status:200,body:JSON.stringify({data:[{id:"fixture/growth",name:"Fixture Growth model",context_length:262144,top_provider:{max_completion_tokens:32768},supported_parameters:["tools"],architecture:{input_modalities:["text"],output_modalities:["text"]},pricing:{prompt:"0",completion:"0"}}]})})});
+    const trust={issuer,actorIssuer:actor.issuer,keys:{fixture:await exportSPKI(keys.publicKey)}};
+    await new GrowthExecutionService(pool,trust,runtime).ensureTenant({tenantId,publication:canonicalPublication,defaultsRevision:canonicalPublication.manifest.revision,upgradeDefaults:true});
+    await controlFixture({type:"selected-post"},"selected-post");
+    const selection={kind:"content_post",resourceId:"selected-post"};
+    const conversation=(await browserOk("/api/agents/conversations",{requestId:randomUUID(),featureId:"assistant",context:selection})).conversation;
+    const initial=selectedContextInputs.length;
+    const task=(await browserOk(`/api/agents/conversations/${conversation.id}/messages`,{requestId:randomUUID(),text:"Can you improve this post?"})).task;
+    const done=await finished(task.id);expect(done.state,done.error_code).toBe("completed");
+    expect((await browserOk(`/api/agents/tasks/${task.id}`)).task.sources).toEqual([]);
+    expect(selectedContextInputs[initial]).toContain('"resourceId":"selected-post"');
+    expect(selectedContextInputs[initial]).toContain("A real selected post.");
+    expect(selectedContextInputs[initial]).not.toContain("selectedAccounts");
+    expect(selectedContextInputs[initial]).not.toContain("channel_connection_id");
+    const manifest=await taskEvidenceManifest(pool,task.id),dependency=manifest.dependencies.find(value=>value.kind==="product_context");
+    expect(dependency).toMatchObject({kind:"product_context",taskId:task.id,product:"growth",tenantId});
+    await expect(assertProductInformationForModel(pool,task.id,manifest,"primary")).resolves.toBeUndefined();
+    await expect(assertProductInformationForModel(pool,task.id,manifest,"compaction")).resolves.toBeUndefined();
+    const altered=structuredClone(dependency!);if(altered.kind!=="product_context")throw Error("Missing selected context dependency");
+    const provider=altered.information.providers[0]!,{destinationDigest:_digest,bindingDigest:_binding,...destination}=provider;
+    destination.endpoint="https://other-provider.invalid/";provider.endpoint=destination.endpoint;provider.destinationDigest=requestDigest(destination);
+    altered.information.providers=[provider];
+    await expect(assertProductInformationForModel(pool,task.id,createDependencyManifest([altered]),"primary")).rejects.toMatchObject({code:"PRODUCT_INFORMATION_DENIED"});
+    await pool.query("UPDATE agents_platform.product_task_contexts SET selected_context=$2 WHERE task_id=$1",[task.id,{kind:"content_post",resourceId:"other-post"}]);
+    await expect(assertCurrentEvidence(pool,task.id,manifest,{requireActiveTask:false})).rejects.toBeDefined();
+    await pool.query("UPDATE agents_platform.product_task_contexts SET selected_context=$2 WHERE task_id=$1",[task.id,selection]);
+    await controlFixture({type:"content-entitlement",enabled:false},"content-entitlement");
+    await expect(runtime.selectedContextReference(task.id)).rejects.toBeDefined();
+    await expect(assertCurrentEvidence(pool,task.id,manifest,{requireActiveTask:false})).rejects.toBeDefined();
+    await controlFixture({type:"content-entitlement",enabled:true},"content-entitlement");
+    const foreign=await browser("/api/agents/conversations",{requestId:randomUUID(),featureId:"assistant",context:{kind:"content_post",resourceId:"other-post"}});
+    expect([403,404]).toContain(foreign.status);
+    const pending=(await browserOk(`/api/agents/conversations/${conversation.id}/messages`,{requestId:randomUUID(),text:"Please continue."})).task;
+    await settleTask(pool,pending.id,{state:"incomplete",output:"More work is needed.",errorCode:"ORCHESTRATION_STALLED"});
+    await pool.query("UPDATE agents_platform.product_conversations SET context=$2 WHERE conversation_id=$1",[conversation.id,{kind:"content_post",resourceId:"other-post"}]);
+    const continued=(await ok(command("tasks.continue",{taskId:pending.id}))).task;
+    expect((await pool.query("SELECT selected_context FROM agents_platform.product_task_contexts WHERE task_id=$1",[continued.id])).rows[0].selected_context).toEqual(selection);
+    const plain=(await browserOk("/api/agents/conversations",{requestId:randomUUID(),featureId:"assistant"})).conversation;
+    const plainTask=(await browserOk(`/api/agents/conversations/${plain.id}/messages`,{requestId:randomUUID(),text:"Hi"})).task;
+    await pool.query("UPDATE agents_platform.product_conversations SET context=$2 WHERE conversation_id=$1",[plain.id,selection]);
+    expect(await runtime.selectedContextReference(plainTask.id)).toBeNull();
+  },60000);
   it("executes the current canonical catalogue through actual shared worker review commit and replay",async()=>{
     canonicalMode=true;
+    await provisionGrowthModel(pool,keyVault,{tenantId,providerId:"openrouter",modelId:"fixture/growth",apiKey:"fixture-only-key"},{discoveryFetch:async()=>({status:200,body:JSON.stringify({data:[{id:"fixture/growth",name:"Fixture Growth model",context_length:262144,top_provider:{max_completion_tokens:32768},supported_parameters:["tools"],architecture:{input_modalities:["text"],output_modalities:["text"]},pricing:{prompt:"0",completion:"0"}}]})})});
     await controlFixture({type:"configure",frontendOrigin:growthOrigin},"configured");
     const trust={issuer,actorIssuer:actor.issuer,keys:{fixture:await exportSPKI(keys.publicKey)}};
-    await new GrowthExecutionService(pool,trust,runtime).ensureTenant({tenantId,publication:canonicalPublication,defaultsRevision:"6",upgradeDefaults:true});
+    await new GrowthExecutionService(pool,trust,runtime).ensureTenant({tenantId,publication:canonicalPublication,defaultsRevision:canonicalPublication.manifest.revision,upgradeDefaults:true});
     const before=(await browserOk("/__fixture/posts")).posts.length;
     const conversation=(await browserOk("/api/agents/conversations",{requestId:randomUUID(),featureId:"content"})).conversation;
     const task=(await browserOk(`/api/agents/conversations/${conversation.id}/messages`,{requestId:randomUUID(),text:"Save a draft using canonical operations"})).task;
@@ -547,18 +875,53 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     const review=(await browserOk(`/api/agents/tasks/${task.id}/reviews`)).reviews[0];
     expect(review.kind).toBe("operation");expect(review.operation).toBe("content.posts.draft.create");
     expect((await browserOk("/__fixture/posts")).posts).toHaveLength(before);
+    const lostBefore=lostCommitAcknowledgements;
     loseCommitAcknowledgement=true;
     const decision=await fetch(`${growthOrigin}/api/operations/reviews/${review.id}/decision`,{method:"POST",headers:{origin:growthOrigin,"content-type":"application/json",cookie:`kasitek_session=fixture-dashboard-session; kasitek_active_org=${tenantId}`},body:JSON.stringify({decision:"approve",payloadDigest:review.payloadDigest})});
     expect(decision.status,await decision.text()).toBe(200);
     const complete=await finished(task.id);expect(complete.state,complete.error_code).toBe("completed");
     const after=(await browserOk("/__fixture/posts")).posts;
     expect(after).toHaveLength(before+1);
+    expect(lostCommitAcknowledgements).toBe(lostBefore+1);
     expect(after.at(-1).content).toBe("Reviewed content");
+    const visible=savedEffectInputs.map(value=>JSON.parse(value)).find(value=>value.value?.reviewId===review.id);
+    expect(visible).toEqual({value:{state:"saved",reviewId:review.id}});
+    expect(JSON.stringify(visible)).not.toContain("Reviewed content");
+    const effect=(await pool.query(`SELECT a.*,o.output FROM agents_platform.product_operation_access a
+      JOIN agents_platform.operations o ON o.id=a.operation_id WHERE a.task_id=$1`,[task.id])).rows[0];
+    expect(JSON.stringify(effect.output)).toContain("Reviewed content");
+    expect(effect.result_digest).toBe(requestDigest(effect.output.value));
+    const manifest=await taskEvidenceManifest(pool,task.id),dependency=manifest.dependencies.find(value=>value.kind==="product_access");
+    expect(dependency).toMatchObject({kind:"product_access",product:"growth",tenantId,taskId:task.id});
+    await expect(assertCurrentEvidence(pool,task.id,manifest,{requireActiveTask:false})).resolves.toBeUndefined();
+    const narrowed=structuredClone(dependency!);if(narrowed.kind!=="product_access")throw Error("Missing effect access dependency");
+    narrowed.information.providers=narrowed.information.providers.map(provider=>({...provider,endpoint:"https://unapproved.example/"})).map(provider=>{
+      const {destinationDigest:_digest,bindingDigest:_binding,...destination}=provider;return {...provider,destinationDigest:requestDigest(destination)};
+    });
+    await expect(assertProductInformationForModel(pool,task.id,createDependencyManifest([narrowed]),"primary")).rejects.toMatchObject({code:"PRODUCT_INFORMATION_DENIED"});
+    await controlFixture({type:"content-entitlement",enabled:false},"content-entitlement");
+    try {await expect(assertCurrentEvidence(pool,task.id,manifest,{requireActiveTask:false})).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});}
+    finally {await controlFixture({type:"content-entitlement",enabled:true},"content-entitlement");}
     const saved=(await browserOk(`/api/agents/tasks/${task.id}/reviews`)).reviews[0];
     expect(saved.state).toBe("succeeded");
     expect((await ok(command("reviews.decide",{taskId:task.id,reviewId:review.id,payloadDigest:review.payloadDigest,decision:"approve"}))).reviewId).toBe(review.id);
     expect((await browserOk("/__fixture/posts")).posts).toHaveLength(before+1);
-    expect((await pool.query("SELECT revision FROM agents_platform.growth_capability_publications WHERE tenant_id=$1 AND revision='6'",[tenantId])).rows[0].revision).toBe("6");
+    const next=(await browserOk(`/api/agents/conversations/${conversation.id}/messages`,{requestId:randomUUID(),text:"What happened with that draft?"})).task;
+    const historyOperation={id:`history:${next.id}`,kind:"tool" as const,name:"history.read",request:{},reservedTokens:0,reservedMs:30000};
+    const historyAdmission=await beginOperation(pool,next.id,historyOperation);if(historyAdmission.waiting)throw Error("Unexpected history capacity wait");
+    let offset=0,retained="";
+    for(;;){const page=await readHistory(pool,next.id,{taskId:task.id,part:"operations",offset},runtime.evidence,historyOperation.id);
+      retained+=page.content;if(page.nextOffset===null)break;offset=page.nextOffset;}
+    expect(retained).toContain(review.id);expect(retained).not.toContain("Reviewed content");
+    await expect(assertCurrentEvidence(pool,next.id,await taskEvidenceManifest(pool,next.id))).resolves.toBeUndefined();
+    await pool.query("DELETE FROM agents_platform.product_operation_access WHERE operation_id=$1",[effect.operation_id]);
+    await expect(assertCurrentEvidence(pool,task.id,manifest,{requireActiveTask:false})).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+    await expect(assertCurrentEvidence(pool,next.id,await taskEvidenceManifest(pool,next.id))).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+    await expect(runtime.authorizeTask(task.id)).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+    await expect(runtime.authorizeControl(task.id)).resolves.toBeUndefined();
+    await expect(runtime.readReviewStatus(task.id,review.id)).resolves.toMatchObject({id:review.id,state:"succeeded",payloadDigest:review.payloadDigest});
+    expect((await ok(command("reviews.decide",{taskId:task.id,reviewId:review.id,payloadDigest:review.payloadDigest,decision:"approve"}))).reviewId).toBe(review.id);
+    expect((await pool.query("SELECT revision FROM agents_platform.growth_capability_publications WHERE tenant_id=$1 AND revision=$2",[tenantId,canonicalPublication.manifest.revision])).rows[0].revision).toBe(canonicalPublication.manifest.revision);
   },60000);
 
 });

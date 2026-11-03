@@ -22,3 +22,21 @@ export function supportStatus(value: unknown, now: Date = new Date()): SupportSt
   const open = day >= 0 && schedule.intervals.some(interval => interval.day === day && interval.start <= time && time < interval.end);
   return { hours: { state: open ? "open" : "closed", timeZone: schedule.timeZone, intervals: schedule.intervals }, staffAvailability: "unknown", responseTime: "unknown" };
 }
+
+/** Unknown hours allow a factual waiting update; configured closed hours defer it. */
+export function nextSupportOpening(hours: unknown, at: Date): Date {
+  const parsed = supportHoursSchema.safeParse(hours);
+  if (!parsed.success) return at;
+  const formatter = new Intl.DateTimeFormat("en-US", { timeZone: parsed.data.timeZone, weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const open = (date: Date) => {
+    const parts = formatter.formatToParts(date), part = (name: string) => parts.find(value => value.type === name)?.value;
+    const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(part("weekday") ?? ""), time = `${part("hour")}:${part("minute")}`;
+    return parsed.data.intervals.some(interval => interval.day === day && interval.start <= time && time < interval.end);
+  };
+  if (open(at)) return at;
+  for (let minute = 1; minute <= 8 * 24 * 60; minute++) {
+    const candidate = new Date(Math.floor(at.getTime() / 60000) * 60000 + minute * 60000);
+    if (open(candidate)) return candidate;
+  }
+  return new Date(at.getTime() + 24 * 60 * 60000);
+}

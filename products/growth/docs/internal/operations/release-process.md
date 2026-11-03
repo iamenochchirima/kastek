@@ -42,6 +42,17 @@ unreviewed.
 
 ## Required lifecycle
 
+### Agents rollout coverage
+
+A finalized shared Agents update includes rollout to all active agent surfaces in its agreed
+environment: internal conversations, product integrations, website widgets and connected channels.
+Record the serving API, worker and relevant UI release identities, plus the runtime bindings used
+by new conversations. A local build or one upgraded test organization does not establish this.
+Preserve custom settings, permission ceilings and accepted in-flight execution. Published agents
+must receive platform runtime updates without an owner having to republish each one manually.
+Keep blocked targets and exclusions explicit. Delivery remains incomplete while required active
+targets serve the older behavior.
+
 ### 1. Plan
 
 - [ ] Define the user or operational outcome and the owner.

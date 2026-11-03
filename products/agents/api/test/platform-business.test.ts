@@ -1,11 +1,13 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel, fixtureModelProviders } from "./model-fixture";
 import { dispatchBoundModel } from "../src/execution/models/dispatch";
 import {countPreparedInput} from "../src/adapters/models/input-count";
-import type { ModelFetch } from "../src/infrastructure/model-network";
-import {homedir} from "node:os";
+import { ModelNetworkError, type ModelFetch } from "../src/infrastructure/model-network";
+import {homedir,tmpdir} from "node:os";
 import {join} from "node:path";
-import {rm} from "node:fs/promises";
+import {mkdtemp,readFile,rm,writeFile} from "node:fs/promises";
+import {createServer as createPortServer} from "node:net";
 import {SandboxManager} from "../src/capabilities/sandbox/sandbox";
 import {createSandboxExecutor} from "../src/capabilities/sandbox/sandbox-executor";
 import { createServer as createHttpServer } from "node:http";
@@ -13,14 +15,16 @@ import { ConnectedExecutor } from "../src/capabilities/connected-tools/connected
 import { RemoteConnectionStore } from "../src/product/connections/remote-connections";
 import { ToolReviewStore } from "../src/capabilities/reviews/tool-reviews";
 import {publishFixtureSource} from "./knowledge-fixture";
-import { execFileSync } from "node:child_process";
+import { execFileSync,spawn,type ChildProcess } from "node:child_process";
 import { randomUUID, randomBytes } from "node:crypto";
 import { createServer, type ServerHttp2Session } from "node:http2";
 import { createEndpointHandler } from "@restatedev/restate-sdk";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createBusinessWorkflow, type BusinessOptions } from "../src/execution/business/business";
+import { createContextCompactionWorkflow } from "../src/execution/context/compaction-workflow";
 import { defaultBusinessConfiguration, terminalTaskStates, type AgentConfiguration, type AdmissionAuthority, type ExecutionGrant } from "../src/contracts/contracts";
+import { HARNESS_RELEASE, SHARED_HARNESS_RELEASE, SHARED_WORKFLOW_NAME } from "../src/contracts/execution";
 import { dispatchTasksOnce } from "../src/execution/lifecycle/dispatcher";
 import { beginOperation, finishOperation, settleTask, requestTreeCancellation, reconcilePendingRoots, WORKFLOW_NAME, loadExecution } from "../src/execution/lifecycle/execution";
 import { admitChildren, readChildResults } from "../src/execution/delegation/delegation";
@@ -37,7 +41,10 @@ import { MemoryStore } from "../src/execution/memory/memory";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
 import { toolsFor, executeTool } from "../src/capabilities/tools";
+import { ProductRuntime } from "../src/execution/products/product-runtime";
+import type { ProductResourceScope } from "../src/capabilities/products/resource-scope";
 import { SkillPackageStore } from "../src/product/agents/skill-package-store";
+import { controlPlatformAdmissions } from "../src/product/agents/platform-admission-control";
 import { parseSkillPackage } from "../src/capabilities/skills/package";
 import { estimateRequestTokens, validateMessageGroups, requestDigest as modelRequestDigest, type ModelRequest } from "../src/execution/business/model";
 
@@ -51,9 +58,12 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   let afterReviewRead:((review:Awaited<ReturnType<ActionService["getReview"]>>)=>Promise<void>)|undefined;
   let server: ReturnType<typeof createServer>;
   let workflow: ReturnType<typeof createBusinessWorkflow>;
+  let sharedWorkflow: ReturnType<typeof createBusinessWorkflow>;
+  let compactionWorkflow: ReturnType<typeof createContextCompactionWorkflow>;
   let businessOptions: BusinessOptions;
   let ingressUrl: string, adminUrl: string;
   let containerStarted = false;
+  let native:ChildProcess|undefined,nativeDirectory:string|undefined,nativeOutput="";
   const sessions = new Set<ServerHttp2Session>();
   const databaseName = `agents_harness_test_${randomUUID().replaceAll("-", "")}`;
   const containerName = `agents-harness-test-${randomUUID()}`;
@@ -69,12 +79,16 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   async function eventually<T>(check: () => Promise<T | false>, timeout = 20_000): Promise<T> {
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) { const result = await check(); if (result !== false) return result; await new Promise(resolve => setTimeout(resolve, 75)); }
-    throw new Error("Harness verification timed out");
+    throw new Error(`Harness verification timed out: ${nativeOutput.slice(-1000)}`);
   }
   async function listen(port = 0) {
-    server = createServer(createEndpointHandler({ services: [workflow] }));
+    server = createServer(createEndpointHandler({ services: [workflow,sharedWorkflow,compactionWorkflow] }));
     server.on("session", session => { sessions.add(session); session.once("close", () => sessions.delete(session)); });
     await new Promise<void>(resolve => server.listen(port, "0.0.0.0", resolve));
+  }
+  async function freePort() {
+    const server=createPortServer();await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
+    const port=(server.address() as {port:number}).port;await new Promise<void>(resolve=>server.close(()=>resolve()));return port;
   }
   async function restart() {
     const port = (server.address() as { port: number }).port;
@@ -101,7 +115,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
         await policy.beforeDispatch?.();
         const body = JSON.parse(String(request?.body)); calls.push(body);
         const response = await provider(body, request!);
-        if (!response.ok) return response;
+        if (!response.ok || response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() === "text/event-stream") return response;
         const result = await response.json(), choice = result.choices[0];
         const delta = { ...choice.message, ...(choice.message.tool_calls ? { tool_calls: choice.message.tool_calls.map((call:any,index:number) => ({ ...call,index })) } : {}) };
         return new Response(`data: ${JSON.stringify({ id:result.id, model:body.model, choices:[{index:0,delta,finish_reason:choice.finish_reason}],usage:result.usage })}\n\ndata: [DONE]\n\n`, {headers:{"content-type":"text/event-stream"}});
@@ -109,21 +123,37 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       network.markProgress = () => {}; return network;
     }) } };
     workflow = createBusinessWorkflow(pool,businessOptions);
+    sharedWorkflow = createBusinessWorkflow(pool,businessOptions,{release:SHARED_HARNESS_RELEASE,workflow:SHARED_WORKFLOW_NAME});
+    compactionWorkflow=createContextCompactionWorkflow(pool,{modelProvider:businessOptions.modelProvider!,modelRuntime:businessOptions.modelRuntime,evidence:businessOptions.evidence!});
     await listen();
     const port = (server.address() as { port: number }).port;
-    docker("run", "-d", "--name", containerName, "--cpus", "2", "--memory", "768m", "--add-host", "host.docker.internal:host-gateway",
-      "-p", "127.0.0.1::8080", "-p", "127.0.0.1::9070", "docker.restate.dev/restatedev/restate:1.7.13");
-    containerStarted = true;
-    ingressUrl = `http://${docker("port", containerName, "8080/tcp")}`; adminUrl = `http://${docker("port", containerName, "9070/tcp")}`;
+    const binary=process.env.AGENTS_TEST_RESTATE_BINARY;
+    if(binary){
+      expect(execFileSync(binary,["--version"],{encoding:"utf8"})).toContain("1.7.13");
+      nativeDirectory=await mkdtemp(join(tmpdir(),"kasitek-business-test-"));
+      const ingress=await freePort(),administration=await freePort(),internal=await freePort();
+      ingressUrl=`http://127.0.0.1:${ingress}`;adminUrl=`http://127.0.0.1:${administration}`;
+      const config=join(nativeDirectory,"restate.toml"),template=await readFile(join(__dirname,"scheduling-restate.toml"),"utf8");
+      await writeFile(config,`${template}\n[ingress]\nbind-address="127.0.0.1:${ingress}"\n[admin]\nbind-address="127.0.0.1:${administration}"\n`);
+      native=spawn(binary,["--config-file",config,"--base-dir",join(nativeDirectory,"data"),"--bind-address",`127.0.0.1:${internal}`,"--advertised-host","127.0.0.1","--node-name","business-fixture","--no-logo"],{stdio:["ignore","pipe","pipe"]});
+      native.stdout?.on("data",chunk=>{nativeOutput=(nativeOutput+String(chunk)).slice(-5000);});native.stderr?.on("data",chunk=>{nativeOutput=(nativeOutput+String(chunk)).slice(-5000);});
+    }else{
+      docker("run", "-d", "--name", containerName, "--cpus", "2", "--memory", "768m", "--add-host", "host.docker.internal:host-gateway",
+        "-p", "127.0.0.1::8080", "-p", "127.0.0.1::9070", "docker.restate.dev/restatedev/restate:1.7.13");
+      containerStarted = true;
+      ingressUrl = `http://${docker("port", containerName, "8080/tcp")}`; adminUrl = `http://${docker("port", containerName, "9070/tcp")}`;
+    }
     await eventually(async () => { try { return (await fetch(`${adminUrl}/health`)).ok; } catch { return false; } });
     const registration = await fetch(`${adminUrl}/deployments`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ uri: `http://host.docker.internal:${port}`, force: false }) });
+      body: JSON.stringify({ uri: `http://${binary?"127.0.0.1":"host.docker.internal"}:${port}`, force: false }) });
     expect(registration.ok, await registration.text()).toBe(true);
   }, 60_000);
   afterAll(async () => {
     for (const session of sessions) session.destroy();
     if (server) await new Promise<void>(resolve => server.close(() => resolve()));
     if (containerStarted) docker("rm", "-f", containerName);
+    if(native&&native.exitCode===null){native.kill("SIGTERM");await new Promise<void>(resolve=>native!.once("exit",()=>resolve()));}
+    if(nativeDirectory)await rm(nativeDirectory,{recursive:true,force:true});
     await receiver?.close();
     await pool?.end();
     if (admin) { await dropClosedTestDatabase(admin,databaseName); await admin.end(); }
@@ -142,7 +172,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const grant: ExecutionGrant = { ...authority, id: randomUUID(), versionId: version.id,
       operations: config.memory.enabled ? ["model.reply", "knowledge.read", "memory.read", "memory.propose"] : ["model.reply", "knowledge.read"],
       sourceRevisionIds: config.sourceRevisionIds, connectedToolBindingIds: config.connectedToolBindingIds, maxInputBytes: config.model.maxInputBytes, maxOutputTokens: config.model.maxOutputTokens,
-      maxContextTokens: config.context.maxInputTokens, rootTokenLimit, expiresAt: new Date(Date.now() + 300_000).toISOString(), revokedAt: null };
+      maxContextTokens: contextGrantCeiling(config), rootTokenLimit, expiresAt: new Date(Date.now() + 300_000).toISOString(), revokedAt: null };
     await store.createGrant({ accountId: account.id, grant });
     const request = { authority, grantId: grant.id, versionId: version.id, requestKey: randomUUID(), input: "What are the opening hours?" };
     const { task } = await store.admitTask(request);
@@ -150,9 +180,14 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       managed: { accountId: account.id, organizationId: org.id, agentId: agent.id },
       scoped: { organizationId: org.id, agentId: agent.id, principal: authority.principal } };
   }
+  function runtimeRoutes() {
+    return { [HARNESS_RELEASE]:{ingressUrl,adminUrl,workflowName:WORKFLOW_NAME},
+      [SHARED_HARNESS_RELEASE]:{ingressUrl,adminUrl,workflowName:SHARED_WORKFLOW_NAME} };
+  }
   async function execute(taskId: string) {
-    await dispatchTasksOnce(pool, { ingressUrl, adminUrl });
-    return eventually(async () => { await dispatchTasksOnce(pool,{ingressUrl,adminUrl}); const row = (await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0]; return terminalTaskStates.has(row.state) ? row : false; });
+    const routes=runtimeRoutes();
+    await dispatchTasksOnce(pool, { ingressUrl, adminUrl, runtimeRoutes:routes });
+    return eventually(async () => { await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:routes}); const row = (await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0]; return terminalTaskStates.has(row.state) ? row : false; });
   }
   it("runs the saved provider through the real Restate business workflow and private continuation store", async () => {
     const f = await fixture({ sourceRevisionIds: [], instructions: "Reply with a greeting." });
@@ -238,14 +273,15 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const packages = new SkillPackageStore(pool), pkg = parseSkillPackage({ files: [
       { path: "SKILL.md", content: "---\nname: opening-procedure\ndescription: Check the opening-hours response procedure when answering hours.\n---\nACTIVATED_PROCEDURE: Read references/hours.md before answering the hours question." },
       { path: "references/hours.md", content: "LOADED_REFERENCE: The source evidence must establish that doors open at nine." },
-      { path: "references/large.md", content: "OVERSIZED_REFERENCE:" + "x".repeat(5000) },
+      { path: "references/large.md", content: "OVERSIZED_REFERENCE:" + "x".repeat(50000) },
     ] });
     const installed = await packages.import(f.managed, randomUUID(), pkg); await packages.review(f.managed, installed.id, installed.contentDigest);
-    const configuration = { ...f.config, skillIds: [installed.id], memory: { enabled: false }, context: { maxInputTokens: 8192, compactAtTokens: 1024 } };
+    const configuration = { ...f.config, skillIds: [installed.id], memory: { enabled: false }, context: { maxInputTokens: 32768, compactAtTokens: 18000 } };
     const draft = await store.updateDraft({ ...f.managed, configuration, expectedRevision: 1 });
     const version = await store.createVersion({ ...f.managed, expectedRevision: draft.draft_revision });
     expect(version.tool_bindings.map(binding => binding.name)).toEqual(expect.arrayContaining(["skills.activate", "skills.read"]));
-    const grant: ExecutionGrant = { ...f.grant, id: randomUUID(), versionId: version.id, operations: ["model.reply", "knowledge.read", "skill.read"] };
+    const grant: ExecutionGrant = { ...f.grant, id: randomUUID(), versionId: version.id, rootTokenLimit: null,
+      maxContextTokens: contextGrantCeiling(configuration), operations: ["model.reply", "knowledge.read", "skill.read"] };
     await store.createGrant({ accountId: f.account.id, grant });
     const request = { ...f.request, versionId: version.id, grantId: grant.id, requestKey: randomUUID() };
     const limitedGrant: ExecutionGrant = { ...grant, id: randomUUID(), operations: ["model.reply", "knowledge.read"] };
@@ -254,33 +290,80 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await expect(executeTool(pool, admitted.task.id, "before-activation", "skills.read", JSON.stringify({ skillId: installed.id, path: "references/hours.md" }))).rejects.toMatchObject({ code: "SKILL_ACTIVATION_REQUIRED" });
     await expect(executeTool(pool, admitted.task.id, "foreign-skill", "skills.activate", JSON.stringify({ skillId: randomUUID() }))).rejects.toMatchObject({ code: "SKILL_SCOPE_DENIED" });
     let regular = 0, compacted = 0;
+    let markBackground!:()=>void,releaseBackground!:()=>void,backgroundFinished=false;
+    const backgroundStarted=new Promise<void>(resolve=>{markBackground=resolve;});
+    const backgroundHeld=new Promise<void>(resolve=>{releaseBackground=resolve;});
     provider = async body => {
-      if (body.messages[0].content.startsWith("Summarize")) { compacted++; return reply("The approved procedure and supporting reference were loaded; opening evidence confirms nine."); }
+      if (body.messages[0].content.startsWith("Summarize")) {
+        compacted++;markBackground();await backgroundHeld;backgroundFinished=true;
+        return reply("The approved procedure and supporting reference were loaded; opening evidence confirms nine.");
+      }
       regular++;
       const system = body.messages.filter((message: any) => message.role === "system").map((message: any) => message.content).join("\n");
+      const references = body.messages.filter((message: any) => message.role === "user").map((message: any) => message.content).join("\n");
       expect(body.tools.map((entry: any) => entry.function.name)).toEqual(expect.arrayContaining(["skills_activate", "skills_read"]));
       expect(body.tools.map((entry: any) => entry.function.name)).not.toContain("memory_search");
       if (regular === 1) { expect(system).toContain("opening-procedure"); expect(system).not.toContain("ACTIVATED_PROCEDURE"); expect(system).not.toContain("LOADED_REFERENCE"); return reply("", "tool_calls", [tool("skills_activate", { skillId: installed.id }, "activate-procedure")]); }
       expect(system).toContain("ACTIVATED_PROCEDURE");
       if (regular === 2) { expect(system).not.toContain("LOADED_REFERENCE"); return reply("", "tool_calls", [tool("skills_read", { skillId: installed.id, path: "references/hours.md" }, "read-procedure-reference")]); }
-      expect(system).toContain("LOADED_REFERENCE");
+      expect(system).not.toContain("LOADED_REFERENCE");
+      expect(references).toContain("LOADED_REFERENCE");
+      expect(references).toContain("untrusted reference data");
       expect(system).not.toContain("OVERSIZED_REFERENCE");
       if (regular === 3) return reply("", "tool_calls", [tool("skills_read", { skillId: installed.id, path: "references/large.md" }, "oversized-reference")]);
       if (regular === 4) return reply("", "tool_calls", [tool("knowledge_search", { query: "opening" }, "verify-opening-evidence")]);
-      expect(compacted).toBeGreaterThan(0);
+      await backgroundStarted;
+      expect(backgroundFinished).toBe(false);
+      setTimeout(releaseBackground,750);
       return reply("The approved procedure confirms that doors open at nine.");
     };
-    const task = await execute(admitted.task.id);
+    const task = await execute(admitted.task.id).finally(releaseBackground);
     expect(task.state, task.error_code).toBe("completed"); expect(regular).toBe(5); expect(compacted).toBeGreaterThan(0);
+    const background=(await pool.query("SELECT state FROM agents_platform.operations WHERE task_id=$1 AND id LIKE $2",[admitted.task.id,`background:${admitted.task.id}:%`])).rows;
+    expect(background).toEqual([{state:"completed"}]);
     const receipts = (await pool.query("SELECT name,state,output,error_code FROM agents_platform.operations WHERE task_id=$1 AND name IN ('skills.activate','skills.read') ORDER BY started_at", [admitted.task.id])).rows;
-    expect(receipts.map(row => row.state)).toEqual(["completed", "completed", "failed"]); expect(receipts[1].output.evidence.path).toBe("references/hours.md");
-    expect(receipts[2].error_code).toBe("SKILL_CONTEXT_LIMIT"); expect(receipts[2].output).toBeNull();
+    expect(receipts.map(row => row.state)).toEqual(["completed", "completed", "completed"]); expect(receipts[1].output.evidence.path).toBe("references/hours.md");
+    expect(receipts[2].output.content).toContain("OVERSIZED_REFERENCE");
+    expect(receipts[2].output.range.nextOffset).toBeGreaterThan(0);
     const snapshots = (await pool.query("SELECT step,source_references,payload FROM agents_platform.context_snapshots WHERE task_id=$1 AND step>=0 ORDER BY step", [admitted.task.id])).rows;
     expect(snapshots[0].source_references).toContainEqual(expect.objectContaining({ id: installed.id, metadataOnly: true, packageDigest: pkg.contentDigest }));
     const last = snapshots.at(-1)!;
-    expect(last.source_references.filter((reference: any) => reference.skillFile).map((reference: any) => reference.skillFile.path)).toEqual(["SKILL.md", "references/hours.md"]);
+    expect(last.source_references.filter((reference: any) => reference.skillFile).map((reference: any) => reference.skillFile.path)).toEqual(expect.arrayContaining(["SKILL.md", "references/hours.md"]));
     expect(last.source_references.every((reference: any) => !reference.skillFile || reference.skillFile.packageDigest === pkg.contentDigest)).toBe(true);
   }, 30_000);
+  it("bootstraps a reviewed product skill for a human without standalone membership", async () => {
+    const f=await fixture({sourceRevisionIds:[],tools:[]});await settleTask(pool,f.task.id,{state:"cancelled"});
+    const tenantId=randomUUID(),actor={issuer:"https://growth.fixture.test",subject:randomUUID()},service={issuer:"https://growth.fixture.test",clientId:"growth-api"};
+    await pool.query("INSERT INTO agents_platform.product_execution_tenants(product,tenant_id,organization_id,client_id,issuer) VALUES('growth',$1,$2,$3,$4)",[tenantId,f.org.id,service.clientId,service.issuer]);
+    await pool.query("INSERT INTO agents_platform.product_execution_features(product,tenant_id,feature_id,organization_id,agent_id,version_id) VALUES('growth',$1,'assistant',$2,$3,$4)",[tenantId,f.org.id,f.agent.id,f.task.version_id]);
+    const scope:ProductResourceScope={kind:"product_feature",product:"growth",tenantId,organizationId:f.org.id,agentId:f.agent.id,actor,service,authority:"manage"};
+    const packages=new SkillPackageStore(pool),pkg=parseSkillPackage({files:[{path:"SKILL.md",content:"---\nname: product-procedure\ndescription: Use the reviewed product response procedure.\n---\nPRODUCT_SKILL_INSTRUCTIONS: Reply using this reviewed procedure."}]});
+    const installed=await packages.import(scope,randomUUID(),pkg);await packages.review(scope,installed.id,installed.contentDigest);
+    const providers=fixtureModelProviders(pool),selection=(await providers.getDefault({accountId:f.account.id,organizationId:f.org.id})).selection!;
+    await providers.grant({accountId:f.account.id,organizationId:f.org.id},{connectionId:selection.connectionId,consumer:{kind:"agent",agentId:f.agent.id},roles:["primary","compaction","delegated"],modelIds:[selection.modelId]});
+    const configuration={...f.config,skillIds:[installed.id],model:{...f.config.model,selection}};
+    const draft=await store.updateDraft({...f.managed,configuration,expectedRevision:1}),version=await store.createVersion({...f.managed,expectedRevision:draft.draft_revision});
+    await pool.query("UPDATE agents_platform.product_execution_features SET version_id=$3 WHERE product='growth' AND tenant_id=$1 AND agent_id=$2",[tenantId,f.agent.id,version.id]);
+    const grantId=randomUUID(),principal={kind:"human" as const,...actor};
+    await pool.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,max_input_bytes,max_output_tokens,max_context_tokens,root_token_limit,expires_at)
+      VALUES($1,'growth',$2,'assistant','growth-api',$3,$4,$5,$6,$7,$8,NULL,now()+interval '5 minutes')`,[grantId,f.org.id,principal,version.id,JSON.stringify(["model.reply","knowledge.read","skill.read"]),configuration.model.maxInputBytes,configuration.model.maxOutputTokens,contextGrantCeiling(configuration)]);
+    await pool.query("INSERT INTO agents_platform.product_execution_authorities(grant_id,product,organization_id,client_id,issuer,assertion_digest) VALUES($1,'growth',$2,'growth-api',$3,$4)",[grantId,f.org.id,service.issuer,"a".repeat(64)]);
+    const {task}=await store.admitTask({authority:{product:"growth",organizationId:f.org.id,resourceId:"assistant",callerClientId:"growth-api",principal},grantId,versionId:version.id,requestKey:randomUUID(),input:"Use the product response procedure."});
+    await pool.query("INSERT INTO agents_platform.product_conversations(conversation_id,product,tenant_id,feature_id,title) VALUES($1,'growth',$2,'assistant','Product skill')",[task.conversation_id,tenantId]);
+    await pool.query("INSERT INTO agents_platform.product_task_contexts(task_id,product,tenant_id,feature_id,conversation_id,command_digest) VALUES($1,'growth',$2,'assistant',$3,$4)",[task.id,tenantId,task.conversation_id,"a".repeat(64)]);
+    expect((await pool.query("SELECT 1 FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2",[actor.issuer,actor.subject])).rowCount).toBe(0);
+    const runtime=new ProductRuntime(pool);runtime.registerOriginAuthorizer("growth",async(_taskId,db)=>{
+      expect((await db.query("SELECT revoked_at FROM agents_platform.product_execution_tenants WHERE product='growth' AND tenant_id=$1",[tenantId])).rows[0].revoked_at).toBeNull();
+    });
+    businessOptions.product=runtime;let rounds=0;
+    provider=async body=>{rounds++;const system=body.messages.filter((message:any)=>message.role==="system").map((message:any)=>message.content).join("\n");
+      if(rounds===1){expect(system).toContain("Current agent capabilities");expect(system).toContain("product-procedure");expect(system).not.toContain("PRODUCT_SKILL_INSTRUCTIONS");return reply("","tool_calls",[tool("skills_activate",{skillId:installed.id},"activate-product-skill")]);}
+      expect(system).toContain("PRODUCT_SKILL_INSTRUCTIONS");return reply("Product procedure loaded.");};
+    try{
+      const result=await execute(task.id);expect(result.state,result.error_code).toBe("completed");expect(rounds).toBe(2);
+      expect((await pool.query("SELECT state FROM agents_platform.operations WHERE task_id=$1 AND name='skills.activate'",[task.id])).rows).toEqual([{state:"completed"}]);
+    }finally{businessOptions.product=undefined;}
+  },30000);
   (process.env.AGENTS_SANDBOX_VERIFY==="1"?it:it.skip)("runs a reviewed skill through published activation and real isolated Python without loading script source",async()=>{
     const f=await fixture();await execute(f.task.id);calls.length=0;
     const packages=new SkillPackageStore(pool),pkg=parseSkillPackage({files:[
@@ -317,15 +400,15 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const candidate = await memory.proposeManaged(f.managed, { operationId: randomUUID(), kind: "semantic", content, expiresAt });
     return memory.mutate(f.managed, candidate.id, { operationId: randomUUID(), expectedRevision: candidate.revision, action: "accept" });
   }
-  async function researchFixture(enableMemory=false) {
+  async function researchFixture(enableMemory=false,specialistTokens=8000,specialistOutputTokens=4096) {
     const f=await fixture(); await settleTask(pool,f.task.id,{state:"cancelled"});
     const versions=[];
     for(const name of ["FIRST","SECOND"]) {
-      const agent=await store.createAgent({accountId:f.account.id,organizationId:f.org.id,name,configuration:{...defaultBusinessConfiguration(),instructions:`SPECIALIST_${name}: Answer from the provided source.`,sourceRevisionIds:[f.source.id],tools:["knowledge.search","knowledge.read"]}});
+      const agent=await store.createAgent({accountId:f.account.id,organizationId:f.org.id,name,configuration:{...defaultBusinessConfiguration(),instructions:`SPECIALIST_${name}: Answer from the provided source.`,model:{...defaultBusinessConfiguration().model,maxOutputTokens:specialistOutputTokens},sourceRevisionIds:[f.source.id],tools:["knowledge.search","knowledge.read"]}});
       versions.push(await store.createVersion({accountId:f.account.id,organizationId:f.org.id,agentId:agent.id,expectedRevision:1}));
     }
     const config:AgentConfiguration={...defaultBusinessConfiguration(),instructions:"ROOT_RESEARCH: Delegate work to both approved specialists, then synthesize their confirmed evidence.",memory:{enabled:enableMemory},sourceRevisionIds:[f.source.id],tools:["agents.delegate"],
-      capabilities:{...defaultBusinessConfiguration().capabilities,delegation:{enabled:true,maxChildren:2,maxDepth:1,bindings:versions.map((version,index)=>({id:index===0?"first":"second",versionId:version.id,sourceRevisionIds:[f.source.id],connectedToolBindingIds:[],tools:["knowledge.search"],maxTokens:8000,maxActiveMs:240000}))}}};
+      capabilities:{...defaultBusinessConfiguration().capabilities,delegation:{enabled:true,maxChildren:2,maxDepth:1,bindings:versions.map((version,index)=>({id:index===0?"first":"second",versionId:version.id,sourceRevisionIds:[f.source.id],connectedToolBindingIds:[],tools:["knowledge.search"],maxTokens:specialistTokens,maxActiveMs:240000}))}}};
     const agent=await store.createAgent({accountId:f.account.id,organizationId:f.org.id,name:"Research",configuration:config});
     const version=await store.createVersion({accountId:f.account.id,organizationId:f.org.id,agentId:agent.id,expectedRevision:1});
     const authority={...f.request.authority,resourceId:agent.id};
@@ -349,12 +432,17 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     return{...f,task,grant,request,config,scope,connection,agent,managed:{...f.managed,agentId:agent.id},scoped:{...f.scoped,agentId:agent.id}};
   }
   async function waitForReview(taskId:string) {
-    await dispatchTasksOnce(pool,{ingressUrl,adminUrl});
-    return eventually(async()=>{const task=(await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];
-      if(task.state!=="waiting_review")return false;const action=(await pool.query("SELECT id FROM agents_platform.actions WHERE task_id=$1",[taskId])).rows[0];return action?actions.getReview(taskId,action.id):false;});
+    await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:runtimeRoutes()});
+    return eventually(async()=>{const task=(await pool.query("SELECT state,error_code FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];
+      if(task.state!=="waiting_review"){
+        if(terminalTaskStates.has(task.state))throw new Error(`Expected report review; task settled ${task.state} (${task.error_code??"no error code"})`);
+        return false;
+      }
+      const action=(await pool.query("SELECT id FROM agents_platform.actions WHERE task_id=$1",[taskId])).rows[0];return action?actions.getReview(taskId,action.id):false;});
   }
   async function finishWithControls(taskId:string) {
-    return eventually(async()=>{await dispatchTasksOnce(pool,{ingressUrl,adminUrl});const task=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];return terminalTaskStates.has(task.state)?task:false;});
+    const routes=runtimeRoutes();
+    return eventually(async()=>{await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:routes});const task=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];return terminalTaskStates.has(task.state)?task:false;});
   }
   async function groundedFixture() {
     const f=await fixture(); await settleTask(pool,f.task.id,{state:"cancelled"});
@@ -462,19 +550,49 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(Buffer.from(rows[0].payload.report.contentBase64,"base64").toString()).toBe("Open at nine.");
     expect((await actions.getReview(f.task.id,review.id)).state).toBe("delivered");
   },30000);
-  it("reconciles an already accepted report after response loss, restart and grant revocation without resending",async()=>{
+  it("drains root admissions during report rollback and reconciles an accepted effect exactly once",async()=>{
     const f=await reportFixture(),review=await waitForReview(f.task.id);
-    let accepted=false,posts=0,release!:()=>void;const blocked=new Promise<void>(resolve=>{release=resolve;});
+    let accepted=false,posts=0,release!:()=>void,paused=false,admissionRevision=Number((await pool.query("SELECT revision FROM agents_platform.platform_admission_gate WHERE id=1")).rows[0].revision);const blocked=new Promise<void>(resolve=>{release=resolve;});
+    const actor="platform-operator-test";
     afterAccept=async id=>{if(id===review.id){posts++;accepted=true;await blocked;}};
     try {
       await actions.decide(f.scope,f.task.id,review.id,{operationId:randomUUID(),decision:"approve",expectedDigest:review.reviewDigest});
-      await dispatchTasksOnce(pool,{ingressUrl,adminUrl});await eventually(async()=>accepted);
-      await store.revokeGrant(f.account.id,f.org.id,f.grant.id);await restart();
+      await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:runtimeRoutes()});await eventually(async()=>accepted);
+
+      const before=Number((await pool.query("SELECT count(*)::int n FROM agents_platform.tasks WHERE organization_id=$1",[f.org.id])).rows[0].n);
+      const drained=await controlPlatformAdmissions(pool,{action:"drain",actor,reason:"Report capability rollback",expectedRevision:admissionRevision});paused=true;admissionRevision=drained.revision;
+      expect(drained).toMatchObject({acceptingRoots:false,changed:true});
+
+      // New work will use this rollback version after the operator reopens root admissions.
+      const rollbackConfiguration:AgentConfiguration={...f.config,capabilities:{...f.config.capabilities,workflows:{enabled:false}}};
+      const draft=await store.updateDraft({...f.managed,configuration:rollbackConfiguration,expectedRevision:1});
+      const rollback=await store.createVersion({...f.managed,expectedRevision:draft.draft_revision});
+      expect(rollback.id).not.toBe(f.task.version_id);
+      expect((rollback.configuration as AgentConfiguration).capabilities.workflows.enabled).toBe(false);
+      const grant:ExecutionGrant={...f.grant,id:randomUUID(),versionId:rollback.id,operations:["model.reply","knowledge.read"],
+        sourceRevisionIds:rollbackConfiguration.sourceRevisionIds,connectedToolBindingIds:rollbackConfiguration.connectedToolBindingIds};
+      await store.createGrant({accountId:f.account.id,grant});
+      const newRequest={...f.request,grantId:grant.id,versionId:rollback.id,requestKey:randomUUID()};
+      await expect(store.admitTask(newRequest)).rejects.toMatchObject({code:"PLATFORM_ADMISSIONS_PAUSED"});
+      expect(Number((await pool.query("SELECT count(*)::int n FROM agents_platform.tasks WHERE organization_id=$1",[f.org.id])).rows[0].n)).toBe(before);
+      expect(await store.admitTask(f.request)).toMatchObject({replayed:true,task:{id:f.task.id}});
+
+      await restart();
       const result=await eventually(async()=>{const task=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[f.task.id])).rows[0];return terminalTaskStates.has(task.state)?task:false;});
       expect(result.state).toBe("completed");expect(posts).toBe(1);expect(calls).toHaveLength(1);
       expect((await pool.query("SELECT count(*)::int AS count FROM report_delivery_receiver.deliveries WHERE id=$1",[review.id])).rows[0].count).toBe(1);
       expect((await actions.getReview(f.task.id,review.id)).state).toBe("delivered");
-    } finally {release();afterAccept=undefined;await eventually(async()=>inFlightActionCalls===0);}
+
+      const resumed=await controlPlatformAdmissions(pool,{action:"resume",actor,reason:"Rollback recovery verified",expectedRevision:admissionRevision});paused=false;admissionRevision=resumed.revision;
+      expect(resumed).toMatchObject({acceptingRoots:true,changed:true});
+      const newTask=await store.admitTask(newRequest);
+      expect(newTask.task.version_id).toBe(rollback.id);
+      expect((await execute(newTask.task.id)).state).toBe("completed");
+      expect(posts).toBe(1);expect((await pool.query("SELECT count(*)::int AS count FROM report_delivery_receiver.deliveries WHERE id=$1",[review.id])).rows[0].count).toBe(1);
+    } finally {
+      release();afterAccept=undefined;await eventually(async()=>inFlightActionCalls===0);
+      if(paused)await controlPlatformAdmissions(pool,{action:"resume",actor,reason:"Test cleanup",expectedRevision:admissionRevision});
+    }
   },30000);
   it("accepts an exact rejection after grant revocation without dispatch or report regeneration",async()=>{
     const f=await reportFixture(),review=await waitForReview(f.task.id);
@@ -488,8 +606,8 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     provider=async body=>body.messages[0].content.startsWith("ROOT_RESEARCH") ?
       body.messages.some((message:any)=>message.role==="tool") ? reply("Both approved specialists confirm opening at nine.") : reply("","tool_calls",[tool("agents_delegate",childRequests)]) : reply("Approved source says open at nine.");
   }
-  it("runs two pinned business specialists concurrently and charges the root tree exactly once",async()=>{
-    const f=await researchFixture(); researchProvider();
+  it("lets an accepted root finish two specialists during a drain and charges the root tree exactly once",async()=>{
+    const f=await researchFixture(false,12000,512); researchProvider();
     const originalProvider=provider;let releasedBeforeChildModel=0;
     provider=async(body,request)=>{
       if(!body.messages[0].content.startsWith("ROOT_RESEARCH")){
@@ -498,7 +616,20 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       }
       return originalProvider(body,request);
     };
-    try{expect(await execute(f.task.id)).toMatchObject({state:"completed",output:"Both approved specialists confirm opening at nine."});}finally{provider=originalProvider;}
+    let paused=false,admissionRevision=Number((await pool.query("SELECT revision FROM agents_platform.platform_admission_gate WHERE id=1")).rows[0].revision);
+    try{
+      const drained=await controlPlatformAdmissions(pool,{action:"drain",actor:"platform-operator-test",reason:"Verify accepted root and child work continues during drain",expectedRevision:admissionRevision});paused=true;admissionRevision=drained.revision;
+      expect(drained).toMatchObject({acceptingRoots:false,changed:true});
+      expect((await pool.query("SELECT accepting_roots FROM agents_platform.platform_admission_gate WHERE id=1")).rows[0]).toEqual({accepting_roots:false});
+      const outcome=await execute(f.task.id);
+      const childStates=(await pool.query("SELECT state,error_code FROM agents_platform.tasks WHERE parent_task_id=$1 ORDER BY state,error_code",[f.task.id])).rows;
+      expect(childStates).toEqual([{state:"completed",error_code:null},{state:"completed",error_code:null}]);
+      expect({state:outcome.state,error_code:outcome.error_code}).toEqual({state:"completed",error_code:null});
+      expect(outcome.output).toBe("Both approved specialists confirm opening at nine.");
+    }finally{
+      provider=originalProvider;
+      if(paused)await controlPlatformAdmissions(pool,{action:"resume",actor:"platform-operator-test",reason:"Specialist drain case complete",expectedRevision:admissionRevision});
+    }
     expect(releasedBeforeChildModel).toBe(2);expect(calls).toHaveLength(4);
     const delegateDefinition=calls[0]!.tools!.find(tool=>tool.function.name==="agents_delegate")!;
     expect(delegateDefinition.function.description).toContain('"name":"FIRST"');
@@ -522,7 +653,11 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const aggregate=(await pool.query("SELECT tokens_used,tokens_reserved,child_reserved_tokens,model_calls FROM agents_platform.execution_roots WHERE root_task_id=$1",[f.task.id])).rows[0];
     expect(aggregate).toEqual({tokens_used:224,tokens_reserved:0,child_reserved_tokens:0,model_calls:4});
     const resultMessage=calls.find(call=>call.messages[0]!.content?.startsWith("ROOT_RESEARCH")&&call.messages.some(message=>message.role==="tool"))!.messages.find(message=>message.role==="tool")!;
-    expect(JSON.parse(resultMessage.content!).children.map((child:any)=>child.bindingId)).toEqual(["first","second"]);
+    const modelObservation=JSON.parse(resultMessage.content!);
+    expect(modelObservation.children.map((child:any)=>child.bindingId)).toEqual(["first","second"]);
+    expect(modelObservation.interpretation).toContain("agent-reported");
+    expect(modelObservation.children.every((child:any)=>child.reportAssessment.correctness==="not_assessed")).toBe(true);
+    expect(modelObservation.children[0].authorizedScope.meaning).toContain("Permitted scope only");
   },30000);
   it("keeps SDK child submission exclusive while root outbox acceptance is lost and retried",async()=>{
     const f=await researchFixture();researchProvider();const normal=provider;
@@ -754,12 +889,43 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(op.state).toBe("uncertain"); expect(op.accounted_tokens).toBe(op.reserved_tokens); expect(op.reserved_tokens).toBeLessThan(32000);
     await dispatchTasksOnce(pool, { ingressUrl, adminUrl }); expect(calls).toHaveLength(1);
   }, 30_000);
-  it.each([400, 429, 500])("accounts definitive versus uncertain provider HTTP %i outcomes", async status => {
+  it.each([400, 429, 500, 503])("accounts definitive versus uncertain provider HTTP %i outcomes", async status => {
     const f = await fixture(); provider = async () => new Response("private provider detail", { status });
     const outcome = await execute(f.task.id); expect(outcome.state).toBe(status === 500 ? "uncertain" : "failed");
+    if (status === 503) expect(outcome.error_code).toBe("MODEL_PROVIDER_UNAVAILABLE");
     expect(calls).toHaveLength(1);
+    if (status === 503) expect((await pool.query("SELECT state,error_code FROM agents_platform.operations WHERE task_id=$1 AND kind='model'", [f.task.id])).rows[0])
+      .toEqual({ state: "failed", error_code: "MODEL_PROVIDER_UNAVAILABLE" });
     const charged = (await pool.query("SELECT accounted_tokens FROM agents_platform.usage_ledger WHERE task_id=$1", [f.task.id])).rows[0].accounted_tokens;
     expect(status === 500 ? charged > 0 : charged === 0).toBe(true);
+  }, 30_000);
+  it("settles an HTTP 200 SSE provider 503 as failed without retrying the model request", async () => {
+    const f = await fixture();
+    provider = async () => new Response(`data: ${JSON.stringify({ error: { code: 503, message: "PRIVATE_PROVIDER_DETAIL" } })}\n\n`, {
+      status: 200, headers: { "content-type": "text/event-stream" },
+    });
+    const outcome = await execute(f.task.id);
+    expect(outcome).toMatchObject({ state: "failed", error_code: "MODEL_PROVIDER_UNAVAILABLE", output: null });
+    expect(calls).toHaveLength(1);
+    expect((await pool.query("SELECT state,error_code FROM agents_platform.operations WHERE task_id=$1 AND kind='model'", [f.task.id])).rows[0])
+      .toEqual({ state: "failed", error_code: "MODEL_PROVIDER_UNAVAILABLE" });
+    await dispatchTasksOnce(pool, { ingressUrl, adminUrl, runtimeRoutes: runtimeRoutes() });
+    expect(calls).toHaveLength(1);
+  }, 30_000);
+  it("keeps an HTTP 503 failed when its response body is interrupted and never replays it", async () => {
+    const f = await fixture();
+    provider = async () => new Response(new ReadableStream<Uint8Array>({ start(controller) {
+      controller.enqueue(new TextEncoder().encode('{"error":{"message":"PRIVATE_PROVIDER_DETAIL"}'));
+      controller.error(new ModelNetworkError("NETWORK_UNAVAILABLE", true));
+    } }), { status: 503, headers: { "content-type": "application/json" } });
+    const outcome = await execute(f.task.id);
+    expect(outcome).toMatchObject({ state: "failed", error_code: "MODEL_PROVIDER_UNAVAILABLE", output: null });
+    expect(calls).toHaveLength(1);
+    expect((await pool.query("SELECT state,error_code FROM agents_platform.operations WHERE task_id=$1 AND kind='model'", [f.task.id])).rows[0])
+      .toEqual({ state: "failed", error_code: "MODEL_PROVIDER_UNAVAILABLE" });
+    expect((await pool.query("SELECT accounted_tokens FROM agents_platform.usage_ledger WHERE task_id=$1", [f.task.id])).rows[0].accounted_tokens).toBe(0);
+    await dispatchTasksOnce(pool, { ingressUrl, adminUrl, runtimeRoutes: runtimeRoutes() });
+    expect(calls).toHaveLength(1);
   }, 30_000);
   it("cancels before dispatch without starting an operation", async () => {
     const f = await fixture(); await pool.query("UPDATE agents_platform.tasks SET state='cancel_requested' WHERE id=$1", [f.task.id]);

@@ -13,7 +13,7 @@ import { compileValidatedComposition } from "./validated-composition";
 import { loadTaskModelRoutes } from "../models/persistence";
 export { transaction } from "../../infrastructure/database";
 
-import { HARNESS_RELEASE,HANDOFF_HARNESS_RELEASE,ADAPTIVE_HARNESS_RELEASE,LEGACY_ADAPTIVE_HARNESS_RELEASE,LEGACY_ADAPTIVE_WORKFLOW_NAME,type Execution } from "../../contracts/execution";
+import { HARNESS_RELEASE,HANDOFF_HARNESS_RELEASE,ADAPTIVE_HARNESS_RELEASE,LEGACY_ADAPTIVE_HARNESS_RELEASE,SHARED_HARNESS_RELEASE,type Execution } from "../../contracts/execution";
 const inboxInspection = new AsyncLocalStorage<boolean>();
 export function inspectInboxOutput<T>(fn: () => Promise<T>): Promise<T> {
   return inboxInspection.run(true, fn);
@@ -24,16 +24,16 @@ export async function loadExecution(db: Pool | PoolClient, taskId: string, lock 
     JOIN agents_platform.agent_versions v ON v.id=t.version_id AND v.organization_id=t.organization_id
     WHERE t.id=$1 ${lock ? "FOR NO KEY UPDATE OF t" : ""}`, [taskId])).rows[0];
   if (!task) throw new PlatformError("TASK_NOT_FOUND", 404, "Task not found");
-  if (![HARNESS_RELEASE,HANDOFF_HARNESS_RELEASE,ADAPTIVE_HARNESS_RELEASE,LEGACY_ADAPTIVE_HARNESS_RELEASE].includes(task.harness_release)) throw new PlatformError("HARNESS_RELEASE_UNAVAILABLE", 503, "Execution release is unavailable");
+  if (![HARNESS_RELEASE,HANDOFF_HARNESS_RELEASE,ADAPTIVE_HARNESS_RELEASE,LEGACY_ADAPTIVE_HARNESS_RELEASE,SHARED_HARNESS_RELEASE].includes(task.harness_release)) throw new PlatformError("HARNESS_RELEASE_UNAVAILABLE", 503, "Execution release is unavailable");
   const configuration = agentConfigurationSchema.parse(task.effective_configuration ?? task.configuration); assertRuntimeAvailable(configuration);
   const rows = configuration.connectedToolBindingIds.length ? (await db.query(`SELECT b.binding FROM agents_platform.version_connected_tools v
     JOIN agents_platform.capability_bindings b ON b.id=v.binding_id AND b.organization_id=v.organization_id
     WHERE v.organization_id=$1 AND v.version_id=$2 AND b.id=ANY($3::uuid[]) ORDER BY b.alias`, [task.organization_id, task.version_id, configuration.connectedToolBindingIds])).rows : [];
   if (rows.length !== configuration.connectedToolBindingIds.length) throw new PlatformError("CAPABILITY_BINDING_UNAVAILABLE", 409, "Published connected tools are unavailable");
   const connectedBindings = rows.map(row => capabilityBindingSchema.parse(row.binding));
-  const current = task.harness_release===LEGACY_ADAPTIVE_HARNESS_RELEASE
-    ? compilePublishedComposition(configuration,connectedBindings,{release:LEGACY_ADAPTIVE_HARNESS_RELEASE,workflow:LEGACY_ADAPTIVE_WORKFLOW_NAME})
-    : compileValidatedComposition(configuration, connectedBindings);
+  const current = task.harness_release!==SHARED_HARNESS_RELEASE
+    ? compilePublishedComposition(configuration,connectedBindings,{release:task.harness_release,workflow:task.effective_composition.runtime.workflow},task.tool_bindings)
+    : compileValidatedComposition(configuration, connectedBindings,task.tool_bindings);
   if (current.runtime.release !== task.harness_release) throw new PlatformError("HARNESS_RELEASE_UNAVAILABLE",503,"Execution release is unavailable");
   const inspect = inboxInspection.getStore() && ["completed", "incomplete"].includes(task.state);
   const check = inspect ? assertInspectableComposition : assertComposition;

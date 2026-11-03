@@ -180,7 +180,10 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
     if (!pending || pending.conversationId !== value.id || typeof pending.text !== "string" || typeof pending.requestId !== "string" || pending.taskId !== undefined && typeof pending.taskId !== "string") pending = null;
     pendingTurn.current = pending;
     setUnconfirmed(Boolean(pending));
-    if (pending) updateDraft(pending.text);
+    if (pending) {
+      updateDraft(pending.text);
+      setError("Delivery wasn't confirmed. Retry this message to check the original request.");
+    }
     if (value.featureId === "assistant") save(`${storagePrefix}:general`, value.id);
   }, [storagePrefix]);
 

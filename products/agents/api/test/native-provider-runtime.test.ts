@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {createServer,type Server} from "node:http";
 import {Pool} from "pg";
@@ -58,7 +59,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const bindings=(await pool.query("SELECT binding FROM agents_platform.capability_bindings WHERE id=ANY($1::uuid[]) ORDER BY binding#>>'{definition,providerOperation}'",[connection.bindingIds])).rows.map(row=>capabilityBindingSchema.parse(row.binding));
   const configuration={...defaultBusinessConfiguration(),connectedToolBindingIds:bindings.map(binding=>binding.id)},agent=await platform.createAgent({...scope,name:"Staff assistant",configuration}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
   const authority={product:"agents" as const,organizationId:scope.organizationId,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};
-  const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","connected.read","connected.execute"],sourceRevisionIds:[],connectedToolBindingIds:bindings.map(binding=>binding.id),maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:configuration.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};
+  const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","connected.read","connected.execute"],sourceRevisionIds:[],connectedToolBindingIds:bindings.map(binding=>binding.id),maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(configuration),rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};
   await platform.createGrant({accountId:scope.accountId,grant});const {task}=await platform.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Use the connected customer records"});
   return{scope,connection,store,bindings,task,grant};
  }

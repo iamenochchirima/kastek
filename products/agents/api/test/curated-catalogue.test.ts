@@ -118,6 +118,25 @@ describe("curated catalogue", () => {
     expect(find(ctx, "github").readiness.reasons[0]?.code).toBe("BINDING_CHANGED");
     expect(find(ctx, "github").configuration.connectedToolBindingIds).toEqual(["binding"]);
   });
+  it("keeps a selected revoked connection visible and does not count it as a skill requirement", () => {
+    const ctx=context();ctx.connections=[connection];ctx.bindings=[binding];
+    ctx.configuration!.connectedToolBindingIds=[binding.id];ctx.configuration!.skillIds=["revision"];
+    ctx.skills=[{id:"revision",name:"Research",description:"Research a repository.",revision:1,digest:"d".repeat(64),
+      publisher:{id:"organization",name:"Organization",verified:false},state:"available",
+      runtimeRequirements:{connectionProfiles:[connection.profileId],permissions:["connected.read"],runtimes:["business"]}}];
+    expect(queryCatalogue("skills",{},ctx).entries[0]!.readiness.state).toBe("ready");
+    ctx.connections=[{...connection,state:"revoked"}];
+    expect(find(ctx,"github")).toMatchObject({added:true,configuration:{connectedToolBindingIds:[binding.id]},
+      readiness:{state:"needs_connection",reasons:[{code:"CONNECTION_REVOKED"}]},action:{kind:"connect",connectionId:connection.id}});
+    expect(queryCatalogue("skills",{},ctx).entries[0]).toMatchObject({added:true,readiness:{state:"unavailable",reasons:[{code:"SKILL_REQUIREMENTS_UNAVAILABLE"}]}});
+    ctx.connections=[{...connection,expiresAt:"2026-10-19T00:00:00Z"}];
+    expect(find(ctx,"github").readiness.reasons[0]?.code).toBe("CONNECTION_EXPIRED");
+    ctx.connections=[{...connection,policyRevision:3}];
+    expect(find(ctx,"github").readiness.reasons[0]?.code).toBe("BINDING_CHANGED");
+    expect(queryCatalogue("skills",{},ctx).entries[0]!.readiness.state).toBe("unavailable");
+    ctx.connections=[connection];
+    expect(queryCatalogue("skills",{},ctx).entries[0]!.readiness.state).toBe("ready");
+  });
   it("keeps custom servers distinct and attaches only the selected account's operations", () => {
     const ctx=context();
     const first={...connection,id:"first",name:"Support system",profileId:"remote-mcp-v1" as const};
@@ -177,7 +196,7 @@ describe("catalogue routes", () => {
     await app.close();
   });
   it("uses server provider readiness and the scoped customer-service offering",async()=>{
-    const app=Fastify();registerCatalogueRoutes(app,{resolveScope:async()=>({accountId:"account",organizationId}),getAgent:async()=>({id:agentId,offering:"customer-service",draft:defaultBusinessConfiguration()}),listConnections:async()=>[{...connection,profileId:"google-calendar-v1"}],listBindings:async()=>[],permissions:async()=>["agent.configure","calendar.configure"],connectorReadiness:{"google-calendar":{available:true}}});
+    const app=Fastify();registerCatalogueRoutes(app,{resolveScope:async()=>({accountId:"account",organizationId}),getAgent:async()=>({id:agentId,offering:"customer-service",draft:defaultBusinessConfiguration()}),listConnections:async()=>[{...connection,profileId:"google-calendar-v1",expiresAt:new Date(Date.now()+86400000).toISOString()}],listBindings:async()=>[],permissions:async()=>["agent.configure","calendar.configure"],connectorReadiness:{"google-calendar":{available:true}}});
     const response=await app.inject({url:`/api/organizations/${organizationId}/catalogue/tools?agentId=${agentId}&purpose=faq&view=recommended`});expect(response.statusCode).toBe(200);expect(response.json().entries.find((entry:{id:string})=>entry.id==="google-calendar")).toMatchObject({recommended:true,action:{kind:"configure",configurationSection:"configuration"}});await app.close();
   });
   it("derives recommendations from the actual agent rather than query override", async () => {

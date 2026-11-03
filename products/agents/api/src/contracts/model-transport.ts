@@ -37,8 +37,15 @@ export interface ProviderTransportResponse {
   modelIdentity?: ModelIdentity;
   providerRequestId?: string; nativeState: PrivateNativeState;
 }
+export const modelStreamErrorKindSchema=z.enum(["upstream_sse_error","malformed_sse_json","unclassified"]);
+export const modelFailureDiagnosticsSchema=z.strictObject({
+  httpStatus:z.number().int().min(100).max(599).optional(),
+  stage:z.enum(["request","response_body","provider_stream","response_validation"]),dispatched:z.boolean(),
+  streamErrorKind:modelStreamErrorKindSchema.optional(),providerErrorCode:z.number().int().min(100).max(599).optional(),
+});
+export type ModelFailureDiagnostics=z.infer<typeof modelFailureDiagnosticsSchema>;
 export class ProviderTransportError extends Error {
-  constructor(readonly code: string, readonly outcome: "rejected" | "uncertain", readonly status = 502) {
+  constructor(readonly code: string, readonly outcome: "rejected" | "uncertain", readonly status = 502,readonly diagnostics?:ModelFailureDiagnostics) {
     super(code); this.name = "ProviderTransportError";
   }
 }

@@ -1,8 +1,10 @@
 import {randomBytes,randomUUID} from "node:crypto";
 import {execFileSync,spawn,type ChildProcess} from "node:child_process";
+import {mkdtemp,readFile,rm,writeFile} from "node:fs/promises";
 import {createServer} from "node:http";
 import {createServer as reservePort} from "node:net";
-import {resolve} from "node:path";
+import {join,resolve} from "node:path";
+import {tmpdir} from "node:os";
 import {Pool} from "pg";
 import {ConnectionVault} from "../src/infrastructure/vault";
 import {ModelCredentialVault} from "../src/infrastructure/model-credential-vault";
@@ -13,6 +15,7 @@ import {buildPlatformApp} from "../src/composition/app";
 import {loadPlatformConfig} from "../src/infrastructure/config";
 import {PlatformStore} from "../src/product/agents/store";
 import {defaultBusinessConfiguration,terminalTaskStates} from "../src/contracts/contracts";
+import {HARNESS_RELEASE,WORKFLOW_NAME,SHARED_HARNESS_RELEASE,SHARED_WORKFLOW_NAME} from "../src/contracts/execution";
 import {dispatchTasksOnce} from "../src/execution/lifecycle/dispatcher";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {createBookingOAuthFixture,createBookingProviderFixture,type BookingProviderFixture} from "./booking-fixture";
@@ -21,6 +24,8 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("published website booking across durable confirmation, restart and Inbox ownership",()=>{
  let admin:Pool,pool:Pool,app:Awaited<ReturnType<typeof buildPlatformApp>>,provider:BookingProviderFixture,model:ReturnType<typeof createServer>,worker:ChildProcess|undefined;
  let api="",databaseConnection="",modelUrl="",workerPort=0,ingress="",runtimeAdmin="",containerStarted=false;
+ let native:ChildProcess|undefined,nativeDirectory:string|undefined;
+ const binary=process.env.AGENTS_TEST_RESTATE_BINARY;
  const database=`agents_booking_business_${randomUUID().replaceAll("-","")}`,container=`agents-booking-business-${randomUUID()}`,pids:number[]=[],modelRequests:any[]=[];
  const shop="https://booking-shop.fixture.test",keys={"booking-test":randomBytes(32).toString("base64")},root=resolve(__dirname,"../../../..");
  let offeredStart="",offeredEnd="";
@@ -40,17 +45,32 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
      if(!names.includes("booking_availability"))message=call("booking_availability",{start:offeredStart,end:offeredEnd});
      else if(!names.includes("booking_reserve"))message=call("booking_reserve",{start:offeredStart});
      else {finish="stop";const content=current.findLast((item:any)=>item.role==="tool")?.content??"{}";let receipt:any;try{receipt=JSON.parse(content);}catch{}message={role:"assistant",content:receipt?.state==="confirmed"&&receipt.receiptDigest?`Your consultation is confirmed for ${receipt.start}. Reference ${receipt.bookingId}.`:"The booking was not confirmed."};}
+     const desired=message.tool_calls?.[0]?.function.name;
+     if(desired&&!body.tools?.some((tool:any)=>tool.function?.name===desired)){
+       const selected=current.filter((item:any)=>item.role==="tool").flatMap((item:any)=>{try{const value=JSON.parse(item.content);return (value.value??value).tools??[];}catch{return [];}}).find((tool:any)=>tool.alias===desired);
+       message=selected?call("tools_load",{tools:[{handle:selected.handle}]}):call("tools_discover",{query:desired});
+     }
      res.writeHead(200,{"content-type":"text/event-stream"});res.end(`data: ${JSON.stringify({id:randomUUID(),model:body.model,choices:[{index:0,finish_reason:finish,delta:{...message,tool_calls:message.tool_calls?.map((call:any,index:number)=>({...call,index}))}}],usage:{prompt_tokens:40,completion_tokens:8}})}\n\ndata: [DONE]\n\n`);
    });await new Promise<void>(resolve=>model.listen(0,"127.0.0.1",resolve));modelUrl=`http://127.0.0.1:${(model.address() as {port:number}).port}`;
    const port=await freePort();api=`http://127.0.0.1:${port}`;workerPort=await freePort();process.env.AGENTS_CONNECTION_ACTIVE_KEY="booking-test";process.env.AGENTS_CONNECTION_KEYS=JSON.stringify(keys);
    const config=loadPlatformConfig({NODE_ENV:"test",AGENTS_DATABASE_URL:databaseConnection,AGENTS_PUBLIC_URL:api,AGENTS_OIDC_ISSUER_URL:"https://booking-identity.fixture.test",AGENTS_OIDC_CLIENT_SECRET:"booking-fixture-session-secret"});
    app=await buildPlatformApp({config,pool,logging:false,testGoogleOAuth:createBookingOAuthFixture(`${api}/api/google-calendar/callback`),testGoogleApiBaseUrl:provider.base});await app.listen({host:"127.0.0.1",port});await startWorker();
-   docker("run","-d","--name",container,"--cpus","1","--memory","768m","--add-host","host.docker.internal:host-gateway","-p","127.0.0.1::8080","-p","127.0.0.1::9070","docker.restate.dev/restatedev/restate:1.7.13@sha256:adf7bca9d89b8c868be682e1a2e1d42043613e988a17bfaad28753ac8d780742");containerStarted=true;
-   ingress=`http://${docker("port",container,"8080/tcp")}`;runtimeAdmin=`http://${docker("port",container,"9070/tcp")}`;
+   let workerHost="host.docker.internal";
+   if(binary){
+     expect(execFileSync(binary,["--version"],{encoding:"utf8"})).toContain("1.7.13");
+     const ingressPort=await freePort(),adminPort=await freePort(),internal=await freePort();
+     nativeDirectory=await mkdtemp(join(tmpdir(),"kasitek-booking-business-"));const nativeConfig=join(nativeDirectory,"restate.toml");
+     await writeFile(nativeConfig,await readFile(resolve(__dirname,"scheduling-restate.toml"),"utf8")+`\n[ingress]\nbind-address="127.0.0.1:${ingressPort}"\n[admin]\nbind-address="127.0.0.1:${adminPort}"\n`);
+     native=spawn(binary,["--config-file",nativeConfig,"--base-dir",join(nativeDirectory,"data"),"--bind-address",`127.0.0.1:${internal}`,"--advertised-host","127.0.0.1","--node-name","booking-business","--no-logo"],{stdio:"ignore"});
+     ingress=`http://127.0.0.1:${ingressPort}`;runtimeAdmin=`http://127.0.0.1:${adminPort}`;workerHost="127.0.0.1";
+   }else{
+     docker("run","-d","--name",container,"--cpus","1","--memory","768m","--add-host","host.docker.internal:host-gateway","-p","127.0.0.1::8080","-p","127.0.0.1::9070","docker.restate.dev/restatedev/restate:1.7.13@sha256:adf7bca9d89b8c868be682e1a2e1d42043613e988a17bfaad28753ac8d780742");containerStarted=true;
+     ingress=`http://${docker("port",container,"8080/tcp")}`;runtimeAdmin=`http://${docker("port",container,"9070/tcp")}`;
+   }
    await eventually(async()=>{try{return(await fetch(`${runtimeAdmin}/health`)).ok;}catch{return false;}});
-   const registration=await fetch(`${runtimeAdmin}/deployments`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({uri:`http://host.docker.internal:${workerPort}`,force:false})});expect(registration.ok,await registration.text()).toBe(true);
+   const registration=await fetch(`${runtimeAdmin}/deployments`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({uri:`http://${workerHost}:${workerPort}`,force:false})});expect(registration.ok,await registration.text()).toBe(true);
  },90000);
- afterAll(async()=>{if(provider)provider.state.beforeFreeBusy=undefined;await stopWorker();if(containerStarted)docker("rm","-f",container);await app?.close();if(model)await new Promise<void>(resolve=>model.close(()=>resolve()));await provider?.close();await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}},30000);
+ afterAll(async()=>{if(provider)provider.state.beforeFreeBusy=undefined;await stopWorker();if(containerStarted)docker("rm","-f",container);if(native&&native.exitCode===null){native.kill("SIGTERM");await new Promise<void>(resolve=>native!.once("exit",()=>resolve()));}if(nativeDirectory)await rm(nativeDirectory,{recursive:true,force:true});await app?.close();if(model)await new Promise<void>(resolve=>model.close(()=>resolve()));await provider?.close();await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}},30000);
  const insertCount=()=>provider.state.requests.filter(request=>request.method==="POST"&&request.url.includes("/events?")).length;
  async function json(url:string,headers:Record<string,string>,body?:unknown,method=body===undefined?"GET":"POST"){const response=await fetch(url,{method,headers,...(body===undefined?{}:{body:JSON.stringify(body)})});expect(response.ok,await response.clone().text()).toBe(true);return response.json() as Promise<any>;}
  async function setup(){
@@ -76,11 +96,12 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
    async function send(body:string){const {message}=await json(`${customer.path}/messages`,customer.headers,{requestKey:randomUUID(),body});return eventually(async()=>(await pool.query("SELECT t.* FROM agents_platform.tasks t JOIN agents_platform.customer_messages m ON m.task_id=t.id WHERE m.id=$1",[message.id])).rows[0]??false);}
    return {store,scope,agent,version,deployment,customer,staff,staffPath,command,send,visitor};
  }
- async function tick(){await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl:runtimeAdmin});}
- async function pending(taskId:string){return eventually(async()=>{await tick();const row=(await pool.query("SELECT b.*,t.state AS task_state FROM agents_platform.booking_intents b JOIN agents_platform.tasks t ON t.id=b.task_id WHERE b.task_id=$1",[taskId])).rows[0];return row?.state==="pending"&&row.task_state==="waiting_review"?row:false;});}
+ async function tick(){await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl:runtimeAdmin,runtimeRoutes:{[HARNESS_RELEASE]:{ingressUrl:ingress,adminUrl:runtimeAdmin,workflowName:WORKFLOW_NAME},[SHARED_HARNESS_RELEASE]:{ingressUrl:ingress,adminUrl:runtimeAdmin,workflowName:SHARED_WORKFLOW_NAME}}});}
+ async function pending(taskId:string){return eventually(async()=>{await tick();const task=(await pool.query("SELECT state,error_code FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];if(terminalTaskStates.has(task?.state))throw Error(`Booking ended ${task.state}: ${task.error_code??"no error code"}`);const row=(await pool.query("SELECT b.*,t.state AS task_state FROM agents_platform.booking_intents b JOIN agents_platform.tasks t ON t.id=b.task_id WHERE b.task_id=$1",[taskId])).rows[0];return row?.state==="pending"&&row.task_state==="waiting_review"?row:false;});}
  async function settled(taskId:string){return eventually(async()=>{await tick();const row=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];return terminalTaskStates.has(row?.state)?row:false;});}
  it("waits durably with no insert, restarts worker, confirms through scoped public API and delivers authoritative result",async()=>{
    const f=await setup(),before=insertCount(),task=await f.send("Please book the offered consultation."),intent=await pending(task.id);
+   expect(task.harness_release).toBe(SHARED_HARNESS_RELEASE);
    expect(insertCount()).toBe(before);expect((await pool.query("SELECT 1 FROM agents_platform.operations WHERE task_id=$1 AND name='booking.reserve'",[task.id])).rowCount).toBe(0);expect(task.principal.kind).toBe("visitor");expect(task.channel_binding.ownershipGeneration).toBe("1");
    const offered=await json(`${f.customer.path}/bookings`,f.customer.headers);expect(offered.bookings).toMatchObject([{id:intent.id,state:"pending",requestDigest:intent.request_digest}]);
    const other=await f.visitor();const forbidden=await fetch(`${f.customer.path}/bookings/${intent.id}/decision`,{method:"POST",headers:other.headers,body:JSON.stringify({decision:"approve",requestDigest:intent.request_digest})});expect(forbidden.status).toBe(403);expect(insertCount()).toBe(before);

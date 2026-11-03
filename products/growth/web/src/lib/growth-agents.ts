@@ -2,6 +2,7 @@ import { apiUrl } from "@/lib/server-api";
 import type {
   GrowthAgentBootstrap, GrowthAgentCommandOutputs, GrowthAgentContext,
   GrowthAgentFeatureId, GrowthAgentTask, GrowthAgentReview, GrowthDraftReview, GrowthDraftProposal,
+  GrowthAgentResourceInputs, GrowthAgentResourceOutputs, MemoryAssertion,
 } from "@kasitek-labs/contracts";
 
 export type {
@@ -42,8 +43,37 @@ function query(values: Record<string, string | number | undefined>) {
 }
 const id = encodeURIComponent;
 const json = (body: unknown, signal?: AbortSignal): RequestInit => ({ method: "POST", body: JSON.stringify(body), signal });
+type ResourcePreviewInput = { kind: "source"; sourceId: string; revisionId: string } | { kind: "skill"; skillId: string; path?: string };
 
 export const growthAgents = {
+  previewCapabilityUpgrade: (featureId: GrowthAgentFeatureId, signal?: AbortSignal) => request<import("@kasitek-labs/contracts").GrowthAgentCapabilityUpgradePreview>(`/features/${id(featureId)}/upgrade/preview`, json({}, signal)),
+  applyCapabilityUpgrade: (featureId: GrowthAgentFeatureId, input: import("@kasitek-labs/contracts").GrowthAgentCapabilityUpgradeApply, requestId: string) =>
+    request<GrowthAgentCommandOutputs["features.upgrade.apply"]>(`/features/${id(featureId)}/upgrade/apply`, json({...input,requestId})),
+  models: (featureId: GrowthAgentFeatureId, signal?: AbortSignal) => request<GrowthAgentCommandOutputs["models.list"]>(`/features/${id(featureId)}/models`, { signal }),
+  selectModel: (featureId: GrowthAgentFeatureId, input: Omit<import("@kasitek-labs/contracts").GrowthAgentCommandInputs["models.select"], "featureId">, requestId: string) =>
+    request<GrowthAgentCommandOutputs["models.select"]>(`/features/${id(featureId)}/model`, { ...json({ ...input, requestId }), method: "PATCH" }),
+  resources: (featureId: GrowthAgentFeatureId, signal?: AbortSignal) => request<GrowthAgentResourceOutputs["resources.list"]>(`/features/${id(featureId)}/resources`, { signal }),
+  resourcePreview: (featureId: GrowthAgentFeatureId, input: ResourcePreviewInput, signal?: AbortSignal) =>
+    request<GrowthAgentResourceOutputs["resources.preview"]>(`/features/${id(featureId)}/resources/preview${query(input as Record<string, string>)}`, { signal }),
+  importSource: (featureId: GrowthAgentFeatureId, input: Omit<GrowthAgentResourceInputs["sources.import"], "featureId">, requestId: string) =>
+    request<GrowthAgentResourceOutputs["sources.import"]>(`/features/${id(featureId)}/sources`, json({ ...input, requestId })),
+  reviewSource: (featureId: GrowthAgentFeatureId, input: Omit<GrowthAgentResourceInputs["sources.review"], "featureId">, requestId: string) =>
+    request<GrowthAgentResourceOutputs["sources.review"]>(`/features/${id(featureId)}/sources/review`, json({ ...input, requestId })),
+  sourceState: (featureId: GrowthAgentFeatureId, input: Omit<GrowthAgentResourceInputs["sources.state"], "featureId">, requestId: string) =>
+    request<GrowthAgentResourceOutputs["sources.state"]>(`/features/${id(featureId)}/sources/state`, json({ ...input, requestId })),
+  importSkill: (featureId: GrowthAgentFeatureId, input: GrowthAgentResourceInputs["skills.import"]["package"], requestId: string) =>
+    request<GrowthAgentResourceOutputs["skills.import"]>(`/features/${id(featureId)}/skills`, json({ package: input, requestId })),
+  reviewSkill: (featureId: GrowthAgentFeatureId, input: Omit<GrowthAgentResourceInputs["skills.review"], "featureId">, requestId: string) =>
+    request<GrowthAgentResourceOutputs["skills.review"]>(`/features/${id(featureId)}/skills/review`, json({ ...input, requestId })),
+  skillState: (featureId: GrowthAgentFeatureId, input: Omit<GrowthAgentResourceInputs["skills.state"], "featureId">, requestId: string) =>
+    request<GrowthAgentResourceOutputs["skills.state"]>(`/features/${id(featureId)}/skills/state`, json({ ...input, requestId })),
+  selectResources: (featureId: GrowthAgentFeatureId, input: Omit<GrowthAgentResourceInputs["resources.select"], "featureId">, requestId: string) =>
+    request<GrowthAgentResourceOutputs["resources.select"]>(`/features/${id(featureId)}/resources/select`, json({ ...input, requestId })),
+  memories:(featureId:GrowthAgentFeatureId,page:{offset?:number;limit?:number}={})=>request<GrowthAgentCommandOutputs["memory.list"]>(`/features/${id(featureId)}/memory${query(page)}`),
+  mutateMemory:(featureId:GrowthAgentFeatureId,memoryId:string,input:{expectedRevision:number;action:"accept"|"correct"|"forget";content?:string;assertion?:MemoryAssertion;requestKey:string})=>
+    request<GrowthAgentCommandOutputs["memory.mutate"]>(`/features/${id(featureId)}/memory/${id(memoryId)}`,json({expectedRevision:input.expectedRevision,action:input.action,...(input.content===undefined?{}:{content:input.content}),...(input.assertion===undefined?{}:{assertion:input.assertion}),requestId:input.requestKey})),
+  configureMemory:(featureId:GrowthAgentFeatureId,enabled:boolean,expectedRevision:number,requestId:string)=>
+    request<GrowthAgentCommandOutputs["memory.configure"]>(`/features/${id(featureId)}/memory/settings`,{...json({enabled,expectedRevision,requestId}),method:"PATCH"}),
   bootstrap: (signal?: AbortSignal) => request<GrowthAgentBootstrap>("/bootstrap", { signal }),
   conversations: (options: { featureId?: GrowthAgentFeatureId; search?: string; cursor?: string; limit?: number } = {}, signal?: AbortSignal) =>
     request<GrowthAgentCommandOutputs["conversations.list"]>(`/conversations${query(options)}`, { signal }),
@@ -76,7 +106,7 @@ export const growthAgents = {
   revise: (review: GrowthDraftReview, draft: GrowthDraftProposal, requestId: string, signal?: AbortSignal) =>
     request<{ review: GrowthDraftReview }>(`/tasks/${id(review.taskId)}/reviews/${id(review.id)}`, { ...json({ requestId, payloadDigest: review.payloadDigest, draft }, signal), method: "PATCH" }),
   artifacts: (taskId: string, signal?: AbortSignal) => request<GrowthAgentCommandOutputs["artifacts.list"]>(`/tasks/${id(taskId)}/artifacts`, { signal }),
-  artifact: (taskId: string, artifactId: string, signal?: AbortSignal) => request<GrowthAgentCommandOutputs["artifacts.get"]>(`/tasks/${id(taskId)}/artifacts/${id(artifactId)}`, { signal }),
+  artifact: (taskId: string, artifactId: string, signal?: AbortSignal, childTaskId?: string) => request<GrowthAgentCommandOutputs["artifacts.get"]>(`/tasks/${id(taskId)}/artifacts/${id(artifactId)}${query({ childTaskId })}`, { signal }),
 };
 
 export function isActiveTask(task: Pick<GrowthAgentTask, "state">) {

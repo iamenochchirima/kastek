@@ -1,6 +1,6 @@
 # Kasitek Agents
 
-Owner: Agents engineering. Last reviewed: 2026-10-23.
+Owner: Agents engineering. Last reviewed: 2026-11-02.
 
 The standalone product creates customer-service agents with configurable question answering, support,
 appointments and native enquiries for websites and messaging channels, with a shared staff inbox. Research
@@ -17,7 +17,8 @@ bounded specialist tasks, optional isolated analysis and reviewed report workflo
 and product contract fixtures. Skills expose scoped connection repair with explicit tool adoption;
 compatible tool-directed versions can open a contextual Analysis control. Grounded customer versions
 cannot enable analysis or silently switch programs. These capabilities do not define new standalone offerings.
-Restate workflow `AgentsBusinessRunV21` and harness `product-capabilities-v11` coordinate durable execution.
+Fresh publications use Restate workflow `AgentsBusinessRunV25` and harness
+`product-capabilities-v15`. Earlier accepted tasks retain their recorded runtime and tool contracts.
 The technical kinds remain `business` and `workspace`; workspace
 execution is unavailable until its separate Lina adapter is implemented.
 
@@ -26,7 +27,11 @@ The [implementation boundary](docs/source-boundary.md) records current behavior 
 Growth embeds the shared business harness through a signed product contract. Its general assistant,
 Research, Content and WhatsApp Campaigns features use Growth-owned permissions and records.
 [Configure the Growth integration](docs/growth-integration.md) separately from standalone Agents.
-Agencies integration remains future work. Neither integration is required to run Agents.
+Agency's client-scoped staff assistant uses the shared runtime and conversation UI with the
+installed workspace-agent metadata read. Its browser session, client permissions and business
+records remain Agency-owned; additional Agency operations and voice execution remain unavailable
+through this slice. See [Agency capability configuration](../agency/docs/agent-capabilities.md).
+Neither embedded integration is required to run standalone Agents.
 
 Live provider acceptance is owned by the project owner. Optional native-provider and MCP
 OAuth settings are listed in [api/.env.example](api/.env.example); keep credentials in the private
@@ -35,9 +40,13 @@ access, publish a version and test it. Controlled acceptance results do not cert
 
 ## Model selection
 
-Connect a provider account in **Settings > Model providers**, refresh its models,
-and choose an organization default. New agents use that default. A key in the
-server environment does not create a workspace connection or authorize agent use.
+With the platform OpenRouter key configured, owner workspace access initializes an
+included NVIDIA free model as the organization default. Existing defaults and removed
+or revoked included connections are preserved. The included connection permits only
+its pinned free model. Its key stays server-side.
+
+Use **Settings > Model providers > Add provider** to connect a personal provider key,
+refresh its models, and choose another default. New agents use the organization default.
 
 Use the model picker in chat to select a connected account and model. The selection
 saves the agent configuration in the background and applies to new messages,
@@ -50,6 +59,15 @@ input budget is separate from the model's advertised context window. Admission
 checks model capacity, saved limits, grants and shared execution policy; changing
 only the form does not grant additional authority. There is no silent model or
 account fallback.
+
+## Memory
+
+Open **Memory** in an agent's header to inspect personal memories, review suggestions, correct
+accepted text or forget a record. The shared panel shows its saved enablement and keeps the
+current account, workspace and agent separate. Reviewing a suggestion records its assertion
+context and reported conflict state; acceptance does not verify a business fact. Forget stops
+future recall and invalidates affected derived context. It does not erase conversation history,
+retained revisions, backups or earlier provider requests.
 
 ## Start locally
 
@@ -137,8 +155,9 @@ pnpm dev:agents
 
 Open `http://localhost:3100`. The web server proxies `/api` to port 4100.
 API diagnostics are `http://127.0.0.1:4100/health` and `/ready`.
-Connect a provider in **Settings > Model providers** before using agent chat.
-The API and worker use encrypted workspace credentials, not an environment-key fallback.
+Configure the included OpenRouter default or connect a provider in **Settings > Model providers**
+before using agent chat. The API and worker use encrypted workspace credentials and saved
+use grants. The environment key initializes the included connection; it is not a generation fallback.
 
 Private storage is required for knowledge, connected evidence and isolated analysis. Conversations without those capabilities can run without it. Configure all five `AGENTS_S3_*` settings
 from the environment example and provision a private S3-compatible bucket.
@@ -174,8 +193,11 @@ specialist versions with explicit source/tool subsets and child allocations. Its
 discover permitted specialists, start independent work, inspect full results and request
 follow-ups through the shared Restate loop. Concurrency defaults to two (configurable 1–8),
 with a separate total-task limit. Specialists retain their own authorized reviewed skills;
-shared sandbox access requires an explicit matching scope. Personal memory and further
-delegation are unavailable to children. Parent and children share the original root budget.
+shared sandbox access requires an explicit matching scope. Personal memory is not inherited.
+A specialist with a permitted delegation configuration can commission its own child. Finite ancestor
+depth and token/time ceilings remain binding across the subtree; a null depth has no configured
+ceiling. Parent and descendants share the original work accounting. New business publications use
+V15/V25 and schema099 immutable tree lineage; earlier accepted runtimes keep their pins.
 Earlier programs retain their two-binding behavior. See the
 [adaptive orchestration reference](docs/operations/adaptive-orchestration.md) for contracts,
 policy, progress, queued instructions and controlled verification.
@@ -269,6 +291,10 @@ Inline progress, sources, files and exact report decisions use the same task API
 the standalone task page. Refresh conversation, window focus and visibility return
 revalidate history against current policy. Older messages and events load in bounded
 pages. Settings exposes actual account/workspace identity and persisted appearance.
+For new configurations, the shared history protocol can discover permitted artifact metadata in
+cursor pages and read exact text artifacts even when an unrelated withdrawn source makes the old
+transcript unavailable. Metadata discovery supplies no full source passage. The task view's initial
+artifact list remains capped at 100; model recovery has its separate paged path.
 
 Desktop uses separate navigation, agent/history and chat panes. Tablet collapses
 global navigation; mobile exposes accessible navigation/history drawers and keeps the
@@ -469,9 +495,9 @@ stops new grants and publication; resuming preserves the URL and conversation id
 agent settings create background snapshots and apply to future turns. Existing accepted tasks
 retain their own configuration and executable release.
 
-Schemas through072 require the current matching schema digest and worker
-`product-capabilities-v11` / `AgentsBusinessRunV21`. The preceding product worker was
-`growth-products-v10` / `AgentsBusinessRunV20`. Fresh setup uses the normal command below;
+Current setup applies schemas through105 with the matching schema digest. Fresh publications use
+`product-capabilities-v15` / `AgentsBusinessRunV25`; the channel-era V11/V21 and subsequent V12–V14
+registrations remain separate for their accepted work. Fresh setup uses the normal command below;
 starting the app never silently upgrades an existing database. The explicit setup command accepts
 only recognized preceding schema digests for its additive upgrade. Stop new admissions before an
 operator-controlled local schema application. Retain old executable releases for any

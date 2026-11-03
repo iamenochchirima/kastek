@@ -21,9 +21,11 @@ import { assertEvaluationTrial } from "../admission/trial-authority";
 import { channelBindingSchema } from "../../contracts/channel";
 import { channelPorts } from "../../infrastructure/channel-ports";
 import { assertProductAuthority } from "../admission/product-authority";
+import { assertProductNativeTaskAccess } from "../../capabilities/products/resource-scope";
 import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
 import { currentVisitorLineageAllowed } from "../context/visitor-lineage";
 import { HANDOFF_HARNESS_RELEASE } from "../../contracts/execution";
+import { assertParentEdge } from "../delegation/scope";
 import { assertPublishedTools } from "../../capabilities/tool-definitions";
 import { parseHandoffFeedbackRequest, type HandoffFeedbackRequest } from "./handoff-feedback-contract";
 export async function assertBaseAuthority(db: Pool | PoolClient, execution: Execution): Promise<void> {
@@ -40,9 +42,11 @@ async function assertBaseAuthorityForPurpose(db: Pool | PoolClient, execution: E
     await channelPorts(db).assertBinding(db, channelBindingSchema.parse(task.channel_binding), root.task);
   }
   if (task.parent_task_id) {
-    const root = await loadExecution(db, task.root_task_id);
-    if (root.task.parent_task_id || root.task.organization_id !== task.organization_id || !["human","automation"].includes(root.task.principal.kind) || task.depth !== 1) throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Delegation is unavailable");
-    await assertBaseAuthority(db, root);
+    const parent = await loadExecution(db, task.parent_task_id);
+    assertParentEdge(parent,execution);
+    const role=(await db.query("SELECT binding_id FROM agents_platform.delegations WHERE child_task_id=$1 AND parent_task_id=$2",[task.id,parent.task.id])).rows[0];
+    if(!parent.configuration.capabilities.delegation.enabled || !parent.configuration.capabilities.delegation.bindings.some(binding=>binding.id===role?.binding_id&&binding.versionId===task.version_id)) throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Delegation is unavailable");
+    await assertBaseAuthority(db, parent);
   } else {
     await assertEvaluationTrial(db, { trialId: task.evaluation_trial_id, authority: { product: task.product, organizationId: task.organization_id,
       resourceId: task.resource_id, callerClientId: task.caller_client_id, principal: task.principal }, agentId, versionId: task.version_id });
@@ -64,6 +68,7 @@ async function assertBaseAuthorityForPurpose(db: Pool | PoolClient, execution: E
   assertGrantAuthority(grant, { product: task.product, organizationId: task.organization_id,
     resourceId: task.resource_id, callerClientId: task.caller_client_id, principal: task.principal }, task.version_id, configuration);
   if(task.product!=="agents") {
+    await assertProductNativeTaskAccess(db, execution);
     await assertProductAuthority(db,{product:task.product,organizationId:task.organization_id,resourceId:task.resource_id,
       callerClientId:task.caller_client_id,principal:task.principal},task.version_id,task.grant_id);
   } else if (task.principal.kind === "human") {
@@ -80,7 +85,7 @@ async function assertBaseAuthorityForPurpose(db: Pool | PoolClient, execution: E
         throw new PlatformError("MEMBER_CHANNEL_REVOKED",403,"Private messaging access was revoked");
     }
 
-  } else if (task.principal.kind === "visitor") {
+  } else if (task.principal.kind === "visitor" && !task.parent_task_id) {
     if (!await currentVisitorLineageAllowed(db,execution)) throw new PlatformError("DEPLOYMENT_SCOPE_DENIED",403,"Website return access is unavailable");
     const allowed = await db.query(`SELECT 1 FROM agents_platform.website_deployments d JOIN agents_platform.website_sessions s ON s.deployment_id=d.id
       WHERE d.organization_id=$1 AND d.id=$2 AND EXISTS(SELECT 1 FROM agents_platform.agent_versions v WHERE v.id=$3 AND v.agent_id=d.agent_id AND v.organization_id=d.organization_id) AND d.agent_id=$4 AND d.revoked_at IS NULL AND d.paused=false
@@ -89,16 +94,17 @@ async function assertBaseAuthorityForPurpose(db: Pool | PoolClient, execution: E
     if (!allowed.rowCount) {
       throw new PlatformError("DEPLOYMENT_SCOPE_DENIED", 403, "Website execution access is unavailable");
     }
-  } else if (task.principal.kind === "channel_customer") {
+  } else if (task.principal.kind === "channel_customer" && !task.parent_task_id) {
     if (task.caller_client_id !== "agents-channel" || task.resource_id !== task.principal.deploymentId || !task.channel_binding) {
       throw new PlatformError("DEPLOYMENT_SCOPE_DENIED", 403, "Customer channel execution access is unavailable");
     }
     if (channelBindingSchema.parse(task.channel_binding).customerConversationId !== task.principal.participantId) throw new PlatformError("DEPLOYMENT_SCOPE_DENIED", 403, "Customer participant changed");
     await assertChannelCustomerAuthority(db, { organizationId: task.organization_id, principal: task.principal, agentId, versionId: task.version_id });
   } else if(task.principal.kind==="automation")await assertAutomationAuthority(db,execution);
+  else if(task.parent_task_id && isCustomerPrincipal(task.principal)) { /* The ancestor validates the deployment, session and ownership generation. */ }
   else throw new PlatformError("AUTOMATION_UNAVAILABLE", 403, "Automation execution is unavailable");
   if (isCustomerPrincipal(task.principal)) {
-    if (configuration.memory.enabled || configuration.capabilities.delegation.enabled || configuration.capabilities.sandbox.enabled || configuration.capabilities.workflows.enabled || configuration.tools.some(t => t.startsWith("memory."))) throw new PlatformError("DEPLOYMENT_SCOPE_DENIED",403,"Customer agents require public capabilities");
+    if (configuration.memory.enabled || configuration.capabilities.sandbox.enabled || configuration.capabilities.workflows.enabled || configuration.tools.some(t => t.startsWith("memory."))) throw new PlatformError("DEPLOYMENT_SCOPE_DENIED",403,"Customer agents require public capabilities");
     await assertPublicSkillPolicy(db,task.organization_id,agentId,configuration.skillIds);
     await assertCustomerNativeBindings(db as PoolClient,task.organization_id,configuration.connectedToolBindingIds);
   }

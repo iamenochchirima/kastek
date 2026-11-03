@@ -8,12 +8,13 @@ import { reportingDependencies } from "../services/analytics-reporting.js";
 import { requireCapability } from "../services/billing.js";
 import { authorizeGrowthAgentScope } from "./scope.js";
 import { growthAgentDigest, verifyGrowthProductCapability } from "./security.js";
-import { growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7 } from "./manifest.js";
-import { invokeInternalGrowthOperation } from "../operations/internal.js";
+import { growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublicationV10 } from "./manifest.js";
+import { internalOperationContext, invokeInternalGrowthOperation } from "../operations/internal.js";
+import { assertGrowthReadAccess, issueGrowthEffectAccess } from "../operations/read-access.js";
 import { discoverGrowthRecords, readGrowthRecord, growthSourceHandle, resolveGrowthSourceHandle } from "./tools.js";
 import { GrowthAgentReviewStore, type GrowthDraftPorts } from "./reviews.js";
 const ajv=new Ajv({strict:false,allErrors:false});addFormats.default(ajv);
-const publications = new Map([growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublication].map(publication => [publication.policy.revision, publication]));
+const publications = new Map([growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublicationV10, growthAgentPublication].map(publication => [publication.policy.revision, publication]));
 const validators = new Map([...publications.values()].map(publication => [publication.manifest.digest, new Map(publication.manifest.operations.map(operation => [operation.operation, ajv.compile(operation.inputSchema)]))]));
 function reviewReference(review:GrowthDraftReview,operationId:string):ProductReviewReference {
   return {id:review.id,product:"growth",taskId:review.taskId,operationId,payloadDigest:review.payloadDigest,
@@ -36,7 +37,9 @@ export function registerGrowthCapabilityRoutes(app:FastifyInstance,core:CoreCont
     const scope={tenantId:authority.tenantId,actor:command.actor};
     await authorizeGrowthAgentScope(core,scope);
     for(const permission of descriptor.requiredAuthority)await requireCapability(core.pool,scope.tenantId,permission);
-    if (["6", "7", "8"].includes(authority.policyRevision)) return invokeInternalGrowthOperation(core, command);
+    if (descriptor.handlerRef === `growth.operation.${descriptor.operation}@${descriptor.revision}`) return invokeInternalGrowthOperation(core, command);
+    if(command.observation!==undefined && !(command.observation==="effect-status-v1"&&command.operation==="draft.prepare"&&["review","commit"].includes(command.control)))
+      throw new ApiError(403,"agent_capability_control_denied","The observation is unavailable");
     if(command.control==="authorize") {
       if(command.operation==="analytics.read") {
         try {await reportingDependencies(core);}
@@ -46,6 +49,8 @@ export function registerGrowthCapabilityRoutes(app:FastifyInstance,core:CoreCont
     }
     if(command.control==="evidence"){
       const input=command.input as {source?:{id?:unknown;revision?:unknown}};
+      if(typeof input?.source?.id==="string"&&(input.source.id.startsWith("growth-read-scope:")||input.source.id.startsWith("growth-read-access:")))
+        return {value:await assertGrowthReadAccess(core,internalOperationContext(command),command)};
       const context=await resolveGrowthSourceHandle(core,scope,input?.source?.id);
       const source=await readGrowthRecord(core,scope,context,{});
       if(source.revision!==input.source?.revision)throw new ApiError(409,"agent_source_changed","The source changed");
@@ -59,7 +64,13 @@ export function registerGrowthCapabilityRoutes(app:FastifyInstance,core:CoreCont
         taskId:command.taskId,conversationId:command.conversationId,featureId:"content",context:null,contextRevision:null,
         operation:command.control==="commit"?"draft.commit":"draft.reconcile",input:{reviewId:reference.id,payloadDigest:reference.payloadDigest}} as GrowthAgentAction<"draft.commit">|GrowthAgentAction<"draft.reconcile">;
       const result=action.operation==="draft.commit"?await reviews.commit(action):await reviews.reconcile(action);
-      return {value:result,review:reviewReference(result.review,command.operationId),...(result.result?{receipt:{id:result.result.recordId,operationId:command.operationId,payloadDigest:result.result.payloadDigest,state:"saved" as const}}:{})};
+      const review=reviewReference(result.review,command.operationId);
+      let access:Awaited<ReturnType<typeof issueGrowthEffectAccess>>|undefined;
+      if(command.observation==="effect-status-v1"&&review.state==="saved") {
+        try {access=await issueGrowthEffectAccess(core,internalOperationContext(command),command,review,result,true);}
+        catch {throw new ApiError(503,"agent_effect_access_unavailable","The saved effect needs reconciliation");}
+      }
+      return {value:result,review,...(access?{access}:{}),...(result.result?{receipt:{id:result.result.recordId,operationId:command.operationId,payloadDigest:result.result.payloadDigest,state:"saved" as const}}:{})};
     }
     if(!validators.get(manifest!.digest)?.get(command.operation)?.(command.input))throw new ApiError(422,"agent_tool_arguments_invalid","Check the tool arguments");
     const input=command.input as Record<string,unknown>;

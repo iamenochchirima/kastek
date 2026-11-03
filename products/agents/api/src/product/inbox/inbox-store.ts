@@ -227,7 +227,26 @@ export class InboxStore {
     return rows;
   }
   async readVisitor(scope: VisitorScope, id: string, after = "0", limit = 100, before?: string) {
-    return transaction(this.pool, async db => { const conversation = await this.visitorConversation(db, scope, id); return { conversation, messages: await this.messages(db, id, after, limit, before) }; });
+    return transaction(this.pool, async db => {
+      const conversation = await this.visitorConversation(db, scope, id);
+      let responseStatus: "working" | "incomplete" | "failed" | "cancelled" | "uncertain" | null = null;
+      if (conversation.state === "automation_active") {
+        const latest = (await db.query<{ state: string | null; replied: boolean }>(`SELECT t.state,
+          EXISTS(SELECT 1 FROM agents_platform.customer_messages reply WHERE reply.conversation_id=m.conversation_id
+            AND reply.sequence>m.sequence AND reply.author_kind IN ('assistant','human')) AS replied
+          FROM agents_platform.customer_messages m
+          LEFT JOIN agents_platform.customer_task_links l ON l.input_message_id=m.id AND l.conversation_id=m.conversation_id AND l.task_id=m.task_id
+          LEFT JOIN agents_platform.tasks t ON t.id=l.task_id AND t.organization_id=$2 AND t.root_task_id=t.id
+          WHERE m.conversation_id=$1 AND m.author_kind='visitor' AND m.ownership_generation=$3 AND m.sequence>$4
+          ORDER BY m.sequence DESC LIMIT 1`, [id, conversation.organization_id, conversation.ownership_generation, conversation.return_watermark])).rows[0];
+        if (latest?.state && !latest.replied) {
+          if (["completed", "incomplete", "refused"].includes(latest.state)) responseStatus = "incomplete";
+          else if (latest.state === "failed" || latest.state === "cancelled" || latest.state === "uncertain") responseStatus = latest.state;
+          else responseStatus = "working";
+        }
+      }
+      return { conversation, messages: await this.messages(db, id, after, limit, before), responseStatus };
+    });
   }
   async readStaff(scope: InboxScope, id: string, after = "0", limit = 100, before?: string) {
     return transaction(this.pool, async db => { await this.membership(db, scope); const conversation = await this.conversation(db, id); if (conversation.organization_id !== scope.organizationId) denied();

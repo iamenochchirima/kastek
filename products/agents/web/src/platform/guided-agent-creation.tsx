@@ -10,7 +10,7 @@ import { AgentSetupStatus } from "./agent-setup-status";
 import { GuidedBookingSetup } from "./guided-booking-setup";
 import { useWorkspace } from "./shell";
 import { WebsiteKnowledgeImport } from "./website-knowledge-import";
-import { defaultSupportHours, SupportHoursFields, validSupportHours } from "./support-hours";
+import { defaultSupportHours, normalizeSupportHours, SupportHoursFields, validSupportHours } from "./support-hours";
 
 const responsibilities = [
   { id: "answer-questions", label: "Answer questions", detail: "Business information and FAQs", icon: MessageCircle },
@@ -52,7 +52,7 @@ export function GuidedAgentCreation({ open, onOpenChange, organizationId, onCrea
   const current = steps[step] ?? "Review";
   const base = organizationPath(organizationId);
   const agentName = behaviour.agentName.trim() || `${business.name.trim()} assistant`.slice(0, 120);
-  const setup = (): CustomerSetup => ({ business, responsibilities: selected, channels: selectedChannels, ...(selected.includes("bookings") ? { booking } : {}), ...(selected.includes("enquiries") ? { intake: { fields: intakeFields } } : {}), ...(selected.includes("customer-support") && validSupportHours(supportHours) ? { supportHours } : {}), behaviour: { ...behaviour, agentName } });
+  const setup = (): CustomerSetup => ({ business, responsibilities: selected, channels: selectedChannels, ...(selected.includes("bookings") ? { booking } : {}), ...(selected.includes("enquiries") ? { intake: { fields: intakeFields } } : {}), ...(selected.includes("customer-support") && validSupportHours(supportHours) ? { supportHours: normalizeSupportHours(supportHours) } : {}), behaviour: { ...behaviour, agentName } });
   function toggle<T extends string>(values: T[], value: T, set: (values: T[]) => void) { set(values.includes(value) ? values.filter(item => item !== value) : [...values, value]); }
   useEffect(() => {
     if (!open) return;

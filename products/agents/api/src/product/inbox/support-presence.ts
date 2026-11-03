@@ -2,18 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { PlatformError } from "../../contracts/contracts";
 
-export type StaffAvailability = "available" | "away" | "unknown";
+export { aggregateSupportPresence, type StaffAvailability } from "../../capabilities/support-status-v2";
 export const PRESENCE_LEASE_SECONDS = 120;
-export async function aggregateSupportPresence(db: Pool | PoolClient, organizationId: string): Promise<StaffAvailability> {
-  const row = (await db.query(`SELECT count(*)::int members,
-    count(*) FILTER (WHERE p.expires_at>clock_timestamp() AND p.state='available')::int available,
-    count(*) FILTER (WHERE p.expires_at>clock_timestamp() AND p.state='away')::int away
-    FROM agents_platform.memberships m LEFT JOIN agents_platform.support_presence p
-      ON p.organization_id=m.organization_id AND p.account_id=m.account_id
-    WHERE m.organization_id=$1 AND m.revoked_at IS NULL`, [organizationId])).rows[0];
-  if (row.available > 0) return "available";
-  return row.members > 0 && row.away === row.members ? "away" : "unknown";
-}
 export async function setSupportPresence(db: Pool | PoolClient, organizationId: string, accountId: string, state: "available" | "away") {
   const leaseId=randomUUID();
   const row=(await db.query(`INSERT INTO agents_platform.support_presence(organization_id,account_id,state,lease_id,expires_at,updated_at)

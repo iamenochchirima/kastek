@@ -1,7 +1,9 @@
+import { contextGrantCeiling } from "../../execution/models/settings";
 import { delegatedSkills } from "../../execution/delegation/skills";
+import { delegatedConfiguration } from "../../execution/delegation/scope";
 import { capabilityBindingSchema } from "../../contracts/capability-catalog";
 import type { Pool } from "pg";
-import { agentConfigurationSchema, PlatformError } from "../../contracts/contracts";
+import { agentConfigurationSchema, connectedToolAuthorityIds, sourceAuthorityIds, PlatformError, type AgentConfiguration } from "../../contracts/contracts";
 import { transaction } from "../../infrastructure/database";
 import { resolveAcceptedModelRoutes } from "../../execution/models/resolution";
 import { executionModelLayers, delegatedModelRoutes, modelServicePolicy } from "../../execution/models/settings";
@@ -19,33 +21,41 @@ export async function specialistCatalogue(pool:Pool,scope:{accountId:string;orga
     const specialists=[];
     for(const row of rows) {
       const config=agentConfigurationSchema.parse(row.configuration),reasons:string[]=[];
-      if(config.executionKind!=="business"||config.memory.enabled||config.capabilities.delegation.enabled||(config.capabilities.sandbox.enabled&&!(parent.draft.program.version==="4"&&parent.draft.capabilities.sandbox.enabled))||config.capabilities.workflows.enabled||config.capabilities.businessActions.enabled)
-        reasons.push("Specialist capabilities exceed the delegation scope");
+      const configured=parent.draft.capabilities.delegation.enabled?parent.draft.capabilities.delegation.bindings.find(binding=>binding.versionId===row.version_id):undefined;
+      const binding=configured??{id:`specialist_${row.id.replaceAll("-","")}`,versionId:row.version_id,
+        sourceRevisionIds:sourceAuthorityIds(config),connectedToolBindingIds:connectedToolAuthorityIds(config),
+        tools:config.tools,maxTokens:null,maxActiveMs:null};
+      const previewDelegation=parent.draft.capabilities.delegation.enabled
+        ?{...parent.draft.capabilities.delegation,bindings:configured?parent.draft.capabilities.delegation.bindings:[...parent.draft.capabilities.delegation.bindings,binding]}
+        :{enabled:true as const,maxDepth:null,maxChildren:2,bindings:[binding],policy:{maxTasks:null,maxStalls:3}};
+      const previewParent:AgentConfiguration={...parent.draft,capabilities:{...parent.draft.capabilities,delegation:previewDelegation}};
+      let effective=config;
+      try{effective=delegatedConfiguration(previewParent,binding,config);}
+      catch(error){if(error instanceof PlatformError)reasons.push(error.message);else throw error;}
       try {
         const routes=await resolveAcceptedModelRoutes(db,{organizationId:scope.organizationId,agentId:parent.id,product:"agents",selection:parent.draft.model.selection,
           generation:parent.draft.model.generation,layers:executionModelLayers(parent.draft,{id:"specialist-readiness",maxInputBytes:parent.draft.model.maxInputBytes,
-            maxOutputTokens:parent.draft.model.maxOutputTokens,maxContextTokens:parent.draft.context.maxInputTokens,rootTokenLimit:modelServicePolicy().maxRootTokens}),requiresTools:true});
-        const binding=parent.draft.capabilities.delegation.enabled?parent.draft.capabilities.delegation.bindings.find(binding=>binding.versionId===row.version_id):undefined;
-        delegatedModelRoutes(routes,config,binding?binding.maxTokens:null,binding?binding.maxActiveMs:null);
+            maxOutputTokens:parent.draft.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(parent.draft),rootTokenLimit:modelServicePolicy().maxRootTokens}),requiresTools:true});
+        delegatedModelRoutes(routes,effective,binding.maxTokens,binding.maxActiveMs);
       } catch(error) {if(error instanceof PlatformError)reasons.push(error.message);else throw error;}
-      const sourceRevisionIds=config.sourceRevisionIds.filter(id=>parent.draft.sourceRevisionIds.includes(id));
+      const sourceRevisionIds=binding.sourceRevisionIds;
       if(sourceRevisionIds.length) {
         const available=await db.query(`SELECT r.id FROM agents_platform.source_revisions r JOIN agents_platform.sources s ON s.id=r.source_id
           JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id WHERE r.organization_id=$1 AND r.id=ANY($2::uuid[])
           AND s.state='active' AND p.state='approved'`,[scope.organizationId,sourceRevisionIds]);
         if(available.rowCount!==sourceRevisionIds.length)reasons.push("Review unavailable specialist knowledge");
       }
-      const connectedToolBindingIds=config.connectedToolBindingIds.filter(id=>parent.draft.connectedToolBindingIds.includes(id));
+      const connectedToolBindingIds=binding.connectedToolBindingIds;
       if(connectedToolBindingIds.length) {
         const available=await db.query(`SELECT b.id FROM agents_platform.capability_bindings b JOIN agents_platform.connections c ON c.id=b.connection_id
           WHERE b.organization_id=$1 AND b.account_id=$2 AND b.id=ANY($3::uuid[]) AND c.state='active' AND c.expires_at>now()
           AND c.policy_revision=(b.binding->'connection'->>'policyRevision')::integer`,[scope.organizationId,scope.accountId,connectedToolBindingIds]);
         if(available.rowCount!==connectedToolBindingIds.length)reasons.push("Reconnect or authorize the specialist tools");
       }
-      const tools=config.tools.filter(tool=>['knowledge.read','knowledge.search',...(parent.draft.program.version==='4'&&parent.draft.capabilities.sandbox.enabled?['sandbox.analyze']:[])].includes(tool));
-      if(parent.draft.program.version==="4")try{
+      const tools=effective.tools;
+      try{
         const selected=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",[scope.organizationId,connectedToolBindingIds])).rows;
-        await delegatedSkills(db,{organizationId:scope.organizationId,agentId:row.id,configuration:{...config,tools,sourceRevisionIds,connectedToolBindingIds},connectedBindings:selected.map(row=>capabilityBindingSchema.parse(row.binding))});
+        await delegatedSkills(db,{organizationId:scope.organizationId,agentId:row.id,configuration:effective,connectedBindings:selected.filter(row=>effective.connectedToolBindingIds.includes(row.binding.id)).map(row=>capabilityBindingSchema.parse(row.binding))});
       }catch(error){if(error instanceof PlatformError)reasons.push(error.message);else throw error;}
       specialists.push({agentId:row.id,name:row.name,description:config.instructions.replace(/\s+/g,' ').slice(0,512),versionId:row.version_id,
         skillCount:config.skillIds.length,versionNumber:row.number,ready:reasons.length===0,reasons,sourceRevisionIds,connectedToolBindingIds,tools});

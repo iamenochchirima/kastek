@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { GROWTH_AGENT_ACTION_PATH, GrowthAgentContractError, growthAgentCanonicalJson, parseGrowthAgentAction } from "@kasitek-labs/contracts";
 import { registerGrowthCapabilityRoutes } from "./capability-routes.js";
 import type { CoreContext } from "../context.js";
+import { requireAdmin } from "../services/orgs.js";
 import { ApiError } from "../error.js";
 import { verifyGrowthAgentAction } from "./security.js";
 import { authorizeGrowthAgentScope, assertGrowthAgentContext, readGrowthAgentContext } from "./scope.js";
@@ -31,6 +32,7 @@ export function registerGrowthAgentActionRoutes(app: FastifyInstance, core: Core
         return { review: internalOperationReviewView(core, row), result: null };
       }
       case "authorization.check":
+        if(action.input.manage)await requireAdmin(core.pool,scope.tenantId,scope.actor.subject);
         if (action.input.context !== undefined && growthAgentCanonicalJson(action.input.context) !== growthAgentCanonicalJson(action.context)) throw new ApiError(403, "agent_context_denied", "The action does not cover this record");
         return { authorized: true };
       case "workspace.read": return readGrowthAgentContext(core, scope, { kind: "workspace" });

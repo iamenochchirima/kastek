@@ -14,7 +14,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, Building2, Copy, MailPlus, Users } from "lucide-react";
-import { ProtectedRoute } from "@/lib/auth";
+import { ProtectedRoute, useAuth } from "@/lib/auth";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CLIENT_ADMIN_ROLES } from "@/lib/tenant-access";
+import { CLIENT_ADMIN_ROLES, AGENT_ROLES, hasAnyTenantRole } from "@/lib/tenant-access";
 
 const inviteUserSchema = z.object({
   email: z.string().email("Valid email is required"),
@@ -63,6 +63,7 @@ export default function ClientDetailScreen({
   initialAdminInviteUrl: string | null;
 }) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [latestInviteLink, setLatestInviteLink] = useState<string | null>(initialAdminInviteUrl);
   const [latestInviteEmailSent, setLatestInviteEmailSent] = useState(initialAdminInviteSent);
@@ -146,6 +147,7 @@ export default function ClientDetailScreen({
                   <Badge variant={selectedClient.status === "active" ? "default" : "outline"}>
                     {selectedClient.status}
                   </Badge>
+                  {selectedClient.status === "active" && hasAnyTenantRole(user?.roles, AGENT_ROLES) ? <Button asChild variant="outline" size="sm"><Link href={`/clients/${clientId}/agent`}>Assistant</Link></Button> : null}
                 </div>
                 <p className="text-muted-foreground">
                   Client account details and users for <span className="font-mono">{selectedClient.slug}</span>.

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "sideEffects": [
-    "./src/theme.css"
+    "./src/theme.css",
+    "./src/agent.css"
   ],
   "exports": {
     ".": {
@@ -12,6 +13,7 @@
       "default": "./dist/index.js"
     },
     "./theme.css": "./src/theme.css",
+    "./agent.css": "./src/agent.css",
     "./button": {
       "types": "./dist/button.d.ts",
       "default": "./dist/button.js"
@@ -111,6 +113,14 @@
     "./agent": {
       "types": "./dist/agent.d.ts",
       "default": "./dist/agent.js"
+    },
+    "./agent-memory": {
+      "types": "./dist/agent-memory.d.ts",
+      "default": "./dist/agent-memory.js"
+    },
+    "./agent-model-picker": {
+      "types": "./dist/agent-model-picker.d.ts",
+      "default": "./dist/agent-model-picker.js"
     }
   },
   "scripts": {

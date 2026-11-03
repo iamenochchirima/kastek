@@ -17,7 +17,7 @@ export function schedulingPolicyFromEnvironment(environment:NodeJS.ProcessEnv=pr
 const short=(value:string)=>createHash("sha256").update(value).digest("hex").slice(0,40);
 export function operationCapacity(execution:Execution,input:OperationRequest,environment:NodeJS.ProcessEnv=process.env):{request:CapacityRequest;policy:SchedulingPolicy}{
  const policy=schedulingPolicyFromEnvironment(environment),task=execution.task;
- const workload:CapacityRequest['workload']=task.evaluation_trial_id?'evaluation':input.name.includes('sandbox')?'sandbox':input.name.startsWith('source.')||input.name.startsWith('document.')?'ingestion':task.principal.kind==='automation'?'background':'interactive';
+ const workload:CapacityRequest['workload']=task.evaluation_trial_id?'evaluation':input.kind==='compaction'&&input.workload==='background'?'background':input.name.includes('sandbox')?'sandbox':input.name.startsWith('source.')||input.name.startsWith('document.')?'ingestion':task.principal.kind==='automation'?'background':'interactive';
  const model=['model','compaction'].includes(input.kind),tenant=`${task.product}:${task.organization_id}`;
  const binding=execution.connectedBindings.find(binding=>binding.alias===input.name||binding.id===input.name);
  let account=model?`${task.organization_id}:${execution.models[input.kind==='compaction'?'compaction':'primary'].binding.connectionId}`:binding?.connection?.id??'local';

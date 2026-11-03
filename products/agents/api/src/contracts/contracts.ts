@@ -1,7 +1,8 @@
+import { canonicalJson, PlatformError, principalSchema, type InitiatingPrincipal } from "./primitives";
+export { canonicalJson, PlatformError, principalSchema, requestDigest, isCustomerPrincipal, type InitiatingPrincipal } from "./primitives";
 import { orchestrationTools, orchestrationPolicySchema } from "./orchestration";
 import type { CapabilityBinding } from "./capability-catalog";
 import { modelGenerationSchema } from "./model-generation";
-import { createHash } from "node:crypto";
 import { z } from "zod";
 import { supportHoursSchema } from "./customer-setup";
 import { programReferenceSchema } from "./programs";
@@ -32,19 +33,20 @@ export const modelSchema = z.strictObject({
 
 export const calendarOperationsSchema=z.array(z.enum(["calendar.availability","calendar.book"])).min(1).max(2).refine(values=>new Set(values).size===values.length&&values.includes("calendar.availability"),"Availability is required for calendar access").default(["calendar.availability","calendar.book"]);
 const unavailableCapability = z.strictObject({ enabled: z.literal(false) });
-export const baseToolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose"]);
-export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", ...orchestrationTools, "sandbox.analyze", "channel.request_handoff", "support.request_handoff", "support.request_handoff_v2", "support.get_status", "support.get_status_v2", "enquiry.submit", "enquiry.read", "enquiry.amend", "records.search", "records.update", "tasks.inspect", "tasks.cancel"]);
+export const baseToolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.read", "memory.propose"]);
+export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.read", "memory.propose", "artifact.create", "agents.delegate", ...orchestrationTools, "sandbox.analyze", "channel.request_handoff", "support.request_handoff", "support.request_handoff_v2", "support.get_status", "support.get_status_v2", "enquiry.submit", "enquiry.read", "enquiry.amend", "records.search", "records.update", "tasks.inspect", "tasks.cancel"]);
 export const delegationBindingSchema = z.strictObject({
   id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), versionId: z.uuid(),
   sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),
+  productBindingIds: z.array(z.uuid()).max(64).optional(),
   label: z.string().min(1).max(120).optional(), description: z.string().max(512).optional(), versionNumber: z.number().int().positive().optional(),
-  tools: z.array(z.enum(["knowledge.search", "knowledge.read", "sandbox.analyze"])).max(3),
+  tools: z.array(toolNameSchema).max(toolNameSchema.options.length),
   maxTokens: z.number().int().min(2048).max(64000).nullable().default(null), maxActiveMs: z.number().int().min(1000).max(300000).nullable().default(null),
 });
 export const businessCapabilitiesSchema = z.strictObject({
   delegation: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({ enabled: z.literal(true),
     bindings: z.array(delegationBindingSchema).min(1).max(32).refine(bindings => new Set(bindings.map(binding => binding.id)).size === bindings.length, "Duplicate specialist binding"),
-    maxChildren: z.number().int().min(1).max(8), maxDepth: z.literal(1), policy: orchestrationPolicySchema.optional() })]),
+    maxChildren: z.number().int().min(1).max(8), maxDepth: z.number().int().positive().max(2147483647).nullable(), policy: orchestrationPolicySchema.optional() })]),
   sandbox: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({ enabled: z.literal(true), profileId: z.literal("python-analysis-v1") })]),
   businessActions: z.discriminatedUnion("enabled",[unavailableCapability,z.strictObject({enabled:z.literal(true),profileId:z.literal("calendar-booking-v1"),permittedOperations:calendarOperationsSchema,policyId:z.uuid(),policyDigest:z.string().regex(/^[a-f0-9]{64}$/)})]),
   workflows: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({enabled:z.literal(true),profileId:z.literal("report-delivery-v1"),
@@ -67,13 +69,14 @@ export const agentConfigurationSchema = z.strictObject({
   sourceRevisionIds: z.array(z.uuid()).max(20).refine(ids => new Set(ids).size === ids.length, "Duplicate source revision").default([]),
   connectedToolBindingIds: z.array(z.uuid()).max(8).refine(ids => new Set(ids).size === ids.length, "Duplicate connected tool").default([]),
   productBindings: z.array(z.custom<CapabilityBinding>((value): value is CapabilityBinding => !!value && typeof value === "object" && (value as CapabilityBinding).authority?.kind === "product", "Product bindings require destination authority")).max(64).default([]),
+  commissionableProductBindings: z.array(z.custom<CapabilityBinding>((value): value is CapabilityBinding => !!value && typeof value === "object" && (value as CapabilityBinding).authority?.kind === "product", "Product bindings require destination authority")).max(64).optional(),
   retrievalProfile: z.discriminatedUnion("kind", [z.strictObject({ kind: z.literal("lexical-v1") }),
     z.strictObject({ kind: z.literal("hybrid-v1"), embeddingRelease: z.string().min(1).max(256) })]).default({ kind: "lexical-v1" }),
   capabilities: businessCapabilitiesSchema,
   supportHours: supportHoursSchema.optional(),
   memory: z.strictObject({ enabled: z.boolean() }).default({ enabled: false }),
-  context: z.strictObject({ maxInputTokens: storagePositiveInteger,
-    compactAtTokens: storagePositiveInteger }).default({ maxInputTokens: 8192, compactAtTokens: 6144 }),
+  context: z.union([z.strictObject({mode:z.literal("automatic")}),z.strictObject({ maxInputTokens: storagePositiveInteger,
+    compactAtTokens: storagePositiveInteger })]).default({mode:"automatic"}),
   tools: z.array(toolNameSchema).max(toolNameSchema.options.length).refine(tools => new Set(tools).size === tools.length, "Duplicate tool").default([]),
   skillIds: z.array(z.uuid()).max(8).default([]),
 }).refine(configuration => collectConnectedToolAuthorityIds(configuration).length <= 8, "At most eight connected tools may be authorized across the agent and its specialists")
@@ -81,12 +84,20 @@ export const agentConfigurationSchema = z.strictObject({
     !configuration.capabilities.delegation.enabled || configuration.capabilities.delegation.bindings.every(binding => binding.maxTokens !== null && binding.maxTokens <= 12000 && binding.maxActiveMs !== null),
   "Specialist allocations above 12,000 tokens require adaptive orchestration");
 export type AgentConfiguration = z.infer<typeof agentConfigurationSchema>;
+export function configuredContext(configuration:Pick<AgentConfiguration,"context">):{maxInputTokens:number;compactAtTokens:number}|null {
+  return "mode" in configuration.context?null:configuration.context;
+}
 
 /** Authority covers delegated tools; the agent's own tool list remains the direct configuration. */
 export function connectedToolAuthorityIds(configuration: Pick<AgentConfiguration, "connectedToolBindingIds" | "capabilities">): string[] {
   const ids = collectConnectedToolAuthorityIds(configuration);
   if (ids.length > 8) throw new PlatformError("CAPABILITY_SCOPE_DENIED", 403, "At most eight connected tools may be authorized");
   return ids;
+}
+
+export function sourceAuthorityIds(configuration: Pick<AgentConfiguration, "sourceRevisionIds" | "capabilities">): string[] {
+  return [...new Set([...configuration.sourceRevisionIds, ...(configuration.capabilities.delegation.enabled
+    ? configuration.capabilities.delegation.bindings.flatMap(binding => binding.sourceRevisionIds) : [])])];
 }
 
 export function defaultBusinessConfiguration(): AgentConfiguration {
@@ -100,19 +111,12 @@ export function defaultBusinessConfiguration(): AgentConfiguration {
       maxDurationSeconds: initialLimits.maxDurationSeconds,
     },
     sourceRevisionIds: [], connectedToolBindingIds: [], productBindings:[], retrievalProfile: { kind: "lexical-v1" },
-    memory: { enabled: false }, context: { maxInputTokens: 8192, compactAtTokens: 6144 }, tools: [], skillIds: [],
+    memory: { enabled: false }, context: { mode:"automatic" }, tools: [], skillIds: [],
     capabilities: {
       delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false },
       workflows: { enabled: false }, schedules: { enabled: false },
     },
   };
-}
-
-export class PlatformError extends Error {
-  constructor(public readonly code: string, public readonly statusCode: number, message: string) {
-    super(message);
-    this.name = "PlatformError";
-  }
 }
 
 export const taskStateSchema = z.enum([
@@ -138,17 +142,6 @@ export function assertTaskTransition(from: TaskState, to: TaskState): void {
   }
 }
 
-export const principalSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("human"), issuer: z.url(), subject: z.string().min(1).max(512) }),
-  z.strictObject({ kind: z.literal("automation"), id: z.uuid(), ownerAccountId: z.uuid() }),
-  z.strictObject({ kind: z.literal("visitor"), deploymentId: z.uuid(), sessionId: z.uuid() }),
-  z.strictObject({ kind: z.literal("channel_customer"), deploymentId: z.uuid(), participantId: z.uuid() }),
-]);
-export type InitiatingPrincipal = z.infer<typeof principalSchema>;
-export function isCustomerPrincipal(principal: InitiatingPrincipal): principal is Extract<InitiatingPrincipal, { kind: "visitor" | "channel_customer" }> {
-  return principal.kind === "visitor" || principal.kind === "channel_customer";
-}
-
 export const executionGrantSchema = z.strictObject({
   id: z.uuid(),
   product: productSchema,
@@ -161,7 +154,7 @@ export const executionGrantSchema = z.strictObject({
   sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),
   maxInputBytes: storagePositiveInteger,
   maxOutputTokens: storagePositiveInteger,
-  maxContextTokens: storagePositiveInteger.default(8192),
+  maxContextTokens: storagePositiveInteger,
   rootTokenLimit: storagePositiveInteger.nullable().default(null),
   expiresAt: z.iso.datetime({ offset: true }),
   revokedAt: z.iso.datetime({ offset: true }).nullable(),
@@ -189,21 +182,22 @@ export function assertGrantAuthority(
     throw new PlatformError("GRANT_SCOPE_DENIED", 403, "Execution authorization does not cover this request");
   }
   if (configuration.productBindings.length>0 && (!grant.operations.includes("product.read") || configuration.productBindings.some(binding=>binding.authority?.originProduct!==grant.product)||
-      configuration.productBindings.some(binding=>binding.policy.effect==="reviewed_write") && !grant.operations.includes("product.write"))) {
+      configuration.productBindings.some(binding=>binding.policy.effect!=="read") && !grant.operations.includes("product.write"))) {
     throw new PlatformError("GRANT_PRODUCT_DENIED",403,"The product capability is outside this execution grant");
   }
   if (!grant.operations.includes("model.reply") ||
       (configuration.tools.includes("tasks.inspect") && !grant.operations.includes("tasks.read")) ||
       (configuration.tools.includes("tasks.cancel") && !grant.operations.includes("tasks.cancel")) ||
       (configuration.skillIds.length > 0 && !grant.operations.includes("skill.read")) ||
-      configuration.sourceRevisionIds.some(id => !grant.sourceRevisionIds.includes(id)) ||
-      (configuration.sourceRevisionIds.length > 0 && !grant.operations.includes("knowledge.read")) ||
+      sourceAuthorityIds(configuration).some(id => !grant.sourceRevisionIds.includes(id)) ||
+      (sourceAuthorityIds(configuration).length > 0 && !grant.operations.includes("knowledge.read")) ||
       connectedAuthority.some(id => !grant.connectedToolBindingIds.includes(id)) ||
       (connectedAuthority.length > 0 && !grant.operations.includes("connected.read")) ||
       configuration.model.maxInputBytes > grant.maxInputBytes || configuration.model.maxOutputTokens > grant.maxOutputTokens ||
-      configuration.context.maxInputTokens > grant.maxContextTokens ||
+      (configuredContext(configuration)?.maxInputTokens??0) > grant.maxContextTokens ||
       (configuration.capabilities.businessActions.enabled && (!grant.operations.includes("booking.read")||configuration.capabilities.businessActions.permittedOperations.includes("calendar.book")&&!grant.operations.includes("booking.execute"))) ||
       (configuration.capabilities.delegation.enabled && !grant.operations.includes("delegation.execute")) ||
+      (configuration.tools.includes("artifact.create") && (!grant.operations.includes("artifact.read") || !grant.operations.includes("artifact.write"))) ||
       (configuration.capabilities.sandbox.enabled && (!grant.operations.includes("sandbox.execute") || !grant.operations.includes("artifact.read") || !grant.operations.includes("artifact.write"))) ||
       (configuration.capabilities.workflows.enabled && (!grant.operations.includes("effect.deliver") || !grant.operations.includes("artifact.read") || !grant.operations.includes("artifact.write"))) ||
       (configuration.capabilities.enquiries?.enabled && !grant.operations.includes("enquiry.submit")) ||
@@ -222,19 +216,6 @@ export function assertRuntimeAvailable(configuration: AgentConfiguration): void 
       (configuration.tools.some(name=>["enquiry.submit","enquiry.read","enquiry.amend"].includes(name)) && !configuration.capabilities.enquiries?.enabled)) {
     throw new PlatformError("CAPABILITY_DENIED",403,"Tool requires its published capability");
   }
-}
-
-export function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value !== null && typeof value === "object") {
-    const object = value as Record<string, unknown>;
-    return `{${Object.keys(object).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(object[key])}`).join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-
-export function requestDigest(value: unknown): string {
-  return createHash("sha256").update(canonicalJson(value)).digest("hex");
 }
 
 export function normalizeWebsiteDomain(value: string): string {

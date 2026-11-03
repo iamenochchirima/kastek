@@ -9,6 +9,7 @@ export interface Session { account: Account; providerSessionId: string; expiresA
 export interface AgentRecord { id: string; organization_id: string; name: string; offering: "faq" | "customer-service" | null; setup?: CustomerSetup | null; setup_step?: string | null; draft: AgentConfiguration;
   draft_revision: number; created_by: string; created_at: Date; updated_at: Date }
 export interface VersionRecord { id: string; organization_id: string; agent_id: string; number: number;
+  tool_bindings: { name: string; version: string; digest: string }[];
   draft_revision: number; execution_kind: "business" | "workspace"; configuration: AgentConfiguration; effective_composition: EffectiveComposition; created_by: string; created_at: Date }
 export interface WebsiteDeployment { id: string; organization_id: string; agent_id: string; version_id: string;
   appearance: Record<string,unknown>; paused:boolean;

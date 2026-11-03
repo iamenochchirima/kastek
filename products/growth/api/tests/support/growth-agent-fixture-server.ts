@@ -69,6 +69,11 @@ async function start() {
   await pool.query(`INSERT INTO "OrganizationEntitlementGrant"("orgId",key,value,"startsAt")
     SELECT $1,key,'true'::jsonb,now() FROM unnest(ARRAY['feature.agents.manage','feature.content.manage','feature.campaigns.manage']) key`, [tenantId]);
   await pool.query(growthAgentSocialFixture);
+  await pool.query(`CREATE TABLE "Conversation"(id text PRIMARY KEY);
+    CREATE TABLE "ExternalConnection"(id text PRIMARY KEY);
+    CREATE TABLE "WhatsappContact"(id text PRIMARY KEY);
+    CREATE TABLE "WhatsappContactListMembership"(id text PRIMARY KEY);`);
+  await pool.query(await readFile(new URL("../../../database/prisma/migrations/20261103120000_agent_review_row_versions/migration.sql",import.meta.url),"utf8"));
   await pool.query(`CREATE TABLE "Session"(id text PRIMARY KEY,"sessionToken" text,"userId" text,expires timestamptz,"refreshToken" text,"idToken" text,"lastActivityAt" timestamptz,"identityCheckedAt" timestamptz,"providerRefreshedAt" timestamptz);
     CREATE TABLE "PublicApiRequest"(id text PRIMARY KEY,"orgId" text,"principalType" text,"principalId" text,route text,method text,"statusCode" integer,"correlationId" text,action text,"createdAt" timestamptz,"updatedAt" timestamptz);
     CREATE TABLE "UsageEvent"(id text PRIMARY KEY,"orgId" text,"productKey" text,"metricKey" text,quantity bigint,"sourceType" text,"sourceId" text,"idempotencyKey" text,metadata jsonb);
@@ -78,6 +83,7 @@ async function start() {
   await pool.query(await readFile(new URL("../../sql/20261101140000_growth_operation_reviews.sql",import.meta.url),"utf8"));
 
   await pool.query(await readFile(new URL("../../../database/prisma/migrations/20261023183000_growth_agent_source_handles/migration.sql",import.meta.url),"utf8"));
+  await pool.query(await readFile(new URL("../../../database/prisma/migrations/20261103100000_growth_read_access_handles/migration.sql",import.meta.url),"utf8"));
   await pool.query(`UPDATE "SocialChannelConnection" SET id='fixture-account',"orgId"=$1,"userId"=$2,"displayName"='Fixture Facebook account' WHERE id='channel'`, [tenantId, userId]);
   await pool.query(`UPDATE "ContentMediaAsset" SET "orgId"=$1 WHERE "orgId"='org'`, [tenantId]);
   await pool.query(await readFile(new URL("../../../database/prisma/migrations/20261023010000_growth_agent_reviews/migration.sql", import.meta.url), "utf8"));
@@ -142,6 +148,14 @@ try {
       if (message.enabled) await core.pool.query('INSERT INTO "OrganizationMember" VALUES($1,$2,\'OWNER\') ON CONFLICT DO NOTHING', [scope.tenantId, scope.actor.subject]);
       else await core.pool.query('DELETE FROM "OrganizationMember" WHERE "orgId"=$1 AND "userId"=$2', [scope.tenantId, scope.actor.subject]);
       emit({ type: "membership", enabled: message.enabled });
+    } else if (message.type === "selected-post" && Object.keys(message).length === 1) {
+      await core.pool.query(`INSERT INTO "SocialPost"(id,"userId","orgId",title,content,channels,status,"createdAt","updatedAt")
+        VALUES('selected-post',$1,$2,'Selected fixture post','A real selected post.',ARRAY['FACEBOOK']::"SocialPlatform"[],'DRAFT',now(),now()),
+          ('other-post','other-user','other-org','Other post','Private other post.',ARRAY['FACEBOOK']::"SocialPlatform"[],'DRAFT',now(),now()) ON CONFLICT DO NOTHING`,[scope.actor.subject,scope.tenantId]);
+      emit({type:"selected-post"});
+    } else if (message.type === "content-entitlement" && typeof message.enabled === "boolean" && Object.keys(message).every(key => ["type", "enabled"].includes(key))) {
+      await core.pool.query('UPDATE "OrganizationEntitlementGrant" SET value=$2::jsonb WHERE "orgId"=$1 AND key=\'feature.content.manage\'', [scope.tenantId,JSON.stringify(message.enabled)]);
+      emit({type:"content-entitlement",enabled:message.enabled});
     } else if (message.type === "profile" && typeof message.name === "string" && message.name.length <= 128 && Object.keys(message).every(key => ["type", "name"].includes(key))) {
       await core.pool.query('UPDATE "Organization" SET name=$2,"updatedAt"=now() WHERE id=$1',[scope.tenantId,message.name]);
       emit({type:"profile"});

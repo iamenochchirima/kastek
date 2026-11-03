@@ -24,12 +24,13 @@ routes label estimates explicitly; unenforceable strict spending caps are reject
 Evaluation trials pin the exact model route and policy; the external
 Harbor adapter verifies those pins in retained evidence. Independent purpose-suite
 acceptance covers grounded FAQ, Inbox handoff and configured booking on reviewed native routes.
-Campaign publishing remains unsupported. An approved live OpenRouter chat/tool browser path
+Standalone Agents has no campaign-publishing offering. Growth owns its configured publishing
+operations. An approved live OpenRouter chat/tool browser path
 passed with MiniMax M3.1 Flash on21 October2026. Other provider accounts were not live-tested. Installed adapters do not establish live
 account compatibility. See [implementation boundaries](source-boundary.md) for
 operator limits, verification scope, and remaining work.
 
-Owner: Agents engineering. Last reviewed: 2026-10-23.
+Owner: Agents engineering. Last reviewed: 2026-11-02.
 
 The standalone product offers a customer-service agent with selectable question answering, support,
 booking and enquiry responsibilities across customer channels, with a shared inbox for staff
@@ -44,7 +45,8 @@ establish live account acceptance. The separate Booking creation offering remain
 A live Google OAuth application has not been accepted.
 
 The current business harness supports contextual conversations, reviewed personal
-memory, pinned skills, bounded tool rounds, and recorded compaction. Optional
+memory, pinned skills, configured tool rounds, and recoverable compaction. New configurations use
+Automatic model-aware context; explicit older limits remain binding. Optional
 delegation, isolated analysis, approved Python package scripts, reviewed report delivery, durable automation, approved knowledge revisions and connected read tools are opt-in. These documents describe the maintained
 implementation and boundaries:
 
@@ -52,6 +54,8 @@ implementation and boundaries:
 
 - [Platform architecture](architecture/agent-platform-architecture.md): target contracts and execution categories.
 - [Adaptive orchestration](operations/adaptive-orchestration.md): specialist discovery, background work, follow-up, progress and release controls.
+- [Context management](operations/context-management.md): retained originals, request manifests, background compaction and exact recovery.
+- [Shared runtime operations](operations/shared-runtime.md): current retained copies, failure investigation, disable and restore boundaries.
 - [Product capabilities](product-capabilities.md): product-owned tools, presets, current authority and release routing.
 - [Growth integration](growth-integration.md): service keys, managed models, operator controls and product execution.
 - [Implementation boundary](source-boundary.md): current modules, verification, and remaining work.

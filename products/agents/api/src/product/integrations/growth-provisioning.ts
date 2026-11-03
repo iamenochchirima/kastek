@@ -10,10 +10,11 @@ import {connectionVaultFromEnvironment} from "../../infrastructure/vault";
 import {ModelCredentialVault,modelApiKeySchema} from "../../infrastructure/model-credential-vault";
 import type {GrowthServiceTrust} from "../../adapters/products/growth-service-auth";
 import {GrowthExecutionService} from "./growth-execution";
+import {assertModelCredentialAvailable} from "../../execution/models/credential-readiness";
 import {discoverGrowthModel,provisionGrowthModel,type PreparedGrowthModel} from "./growth-model-provisioning";
 import type {ModelDiscoveryFetch} from "../../adapters/models/discovery";
 import {resolveAcceptedModelRoutes} from "../../execution/models/resolution";
-import {modelServicePolicy,executionModelLayers} from "../../execution/models/settings";
+import {modelServicePolicy,executionModelLayers,contextGrantCeiling} from "../../execution/models/settings";
 
 export const growthManagedModelProfileSchema=z.strictObject({id:z.string().min(1).max(128),revision:z.string().min(1).max(128),
   providerId:z.string().min(1).max(64),modelId:z.string().min(1).max(256),credentialRef:z.string().regex(/^[A-Z][A-Z0-9_]{0,127}$/),endpoint:modelEndpointSchema.optional()});
@@ -68,8 +69,9 @@ export class GrowthProvisionService {
     if(features.length!==4)throw new PlatformError("PRODUCT_DEFAULTS_INCOMPLETE",409,"Growth defaults are incomplete");
     for(const feature of features) {
       const config=agentConfigurationSchema.parse(feature.configuration);
-      await resolveAcceptedModelRoutes(db,{organizationId,agentId:feature.agent_id,product:"growth",selection:config.model.selection,generation:config.model.generation,
-        layers:executionModelLayers(config,{id:feature.version_id,maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:modelServicePolicy().maxRootTokens}),requiresTools:config.tools.length>0||config.productBindings.length>0});
+      const route=await resolveAcceptedModelRoutes(db,{organizationId,agentId:feature.agent_id,product:"growth",selection:config.model.selection,generation:config.model.generation,
+        layers:executionModelLayers(config,{id:feature.version_id,maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(config),rootTokenLimit:modelServicePolicy().maxRootTokens}),requiresTools:config.tools.length>0||config.productBindings.length>0||config.skillIds.length>0});
+      await assertModelCredentialAvailable(db,route.primary.binding);
     }
   }
   async provision(input:GrowthAgentProvisionRequest):Promise<GrowthAgentProvisionResult> {
@@ -120,7 +122,9 @@ export class GrowthProvisionService {
         });
       } else await provisionGrowthModel(this.pool,this.options.vault,raw,{prepared,preserveExisting:true,validate});
       // A concurrent operator revocation must remain visible to this acknowledgement.
-      await execution.tenant(this.pool,input);
+      const currentTenant=await execution.tenant(this.pool,input);
+      const {transaction}=await import("../../infrastructure/database");
+      await transaction(this.pool,db=>this.validate(db,currentTenant.organization_id));
       return {...base,state:"ready"};
     }catch(error) {
       if(error instanceof PlatformError&&error.statusCode<500)return {...base,state:"blocked",code:error.code};

@@ -94,3 +94,16 @@ URL settings. Deployment itself is outside this UI migration.
 Focused proxy verification: `pnpm --dir products/agency/web test:server`.
 The visual migration checklist is in
 [`UI_IMPLEMENTATION.md`](../../docs/programs/agency-self-service/UI_IMPLEMENTATION.md).
+
+## Shared agent execution
+
+Authorized staff can open **Assistant** from a client detail page. Agency owns the session,
+workspace/client assignment, setup mappings and metadata grant; the shared Agents runtime owns
+accepted work and context. Conversations, activity, elapsed time, subagent modals and reviewed
+memory management use the shared UI package. Memory starts disabled. Legacy voice/metadata
+records do not become executable shared agents automatically.
+
+Configure separate private ingress/action trust and an explicit managed model profile before use.
+The [capability reference](docs/agent-capabilities.md) lists endpoints, current client boundaries,
+environment settings, migrations, verification and rollback. Ordinary Agency features continue
+independently when shared execution is unavailable. No production rollout is implied.

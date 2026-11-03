@@ -1,3 +1,4 @@
+import { delegatedConfiguration } from "../../execution/delegation/scope";
 import { delegatedSkills } from "../../execution/delegation/skills";
 import { isDeepStrictEqual } from "node:util";
 import { createHash,randomUUID } from "node:crypto";
@@ -6,7 +7,7 @@ import { assertConnectedBindingDependencies } from "../../capabilities/connected
 import { capabilityBindingSchema } from "../../contracts/capability-catalog";
 import {
 agentConfigurationSchema,assertGrantAuthority,
-connectedToolAuthorityIds,
+connectedToolAuthorityIds,sourceAuthorityIds,configuredContext,
 executionGrantSchema,
 PlatformError,requestDigest,
 type AgentConfiguration,type ExecutionGrant
@@ -26,6 +27,10 @@ import { AuthorityStore } from "../../execution/admission/authority-store";
 import { loadSkillRevisions } from "../../execution/memory/memory";
 
 type Db=Pool|PoolClient;
+function updatedSupportHoursSetup(agent:AgentRecord,configuration:AgentConfiguration):CustomerSetup|undefined {
+  if(!agent.setup||isDeepStrictEqual(agent.draft.supportHours,configuration.supportHours))return undefined;
+  return customerSetupSchema.parse({...agent.setup,supportHours:configuration.supportHours});
+}
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 function denied(): never { throw new PlatformError("ACCESS_DENIED", 403, "Access denied"); }
 function absent(): never { throw new PlatformError("NOT_FOUND", 404, "Record not found"); }
@@ -52,8 +57,9 @@ function canonical(value:unknown):string {
 function configurationAuthorityChange(before:AgentConfiguration,after:AgentConfiguration):{expanded:boolean;reduced:boolean} {
   // Version 2 adds separately granted task tools; a compatible upgrade does not revoke accepted version 1 work.
   const atoms=(config:AgentConfiguration)=>new Set([
-    ...config.tools.map(id=>`tool:${id}`),...config.sourceRevisionIds.map(id=>`source:${id}`),
+    ...config.tools.map(id=>`tool:${id}`),...sourceAuthorityIds(config).map(id=>`source:${id}`),
     ...config.skillIds.map(id=>`skill:${id}`),...connectedToolAuthorityIds(config).map(id=>`binding:${id}`),
+    ...config.productBindings.map(binding=>`direct-product:${requestDigest(binding)}`),...(config.commissionableProductBindings??[]).map(binding=>`commission-product:${requestDigest(binding)}`),
     ...Object.entries(config.capabilities).filter(([,value])=>value.enabled).map(([key,value])=>`capability:${key}:${canonical(value)}`),
     ...(config.memory.enabled?["memory"]:[]),`execution:${config.executionKind}`,`program:${config.program.id==='tool-directed'&&['1','2'].includes(config.program.version)?'tool-directed-v1-v2':canonical(config.program)}`,
   ]);
@@ -101,9 +107,12 @@ export class AgentStore extends AuthorityStore {
     configuration: AgentConfiguration; expectedRevision: number }): Promise<AgentRecord> {
     const config = agentConfigurationSchema.parse(input.configuration);
     return this.transaction(async (db) => { await this.membership(db, input.accountId, input.organizationId);
-      const row = (await db.query<AgentRecord>(`UPDATE agents_platform.agents SET draft=$4,name=coalesce($5,name),
+      const current=(await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL AND draft_revision=$3 FOR UPDATE",[input.organizationId,input.agentId,input.expectedRevision])).rows[0];
+      if(!current)throw new PlatformError("DRAFT_CONFLICT",409,"Agent settings changed. Refresh and try again.");
+      const setup=updatedSupportHoursSetup(current,config);
+      const row = (await db.query<AgentRecord>(`UPDATE agents_platform.agents SET draft=$4,name=coalesce($5,name),setup=coalesce($6,setup),
         draft_revision=draft_revision+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL AND draft_revision=$3 RETURNING *`,
-      [input.organizationId, input.agentId, input.expectedRevision, config, input.name === undefined ? null : text(input.name, 120)])).rows[0];
+      [input.organizationId, input.agentId, input.expectedRevision, config, input.name === undefined ? null : text(input.name, 120),setup??null])).rows[0];
       if (!row) throw new PlatformError("DRAFT_CONFLICT", 409, "Agent settings changed. Refresh and try again.");
       return row; });
   }
@@ -129,13 +138,14 @@ export class AgentStore extends AuthorityStore {
     });
   }
   async saveConfiguration(input:{accountId:string;organizationId:string;agentId:string;name?:string;configuration:AgentConfiguration;expectedRevision:number;confirmImpact?:boolean;setup?:CustomerSetup;setupStep?:string}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
-    const setup=input.setup===undefined?undefined:customerSetupSchema.parse(input.setup);
+    let setup=input.setup===undefined?undefined:customerSetupSchema.parse(input.setup);
     let config=agentConfigurationSchema.parse(input.configuration);
     return this.transaction(async db=>{
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
       await this.membership(db,input.accountId,input.organizationId);
       let agent=(await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR UPDATE",[input.organizationId,input.agentId])).rows[0]??absent();
       if(setup)config=agentConfigurationSchema.parse(applyCustomerSetup(config,setup,agent.setup??undefined));
+      else setup=updatedSupportHoursSetup(agent,config);
       if(agent.draft_revision!==input.expectedRevision)throw new PlatformError("DRAFT_CONFLICT",409,"The configuration has changed. Refresh and try again.");
       const latest=(await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC LIMIT 1",[input.organizationId,input.agentId])).rows[0];
       const previous=latest?agentConfigurationSchema.parse(latest.configuration):null;
@@ -157,7 +167,8 @@ export class AgentStore extends AuthorityStore {
         try { assertComposition(latest.effective_composition, current); }
         catch (error) {
           if (!(error instanceof PlatformError) || error.code !== "PROGRAM_RELEASE_UNAVAILABLE") throw error;
-          assertInspectableComposition(latest.effective_composition, current);
+          const accepted=compilePublishedComposition(config,bindings,latest.effective_composition.runtime,latest.tool_bindings);
+          assertInspectableComposition(latest.effective_composition, accepted);
           refreshRelease = true;
         }
       }
@@ -228,13 +239,12 @@ export class AgentStore extends AuthorityStore {
             WHERE v.organization_id=$1 AND v.id=$2 FOR SHARE OF v`, [input.organizationId,binding.versionId])).rows[0];
           if (!child || child.agent_id === agent.id) throw new PlatformError("DELEGATION_BINDING_INVALID",409,"Choose a published specialist from this workspace");
           const childConfig = agentConfigurationSchema.parse(child.configuration);
-          if (childConfig.executionKind !== "business" || childConfig.memory.enabled || childConfig.capabilities.delegation.enabled || (childConfig.capabilities.sandbox.enabled && !(config.program.version==="4"&&config.capabilities.sandbox.enabled)) || childConfig.capabilities.workflows.enabled || childConfig.capabilities.businessActions.enabled ||
-              binding.sourceRevisionIds.some(id => !config.sourceRevisionIds.includes(id) || !childConfig.sourceRevisionIds.includes(id)) ||
-              binding.connectedToolBindingIds.some(id => !childConfig.connectedToolBindingIds.includes(id)) ||
-              binding.tools.some(tool => !childConfig.tools.includes(tool))) throw new PlatformError("DELEGATION_BINDING_INVALID",409,"Specialist binding exceeds the published scope");
-          const effectiveBindings=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",[input.organizationId,binding.connectedToolBindingIds])).rows;
-          assertConnectedBindingDependencies(effectiveBindings.map(row=>capabilityBindingSchema.parse(row.binding)));
-          if(config.program.version==="4")await delegatedSkills(db,{organizationId:input.organizationId,agentId:child.agent_id,configuration:{...childConfig,tools:binding.tools,sourceRevisionIds:binding.sourceRevisionIds,connectedToolBindingIds:binding.connectedToolBindingIds},connectedBindings:effectiveBindings.map(row=>capabilityBindingSchema.parse(row.binding))});
+          let effective:AgentConfiguration;
+          try { effective=delegatedConfiguration(config,binding,childConfig); }
+          catch(error){if(error instanceof PlatformError)throw new PlatformError("DELEGATION_BINDING_INVALID",409,"Specialist binding exceeds the published scope");throw error;}
+          const effectiveBindings=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",[input.organizationId,connectedToolAuthorityIds(effective)])).rows;
+          assertConnectedBindingDependencies(effectiveBindings.filter(row=>effective.connectedToolBindingIds.includes(row.binding.id)).map(row=>capabilityBindingSchema.parse(row.binding)));
+          if(config.program.version==="4")await delegatedSkills(db,{organizationId:input.organizationId,agentId:child.agent_id,configuration:effective,connectedBindings:effectiveBindings.filter(row=>effective.connectedToolBindingIds.includes(row.binding.id)).map(row=>capabilityBindingSchema.parse(row.binding))});
           binding.label=child.agent_name;
           binding.description=Array.from(childConfig.instructions.replace(/\s+/g," ")).slice(0,512).join("");
           binding.versionNumber=child.number;
@@ -247,8 +257,8 @@ export class AgentStore extends AuthorityStore {
       const sources = (await db.query(`SELECT r.id,r.source_id,r.embedding_release,s.visibility FROM agents_platform.source_revisions r
         JOIN agents_platform.sources s ON s.id=r.source_id AND s.organization_id=r.organization_id
         JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id AND p.organization_id=r.organization_id
-        WHERE r.organization_id=$1 AND r.id=ANY($2::uuid[]) AND s.state='active' AND p.state='approved' ORDER BY s.id FOR SHARE OF s,p`, [input.organizationId, config.sourceRevisionIds])).rows;
-      if (sources.length !== config.sourceRevisionIds.length || new Set(sources.map(source => source.source_id)).size !== sources.length) throw new PlatformError("SOURCE_REVISION_UNAVAILABLE", 409, "Choose one approved revision per source");
+        WHERE r.organization_id=$1 AND r.id=ANY($2::uuid[]) AND s.state='active' AND p.state='approved' ORDER BY s.id FOR SHARE OF s,p`, [input.organizationId, sourceAuthorityIds(config)])).rows;
+      if (sources.length !== sourceAuthorityIds(config).length || new Set(sources.map(source => source.source_id)).size !== sources.length) throw new PlatformError("SOURCE_REVISION_UNAVAILABLE", 409, "Choose one approved revision per source");
       if (sources.some(source => source.visibility === "private") && !(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL", [input.organizationId, input.accountId])).rowCount) throw new PlatformError("SOURCE_GRANT_DENIED", 403, "An owner must publish protected knowledge grants");
       const retrieval = config.retrievalProfile;
       if (retrieval.kind === "hybrid-v1" && sources.some(source => source.embedding_release !== retrieval.embeddingRelease)) throw new PlatformError("RETRIEVAL_PROFILE_CONFLICT", 409, "Source indexes do not match the retrieval profile");
@@ -293,7 +303,7 @@ export class AgentStore extends AuthorityStore {
       const current=(await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC LIMIT 1",[grant.organizationId,version.agent_id])).rows[0];
       if(current&&current.id!==version.id){
         const latest=agentConfigurationSchema.parse(current.configuration),requested=agentConfigurationSchema.parse(version.configuration);
-        if(configurationAuthorityChange(latest,requested).expanded||requested.model.maxInputBytes>latest.model.maxInputBytes||requested.model.maxOutputTokens>latest.model.maxOutputTokens||requested.model.maxDurationSeconds>latest.model.maxDurationSeconds||requested.context.maxInputTokens>latest.context.maxInputTokens)
+        if(configurationAuthorityChange(latest,requested).expanded||requested.model.maxInputBytes>latest.model.maxInputBytes||requested.model.maxOutputTokens>latest.model.maxOutputTokens||requested.model.maxDurationSeconds>latest.model.maxDurationSeconds||(configuredContext(requested)?.maxInputTokens??Infinity)>(configuredContext(latest)?.maxInputTokens??Infinity))
           throw new PlatformError("CONFIGURATION_SCOPE_REVOKED",403,"This saved configuration contains permissions that have been removed.");
       }
       if (grant.product !== "agents" || grant.callerClientId !== "agents-execution" || grant.resourceId !== version.agent_id ||

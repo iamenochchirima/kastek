@@ -20,6 +20,7 @@ export const effectiveCompositionSchema = z.strictObject({
   workflows: z.array(releaseSchema),
   connectedBindings: z.array(z.strictObject({ id: z.string().uuid(), digest: z.string().regex(/^[a-f0-9]{64}$/) })),
   productBindings: z.array(z.strictObject({ id:z.uuid(),digest:z.string().regex(/^[a-f0-9]{64}$/) })).default([]),
+  commissionableProductBindings: z.array(z.strictObject({ id:z.uuid(),digest:z.string().regex(/^[a-f0-9]{64}$/) })).optional(),
   configurationDigest: z.string().regex(/^[a-f0-9]{64}$/),
   digest: z.string().regex(/^[a-f0-9]{64}$/),
 });

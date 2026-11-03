@@ -2,10 +2,10 @@ import { test, expect, type Page } from "@playwright/test";
 import type { ModelProviderConnection } from "../src/platform/model-provider-api";
 
 const base = "/api/organizations/org/model-providers";
-async function fixture(page: Page, failSave = false) {
+async function fixture(page: Page, failSave = false, managed = false) {
   const calls: { path: string; method: string; body: Record<string, unknown> | null }[] = [];
-  let connections: ModelProviderConnection[] = [], revision = 0;
-  let selection: { kind: string; connectionId: string; modelId: string } | null = null;
+  let connections: ModelProviderConnection[] = managed ? [{ id: "connection-1", providerId: "openrouter", name: "Included NVIDIA model", endpoint: "https://openrouter.ai/api/v1", state: "active", revision: 1, credentialRevision: 1, custody: "platform_managed", verification: "discovered" }] : [], revision = managed ? 1 : 0;
+  let selection: { kind: string; connectionId: string; modelId: string } | null = managed ? { kind: "connection", connectionId: "connection-1", modelId: "fixture-model" } : null;
   let failures = failSave ? 1 : 0, authorized = false;
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
   await page.route("**/api/**", async route => {
@@ -187,4 +187,33 @@ test("tablet provider key and revocation dialogs in both themes", async ({ page 
     await dialog.getByRole("button", { name: "Close", exact: true }).click();
   }
   expect(state.calls.some(call => call.path.endsWith("/revoke"))).toBe(false);
+});
+
+for (const width of [1440, 768, 390]) for (const theme of ["light", "dark"] as const) test(`included model controls at ${width}px in ${theme}`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 1000 });
+  await page.emulateMedia({ colorScheme: theme });
+  const state = await fixture(page, false, true);
+  await page.goto("/app/settings");
+  const row = page.getByRole("listitem").filter({ has: page.getByRole("heading", { name: "Included NVIDIA model", exact: true }) });
+  await expect(row).toContainText("Included model");
+  await expect(row.getByRole("button", { name: "Edit key", exact: true })).toHaveCount(0);
+  await expect(row.getByRole("button", { name: "Reconnect", exact: true })).toHaveCount(0);
+  for (const action of ["Models", "Access", "Revoke", "Remove"]) await expect(row.getByRole("button", { name: action, exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add provider", exact: true })).toBeEnabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath(`included-provider-${width}-${theme}.png`), fullPage: true, animations: "disabled" });
+  await row.getByRole("button", { name: "Models", exact: true }).click();
+  const models = page.getByRole("dialog", { name: "Models", exact: true });
+  await expect(models.getByRole("button", { name: "Add model", exact: true })).toHaveCount(0);
+  await expect(models.getByLabel("Model ID", { exact: true })).toHaveAttribute("readonly", "");
+  await models.getByRole("button", { name: "Refresh models", exact: true }).click();
+  await expect(models.getByRole("button", { name: /Fixture model/ })).toBeVisible();
+  await expect(models.getByRole("button", { name: "Set default", exact: true })).toBeEnabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath(`included-models-${width}-${theme}.png`), fullPage: true, animations: "disabled" });
+  await models.getByRole("button", { name: "Close", exact: true }).first().click();
+  await page.getByRole("button", { name: "Add provider", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Add provider", exact: true })).toBeVisible();
+  expect(state.calls.some(call => call.path.endsWith("/models/manual") || call.method === "PATCH" || call.path.endsWith("/probe"))).toBe(false);
+  expect(state.errors).toEqual([]);
 });

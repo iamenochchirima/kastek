@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { assertDependencyManifest, assertIngestionPublication, collectDependencyGraph, createDependencyManifest,
+import { assertDependencyManifest, assertIngestionPublication, collectDependencyGraph, createDependencyManifest, dependencyFrontier,
   sourceChunkSchema, textDigest, type DependencyNode, type EvidenceDependency, type IngestionJob, type Source } from "../src/contracts/source-contracts";
 
 const dependency = (): EvidenceDependency => ({ kind: "source", sourceId: randomUUID(), revisionId: randomUUID(), generation: 1, visibility: "private" });
@@ -16,12 +16,16 @@ describe("source and evidence contracts", () => {
     expect(assertDependencyManifest(result)).toEqual(result);
   });
 
-  it("rejects missing ancestors, cycles, and excessive graph depth", () => {
+  it("rejects missing ancestors and cycles while retaining deep shared history without lifetime cutoffs", () => {
     const manifest = createDependencyManifest([]);
     expect(() => collectDependencyGraph(["missing"], new Map())).toThrow("unavailable");
     expect(() => collectDependencyGraph(["a"], new Map([["a", { id: "a", manifest, parents: ["b"] }], ["b", { id: "b", manifest, parents: ["a"] }]]))).toThrow("cycle");
-    const nodes = new Map(Array.from({ length: 35 }, (_, i) => [String(i), { id: String(i), manifest, parents: i < 34 ? [String(i + 1)] : [] }] as const));
-    expect(() => collectDependencyGraph(["0"], nodes)).toThrow("limit");
+    const source=dependency(),retained=createDependencyManifest([source]);
+    const nodes = new Map(Array.from({ length: 5000 }, (_, i) => [String(i), { id: String(i), manifest:retained,
+      parents:[i+1,i+2].filter(next=>next<5000).map(String) }] as const));
+    expect(collectDependencyGraph(["0"],nodes)).toEqual(retained);
+    expect(dependencyFrontier([...nodes.values()],nodes).map(node=>node.id)).toEqual(["0"]);
+    expect(()=>createDependencyManifest(Array.from({length:1025},dependency))).toThrow("dependencies");
   });
 
   it("rejects stale or tampered manifests rather than choosing one policy generation", () => {

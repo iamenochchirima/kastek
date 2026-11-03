@@ -1,0 +1,107 @@
+import { createHash, randomUUID } from "node:crypto";
+import { Pool } from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { setupPlatformSchema } from "../src/composition/setup";
+import { defaultBusinessConfiguration, requestDigest } from "../src/contracts/contracts";
+import { publishedToolBindings } from "../src/capabilities/tool-definitions";
+import { compilePublishedComposition } from "../src/execution/programs/publication";
+import { PlatformStore } from "../src/product/agents/store";
+import { applyRuntimeRollout, previewRuntimeRollout } from "../src/product/runtime/runtime-rollout";
+import { connectFixtureModel } from "./model-fixture";
+import { dropClosedTestDatabase } from "./support/database-cleanup";
+
+const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
+(databaseUrl ? describe : describe.skip)("platform runtime rollout", () => {
+  const database = `agents_rollout_${randomUUID().replaceAll("-", "")}`;
+  let admin: Pool, pool: Pool;
+  beforeAll(async () => {
+    admin = new Pool({ connectionString: databaseUrl });
+    await admin.query(`CREATE DATABASE "${database}"`);
+    const url = new URL(databaseUrl!); url.pathname = `/${database}`;
+    pool = new Pool({ connectionString: url.href });
+    await setupPlatformSchema(pool);
+  });
+  afterAll(async () => {
+    await pool?.end();
+    if (admin) { await dropClosedTestDatabase(admin, database); await admin.end(); }
+  });
+  it("updates active immutable publications atomically, preserves drafts and grants, and refreshes existing visitor sessions", async () => {
+    const platform = new PlatformStore(pool);
+    const owner = await platform.ensureAccount({ issuer: "https://rollout.test", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });
+    const org = await platform.createOrganization(owner.id, "Runtime rollout");
+    await connectFixtureModel(pool, owner.id, org.id);
+    const scope = { accountId: owner.id, organizationId: org.id };
+    const childConfig = defaultBusinessConfiguration(), childVersionId = randomUUID();
+    const child = await platform.createAgent({ ...scope, name: "Specialist", configuration: childConfig });
+    const childBindings = publishedToolBindings(childConfig, false, undefined, false);
+    await pool.query(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,tool_bindings,effective_composition,created_by)
+      VALUES($1,$2,$3,1,1,'business',$4,$5,$6,$7)`, [childVersionId, org.id, child.id, childConfig, JSON.stringify(childBindings), compilePublishedComposition(childConfig, [], undefined, childBindings), owner.id]);
+    const latestChildConfig = { ...childConfig, instructions: "Keep this newer specialist configuration" }, latestChildVersionId = randomUUID();
+    const latestChildBindings = publishedToolBindings(latestChildConfig);
+    await pool.query(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,tool_bindings,effective_composition,created_by)
+      VALUES($1,$2,$3,2,2,'business',$4,$5,$6,$7)`, [latestChildVersionId, org.id, child.id, latestChildConfig, JSON.stringify(latestChildBindings), compilePublishedComposition(latestChildConfig, []), owner.id]);
+    const config = defaultBusinessConfiguration();
+    config.program = { id: "tool-directed", version: "4" };
+    config.capabilities.delegation = { enabled: true, bindings: [{ id: "specialist", versionId: childVersionId, versionNumber: 1, tools: [], sourceRevisionIds: [], connectedToolBindingIds: [], maxTokens: 4000, maxActiveMs: 30000 }], maxChildren: 1, maxDepth: 2 };
+    const agent = await platform.createAgent({ ...scope, name: "Support", configuration: config });
+    const versionId = randomUUID(), bindings = publishedToolBindings(config, false, undefined, false);
+    const composition = compilePublishedComposition(config, [], undefined, bindings);
+    await pool.query(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,tool_bindings,effective_composition,created_by)
+      VALUES($1,$2,$3,1,1,'business',$4,$5,$6,$7)`, [versionId, org.id, agent.id, config, JSON.stringify(bindings), composition, owner.id]);
+    const deployment = await platform.publishWebsite({ ...scope, agentId: agent.id, versionId, allowedOrigins: ["https://customer.test"] });
+    const paused = await platform.publishWebsite({ ...scope, agentId: agent.id, versionId, allowedOrigins: ["https://paused.test"] });
+    await pool.query("UPDATE agents_platform.website_deployments SET paused=true WHERE id=$1", [paused.id]);
+    const sessionId = randomUUID();
+    await pool.query("INSERT INTO agents_platform.website_sessions(id,deployment_id,token_hash,origin) VALUES($1,$2,$3,$4)", [sessionId, deployment.id, createHash("sha256").update(randomUUID()).digest("hex"), "https://customer.test"]);
+    const visitor = { deploymentId: deployment.id, origin: "https://customer.test", sessionId };
+    const grant = await platform.createWebsiteGrant(visitor);
+    const authority = { product: "agents" as const, organizationId: org.id, resourceId: deployment.id, callerClientId: "agents-website", principal: grant.principal };
+    const { task } = await platform.admitTask({ authority, grantId: grant.id, versionId, requestKey: "before-rollout", input: "Hello" });
+    const draft = { ...config, instructions: "Unsaved custom instructions" };
+    await platform.updateDraft({ ...scope, agentId: agent.id, expectedRevision: 1, configuration: draft });
+    await pool.query("INSERT INTO agents_platform.product_execution_tenants(product,tenant_id,organization_id,client_id,issuer) VALUES('growth','fixture',$1,'fixture','https://growth.test')", [org.id]);
+    await pool.query("INSERT INTO agents_platform.product_execution_features(product,tenant_id,feature_id,organization_id,agent_id,version_id) VALUES('growth','fixture','content',$1,$2,$3)", [org.id, agent.id, versionId]);
+    const automationId = randomUUID(), automationConfig = { versionId, purpose: "Preserve this configuration" }, routes = { fixture: "unchanged" }, routeDigest = "a".repeat(64);
+    await pool.query("INSERT INTO agents_platform.automations(id,organization_id,owner_account_id,name) VALUES($1,$2,$3,'Fixture')", [automationId, org.id, owner.id]);
+    await pool.query("INSERT INTO agents_platform.automation_revisions(automation_id,revision,version_id,configuration) VALUES($1,1,$2,$3)", [automationId, versionId, automationConfig]);
+    await pool.query("INSERT INTO agents_platform.automation_model_routes(automation_id,revision,organization_id,version_id,routes,snapshot_digest) VALUES($1,1,$2,$3,$4,$5)", [automationId, org.id, versionId, routes, routeDigest]);
+    const baseline = { delegation: config.capabilities.delegation };
+    await pool.query("UPDATE agents_platform.product_execution_features SET managed_configuration_digest=$1,managed_capability_baseline=$2", [requestDigest(config), baseline]);
+    const first = await previewRuntimeRollout(pool);
+    expect(first.busyTaskIds).toEqual([task.id]);
+    await expect(applyRuntimeRollout(pool, first.digest)).rejects.toMatchObject({ code: "RUNTIME_ROLLOUT_DRAIN_REQUIRED" });
+    await pool.query("UPDATE agents_platform.tasks SET state='completed' WHERE id=$1", [task.id]);
+    await platform.updateDraft({ ...scope, agentId: agent.id, expectedRevision: 2, configuration: draft });
+    await expect(applyRuntimeRollout(pool, first.digest)).rejects.toMatchObject({ code: "RUNTIME_ROLLOUT_CHANGED" });
+    const reviewed = await previewRuntimeRollout(pool), applied = await applyRuntimeRollout(pool, reviewed.digest);
+    expect(applied.applied).toBe(true);
+    const currentId = applied.targets.find(target => target.kind === "website" && target.id === deployment.id)!.versionId;
+    const childCurrentId = applied.versions.find(version => version.agentId === child.id)!.versionId;
+    const current = (await pool.query("SELECT * FROM agents_platform.agent_versions WHERE id=$1", [currentId])).rows[0];
+    const expectedConfig = structuredClone(config);
+    if (expectedConfig.capabilities.delegation.enabled) expectedConfig.capabilities.delegation.bindings[0] = { ...expectedConfig.capabilities.delegation.bindings[0]!, versionId: childCurrentId, versionNumber: 3 };
+    expect(current.configuration).toEqual(expectedConfig);
+    const latestChild = (await pool.query("SELECT id,number,configuration FROM agents_platform.agent_versions WHERE agent_id=$1 ORDER BY number DESC LIMIT 1", [child.id])).rows[0];
+    expect(latestChild.configuration).toEqual(latestChildConfig);
+    expect(latestChild.number).toBe(4);
+    expect(applied.targets.find(target => target.kind === "definition" && target.id === child.id)?.versionId).toBe(latestChild.id);
+    expect(latestChild.id).not.toBe(childCurrentId);
+    expect(current.tool_bindings.some((binding: { name: string }) => binding.name === "tools.discover")).toBe(true);
+    expect((await platform.getAgent(owner.id, org.id, agent.id)).draft).toEqual(draft);
+    expect((await pool.query("SELECT version_id,paused FROM agents_platform.website_deployments WHERE id=$1", [paused.id])).rows[0]).toEqual({ version_id: versionId, paused: true });
+    expect((await pool.query("SELECT version_id FROM agents_platform.execution_grants WHERE id=$1", [grant.id])).rows[0].version_id).toBe(versionId);
+    expect((await pool.query("SELECT version_id FROM agents_platform.tasks WHERE id=$1", [task.id])).rows[0].version_id).toBe(versionId);
+    const nextGrant = await platform.createWebsiteGrant(visitor);
+    expect(nextGrant.versionId).toBe(currentId);
+    expect(nextGrant.operations).toEqual(grant.operations);
+    const feature = (await pool.query("SELECT version_id,revision,managed_configuration_digest,managed_capability_baseline FROM agents_platform.product_execution_features")).rows[0];
+    expect(feature.version_id).toBe(currentId);
+    expect(feature.managed_configuration_digest).toBe(requestDigest(expectedConfig));
+    expect(feature.managed_capability_baseline).toEqual({ delegation: expectedConfig.capabilities.delegation });
+    expect(feature.revision).toBeGreaterThan(current.draft_revision);
+    const automation = (await pool.query("SELECT r.configuration,m.routes,m.snapshot_digest FROM agents_platform.automations a JOIN agents_platform.automation_revisions r ON r.automation_id=a.id AND r.revision=a.revision JOIN agents_platform.automation_model_routes m ON m.automation_id=a.id AND m.revision=a.revision WHERE a.id=$1", [automationId])).rows[0];
+    expect(automation).toEqual({ configuration: { ...automationConfig, versionId: currentId }, routes, snapshot_digest: routeDigest });
+    expect((await applyRuntimeRollout(pool, reviewed.digest)).applied).toBe(false);
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.agent_versions WHERE agent_id=$1", [agent.id])).rows[0].count).toBe(2);
+  });
+});

@@ -10,7 +10,7 @@ const scope = { tenantId: "business", actor: { issuer: "https://growth.example.t
 const review = { id: "review-one", orgId: scope.tenantId, taskId: "task-one", conversationId: "conversation-one", featureId: "content" as const, state: "approved", createdAt: new Date("2026-10-23T10:00:00Z"), updatedAt: new Date("2026-10-23T10:01:00Z") };
 test("Growth outcomes use registered owned schemas without retired runtime identities or private content", async () => {
   const command = growthAgentCommandFact(scope, { operation: "turns.submit", requestId: "command-one", featureId: "content", conversationId: "conversation-one", taskId: "task-one", outcome: "accepted", failureCode: null });
-  const records = [command, ...(["tasks.instructions", "tasks.continue"] as const).map(operation => growthAgentCommandFact(scope, {
+  const records = [command, ...(["tasks.instructions", "tasks.continue","memory.configure","memory.mutate","sources.import","sources.review","sources.state","skills.import","skills.review","skills.state","resources.select"] as const).map(operation => growthAgentCommandFact(scope, {
     operation, requestId: "control-one", featureId: "assistant", conversationId: "conversation-one", taskId: "task-one", outcome: "accepted", failureCode: null,
   })), growthAgentReviewFact(review, "approved"), growthAgentDraftSavedFact(review, "post-one", "2026-10-23T10:02:00.123Z")];
   const root = new URL("../../../../services/analytics/contracts/", import.meta.url), registry = JSON.parse(await readFile(new URL("registry.json", root), "utf8"));

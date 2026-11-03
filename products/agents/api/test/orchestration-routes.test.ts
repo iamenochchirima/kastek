@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -43,7 +44,7 @@ const origin = "http://localhost:3100", issuer = "https://orchestration-route.fi
     config.capabilities.delegation = { enabled: true, maxChildren: 2, maxDepth: 1, policy: { maxTasks: 16, maxStalls: 3 }, bindings: [{ id: "writer", versionId: childVersion.id, sourceRevisionIds: [], connectedToolBindingIds: [], tools: [], maxTokens: 8000, maxActiveMs: 120000 }] };
     const agent = await store.createAgent({ ...scope, name: "Coordinator", configuration: config }), version = await store.createVersion({ ...scope, agentId: agent.id, expectedRevision: 1 });
     const authority = { product: "agents" as const, organizationId: org.id, resourceId: agent.id, callerClientId: "agents-execution", principal: { kind: "human" as const, issuer, subject: owner.account.subject } };
-    const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id, operations: ["model.reply", "knowledge.read", "delegation.execute"], sourceRevisionIds: config.sourceRevisionIds, maxInputBytes: config.model.maxInputBytes, maxOutputTokens: config.model.maxOutputTokens, maxContextTokens: config.context.maxInputTokens, expiresAt: new Date(Date.now() + 600000).toISOString(), revokedAt: null });
+    const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id, operations: ["model.reply", "knowledge.read", "delegation.execute"], sourceRevisionIds: config.sourceRevisionIds, maxInputBytes: config.model.maxInputBytes, maxOutputTokens: config.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(config), expiresAt: new Date(Date.now() + 600000).toISOString(), revokedAt: null });
     await store.createGrant({ ...scope, grant });
     const { task } = await store.admitTask({ authority, grantId: grant.id, versionId: version.id, requestKey: randomUUID(), input: "Prepare the launch" });
     await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1", [task.id]);

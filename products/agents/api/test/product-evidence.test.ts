@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import { randomUUID } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -65,7 +66,7 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     async function grant(id: string) {
       await pool.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,max_input_bytes,max_output_tokens,max_context_tokens,root_token_limit,expires_at)
         VALUES($1,'growth',$2,'research','growth-api',$3,$4,$5,$6,$7,$8,32000,now()+interval '5 minutes')`,
-      [id, org.id, authority.principal, version.id, JSON.stringify(["model.reply", "product.read"]), configuration.model.maxInputBytes, configuration.model.maxOutputTokens, configuration.context.maxInputTokens]);
+      [id, org.id, authority.principal, version.id, JSON.stringify(["model.reply", "product.read"]), configuration.model.maxInputBytes, configuration.model.maxOutputTokens, contextGrantCeiling(configuration)]);
       await pool.query("INSERT INTO agents_platform.product_execution_authorities(grant_id,product,organization_id,client_id,issuer,assertion_digest) VALUES($1,'growth',$2,'growth-api',$3,$4)", [id, org.id, authority.principal.issuer, "a".repeat(64)]);
     }
     await grant(grantId);

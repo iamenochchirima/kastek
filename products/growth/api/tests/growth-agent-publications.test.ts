@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  growthAgentPublication, growthAgentPublicationV7, growthAgentPublicationV6, growthAgentPublicationV5, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4,
+  growthAgentPublication, growthAgentPublicationV7, growthAgentPublicationV6, growthAgentPublicationV5, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublicationV10,
 } from "../src/agents/manifest.js";
 import { growthAgentDigest } from "../src/agents/security.js";
 
@@ -38,8 +38,18 @@ test("revised Growth instructions change behavior without expanding product auth
 
 test("current Growth publication derives the canonical callable contract", async () => {
   const {growthOperationDescriptors}=await import("../src/operations/manifest.js");
-  assert.equal(growthAgentPublication.manifest.revision,"8");
-  assert.equal(growthAgentPublication.policy.revision,"8");
+  assert.equal(growthAgentPublication.manifest.revision,"11");
+  assert.equal(growthAgentPublication.policy.revision,"11");
+  assert.equal(growthAgentPublication.manifest.adapter.release,"6");
+  assert.equal(growthAgentPublicationV10.manifest.revision,"10");
+  assert.equal(growthAgentPublicationV10.manifest.adapter.release,"6");
+  assert.deepEqual(growthAgentPublication.policy.delegation,{
+    maxChildren:2,maxDepth:null,policy:{maxTasks:null,maxStalls:3},childLimits:{maxTokens:null,maxActiveMs:null},
+    delegates:{assistant:["research","content","campaigns"],research:[],content:["research"],campaigns:["research"]},
+  });
+  assert.equal(growthAgentPublicationV8.manifest.adapter.release,"5");
+  assert.equal(growthAgentPublicationV9.manifest.revision,"9");
+  assert.equal(growthAgentPublicationV9.manifest.adapter.release,"5");
   assert.deepEqual(growthAgentPublication.manifest.operations,growthOperationDescriptors);
   assert(growthAgentPublication.presets.every(preset=>preset.operations.every(name=>growthOperationDescriptors.some(operation=>operation.operation===name))));
   assert(growthAgentPublication.presets.find(preset=>preset.id==="content")!.operations.includes("content.posts.draft.create"));

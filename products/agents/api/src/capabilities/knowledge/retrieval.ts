@@ -31,9 +31,12 @@ export class KnowledgeRetrieval {
         JOIN agents_platform.version_sources v ON v.revision_id=r.id AND v.source_id=s.id AND v.organization_id=s.organization_id
         WHERE c.organization_id=$1 AND v.version_id=$2 AND r.id=ANY($3::uuid[]) AND s.state='active' AND p.state='approved'
           AND (NOT $4::boolean OR s.visibility='public')
+      ), lexical_query AS (
+        SELECT string_agg(quote_literal(term),' | ')::tsquery AS expression
+        FROM unnest(tsvector_to_array(to_tsvector('english',$5))) AS terms(term)
       ), lexical_candidates AS (
-        SELECT id,ts_rank_cd(search_document,websearch_to_tsquery('english',$5)) AS score FROM eligible
-        WHERE search_document @@ websearch_to_tsquery('english',$5)
+        SELECT id,ts_rank_cd(search_document,q.expression) AS score FROM eligible CROSS JOIN lexical_query q
+        WHERE search_document @@ q.expression
         ORDER BY score DESC,id LIMIT 20
       ), lexical AS (SELECT id,row_number() OVER(ORDER BY score DESC,id) AS rank FROM lexical_candidates)`;
       let sql: string;

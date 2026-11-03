@@ -29,8 +29,13 @@
     "start:source-object-reaper": "node --env-file-if-exists=.env dist/composition/source-object-reaper.js",
     "setup:growth-model": "node --env-file-if-exists=.env --import tsx src/composition/provision-growth-model.ts",
     "control:growth": "node --env-file-if-exists=.env --import tsx src/composition/control-growth.ts",
+    "control:admissions": "node --env-file-if-exists=.env --import tsx src/composition/control-admissions.ts",
     "verify:firecrawl": "node --env-file-if-exists=.env --import tsx src/composition/firecrawl-smoke.ts",
-    "backfill:knowledge": "node --env-file-if-exists=.env --import tsx src/composition/backfill-knowledge.ts"
+    "backfill:knowledge": "node --env-file-if-exists=.env --import tsx src/composition/backfill-knowledge.ts",
+    "dev:memory-retention": "node --env-file-if-exists=.env --import tsx src/composition/memory-retention.ts",
+    "start:memory-retention": "node --env-file-if-exists=.env dist/composition/memory-retention.js",
+    "retention:ledger": "node --env-file-if-exists=.env --import tsx src/composition/retention-ledger.ts",
+    "control:runtime": "node --env-file-if-exists=.env --import tsx src/composition/rollout-runtime.ts"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "1.1.0",

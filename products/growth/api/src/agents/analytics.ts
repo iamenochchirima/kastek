@@ -7,7 +7,8 @@ import { ApiError } from "../error.js";
 import { growthAgentDigest } from "./security.js";
 import type { GrowthAgentScope } from "./scope.js";
 
-const commandOperations = new Set<GrowthAgentCommandOperation>(["conversations.create", "conversations.context", "turns.submit", "tasks.cancel", "tasks.instructions", "tasks.continue"]);
+const resourceMutations = new Set<GrowthAgentCommandOperation>(["sources.import", "sources.review", "sources.state", "skills.import", "skills.review", "skills.state", "resources.select"]);
+const commandOperations = new Set<GrowthAgentCommandOperation>(["conversations.create", "conversations.context", "turns.submit", "tasks.cancel", "tasks.instructions", "tasks.continue","memory.configure","memory.mutate", ...resourceMutations]);
 export interface GrowthAgentCommandOutcome {
   operation: GrowthAgentCommandOperation; requestId: string; featureId: GrowthAgentFeatureId | null;
   conversationId: string | null; taskId: string | null;
@@ -16,7 +17,7 @@ export interface GrowthAgentCommandOutcome {
 export function growthAgentCommandFact(scope: GrowthAgentScope, input: GrowthAgentCommandOutcome) {
   const identity = growthAgentDigest({ tenantId: scope.tenantId, actor: scope.actor, operation: input.operation,
     requestId: input.requestId, outcome: input.outcome, failureCode: input.failureCode });
-  return fact("growth_agents", scope.tenantId, `growth-agent-command:${identity}`, "growth.agent.command@1", "agent_command", identity, new Date(), {
+  return fact("growth_agents", scope.tenantId, `growth-agent-command:${identity}`, input.operation.startsWith("memory.")||resourceMutations.has(input.operation)?"growth.agent.command@2":"growth.agent.command@1", "agent_command", identity, new Date(), {
     feature_id: input.featureId, conversation_id: input.conversationId, task_id: input.taskId,
     operation: input.operation, outcome: input.outcome, failure_code: input.failureCode,
   });

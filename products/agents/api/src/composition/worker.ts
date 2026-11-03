@@ -1,4 +1,5 @@
 import { assertKnowledgeBackfilled } from "../capabilities/knowledge/cutover";
+import { runMemoryRetention } from "./memory-retention";
 import { PostgresKnowledgeObjectStore } from "../capabilities/knowledge/postgres-object-store";
 import { remoteAuthOptionsFromEnvironment } from "../product/connections/remote-auth";
 import { createEndpointHandler } from "@restatedev/restate-sdk";
@@ -22,6 +23,7 @@ import { capabilityBindingSchema } from "../contracts/capability-catalog";
 import { PlatformError,connectedToolAuthorityIds } from "../contracts/contracts";
 import { TaskArtifactStore } from "../execution/artifacts/task-artifacts";
 import { createBusinessWorkflow, type BusinessOptions } from "../execution/business/business";
+import { createContextCompactionWorkflow } from "../execution/context/compaction-workflow";
 import { createSupportStatusWorkflow,SUPPORT_STATUS_WORKFLOW } from '../execution/business/support-status-business';
 import { ModelProviderStore } from "../product/model-providers/store";
 import { ModelCredentialVault } from "../infrastructure/model-credential-vault";
@@ -30,7 +32,7 @@ import { EvidenceStore } from "../execution/context/evidence";
 import { startDispatcher } from "../execution/lifecycle/dispatcher";
 import { dispatchPolicyFromEnvironment } from "../execution/scheduling/dispatch-claims";
 import { WORKFLOW_NAME } from "../execution/lifecycle/execution";
-import { HARNESS_RELEASE, HANDOFF_HARNESS_RELEASE, HANDOFF_WORKFLOW_NAME, ADAPTIVE_HARNESS_RELEASE, ADAPTIVE_WORKFLOW_NAME,LEGACY_ADAPTIVE_HARNESS_RELEASE,LEGACY_ADAPTIVE_WORKFLOW_NAME } from "../contracts/execution";
+import { HARNESS_RELEASE, HANDOFF_HARNESS_RELEASE, HANDOFF_WORKFLOW_NAME, ADAPTIVE_HARNESS_RELEASE, ADAPTIVE_WORKFLOW_NAME,LEGACY_ADAPTIVE_HARNESS_RELEASE,LEGACY_ADAPTIVE_WORKFLOW_NAME,SHARED_HARNESS_RELEASE,SHARED_WORKFLOW_NAME } from "../contracts/execution";
 import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 import { createAutomationWorkflow,startAutomationDispatcher } from "../product/automations/automation-runtime";
 import { AutomationService } from "../product/automations/automations";
@@ -56,9 +58,7 @@ import { composeInbox } from "./inbox";
 import { composeChannels } from "./channels";
 import { databasePoolOptions } from "../infrastructure/pool-policy";
 
-import { growthActionClientFromEnvironment } from "../adapters/products/growth-action-client";
-import { GrowthProductRuntime } from "../execution/products/growth-runtime";
-import { registerAgencyProductCapabilities } from "../adapters/products/agency-capability-client";
+import { createConfiguredProductRuntime } from "../execution/products/configured-runtime";
 async function main(): Promise<void> {
   const dispatchPolicy = dispatchPolicyFromEnvironment();
   const telemetryTransport = createObservationTelemetry("agents-worker");
@@ -137,11 +137,10 @@ async function main(): Promise<void> {
   },1000);uncertainTimer.unref();
   const modelVault = connectionVaultFromEnvironment();
   const modelProvider = new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined);
-  const growthActions=growthActionClientFromEnvironment();
-  const productRuntime=growthActions?new GrowthProductRuntime(pool,growthActions,evidence):undefined;
-  if(productRuntime){await productRuntime.loadPublications();registerAgencyProductCapabilities(productRuntime);}
+  const productRuntime=await createConfiguredProductRuntime(pool,evidence);
   const workflowOptions: BusinessOptions = { modelProvider, signal: abort.signal,
     product:productRuntime,
+    readRetainedArtifact: (taskId,originTaskId,artifactId)=>artifacts.readRetainedForTask(taskId,originTaskId,artifactId),artifacts,
     actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output),
     executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews,bookings };
   const workflow = createBusinessWorkflow(pool, workflowOptions);
@@ -151,10 +150,15 @@ async function main(): Promise<void> {
   },{release:HANDOFF_HARNESS_RELEASE,workflow:HANDOFF_WORKFLOW_NAME});
   const legacyAdaptiveWorkflow = createBusinessWorkflow(pool, workflowOptions, {release:LEGACY_ADAPTIVE_HARNESS_RELEASE,workflow:LEGACY_ADAPTIVE_WORKFLOW_NAME});
   const adaptiveWorkflow = createBusinessWorkflow(pool, workflowOptions, {release:ADAPTIVE_HARNESS_RELEASE,workflow:ADAPTIVE_WORKFLOW_NAME});
+  const sharedWorkflow = createBusinessWorkflow(pool, {...workflowOptions,
+    settleHandoffReceipt:(taskId,candidate,definitiveFailure)=>settleReceipt(pool,taskId,candidate?{text:candidate}:null,HANDOFF_RECEIPT,
+      (db,input)=>inbox.publishPendingHandoffReceipt(db,input),definitiveFailure),
+  }, {release:SHARED_HARNESS_RELEASE,workflow:SHARED_WORKFLOW_NAME});
+  const compactionWorkflow=createContextCompactionWorkflow(pool,{...workflowOptions,evidence});
   const {host,identityKeys} = workerSecurityFromEnvironment();
   const receiptWorkflow=createReceiptWorkflow(pool,HANDOFF_RECEIPT,(db,input)=>inbox.publishPendingHandoffReceipt(db,input));
   const statusWorkflow=createSupportStatusWorkflow(pool,{...workflowOptions,publishSupportStatus:taskId=>inbox.publishSupportStatus(taskId)});
-  const server = createServer(createEndpointHandler({ services: [workflow,handoffWorkflow,legacyAdaptiveWorkflow,adaptiveWorkflow,receiptWorkflow,statusWorkflow,createAutomationWorkflow(automations),createSupportWaitingWorkflow(supportWaiting),...(followups?[createCustomerFollowupWorkflow(followups)]:[]),...(ingestion?[createIngestionWorkflow(ingestion)]:[])], identityKeys }));
+  const server = createServer(createEndpointHandler({ services: [workflow,handoffWorkflow,legacyAdaptiveWorkflow,adaptiveWorkflow,sharedWorkflow,compactionWorkflow,receiptWorkflow,statusWorkflow,createAutomationWorkflow(automations),createSupportWaitingWorkflow(supportWaiting),...(followups?[createCustomerFollowupWorkflow(followups)]:[]),...(ingestion?[createIngestionWorkflow(ingestion)]:[])], identityKeys }));
   const sessions = new Set<ServerHttp2Session>();
   server.on("session", session => { sessions.add(session); session.once("close", () => sessions.delete(session)); });
   try {
@@ -166,7 +170,7 @@ async function main(): Promise<void> {
     policy: dispatchPolicy,
     ingressUrl: process.env.RESTATE_INGRESS_URL ?? "http://127.0.0.1:18080",
     adminUrl: process.env.RESTATE_ADMIN_URL ?? "http://127.0.0.1:19070",
-    runtimeRoutes: Object.fromEntries([[HARNESS_RELEASE,WORKFLOW_NAME],[HANDOFF_HARNESS_RELEASE,HANDOFF_WORKFLOW_NAME],[ADAPTIVE_HARNESS_RELEASE,ADAPTIVE_WORKFLOW_NAME],[LEGACY_ADAPTIVE_HARNESS_RELEASE,LEGACY_ADAPTIVE_WORKFLOW_NAME]].map(([release,workflowName])=>[release!,{ingressUrl:process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",adminUrl:process.env.RESTATE_ADMIN_URL??"http://127.0.0.1:19070",workflowName:workflowName!}])),
+    runtimeRoutes: Object.fromEntries([[HARNESS_RELEASE,WORKFLOW_NAME],[HANDOFF_HARNESS_RELEASE,HANDOFF_WORKFLOW_NAME],[ADAPTIVE_HARNESS_RELEASE,ADAPTIVE_WORKFLOW_NAME],[LEGACY_ADAPTIVE_HARNESS_RELEASE,LEGACY_ADAPTIVE_WORKFLOW_NAME],[SHARED_HARNESS_RELEASE,SHARED_WORKFLOW_NAME]].map(([release,workflowName])=>[release!,{ingressUrl:process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",adminUrl:process.env.RESTATE_ADMIN_URL??"http://127.0.0.1:19070",workflowName:workflowName!}])),
     supportStatusRoute:{ingressUrl:process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",adminUrl:process.env.RESTATE_ADMIN_URL??"http://127.0.0.1:19070",workflowName:SUPPORT_STATUS_WORKFLOW},
     onError: code => console.error(JSON.stringify({ ...diagnosticIdentity, event: "runtime_publisher_error", code })),
     onPhase: metrics?.dispatcherPhase,
@@ -184,6 +188,7 @@ async function main(): Promise<void> {
   // Object deletion is independent of physical resource cleanup; either backend may be temporarily unavailable.
   const documentCleanup=documents?runDocumentReaper(pool,abort.signal):undefined;
   const sourceCleanup=runSourceObjectReaper(pool,abort.signal);
+  const memoryCleanup=runMemoryRetention(pool,abort.signal);
   const telemetry = startObservationPublisher(pool, telemetryTransport);
   let closing = false;
   const close = async (): Promise<void> => {
@@ -191,7 +196,7 @@ async function main(): Promise<void> {
     closing = true;
     abort.abort();
     clearInterval(cancellationTimer);clearInterval(uncertainTimer); await Promise.all([cancellationPending,uncertainPending]);
-    await Promise.all([dispatcher.stop(),automationDispatcher.stop(),supportDispatcher.stop(),receiptDispatcher.stop(),followupDispatcher?.stop(),ingestionDispatcher?.stop(),documentCleanup,sourceCleanup]);
+    await Promise.all([dispatcher.stop(),automationDispatcher.stop(),supportDispatcher.stop(),receiptDispatcher.stop(),followupDispatcher?.stop(),ingestionDispatcher?.stop(),documentCleanup,sourceCleanup,memoryCleanup]);
     await new Promise<void>(resolve => {
       const deadline = setTimeout(() => { for (const session of sessions) session.destroy(); }, 10_000);
       server.close(() => { clearTimeout(deadline); resolve(); });

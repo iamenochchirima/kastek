@@ -1,10 +1,10 @@
 # Configure Growth agent execution
 
-Owner: Agents engineering. Last reviewed: 2026-10-31.
+Owner: Agents engineering. Last reviewed: 2026-11-03.
 
 This setup connects Growth's Agents workspace and general assistant launcher to the shared
-business worker. Managed defaults revision 5 uses `AgentsBusinessRunV24` / `product-capabilities-v14`
-for the adaptive assistant and retains `AgentsBusinessRunV21` / `product-capabilities-v11` for direct specialists. Growth users keep their
+business worker. New managed defaults revision11 uses `AgentsBusinessRunV25` / `product-capabilities-v15`
+for the assistant and specialists. Older accepted work keeps its exact runtime identity. Growth users keep their
 existing business membership. They do not sign into standalone Agents or supply the worker's service credentials.
 
 ## Prepare the services
@@ -142,14 +142,53 @@ Backfill only inserts missing setup jobs. Retry preserves the job's original tar
 identity. Cancel fences the source job; it does not revoke already accepted conversations or
 replace the independent Agents tenant-control operation. Missing or invalid configuration becomes
 blocked. Transient failures use bounded retries; exhausted attempts remain visible for repair.
+Provisioning validates that each saved model route still has its matching active credential. A
+revoked or missing credential blocks repair instead of being silently replaced.
 
 The approved Growth publication is owned by `src/agents/manifest.ts` in Growth API.
-Defaults revision `5` includes its four presets, operation manifest and explicit optional-capability
-policy. Agents persists this publication and validates it against the installed adapter. An operator
-can run `upgrade-defaults` to queue the new managed revision. Repair preserves customised
+Defaults revision `11` includes its four presets, operation manifest, optional-capability policy and
+the per-preset delegation graph. Agents persists this publication and validates it against the
+installed adapter. The Assistant can use Research, Content and Campaigns; Content and Campaigns can
+commission Research for focused evidence work. Research is a leaf. An operator can run
+`upgrade-defaults` to queue the new managed revision. Repair preserves customised
 configurations, disabled features, model selections and revoked tenants; accepted turns retain
 their old configuration. An unsupported optional capability remains denied even if requested in
 configuration. See [Product capabilities](product-capabilities.md) for the shared contract.
+
+### Growth defaults and content projection release record
+
+Growth defaults revision `11` uses installed adapter release `6`; revisions `2`–`10` retain their
+registered publication and adapter identities. This internal versioned publication adds a trusted
+delegation policy and preserves the trusted model-only view for selected content reads. The policy
+removes default depth, task-count and per-child token/time ceilings; current grants, ancestor limits,
+the two-child concurrency setting, and each preset's product/tool authority still apply. It does not
+change public HTTP schemas, product database schema, effect handling, or `AgentsBusinessRunV25` /
+adapter release `6`. No Growth Analytics event or new structured log, metric, dashboard, or alert
+is added; those release concerns are not applicable.
+The shared model-result boundary applies the same safe view to retained revision `6`–`9` bindings
+that already expose the canonical post read operations, despite their pinned adapter releases `3`–`5`.
+Older accepted work keeps its permission and native receipt; only private fields in the model-facing
+read result are removed.
+
+Local verification covers the V10-to-V11 managed upgrade, recursive child configuration, publication
+identity and content-read projection. No live model prompt was replayed. Hosted rollout is not
+included. Deploy matching Agents and Growth APIs/workers together, then use the existing
+managed-default upgrade for eligible organizations. For rollback, stop V11 upgrades, publish retained
+revision `10` again, and run the managed-default upgrade for organizations already moved to V11.
+Keep code that can read accepted V11 task configurations available until those tasks settle. No data
+migration is required. Do not roll the Growth context reader or Agents model-result boundary
+back to code that forwards selected-account or publish-job fields. If a code rollback removes those
+projections, pause affected Growth agent admissions and canonical post-read tools until projection-aware
+code is restored; preserve the product's ordinary post APIs and existing receipts.
+
+Release record: risk is standard; Growth API/worker, Agents API and the four managed Growth feature
+versions are affected. Publication revision changes from `10` to `11`; adapter release remains `6`,
+and the Agents runtime release remains V25. No feature flag, analytics event, schema migration,
+structured log, metric, dashboard or alert change applies. Rollout is the existing explicit
+`upgrade-defaults` operation. Rollback uses retained publication `10` and the same managed upgrade;
+accepted V11 task versions stay readable until terminal. Documentation is updated here and in the
+Agents/Growth architecture and feature map. Focused test evidence is recorded with the implementation;
+hosted rollout and post-release review are not performed in this local change.
 
 Revision5 changes the product-owned working instructions and specialist descriptions. The assistant
 owns clarification, relevant evidence gathering, useful specialist assignments and final synthesis.
@@ -179,16 +218,19 @@ workers. No production deployment is implied by this local setup.
 All four presets can discover and read permitted content, WhatsApp campaigns and business context,
 and query analytics with an explicit range/timezone where the reporting gateway is configured.
 They share one model-directed loop; the model chooses its tools and order. Attached records give
-focus without replacing current resource authorization. Reads return bounded continuation and
-versioned citations so several records can influence one result.
+focus without replacing current resource authorization. Reads return bounded continuation.
+Source-backed reads provide versioned citations; canonical operation results retain access scopes
+without claiming content-version citations. Several records can influence one result.
 For record reads, an omitted or empty `continuation` requests the initial page, matching the
 published tool schema. Nonempty cursors remain authenticated to the actor, operation, resource
 and revision; malformed or foreign cursors do not become initial-page requests.
 
-Growth assistant and Content can prepare an editable draft for exact staff review and save one
-account-bound `SocialPost` in `DRAFT` state. Current operation permissions authorize the save;
-the agent's name is not proof of write access. Growth owns account checks, exact approval and the
-stable domain receipt. A lost acknowledgement reconciles that same operation before another save.
+Selected canonical draft operations can prepare an exact staff review and save a `SocialPost` in
+`DRAFT` state before a social account is connected. The accepted legacy `draft.prepare` contract
+still requires its explicit account selections. Current operation permissions authorize the save;
+the agent's name is not proof of write access. Publishing and scheduling separately require an
+authorized connected destination. Growth owns account checks, exact approval and the stable domain
+receipt. A lost acknowledgement reconciles that same operation before another save.
 
 The assistant discovers its three pinned, same-business specialists and chooses direct work,
 parallel or sequential delegation, result inspection and focused revisions through the shared
@@ -206,6 +248,22 @@ bindings may have different publication-local IDs; comparison retains organizati
 adapter, policy, limits and destination authority. It never matches by operation name alone.
 Current checks fence disabled specialists and withdrawn evidence, including already joined results.
 
+The Growth feature response includes selected specialist names and their configured, disabled or
+unavailable state. Configured means the pinned version and enabled product mapping exist; it is
+not a model, tool or live-provider health claim. Authorized Growth owners and administrators also
+see whether each specialist has memory enabled and whether the current Assistant definition can
+pass it through. Memory is available to the Assistant only when both definitions enable it and the
+pinned binding includes memory tools. This status reports current configuration; it does not grant
+memory access. Other members do not receive specialist configuration in bootstrap. A disabled
+specialist does not make the coordinator's own chat unavailable. Direct knowledge and skill
+failures report their specific category.
+
+Each agent's chat readiness checks the saved model selection, current connection and use grant,
+model metadata, and the matching active credential revision, endpoint and protocol. Revoked and
+missing credentials are reported separately. Selected knowledge and skills are checked against
+their current product authority. These are saved configuration checks; they do not contact the
+model provider or establish its current health, quota, or acceptance of a future request.
+
 The in-app conversation shows bounded work progress and specialist status. Signed
 `tasks.instructions` queues idempotent updates against an active authorized root;
 `tasks.continue` renews active authority or creates an immutable linked segment for eligible terminal
@@ -213,12 +271,93 @@ work. The work identity, prior receipts, cumulative usage and original deadline 
 does not increase an accepted finite allowance or reconcile unknown effects automatically.
 Cancellation reaches the whole task tree. Reopening reads persisted work and queued instructions.
 Reviewed child effects remain exact single-use approvals, projected into the initiating root's UI.
-Draft-only requests return text in chat. Publication and sending remain unavailable.
+Draft-only requests return text in chat. Explicit publication, scheduling and supported published-post
+edits use canonical Growth review, commit, receipt and reconciliation operations.
 
-Growth's installed policy disables native knowledge bindings, skills, memory, sandbox,
-workflows and external connections until their product custody/principal authority is installed.
+Growth selects the canonical operation executor from the signed, installed descriptor's exact
+`growth.operation.<operation>@<revision>` handler identity. Publication policy revisions govern
+authority and optional capabilities; they do not choose a different operation transport. Agents
+uses those validated handler identities when reading canonical reviews. Retained legacy draft
+bindings keep their original review store and exact task version.
+
+Canonical reads still declare `evidence: none`. The shared worker requests an internal `access-v1`
+observation, and Growth records the authorized resource scope before chunking the result. Agents
+stores the exact receipt separately and carries the scope and narrowed product/provider audience
+through retained context. Growth rechecks current membership, operation entitlement and captured
+resource access before reuse. An old canonical read without a product access record is unavailable;
+an unrelated unjoined specialist does not block the parent. These access checks do not establish
+current content revisions or citations. Growth reviewed writes retain the exact native review and
+effect receipt, while the model and retained operation history receive only a confirmed state and
+opaque review reference. The separately negotiated `effect-status-v1` scope rechecks current
+membership, operation access, the exact saved review and the original recipient/provider audience.
+It does not authorize the private review body or the returned business record. The execution export
+withholds that raw effect result and reports partial tool-result coverage. Untracked older effect
+results are unavailable to model context. Authorized task controls and exact review-decision
+verification use a separate status-only path, so they do not reveal the private result or make it
+available to the model.
+Other reviewed-write adapters need an installed versioned model projection before they are callable.
+
+The embedded media-transfer preparation response uses `access-v1` with the exact transfer owner,
+tenant, active state and expiry. Once the transfer fails, completes or expires, its earlier upload
+details are unavailable to later model context. Growth's direct transfer endpoints are unchanged.
+
+The product applies a 131,072-reference bound to one read scope and the existing 2 MiB source-result
+limit. Repeated reads of the same scope in one task share an evidence dependency, while distinct
+scopes and retained scopes from other tasks count toward the 1,024-dependency manifest bound.
+This is a context/evidence capacity limit, not a configured model-call or tool-call allowance.
+
+Revision9 supports separately selected native knowledge, reviewed skills and verified actor memory.
+Sandbox, workflows, enquiries and external connections remain unavailable in Growth.
 External web research, automatic publishing, campaign launch and arbitrary writes are unavailable.
 Standalone customer-channel agents retain their own deployments and Inbox path.
+
+## Knowledge and skills
+
+Owners/admins open **Knowledge & skills** on a feature card. Knowledge imports accept bounded
+UTF-8 text or Markdown; PDF and URL acquisition are not exposed by this Growth path. The existing
+native source store retains raw custody, immutable normalized revisions and passage offsets.
+Imports remain candidates until the owner approves the exact revision. Skill imports accept
+portable `SKILL.md` files, package ZIPs and the installed curated catalogue. A curated import also
+requires an explicit package-digest review before selection. Skill requirements must match the
+feature's actual configured permissions and installed runtimes.
+
+The selection action publishes a new immutable feature version with approved source pins and
+reviewed skill revision IDs. It preserves instructions, model selection, memory and delegation
+configuration. The product-managed assistant follows its explicitly configured specialist
+versions in a new version, retaining child-only source ceilings without adding those sources to
+its own direct retrieval selection. Custom coordinators retain their pinned bindings. Every
+retrieval/activation rechecks current product ownership and selection as well as the native
+source/skill policy; removing a selection or withdrawing content fences old accepted work.
+Skill catalogue loading uses the accepted task and current Growth authority; Growth users do not
+need a standalone Agents account or membership to use selected reviewed skills.
+
+Open inventories and file previews recheck current access and resource state every five seconds
+while visible. A failed read clears cached resource content. Rechecks preserve unsaved selection
+and its original configuration revision; a concurrent configuration change requires an explicit
+refresh before saving. Closing a resource dialog restores its opener when it is still available.
+
+Browser routes are under `/api/agents/features/:featureId`: `GET resources`, `GET resources/preview`,
+`POST sources`, `POST sources/review`, `POST sources/state`, `POST skills`, `POST skills/review`,
+`POST skills/state` and `POST resources/select`. Mutation bodies carry stable `requestId`s.
+Selection carries `expectedRevision`; source/skill state changes carry `expectedGeneration`;
+source approval identifies the immutable revision and skill review identifies the package digest.
+The corresponding signed operations are `resources.list`, `resources.preview`, `sources.import`,
+`sources.review`, `sources.state`, `skills.import`, `skills.review`, `skills.state` and `resources.select`.
+Growth verifies the active human, business membership and owner/admin role before signing. Agents
+derives native feature scope from that signed product mapping and independently rechecks current
+origin access. No browser-supplied actor, native organization or feature-agent identifier is trusted.
+
+Schema103 records nullable standalone importer/reviewer IDs paired with exact product-service
+provenance. Exactly one identity kind is required. No customer Agents account or membership is
+created. Configuration remains optional; importing/reviewing does not automatically select a resource.
+`growth.agent.command@2` records resource mutation outcomes, feature ID and bounded failures without
+source bodies, skill contents or human subjects. Existing source/skill mutation receipts retain the
+exact review and state history. `test/product-resources.test.ts` exercises native import, explicit
+review, selection, actual retrieval and activation, foreign-feature denial, revocation and
+custom-runtime repair in a fresh owned database.
+The focused `growth-shared-ui.spec.ts` resource case verifies a mobile preview's withdrawal and
+permission-loss redaction, preserved unsaved selection, revision conflict and closing focus with
+controlled HTTP responses. It does not establish live provider behavior.
 
 ## Disable or restore execution
 
@@ -238,6 +377,18 @@ model default. Reprovision explicitly with `setup:growth-model` before new work 
 These operations use operator database authority and have no browser endpoint.
 
 ## Inspect outcomes
+
+Managed defaults select the optional `artifact.create` tool for new agent versions. Existing
+unchanged product-managed configurations receive one immutable version update when tenant setup
+runs; customized, disabled or unpublished-draft configurations are left unchanged. Later tool
+removal is not automatically reversed. Configure private S3-compatible storage for both Agents API
+and worker. Without it, the worker omits the file tool from its callable catalogue. Growth shows
+actual task files and downloads them through its authenticated bridge. The same task, actor,
+product membership, source, audience and exact-byte checks apply on both sides of storage reads.
+Specialist activity projects only files produced by the selected child. A child-modal download
+carries both the authorized root and exact child task identity; the bridge checks their lineage
+and the selected file producer without joining the child's content into the parent model.
+File output is neither a Growth business record nor an external delivery.
 
 Growth engineering owns the three registered `growth.agent.*` event contracts and the existing
 transactional Analytics outbox. Count accepted `conversations.create`, `turns.submit` and
@@ -298,12 +449,20 @@ separate from this implementation.
 
 Apply recognized Agents additive schemas 070–072 with the explicit setup command before enabling
 new admissions. They store generic review projections, trusted Growth publications and managed
-configuration markers. Adaptive execution additionally requires schemas096–098. Register V21, V23 and V24
-workers and install current product handlers before publishing defaults revision `5`. The Growth
-manifest and product policy revision are `4`; the installed HTTP adapter remains release `2`.
+configuration markers. Current execution additionally requires schemas096–106. Register V25 and
+install current product handlers before publishing defaults revision `11`. The Growth manifest
+and product policy revision are `11`; the installed HTTP adapter is release `6`. Revision `10` remains
+available on release `6` for accepted work.
 Exact revision 2 publications remain supported for accepted work and persisted setup retries.
 Unknown schema digests remain rejected. Schemas097/098 store logical work lineage, nullable
 allocations and exact counters. Retain earlier schema registrations and accepted policy snapshots.
+
+Schema106 stores the context explicitly selected when a Growth turn is admitted. Older tasks keep
+the value unset; they do not acquire a later conversation selection. A continued task copies its
+prior selection. Apply the additive schema before starting the matching API and worker.
+The selected-context evidence dependency is recorded in accepted snapshots and inherited work.
+Keep a worker that understands it available until those tasks settle or are reconciled, including
+after an API rollback. Do not remove the column while accepted tasks depend on it.
 
 Keep the V20 worker and its original `growth-products-v10` artifacts for already accepted V20 work.
 Route or drain that work on its pinned release. Do not point an existing journal at V21. Rollback
@@ -338,6 +497,35 @@ available without treating a process-local registry fill as a journaled business
 Empty optional discovery search/status strings mean no filter, matching the published list schema. Nonempty invalid statuses, malformed cursors and foreign-scope handles remain rejected.
 
 
+## Selected conversation context
+
+Growth's workspace guide revision4 describes current product prerequisites. Draft text can be
+written, revised and saved before connecting a social account; publishing and scheduling need an
+authorized connected destination. The guide describes optional actor/agent memory with exact
+user review. It does not select tools or grant action permission. Current installed bindings,
+product permissions and exact effect reviews still govern execution.
+
+A new Growth turn records the user's explicit workspace, content, campaign or analytics selection
+as a task-pinned reference. An implicit workspace is not treated as a selection. The worker reads
+that reference through Growth's signed `context.read` action and puts the returned model-safe view
+in the coordinator's context. The reference itself grants no authority; Growth rechecks membership,
+feature entitlement and record access for the read. Content-post views omit publishing account and
+job fields. A specialist receives selected-record details only when the coordinator includes them
+in its assignment.
+
+The evidence graph binds the selected reference and returned content revision to the product, actor,
+conversation and permitted provider audience. Replay, compaction, explicitly reviewed memory and
+delegated work re-read the current Growth view and compare its digest. A changed record or revoked
+access makes that evidence unavailable. Canonical Growth operations whose descriptors do not
+provide versioned-source evidence retain their separate access-receipt behavior.
+
+The context label shown in the conversation comes from the preflight response. New tasks do not
+list preflight records as sources; only source-backed observations can populate the source list.
+There is no new analytics event or exporter. Existing task and model failure records apply; no
+additional metric, dashboard or alert is introduced. Validation uses an owned database, the
+controlled Growth HTTP/Restate worker fixture and an owner-authorized in-app smoke. Hosted rollout
+remains unverified.
+
 ## Live execution reporting
 
 Growth chat reads an optional version1 runtime projection from each authorized task. The projection
@@ -346,6 +534,11 @@ from the latest persisted context snapshot and accepted model policy. They are e
 provider token count. The model window, input ceiling, output/safety reserves, compaction threshold
 and completed compactions remain distinct. Accounted usage includes conservative settlement;
 provider-observed input/output usage is shown separately with its observed-call coverage.
+
+Conversation reload and task-list reads project each page with at most four concurrent task reads,
+while preserving turn/page order. Every task still receives its current authorization check, and
+assistant output is included only after its current evidence check. This keeps a page of work from
+serially consuming the Growth API's request timeout without weakening per-task access checks.
 
 `GET /api/agents/tasks/:taskId/live` delivers server-sent `task` and `events` observations through the
 Growth origin. The connection checks current Growth membership, active organization and Agents

@@ -5,8 +5,8 @@ import { catalogueItem, toolCatalogue } from "./catalogue-fixtures";
 import type { Catalogue, Configuration, SkillPackage } from "../src/platform/api";
 
 const configuration: Configuration = { executionKind: "business", instructions: "Answer from approved knowledge.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, tools: ["knowledge.search", "knowledge.read"], skillIds: [], connectedToolBindingIds: [], capabilities: { delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } };
-async function fixture(page: Page, failInitially = false) {
-  let draft = structuredClone(configuration), revision = 1, calls = 0;
+async function fixture(page: Page, failInitially = false, initialConfiguration = configuration) {
+  let draft = structuredClone(initialConfiguration), revision = 1, calls = 0;
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   const github = { ...catalogueItem("github", "GitHub"), kind: "native_api" as const, recommended: false, requires: { connectionProfiles: ["github-public-read-v1"], permissions: [] }, readiness: { state: "unavailable" as const, reasons: [{ code: "CUSTOMER_TOOL_UNSUPPORTED", message: "Connected tools are unavailable for this customer agent." }] }, action: { kind: "none" as const } };
@@ -91,6 +91,35 @@ test("mock transport: catalogue errors retry without changing the draft", async 
   await page.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Knowledge search", exact: true })).toBeVisible();
   expect(state.draft()).toEqual(configuration);
+});
+
+test("mock transport: a selected revoked tool remains visible and offers reconnect", async ({ page }) => {
+  const state=await fixture(page,false,{...configuration,connectedToolBindingIds:["binding","missing"]});
+  await page.route("**/catalogue/tools?*",route=>route.fulfill({json:{...toolCatalogue,entries:[{
+    ...catalogueItem("github","GitHub"),kind:"native_api",added:true,connectorId:"github",
+    requires:{connectionProfiles:["github-public-read-v1"],permissions:[]},configuration:{tools:[],connectedToolBindingIds:["binding"],skillIds:[]},
+    readiness:{state:"needs_connection",reasons:[{code:"CONNECTION_REVOKED",message:"The selected connection was revoked. Reconnect and review access."}]},
+    action:{kind:"connect",connectionProfileId:"github-public-read-v1",connectionId:"connection"},
+  }]}}));
+  await page.goto("/app/agents/root?section=tools");
+  const tool=page.getByRole("article").filter({has:page.getByRole("heading",{name:"GitHub",exact:true})});
+  await expect(tool.getByText("The selected connection was revoked. Reconnect and review access.")).toBeVisible();
+  await expect(tool.getByText("Added",{exact:true})).toBeVisible();
+  await expect(tool.getByRole("button",{name:"Remove GitHub"})).toBeVisible();
+  await expect(page.getByRole("button",{name:"Added 2",exact:true})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Unlisted tool",exact:true})).toBeVisible();
+  await expect(page.getByText("Selected · status unknown",{exact:true})).toBeVisible();
+  for (const width of [1440,768,390]) {
+    await page.setViewportSize({width,height:1000});
+    await expect(tool.getByRole("button",{name:"Reconnect GitHub"})).toBeVisible();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  }
+  await page.getByRole("button",{name:"Remove unlisted tool"}).click();
+  await expect(page.getByRole("button",{name:"Added 1",exact:true})).toBeVisible();
+  await tool.getByRole("button",{name:"Reconnect GitHub"}).click();
+  await expect(page).toHaveURL(/\/app\/connections\?/);
+  expect(state.draft().connectedToolBindingIds).toEqual(["binding"]);
+  expect(state.errors).toEqual([]);
 });
 
 test("mock transport: import, inspect, review and add a private skill revision", async ({ page }) => {

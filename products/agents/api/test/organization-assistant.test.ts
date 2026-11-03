@@ -8,6 +8,8 @@ import { PlatformStore } from "../src/product/agents/store";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import { specialistCatalogue } from "../src/product/assistant/specialists";
+import { agentConfigurationSchema, defaultBusinessConfiguration } from "../src/contracts/contracts";
+import { publishFixtureSource } from "./knowledge-fixture";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 const suite = databaseUrl ? describe : describe.skip;
@@ -164,5 +166,34 @@ suite("organization assistant provisioning", () => {
     const unavailable = await specialistCatalogue(pool, scope, parent.id);
     expect(unavailable.specialists).toHaveLength(2);
     expect(unavailable.specialists.every(item => !item.ready && item.reasons.length > 0)).toBe(true);
+  });
+
+  it("previews the same narrowed recursive specialist scope used at admission",async()=>{
+    const {owner,organization}=await fixture(),scope={accountId:owner.id,organizationId:organization.id};
+    await connectFixtureModel(pool,owner.id,organization.id);
+    const source=await publishFixtureSource(pool,{...scope,title:"Commissioned research",content:"Exact private research fact",visibility:"private"});
+    const leaf=await store.createAgent({...scope,name:"Leaf",configuration:defaultBusinessConfiguration()});
+    const leafVersion=await store.createVersion({...scope,agentId:leaf.id,expectedRevision:1});
+    const child=await store.createAgent({...scope,name:"Research coordinator",configuration:agentConfigurationSchema.parse({
+      ...defaultBusinessConfiguration(),program:{id:"tool-directed",version:"4"},memory:{enabled:true},sourceRevisionIds:[source.id],
+      tools:["knowledge.read","agents.delegate","agents.start","agents.discover","memory.search","memory.read"],capabilities:{...defaultBusinessConfiguration().capabilities,
+        delegation:{enabled:true,maxChildren:2,maxDepth:null,bindings:[{id:"leaf",versionId:leafVersion.id,tools:[],sourceRevisionIds:[],connectedToolBindingIds:[],maxTokens:null,maxActiveMs:null}]}}
+    })});
+    const childVersion=await store.createVersion({...scope,agentId:child.id,expectedRevision:1});
+    const parent=(await assistants.getOrganizationAssistant(owner.id,organization.id)).agent!;
+    expect(parent.draft.sourceRevisionIds).toEqual([]);
+    expect((await specialistCatalogue(pool,scope,parent.id)).specialists.find(row=>row.versionId===childVersion.id)).toMatchObject({ready:true,sourceRevisionIds:[source.id]});
+    const configuration=agentConfigurationSchema.parse({...parent.draft,program:{id:"tool-directed",version:"4"},tools:["agents.delegate","agents.start","agents.discover"],
+      capabilities:{...parent.draft.capabilities,delegation:{enabled:true,maxChildren:2,maxDepth:null,bindings:[{id:"research",versionId:childVersion.id,
+        tools:["knowledge.read","agents.start","agents.discover"],sourceRevisionIds:[source.id],connectedToolBindingIds:[],maxTokens:null,maxActiveMs:null}]}}});
+    const saved=await store.updateDraft({...scope,agentId:parent.id,expectedRevision:parent.draft_revision,configuration});
+    await store.createVersion({...scope,agentId:parent.id,expectedRevision:saved.draft_revision});
+    const recursive=(await specialistCatalogue(pool,scope,parent.id)).specialists.find(row=>row.versionId===childVersion.id)!;
+    expect(recursive).toMatchObject({ready:true,reasons:[],tools:expect.arrayContaining(["agents.start","agents.discover"])});
+    expect(recursive.tools.some(name=>name.startsWith("memory."))).toBe(false);
+    await store.updateDraft({...scope,agentId:parent.id,expectedRevision:saved.draft_revision,configuration:{...configuration,capabilities:{...configuration.capabilities,
+      delegation:{...configuration.capabilities.delegation,maxDepth:1}}}});
+    const finite=(await specialistCatalogue(pool,scope,parent.id)).specialists.find(row=>row.versionId===childVersion.id)!;
+    expect(finite).toMatchObject({ready:true,reasons:[]});expect(finite.tools).not.toContain("agents.start");
   });
 });
