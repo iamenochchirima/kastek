@@ -1,0 +1,17 @@
+{
+  "labs": 3050,
+  "growthWeb": 3002,
+  "growthApi": 4000,
+  "agentsWeb": 3150,
+  "agentsApi": 4150,
+  "agentsWorker": 9150,
+  "restateIngress": 18580,
+  "restateAdmin": 19570,
+  "agencyWeb": 3010,
+  "agencyApi": 8090,
+  "admin": 3001,
+  "analytics": 4300,
+  "operations": 4400,
+  "identity": 8080,
+  "mail": 8025
+}

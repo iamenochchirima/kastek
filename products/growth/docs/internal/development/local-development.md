@@ -93,6 +93,39 @@ email inbox is `http://localhost:8025/`; set Core `LOCAL_MAILPIT_URL` for organi
 
 ## Starting services
 
+### Fixed local ports
+
+From the repository root, `pnpm dev:ports` lists the reserved service ports. The local
+Agents + Labs profile starts with `pnpm dev:local start`; use `restart`, `status` or `stop`
+with the same command. It never searches for another port or stops an unowned process.
+
+| Service | Port |
+| --- | --- |
+| Labs | 3050 |
+| Agents web | 3150 |
+| Agents API | 4150 |
+| Agents worker | 9150 |
+| Restate ingress / admin | 18580 / 19570 |
+
+This command starts the existing Agents + Labs workspace with the real configured model.
+Private `.runtime/local-dev/profile.json` identifies the existing organization, agent and
+website deployment; its `environmentFile` points to private JSON environment values containing
+the local database and vault settings. Both files are ignored by Git. Configure these once;
+startup reuses them and never creates or drops a database, replaces an agent, or chooses a model.
+The profile requires an owned loopback development database. It is not a production launcher.
+Other product commands remain independent; the port list reserves their addresses without
+starting them. Automated isolated test fixtures retain their own separate lifecycle.
+
+The development-only owner sign-in link is printed on startup. API, web and Labs listeners stay
+on loopback. The worker listens on the Docker bridge for Restate. Stop retains the database and
+owned Restate journal volume. Only recorded process identities are stopped. A stale process record
+cannot authorize stopping an unrelated process. Inspect `.runtime/local-dev/runtime.log` on failure.
+
+Release impact: local CLI/configuration only; production rollout, analytics events, new business
+migrations and production version changes are not applicable. Existing API/worker/model logic is
+reused. Validation covers fixed-port conflicts and the real Labs widget. To disable this local
+profile, run `pnpm dev:local stop`; keep private data and credentials for the next start.
+
 ### Facebook development tunnel
 
 The existing Cloudflare `KasiTek Dev` tunnel publishes `https://dev-client.kasitek.co.za`.
