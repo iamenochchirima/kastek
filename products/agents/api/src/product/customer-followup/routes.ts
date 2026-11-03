@@ -29,7 +29,8 @@ export function registerCustomerFollowupConsent(app: FastifyInstance, options: {
 }) {
   const route = "/api/website/:deploymentId/customer-conversations/:conversationId/followup";
   const scope = async (request: FastifyRequest, reply: FastifyReply) => {
-    const visitor = await options.resolveVisitor(request, reply); await options.publicRate(visitor.deploymentId);
+    const visitor = await options.resolveVisitor(request, reply);
+    if (request.method === "POST") await options.publicRate(visitor.deploymentId);
     const { conversationId } = z.strictObject({ deploymentId: z.uuid(), conversationId: z.uuid() }).parse(request.params);
     reply.header("cache-control", "no-store").header("referrer-policy", "no-referrer");
     return { ...visitor, conversationId };
