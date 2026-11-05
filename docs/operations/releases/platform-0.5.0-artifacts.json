@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "platformVersion": "0.5.0",
+  "releaseCommit": "ad16e536ba00dae9bf64e68be9857283b4bf5de6",
+  "sourceTree": "33504d425b6388479477fa1614810367007403ff",
+  "pullRequest": null,
+  "capturedAt": "2026-11-05T11:45:12Z",
+  "railway": {
+    "projectId": "83fe5737-0fcd-4b07-b077-04e336a1c7c4",
+    "environmentId": "9380a1a6-6791-4321-9d81-e88c9b3b73ce",
+    "watchInventory": {
+      "path": "infra/railway/watch-paths.json",
+      "liveMatches": true,
+      "changedServices": ["agents-api", "agents-worker", "growth-api", "growth-analytics-worker"],
+      "imageOnlyServicesRebuilt": 0
+    },
+    "releaseIdentity": {
+      "KASITEK_RELEASE_ID": "platform-v0.5.0+ad16e536",
+      "OTEL_SERVICE_VERSION": "0.5.0"
+    },
+    "services": [
+      {
+        "service": "agents-api",
+        "deploymentId": "0b61b64f-7357-4f36-b029-c4d8432582d1",
+        "status": "SUCCESS",
+        "commit": "ad16e536ba00dae9bf64e68be9857283b4bf5de6",
+        "imageDigest": "sha256:00f2135a08e882e530272ba0716e5230bc440bf80314932c899835226f707bd7",
+        "previousDeploymentId": "c59c0bcb-a462-4fcc-85f6-0561962a000c",
+        "previousImageDigest": "sha256:a6af3bca2186a1c4929797ffda8f6d09cd4c6f16a3e0c342fb8e7c9945985ff0",
+        "changedByRelease": true
+      },
+      {
+        "service": "agents-worker",
+        "deploymentId": "e5123efe-d087-4809-815e-7b4536962938",
+        "status": "SUCCESS",
+        "commit": "ad16e536ba00dae9bf64e68be9857283b4bf5de6",
+        "imageDigest": "sha256:09a31118a800920288621a8ef035a511e283f8d558d51207c034e0e0a70118d6",
+        "previousDeploymentId": "f045b0d2-31e0-4b71-84a6-8fa001e4de1b",
+        "previousImageDigest": "sha256:0ac550cf11f4d87c9210809d72a4c9a960f0977e2f987f301b1902878d9cbb71",
+        "changedByRelease": true
+      },
+      {
+        "service": "growth-api",
+        "deploymentId": "c2b5be76-31c0-4c47-a9bc-2d04fe31c9e7",
+        "status": "SUCCESS",
+        "commit": "ad16e536ba00dae9bf64e68be9857283b4bf5de6",
+        "imageDigest": "sha256:4c44e4b2c2f0d2991a8979beec84cec4aac88cda3168ea505ef8f2c970602063",
+        "previousDeploymentId": "344b7b64-90f9-48f3-9b66-b3315f16a334",
+        "previousImageDigest": "sha256:b2690ff17c6b41dfe1c8d80f62a4d58f9fa700e91d22e01696618beb56b51e1a",
+        "changedByRelease": true
+      },
+      {
+        "service": "growth-analytics-worker",
+        "deploymentId": "2b0bc6b9-18a9-46e8-ba2d-6a9a942bf762",
+        "status": "SUCCESS",
+        "commit": "ad16e536ba00dae9bf64e68be9857283b4bf5de6",
+        "imageDigest": "sha256:0a83bfcdedb6caacba279b8886079d0aaadb63b9f0cf498a77d56838e31a31f6",
+        "previousDeploymentId": "0b09a837-da3d-4031-af4d-a7b73ba82f44",
+        "previousImageDigest": "sha256:843fb4e1859d730486600f6a79cd39ce2d0ac16ed8f6ca52e0e2af8bab4f0809",
+        "changedByRelease": true
+      }
+    ]
+  },
+  "vercel": {
+    "project": "kasitek-agents",
+    "projectId": "prj_zfO3gTNkfLHWXJehRbnvVRNUuw49",
+    "deploymentId": "dpl_HPRVjpr4ChD9uPYaUiT8Xv9CoYr5",
+    "deploymentUrl": "https://kasitek-agents-d0i5z95p0-iamenochchirimas-projects.vercel.app",
+    "productionUrl": "https://agents.kasitek.co.za",
+    "state": "READY",
+    "sourceCommit": "ad16e536ba00dae9bf64e68be9857283b4bf5de6",
+    "previousProductionUrl": "https://kasitek-agents-lv47zwjmy-iamenochchirimas-projects.vercel.app",
+    "deploymentProtection": ["vercel_authentication"]
+  },
+  "migrations": [
+    {"name": "128_business_procedures.sql", "sha256": "087bc3a2407e4196b9d0ec869113200f95c311db342ba34e35812d9c087eb26c", "productionApplied": true},
+    {"name": "129_human_assistance_requests.sql", "sha256": "dd4c026c67422013b9ff914fd7c7e30f62eaa86302015de55ad000680f5291b5", "productionApplied": true},
+    {"name": "130_customer_timeout_notices.sql", "sha256": "10e5493c24b648f1ae4a3423d5d185f36a2815e965b9dff2371ff42c42350b50", "productionApplied": true}
+  ],
+  "agentsSchema": {
+    "version": "001_platform",
+    "checksum": "088cbf613c0ee349c9b28ba707354f87f81f2727a7b1e8fb363f8e3a0979ad37",
+    "latestMigration": "130_customer_timeout_notices.sql",
+    "migrationRehearsal": "baseline 127 matched; migrations 128-130 applied, notices present, rerun succeeded on disposable database"
+  },
+  "runtimeRollout": {
+    "revision": "agents-runtime-rollout-v1",
+    "digest": "1016eb38814fe5fb2c2be69f0ebf819f63dceaf8bcf49068e19f037350fb7973",
+    "targets": 3,
+    "versions": 0,
+    "busyTasks": 0,
+    "applied": false,
+    "reason": "Preview found no runtime versions requiring clones or target changes."
+  },
+  "productionMcpSmoke": {
+    "oauthAuthorizationServerMetadata": 200,
+    "protectedResourceMetadata": 200,
+    "unauthenticatedInitialize": 401,
+    "challengeAdvertisedResourceMetadata": true,
+    "authenticatedToolCall": "not run; requires a user's MCP client credentials"
+  },
+  "health": {
+    "agentsFrontend": 200,
+    "agentsFrontendTitle": "KasiTek Agents",
+    "agentsFrontendAsset": 200,
+    "agentsApiReady": 200,
+    "growthApiHealth": 200,
+    "agentsWorker": "SUCCESS",
+    "growthAnalyticsWorker": "SUCCESS"
+  },
+  "admissionGate": {
+    "drain": {"revision": 15, "eventId": "5053e705-980a-486b-b927-3e2902057e3d"},
+    "resume": {"revision": 16, "eventId": "e39b7df5-7fb3-4cc7-8dfd-ba4f7bfb5730"},
+    "acceptingRoots": true,
+    "activeRootsAtFinalCheck": 0
+  },
+  "validation": {
+    "nodeVersion": "24.15.0",
+    "growthApiTests": {"passed": 174, "failed": 0, "skipped": 107, "skipReason": "database-dependent checks had no local AGENTS_TEST_DATABASE_URL fixture"},
+    "agentsFocusedTests": {"passed": 34, "failed": 0, "skipped": 32, "skipReason": "PostgreSQL/MCP integration cases require their local fixtures"},
+    "growthFrontendTests": {"passed": 52, "failed": 0},
+    "migrationRehearsal": "passed",
+    "productImportBoundaries": "passed",
+    "routeAndOpenApiContracts": "passed",
+    "railwayWatchPaths": "passed",
+    "releaseVersion": "0.5.0"
+  },
+  "analytics": "No event or metric contract changed; not applicable.",
+  "rollback": "Restore the listed prior Railway image digests and Vercel production deployment; retain additive migrations and existing business data."
+}

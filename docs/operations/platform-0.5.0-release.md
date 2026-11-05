@@ -19,7 +19,7 @@ source behavior do not change in this release.
 
 Platform release ID: `0.5.0`. Release commit, Railway deployment/image IDs, Vercel deployment ID,
 runtime binding digest, migration checksums, and post-release verification are recorded in
-`docs/operations/releases/platform-0.5.0-artifacts.json` after promotion.
+[`docs/operations/releases/platform-0.5.0-artifacts.json`](releases/platform-0.5.0-artifacts.json).
 
 ## Data and compatibility
 
