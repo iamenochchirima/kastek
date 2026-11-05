@@ -42,7 +42,10 @@
     "start:operations": "pnpm --filter @kasitek/operations start",
     "start:operations-worker": "pnpm --filter @kasitek/operations start:worker",
     "migrate:operations": "pnpm --filter @kasitek/operations migrate",
-    "test:operations": "pnpm --filter @kasitek/operations test"
+    "test:operations": "pnpm --filter @kasitek/operations test",
+    "dev:local": "node scripts/local-dev.mjs",
+    "dev:ports": "node scripts/local-dev.mjs ports",
+    "test:local-dev": "node --test scripts/local-dev.test.mjs"
   },
   "devDependencies": {
     "typescript": "5.9.3",

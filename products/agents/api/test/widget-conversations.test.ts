@@ -4,8 +4,8 @@ import { websiteWidgetScript } from "../src/adapters/channels/website/widget";
 
 const { chromium, expect: browserExpect } = createRequire(__filename)("../../web/node_modules/@playwright/test");
 
-describe("website widget conversation switching", () => {
-  it("keeps each session, history and pending message separate across reload", async () => {
+describe("website widget active conversation", () => {
+  it("starts a separate chat without a selector and restores only the active chat on reload", async () => {
     const browser = await chromium.launch({ headless: true });
     try {
       const page = await browser.newPage();
@@ -36,38 +36,30 @@ describe("website widget conversation switching", () => {
       await page.getByRole("button", { name: "Send", exact: true }).click();
       await browserExpect(page.getByRole("button", { name: "Retry message" })).toBeVisible();
       await page.getByRole("button", { name: "New conversation" }).click();
-      await browserExpect(page.getByRole("combobox", { name: "Conversations" })).toBeVisible();
+      await browserExpect(page.getByRole("combobox", { name: "Conversations" })).toHaveCount(0);
       await browserExpect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+      await browserExpect(page.getByRole("textbox", { name: "Message", exact: true })).toHaveValue("");
+      await browserExpect(page.getByRole("button", { name: "Retry message" })).toBeHidden();
       await page.getByRole("textbox", { name: "Message", exact: true }).fill("Second message");
       await page.getByRole("button", { name: "Send", exact: true }).click();
       await browserExpect(page.getByRole("log").getByText("Second message")).toBeVisible();
-      const selector = page.getByRole("combobox", { name: "Conversations" });
-      await browserExpect(selector).toBeEnabled();
-      await selector.selectOption({ label: "Conversation 1" });
-      await browserExpect(page.getByRole("button", { name: "Retry message" })).toBeVisible();
-      await browserExpect(page.getByRole("textbox", { name: "Message", exact: true })).toHaveValue("First pending");
-      await page.getByRole("button", { name: "Retry message" }).click();
-      await browserExpect(page.getByRole("log").getByText("First pending")).toBeVisible();
       await page.reload();
       await page.addScriptTag({ url: "http://localhost/api/website/fixture/widget.js" });
       await page.getByRole("button", { name: "Chat", exact: true }).click();
-      await browserExpect(page.getByRole("log").getByText("First pending")).toBeVisible();
-      expect(bySession.size).toBe(2);
-      expect([...bySession.values()].map(chat => chat.messages.map(message => message.body))).toEqual([["First pending"], ["Second message"]]);
-      bySession.get("session-1")!.messages.push({authorKind:"assistant",displayKind:"system",body:"Waiting update"},{authorKind:"assistant",body:"Agent update"},{authorKind:"human",body:"Human reply"});
-      for (const label of ["You", "System", "Assistant", "Support"]) await browserExpect(page.getByRole("log").getByText(label, {exact:true})).toBeVisible();
-      const afterReload = page.getByRole("combobox", { name: "Conversations" });
-      await browserExpect(afterReload).toBeEnabled();
-      await afterReload.selectOption({ label: "Conversation 2" });
       await browserExpect(page.getByRole("log").getByText("Second message")).toBeVisible();
-      bySession.delete("session-1");
-      await browserExpect(afterReload).toBeEnabled();
-      await afterReload.selectOption({ label: "Conversation 1" });
+      await browserExpect(page.getByRole("log").getByText("First pending")).toHaveCount(0);
+      await browserExpect(page.getByRole("combobox", { name: "Conversations" })).toHaveCount(0);
+      expect(bySession.size).toBe(2);
+      expect([...bySession.values()].map(chat => chat.messages.map(message => message.body))).toEqual([[], ["Second message"]]);
+      bySession.get("session-2")!.messages.push({authorKind:"assistant",displayKind:"system",body:"Waiting update"},{authorKind:"assistant",body:"Agent update"},{authorKind:"human",body:"Human reply"});
+      for (const label of ["You", "System", "Assistant", "Support"]) await browserExpect(page.getByRole("log").getByText(label, {exact:true})).toBeVisible();
+      bySession.delete("session-2");
       await browserExpect(page.getByRole("status")).toHaveText("Session expired");
-      await browserExpect(page.getByRole("log").getByText("Second message")).toHaveCount(0);
       await browserExpect(page.getByRole("button", { name: "New conversation" })).toBeEnabled();
       await page.getByRole("button", { name: "New conversation" }).click();
       await browserExpect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+      await browserExpect(page.getByRole("log").getByText("Second message")).toHaveCount(0);
+      await browserExpect(page.getByRole("combobox", { name: "Conversations" })).toHaveCount(0);
       expect(count).toBe(3);
     } finally { await browser.close(); }
   }, 30_000);

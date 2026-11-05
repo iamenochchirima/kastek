@@ -5,6 +5,7 @@ import {CustomerRecordStore} from "./store";
 export function registerCustomerRecordRoutes(app:FastifyInstance,options:{store:CustomerRecordStore;resolveScope(request:FastifyRequest):Promise<ActionScope>}){
  const base='/api/organizations/:organizationId/customer-records',id=(request:FastifyRequest)=>(request.params as {id:string}).id;
  const log=(request:FastifyRequest,kind:string,recordId:string)=>request.log.info({event:'customer.record.command',kind,recordId},'Customer record command completed');
+ app.get(`${base}/followups`,async request=>options.store.followups(await options.resolveScope(request),request.query));
  app.get(`${base}/members`,async request=>({members:await options.store.members(await options.resolveScope(request))}));
  app.get(`${base}/enquiries`,async request=>options.store.list(await options.resolveScope(request),request.query));
  app.get(`${base}/enquiries/:id`,async request=>({enquiry:await options.store.read(await options.resolveScope(request),id(request))}));

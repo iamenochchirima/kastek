@@ -12,7 +12,7 @@ import { getGrowthMediaTransfer } from "./media-transfers.js";
 /** These references authorize an observed result. They are not business-content revisions. */
 const referencePrefix = "growth-read-access:";
 const scopePrefix = "growth-read-scope:";
-const resourceKinds = ["connection", "social_account", "post", "post_variant", "post_media", "post_job", "post_job_account", "media", "media_preview", "media_transfer", "contact_membership", "contact", "customer", "customer_identity", "customer_contact", "customer_conversation", "customer_campaign", "customer_booking", "conversation", "conversation_social", "conversation_external", "conversation_whatsapp", "message", "message_attachment", "message_reaction", "message_reference", "message_reference_empty", "booking", "booking_service", "booking_customer", "booking_service_link", "campaign", "campaign_connection", "campaign_template", "template", "template_connection", "whatsapp_connection", "review", "review_effect", "legacy_review_effect", "batch", "batch_item", "batch_job", "batch_account", "analytics_scope"] as const;
+const resourceKinds = ["connection", "social_account", "post", "post_variant", "post_media", "post_job", "post_job_account", "media", "media_preview", "media_transfer", "content_template", "content_template_media", "media_usage_post", "media_usage_template", "contact_membership", "contact", "customer", "customer_identity", "customer_contact", "customer_conversation", "customer_campaign", "customer_booking", "conversation", "conversation_social", "conversation_external", "conversation_whatsapp", "message", "message_attachment", "message_reaction", "message_reference", "message_reference_empty", "booking", "booking_service", "booking_customer", "booking_service_link", "campaign", "campaign_connection", "campaign_template", "template", "template_connection", "whatsapp_connection", "review", "review_effect", "legacy_review_effect", "batch", "batch_item", "batch_job", "batch_account", "analytics_scope"] as const;
 type ResourceKind = typeof resourceKinds[number];
 const resourceSchema = z.object({ kind: z.enum(resourceKinds), id: z.string().min(1).max(256), parent: z.string().min(1).max(256).optional() }).strict();
 type Resource = z.infer<typeof resourceSchema>;
@@ -58,6 +58,10 @@ export function growthReadResources(operation: string, input: Record<string, unk
     for (const item of array(post.media)) { const media = object(item); if (media.post_id !== postId) throw unavailable(); add("post_media", media.id, postId); add("media", media.asset_id); }
     for (const item of array(post.publishJobs)) { const job = object(item); if (job.post_id !== postId) throw unavailable(); add("post_job", job.id, postId); if (optionalIdentifier(job.channel_connection_id)) {add("social_account", job.channel_connection_id);add("post_job_account",job.id,job.channel_connection_id);} }
   };
+  const addContentTemplate = (raw: unknown) => {
+    const template=object(raw),id=identifier(template.id);add("content_template",id);
+    for(const item of array(template.media)){const media=object(item);add("media",media.assetId);add("content_template_media",media.assetId,id);}
+  };
   const addBooking = (raw: unknown) => {
     const booking = object(raw), id = identifier(booking.id); add("booking", id);
     if (optionalIdentifier(booking.serviceId)) { add("booking_service", booking.serviceId); add("booking_service_link", id, booking.serviceId); }
@@ -80,6 +84,18 @@ export function growthReadResources(operation: string, input: Record<string, unk
       for (const event of array(value.events)) { const row=object(event); if (row.source === "provider") { const match=typeof row.id === "string" ? /^job:([^:]+):/.exec(row.id) : null; if (!match) throw unavailable(); add("post_job",match[1],postId); } }
       break;
     }
+    case "content.media.list": list("assets","media");break;
+    case "content.media.usage": {
+      if(value.assetId!==input.assetId)throw unavailable();add("media",input.assetId);
+      for(const item of array(value.usage)){const row=object(item);if(row.type==="post"){add("post",row.id);add("media_usage_post",row.id,input.assetId);}else if(row.type==="template"){add("content_template",row.id);add("media_usage_template",row.id,input.assetId);}else throw unavailable();}break;
+    }
+    case "content.templates.list":for(const template of array(value.templates))addContentTemplate(template);break;
+    case "content.templates.get":if(object(value.template).id!==input.templateId)throw unavailable();addContentTemplate(value.template);break;
+    case "content.templates.render": {
+      const rendered=object(value.rendered);if(rendered.templateId!==input.templateId)throw unavailable();add("content_template",rendered.templateId);
+      for(const item of array(rendered.media))add("media",object(item).assetId);break;
+    }
+    case "content.actions.preview": {const review=object(details.review);if(object(value.preview).previewId!==review.id)throw unavailable();add("review",review.id,growthAgentDigest(review));break;}
     case "content.media.get": case "content.media.preview": {
       const assetId=identifier(input.assetId); if (object(value.asset).id !== assetId) throw unavailable(); add("media",assetId);
       if(operation==="content.media.preview") { add("media_preview",assetId);try { if(typeof value.previewUrl!=="string"||value.previewUrl.length>2048)throw unavailable();const expiry=Number(new URL(value.previewUrl).searchParams.get("expires"));
@@ -201,6 +217,10 @@ const resourceQueries: Partial<Record<ResourceKind,string>> = {
   post_job:'SELECT j.id FROM "SocialPublishJob" j JOIN "SocialPost" p ON p.id=j."postId" WHERE j.id=$1 AND p."orgId"=$2 AND j."postId"=$3',
   post_job_account:'SELECT j.id FROM "SocialPublishJob" j JOIN "SocialPost" p ON p.id=j."postId" WHERE j.id=$1 AND p."orgId"=$2 AND j."channelConnectionId"=$3',
   media:'SELECT id FROM "ContentMediaAsset" WHERE id=$1 AND "orgId"=$2',
+  content_template:'SELECT id FROM "ContentTemplate" WHERE id=$1 AND "orgId"=$2',
+  content_template_media:'SELECT m."assetId" AS id FROM "ContentTemplateMedia" m JOIN "ContentTemplate" t ON t.id=m."templateId" WHERE m."assetId"=$1 AND t."orgId"=$2 AND m."templateId"=$3',
+  media_usage_post:'SELECT p.id FROM "SocialPost" p WHERE p.id=$1 AND p."orgId"=$2 AND EXISTS(SELECT 1 FROM "SocialPostMedia" m WHERE m."postId"=p.id AND m."assetId"=$3)',
+  media_usage_template:'SELECT t.id FROM "ContentTemplate" t WHERE t.id=$1 AND t."orgId"=$2 AND EXISTS(SELECT 1 FROM "ContentTemplateMedia" m WHERE m."templateId"=t.id AND m."assetId"=$3)',
   media_preview:'SELECT id FROM "ContentMediaAsset" WHERE id=$1 AND "orgId"=$2 AND "processingStatus"=\'READY\' AND "scanStatus"=\'CLEAN\'',
   contact_membership:'SELECT id FROM "WhatsappContactListMembership" WHERE id=$1 AND "orgId"=$2 AND "contactId"=$3',
   contact:'SELECT id FROM "WhatsappContact" WHERE id=$1 AND "orgId"=$2',

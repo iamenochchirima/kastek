@@ -41,6 +41,16 @@ test("read access captures pre-chunk resources and treats unavailable source ide
   assert.throws(()=>growthReadResources("inbox.messages.list",{conversationId:"conversation"},{messages:[{id:"message",conversationId:"conversation",deletedAt:null,attachments:[],reactions:[],reference:{messageId:null,previewText:"Not attributable"}}]}));
 });
 
+
+test("content library reads preserve scoped media/template custody",()=>{
+  assert.deepEqual(growthReadResources("content.media.list",{},{assets:[{id:"asset"}]}).resources,[{kind:"media",id:"asset"}]);
+  const template=growthReadResources("content.templates.get",{templateId:"template"},{template:{id:"template",media:[{assetId:"asset"}]}});
+  assert(template.resources.some(resource=>resource.kind==="content_template_media"&&resource.id==="asset"&&resource.parent==="template"));
+  const usage=growthReadResources("content.media.usage",{assetId:"asset"},{assetId:"asset",usage:[{type:"post",id:"post"},{type:"template",id:"template"}]});
+  assert(usage.resources.some(resource=>resource.kind==="media_usage_post"&&resource.id==="post"&&resource.parent==="asset"));
+  assert(usage.resources.some(resource=>resource.kind==="media_usage_template"&&resource.id==="template"&&resource.parent==="asset"));
+  assert.throws(()=>growthReadResources("content.templates.get",{templateId:"expected"},{template:{id:"other",media:[]}}));
+});
 const database=process.env.CORE_GROWTH_ACCESS_TEST_DATABASE_URL;
 test("negotiated Growth read access binds the exact receipt and rechecks current scope",{skip:!database,timeout:30000},async()=>{
   installPgTimestampParsers();

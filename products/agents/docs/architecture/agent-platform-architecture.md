@@ -479,8 +479,10 @@ are channels. Sandboxes are execution resources. None adds a third category.
 
 ### Business procedures within autonomous agents
 
-Target architecture, agreed direction recorded 3 November 2026. This section defines the target;
-it does not claim a generic procedure capability is implemented or deployed. The execution
+The first implementation is `after-hours-assistance@1`, selected per agent under Configure →
+Tools → Workflows. Generic versioned instances and receipt-based progress run in the existing
+business loop. The [operations reference](../operations/business-procedures.md) documents implemented
+contracts and limits. Production rollout remains a joint owner step. The execution
 checklist is in the [shared workflow implementation plan](https://linear.app/kasitek/document/shared-autonomous-agent-workflows-architecture-and-implementation-42b7f624bdba).
 
 A business agent remains the same model-directed agent while carrying out a workflow. A workflow
@@ -494,7 +496,10 @@ The standard separates reviewed conversational guidance, executable conditional 
 durable procedure instances, product-owned guarded actions and execution coordination. The model
 chooses questions, permitted actions and flexible ordering. Code validates facts, dependencies,
 confirmations, transitions and completion using authoritative receipts. A model-written checklist
-or transcript summary cannot prove an effect succeeded or a notice was delivered.
+or transcript summary cannot prove an effect succeeded or a reply was delivered. Customer-facing
+workflow conversation belongs to the agent. Product tools return facts and validated outcomes;
+they do not publish a second scripted reply alongside the agent. A delivery receipt proves only
+delivery, not semantic adherence to the playbook.
 
 Procedure instances retain definition revisions, validated inputs and provenance, outstanding
 requirements, operation/message receipts, waits and outcomes across turns, compaction and
@@ -518,8 +523,12 @@ availability, offers help, records human-help intent, collects missing preferred
 when wanted and confirms only committed effects. Contact supplied, verified notification enabled,
 request saved, staff assigned and customer contacted remain distinct facts. Later contact is
 offered only through a real authorized delivery route; the next opening is not a callback promise.
-The earlier status-only pending-handoff restriction must be revised consistently across ingress,
-permissions, publication, timers, receipts and adapters for this target behavior.
+Selected after-hours workflows use a deferred request while the conversation stays
+`automation_active`. Recording the request emits no automatic customer notice. The agent explains
+closure and continues the conversation through its ordinary reply path. Completion requires a
+validated customer choice and delivered agent reply, plus the saved human request for follow-up;
+unknown outbound delivery remains incomplete. The earlier status-only pending-handoff restriction applies to legacy
+ownership-changing handoff paths and explicit human-only pauses, not ordinary deferred requests.
 
 Support, content, booking and other business procedures share this contract while keeping their
 own domain schemas and actual confirmation/review policies. No separate permanent agent or

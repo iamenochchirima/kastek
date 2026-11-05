@@ -145,6 +145,10 @@ export const ModelName = {
   SocialPublishBatchItem: 'SocialPublishBatchItem',
   SocialPostInsightObservation: 'SocialPostInsightObservation',
   SocialPostInsightSyncState: 'SocialPostInsightSyncState',
+  ContentMediaLibraryMutation: 'ContentMediaLibraryMutation',
+  ContentTemplate: 'ContentTemplate',
+  ContentTemplateMedia: 'ContentTemplateMedia',
+  ContentTemplateMutation: 'ContentTemplateMutation',
   ContentMediaAsset: 'ContentMediaAsset',
   ContentMediaRendition: 'ContentMediaRendition',
   SocialPostMedia: 'SocialPostMedia',
@@ -1930,6 +1934,69 @@ export const SocialPostInsightSyncStateScalarFieldEnum = {
 export type SocialPostInsightSyncStateScalarFieldEnum = (typeof SocialPostInsightSyncStateScalarFieldEnum)[keyof typeof SocialPostInsightSyncStateScalarFieldEnum]
 
 
+export const ContentMediaLibraryMutationScalarFieldEnum = {
+  orgId: 'orgId',
+  operationKey: 'operationKey',
+  assetId: 'assetId',
+  action: 'action',
+  inputDigest: 'inputDigest',
+  result: 'result',
+  createdAt: 'createdAt'
+} as const
+
+export type ContentMediaLibraryMutationScalarFieldEnum = (typeof ContentMediaLibraryMutationScalarFieldEnum)[keyof typeof ContentMediaLibraryMutationScalarFieldEnum]
+
+
+export const ContentTemplateScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  name: 'name',
+  description: 'description',
+  category: 'category',
+  content: 'content',
+  channels: 'channels',
+  variants: 'variants',
+  fields: 'fields',
+  revision: 'revision',
+  creatorId: 'creatorId',
+  updatedById: 'updatedById',
+  sourcePostId: 'sourcePostId',
+  sourceKey: 'sourceKey',
+  inputDigest: 'inputDigest',
+  lastMutationKey: 'lastMutationKey',
+  lastMutationDigest: 'lastMutationDigest',
+  archivedAt: 'archivedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ContentTemplateScalarFieldEnum = (typeof ContentTemplateScalarFieldEnum)[keyof typeof ContentTemplateScalarFieldEnum]
+
+
+export const ContentTemplateMediaScalarFieldEnum = {
+  id: 'id',
+  templateId: 'templateId',
+  assetId: 'assetId',
+  sortOrder: 'sortOrder',
+  altText: 'altText'
+} as const
+
+export type ContentTemplateMediaScalarFieldEnum = (typeof ContentTemplateMediaScalarFieldEnum)[keyof typeof ContentTemplateMediaScalarFieldEnum]
+
+
+export const ContentTemplateMutationScalarFieldEnum = {
+  orgId: 'orgId',
+  operationKey: 'operationKey',
+  templateId: 'templateId',
+  action: 'action',
+  inputDigest: 'inputDigest',
+  result: 'result',
+  createdAt: 'createdAt'
+} as const
+
+export type ContentTemplateMutationScalarFieldEnum = (typeof ContentTemplateMutationScalarFieldEnum)[keyof typeof ContentTemplateMutationScalarFieldEnum]
+
+
 export const ContentMediaAssetScalarFieldEnum = {
   id: 'id',
   orgId: 'orgId',
@@ -1947,6 +2014,11 @@ export const ContentMediaAssetScalarFieldEnum = {
   processingStatus: 'processingStatus',
   scanStatus: 'scanStatus',
   metadata: 'metadata',
+  displayName: 'displayName',
+  tags: 'tags',
+  defaultAltText: 'defaultAltText',
+  archivedAt: 'archivedAt',
+  revision: 'revision',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -2345,6 +2417,7 @@ export const GrowthOperationReviewScalarFieldEnum = {
   state: 'state',
   result: 'result',
   errorCode: 'errorCode',
+  decisionSource: 'decisionSource',
   taskId: 'taskId',
   conversationId: 'conversationId',
   operationId: 'operationId',

@@ -38,10 +38,10 @@ test('quote and waitlist endpoints retain validation and persistence without the
 });
 
 
-test('Labs widget requires an explicit current Agents deployment and safe public origin', async () => {
+test('Labs widget defaults to the current Agents deployment and validates public origin overrides', async () => {
   const {websiteWidgetConfiguration: config}=await import('../../../../apps/labs-site/src/lib/site-config.js');
   const id='f37b4032-35f5-44f9-8a19-adc4f7b2170d';
-  assert.equal(config({}),null);
+  assert.deepEqual(config({}),{src:'https://agents.kasitek.co.za/api/website/2a25e036-7985-4c67-816a-8d05389d61aa/widget.js'});
   assert.equal(config({NEXT_PUBLIC_AGENTS_PUBLIC_URL:'https://agents.example.test',NEXT_PUBLIC_AGENTS_WIDGET_DEPLOYMENT_ID:'wdg_old'}),null);
   for(const base of ['https://user:pass@agents.example.test','javascript:alert(1)','https://agents.example.test/path','https://agents.example.test?key=x','http://agents.example.test']){
     assert.equal(config({NODE_ENV:'production',NEXT_PUBLIC_AGENTS_PUBLIC_URL:base,NEXT_PUBLIC_AGENTS_WIDGET_DEPLOYMENT_ID:id}),null);

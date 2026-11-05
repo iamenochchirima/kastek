@@ -1,7 +1,11 @@
 import {z} from "zod";
+import {validContactPhone} from "./contact-validation";
 const text=(max:number)=>z.string().trim().max(max).refine(value=>!value.includes('\0'),"Invalid character");
 export const recordFieldsSchema=z.strictObject({name:text(200).optional(),email:text(320).optional(),phone:text(80).optional(),service:text(500).optional(),message:text(4000).optional()}).refine(value=>Object.values(value).some(Boolean),"Enter customer details").refine(value=>Buffer.byteLength(JSON.stringify(value),"utf8")+2*Object.keys(value).length<=8192,"Customer details exceed the storage limit");
-export const contactFieldsSchema=z.strictObject({name:text(200).nullable().optional(),email:text(320).nullable().optional(),phone:text(80).nullable().optional()});
+// Input-only checks preserve historical record schemas and do not infer corrections.
+const contactEmail=text(320).refine(value=>!value||z.email().safeParse(value).success,"Enter a valid email");
+const contactPhone=text(80).refine(value=>!value||validContactPhone(value),"Enter a valid phone number");
+export const contactFieldsSchema=z.strictObject({name:text(200).nullable().optional(),email:contactEmail.nullable().optional(),phone:contactPhone.nullable().optional()});
 export const recordStatusSchema=z.enum(["new","in_progress","waiting_on_customer","closed"]);
 const identity={commandId:z.uuid(),expectedRevision:z.string().regex(/^[1-9]\d*$/)};
 export const recordCommandSchema=z.discriminatedUnion("action",[
@@ -25,3 +29,6 @@ export type RecordFields=z.infer<typeof recordFieldsSchema>;
 export interface CustomerContact {id:string;revision:string;name:string|null;email:string|null;phone:string|null;createdAt:string;updatedAt:string}
 export interface CustomerRecordActivity {id:string;kind:string;actorAccountId:string|null;body:string|null;createdAt:string}
 export interface RecordEnquiry {id:string;revision:string;status:z.infer<typeof recordStatusSchema>;fields:RecordFields;originalFields:RecordFields;sourceEnquiryId:string|null;sourceTaskId:string|null;agentId:string|null;conversationId:string|null;customerConversationId:string|null;channel:string|null;contactId:string|null;assigneeAccountId:string|null;dueAt:string|null;createdAt:string;updatedAt:string;activity?:CustomerRecordActivity[];bookings?:{id:string;state:string;startsAt:string;endsAt:string}[]}
+
+export const customerFollowupListSchema=contactListSchema.extend({status:z.enum(["requested","human_owned","completed","withdrawn"]).optional()});
+export interface CustomerFollowup {id:string;status:"requested"|"human_owned"|"completed"|"withdrawn";customerConversationId:string;contactId:string|null;agentName:string;channel:string;name:string|null;email:string|null;phone:string|null;preferredTime:string|null;reason:string;summary:string;assigneeName:string|null;requestedAt:string}

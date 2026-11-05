@@ -1,3 +1,4 @@
+import {verifyHumanAssistanceEvidence} from "../src/product/inbox/human-assistance";
 import { connectFixtureModel } from "./model-fixture";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import Fastify from "fastify";
@@ -10,8 +11,8 @@ import { InboxStore, type ChannelBinding, type InboxCommand } from "../src/produ
 import { registerInboxRoutes } from "../src/product/inbox/inbox-routes";
 import { registerOverviewRoutes } from "../src/product/overview/routes";
 import { transaction } from "../src/infrastructure/database";
-import { registerChannelPorts } from "../src/infrastructure/channel-ports";
-import { beginOperation } from "../src/execution/lifecycle/execution";
+import { channelPorts, registerChannelPorts } from "../src/infrastructure/channel-ports";
+import { beginOperation, requestTreeCancellation, settleTask } from "../src/execution/lifecycle/execution";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { executeTool, publishedToolBindings, assertPublishedTools } from "../src/capabilities/tools";
 
@@ -38,15 +39,16 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       async readableOutput(_db, taskId, body) { return withdrawn.has(taskId) ? null : body; },
       async cancelRoot(taskId) { cancelled.add(taskId); },
     });
-    registerChannelPorts(pool, { assertBinding: (...args) => inbox.assertBinding(...args), requestHandoff: (...args) => inbox.requestHandoff(...args), publishAutomated: (...args) => inbox.publishAutomated(...args), context: (...args) => inbox.context(...args) });
+    registerChannelPorts(pool, { procedureSnapshot:(...args)=>inbox.procedureSnapshot(...args),verifyProcedureEvidence:verifyHumanAssistanceEvidence, assertBinding: (...args) => inbox.assertBinding(...args), requestHandoff: (...args) => inbox.requestHandoff(...args), publishAutomated: (...args) => inbox.publishAutomated(...args), context: (...args) => inbox.context(...args) });
   });
   afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin, database); await admin.end(); } });
   async function actor() { return platform.ensureAccount({ issuer: "https://identity.test", subject: randomUUID(), email: "inbox@example.test", displayName: "Operator" }); }
-  async function fixture(structuredHandoff = false) {
+  async function fixture(structuredHandoff = false, afterHours = false) {
     const owner = await actor(), member = await actor(), outsider = await actor(), org = await platform.createOrganization(owner.id, "Inbox fixtures");
     await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'member')", [org.id, member.id]);
     await connectFixtureModel(pool, owner.id, org.id);
     const config = defaultBusinessConfiguration(); config.program = { id: "grounded-conversation", version: "1" };
+    if(afterHours) config.supportHours={timeZone:"UTC",intervals:[{day:(new Date().getUTCDay()+1)%7,start:"09:00",end:"17:00"}]};
     if (structuredHandoff) config.tools = ["channel.request_handoff", "support.request_handoff"];
     const agent = await platform.createAgent({ accountId: owner.id, organizationId: org.id, name: "Support", configuration: config });
     const version = await platform.createVersion({ accountId: owner.id, organizationId: org.id, agentId: agent.id, expectedRevision: 1 });
@@ -62,6 +64,108 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     return inbox.command({ ...f.scope, accountId }, f.conversation.id, { commandId: randomUUID(), expectedRevision: current.conversation.revision, action, ...extra });
   }
   function binding(f: Awaited<ReturnType<typeof fixture>>, messageId: string, generation = "1"): ChannelBinding { return { customerConversationId: f.conversation.id, ownershipGeneration: generation, inputMessageId: messageId }; }
+  it("records after-hours help without transferring ownership and fences only actual takeover", async()=>{
+    const f=await fixture(true,true),turn=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"I need a person. Please contact me at person@example.test"});
+    const taskId=turn.message.task_id!,bound=binding(f,turn.message.id),operationId=randomUUID();
+    const request=await transaction(pool,db=>inbox.requestHumanAssistance(db,bound,taskId,{operationId,brief:{reason:"Human requested",brief:"Customer needs support"}}));
+    expect(request.state).toBe("automation_active");expect(request.supportFacts.hours.state).toBe("closed");
+    const execution=(await pool.query("SELECT conversation_id FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];
+    const procedureScope={organizationId:f.org.id,agentId:f.agent.id,conversationId:execution.conversation_id};
+    expect(await transaction(pool,db=>verifyHumanAssistanceEvidence(db,procedureScope,{commandId:randomUUID(),expectedRevision:"1",route:"self_service",receipts:[]}))).toBe(false);
+    expect(request.noticeMessageId).toBeNull();
+    const replyEvidence=(sourceId:string)=>({commandId:randomUUID(),expectedRevision:"1",route:"callback",receipts:[{kind:"assistant_reply",sourceId,status:"confirmed" as const},{kind:"human_request",sourceId:request.requestId,status:"confirmed" as const}]});
+    expect(await transaction(pool,db=>verifyHumanAssistanceEvidence(db,procedureScope,replyEvidence(turn.message.id)))).toBe(false);
+    expect(await transaction(pool,db=>verifyHumanAssistanceEvidence(db,procedureScope,replyEvidence(randomUUID())))).toBe(false);
+    expect(await transaction(pool,db=>inbox.requestHumanAssistance(db,bound,taskId,{operationId,brief:{reason:"Human requested",brief:"Customer needs support"}}))).toEqual(request);
+    const visible=await inbox.readVisitor(f.visitor,f.conversation.id);
+    expect(visible.messages).toHaveLength(1);expect(visible.messages[0]?.body).toBe(turn.message.body);
+    expect((await pool.query("SELECT id FROM agents_platform.channel_outbound WHERE conversation_id=$1",[f.conversation.id])).rowCount).toBe(0);
+    expect(visible.responseStatus).toBe("working");expect(visible.responseActivity?.replyMessageId).toBeNull();expect(visible.responseActivity?.startedAt).toEqual(turn.message.created_at);
+    const snapshot=await transaction(pool,db=>channelPorts(db).procedureSnapshot!(db,procedureScope,bound,taskId));
+    expect(snapshot.request).toMatchObject({id:request.requestId,noticeMessageId:null,noticeStatus:null,replyMessageId:null,replyStatus:null});
+    expect(snapshot.customerEvidence[0]).toEqual({id:turn.message.id,text:turn.message.body});
+    const output="Support is closed now. I've recorded your request; what can I help with while you wait?";
+    await transaction(pool,db=>inbox.publishAutomated(db,{taskId,binding:bound,output}));
+    await transaction(pool,db=>inbox.publishAutomated(db,{taskId,binding:bound,output}));
+    const replied=await inbox.readVisitor(f.visitor,f.conversation.id),reply=replied.messages.at(-1)!;
+    expect(replied.messages).toHaveLength(2);expect(reply.body).toBe(output);expect(reply.displayKind).not.toBe("system");
+    expect(await transaction(pool,db=>verifyHumanAssistanceEvidence(db,procedureScope,replyEvidence(reply.id)))).toBe(true);
+    const delivered=await transaction(pool,db=>channelPorts(db).procedureSnapshot!(db,procedureScope,bound,taskId));
+    expect(delivered.request).toMatchObject({id:request.requestId,noticeMessageId:null,noticeStatus:null,replyMessageId:reply.id,replyStatus:"confirmed"});
+    await expect(transaction(pool,db=>channelPorts(db).procedureSnapshot!(db,{...procedureScope,agentId:randomUUID()},bound,taskId))).rejects.toMatchObject({code:"HUMAN_ASSISTANCE_SCOPE_DENIED"});
+    expect((await inbox.list(f.scope,{state:"human_requested",limit:30})).items.map(v=>v.id)).toContain(f.conversation.id);
+    const contact={method:"email",value:"person@example.test",evidenceMessageId:turn.message.id,consentQuote:"Please contact me at person@example.test"};
+    await expect(transaction(pool,db=>inbox.updateHumanAssistance(db,bound,taskId,{operationId:randomUUID(),requestId:request.requestId,contact:{...contact,value:"invented@example.test"}}))).rejects.toMatchObject({code:"HUMAN_ASSISTANCE_CONTACT_INVALID"});
+    await transaction(pool,db=>inbox.updateHumanAssistance(db,bound,taskId,{operationId:randomUUID(),requestId:request.requestId,contact}));
+    expect((await inbox.readStaff(f.scope,f.conversation.id)).conversation.humanRequest?.contact?.value).toBe("person@example.test");
+    await command(f,"claim");await transaction(pool,db=>inbox.assertBinding(db,bound,{organization_id:f.org.id,version_id:f.version.id,root_task_id:taskId}));
+    await command(f,"takeover");
+    await expect(transaction(pool,db=>inbox.assertBinding(db,bound,{organization_id:f.org.id,version_id:f.version.id,root_task_id:taskId}))).rejects.toMatchObject({code:"CHANNEL_OWNERSHIP_CHANGED"});
+    expect((await inbox.readStaff(f.scope,f.conversation.id)).conversation.humanRequest?.status).toBe("human_owned");
+    const returned=await command(f,"return");
+    const only=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Human support only please. Stop the assistant."});
+    const paused=await transaction(pool,db=>inbox.updateHumanAssistance(db,binding(f,only.message.id,returned.ownership_generation),only.message.task_id!,{operationId:randomUUID(),requestId:request.requestId,disposition:"human_only",evidenceMessageId:only.message.id,evidenceQuote:"Stop the assistant."}));
+    expect(paused.state).toBe("handoff_pending");
+    const pending=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Here are more details"});expect(pending.message.task_id).toBeNull();
+  });
+  it("bounds a customer turn by its existing grant expiry", async () => {
+    const f=await fixture();
+    const turn=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Hello"});
+    const row=(await pool.query(`SELECT t.deadline_at,g.expires_at FROM agents_platform.tasks t
+      JOIN agents_platform.execution_grants g ON g.id=t.grant_id WHERE t.id=$1`,[turn.message.task_id])).rows[0];
+    expect(row.deadline_at).toBeInstanceOf(Date);
+    expect(row.deadline_at.getTime()).toBeLessThanOrEqual(row.expires_at.getTime());
+  });
+  it("keeps an earlier configured wall deadline for a customer turn", async () => {
+    const f=await fixture(),previous=process.env.AGENTS_MODEL_POLICY_JSON;
+    try {
+      process.env.AGENTS_MODEL_POLICY_JSON=JSON.stringify({maxWallDurationMs:30000});
+      const turn=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Hello"});
+      const row=(await pool.query(`SELECT t.created_at,t.deadline_at,g.expires_at FROM agents_platform.tasks t
+        JOIN agents_platform.execution_grants g ON g.id=t.grant_id WHERE t.id=$1`,[turn.message.task_id])).rows[0];
+      expect(row.deadline_at.getTime()-row.created_at.getTime()).toBe(30000);
+      expect(row.deadline_at.getTime()).toBeLessThan(row.expires_at.getTime());
+    } finally { if(previous===undefined)delete process.env.AGENTS_MODEL_POLICY_JSON;else process.env.AGENTS_MODEL_POLICY_JSON=previous; }
+  });
+  it("reports an expired turn as uncertain while cancellation remains pending and fences late output", async () => {
+    const f=await fixture();
+    const turn=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Hello"});
+    await pool.query("UPDATE agents_platform.tasks SET deadline_at=now()-interval '1 second',state='cancel_requested',error_code='TASK_DEADLINE' WHERE id=$1",[turn.message.task_id]);
+    const pending=await inbox.readVisitor(f.visitor,f.conversation.id);
+    expect(pending.responseStatus).toBe("uncertain");
+    expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[turn.message.task_id])).rows[0].state).toBe("cancel_requested");
+    await settleTask(pool,turn.message.task_id!,{state:"completed",output:"Late success"});
+    const finished=await inbox.readVisitor(f.visitor,f.conversation.id);
+    expect(finished.responseStatus).toBe("uncertain");
+    expect(finished.messages.some(message=>message.body==="Late success")).toBe(false);
+  });
+  it("retains an uncertain in-flight effect when deadline cancellation races a late completion", async () => {
+    const f=await fixture();
+    const turn=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Hello"});
+    const taskId=turn.message.task_id!,operationId=randomUUID();
+    await beginOperation(pool,taskId,{id:operationId,kind:"tool",name:"test.effect",request:{},reservedTokens:0,reservedMs:1000});
+    await requestTreeCancellation(pool,taskId);
+    await pool.query("UPDATE agents_platform.tasks SET deadline_at=now()-interval '1 second',error_code='TASK_DEADLINE',pending_outcome=$2 WHERE id=$1",[taskId,JSON.stringify({state:"completed",output:"Late success"})]);
+    expect((await inbox.readVisitor(f.visitor,f.conversation.id)).responseStatus).toBe("uncertain");
+    await settleTask(pool,taskId,{state:"completed",output:"Late success"});
+    const task=(await pool.query("SELECT state,error_code FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];
+    const op=(await pool.query("SELECT state,error_code FROM agents_platform.operations WHERE id=$1",[operationId])).rows[0];
+    expect(task).toMatchObject({state:"uncertain",error_code:"OPERATION_OUTCOME_UNCERTAIN"});
+    expect(op).toMatchObject({state:"uncertain",error_code:"OPERATION_INTERRUPTED"});
+    expect((await inbox.readVisitor(f.visitor,f.conversation.id)).messages.some(message=>message.body==="Late success")).toBe(false);
+  });
+  it("preserves a response completed before its deadline", async () => {
+    const f=await fixture();
+    const turn=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Hello"});
+    await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[turn.message.task_id]);
+    await settleTask(pool,turn.message.task_id!,{state:"completed",output:"On time"});
+    await pool.query("UPDATE agents_platform.tasks SET deadline_at=now()-interval '1 second' WHERE id=$1",[turn.message.task_id]);
+    await settleTask(pool,turn.message.task_id!,{state:"completed",output:"Late overwrite"});
+    const view=await inbox.readVisitor(f.visitor,f.conversation.id);
+    expect(view.messages.some(message=>message.body==="On time")).toBe(true);
+    expect(view.messages.some(message=>message.body==="Late overwrite")).toBe(false);
+    expect(view.responseStatus).toBeNull();
+  });
   it("projects the latest visitor reply status without exposing execution errors or stale failures", async () => {
     const f = await fixture(), other = await fixture();
     expect((await inbox.readVisitor(f.visitor, f.conversation.id)).responseStatus).toBeNull();
@@ -83,6 +187,35 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await inbox.readVisitor(f.visitor, f.conversation.id)).responseStatus).toBe("failed");
     await transaction(pool, db => inbox.publishAutomated(db, { taskId: next.message.task_id!, binding: binding(f, next.message.id), output: "How can I help?" }));
     expect((await inbox.readVisitor(f.visitor, f.conversation.id)).responseStatus).toBeNull();
+  });
+  it("exposes scoped response progress and persisted reply timing without private task details", async () => {
+    const f=await fixture(),other=await fixture();
+    expect((await inbox.readVisitor(f.visitor,f.conversation.id)).responseStatus).toBeNull();
+    const input=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Hello"});
+    let read=await inbox.readVisitor(f.visitor,f.conversation.id);
+    expect(read.responseStatus).toBe("working");expect(read.responseActivity?.inputMessageId).toBe(input.message.id);
+    const start=read.responseActivity!.startedAt;
+    await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[input.message.task_id]);
+    expect((await inbox.readVisitor(f.visitor,f.conversation.id)).responseActivity!.startedAt).toEqual(start);
+    await pool.query("UPDATE agents_platform.tasks SET state='failed',error_code='PRIVATE_PROVIDER_DETAIL' WHERE id=$1",[input.message.task_id]);
+    expect((await inbox.readVisitor(f.visitor,f.conversation.id)).responseStatus).toBe("failed");
+    await expect(inbox.readVisitor(other.visitor,f.conversation.id)).rejects.toMatchObject({code:"INBOX_ACCESS_DENIED"});
+    await pool.query("UPDATE agents_platform.tasks SET state='completed',error_code=NULL WHERE id=$1",[input.message.task_id]);
+    await transaction(pool,db=>inbox.publishAutomated(db,{taskId:input.message.task_id!,binding:binding(f,input.message.id),output:"Delivered reply"}));
+    read=await inbox.readVisitor(f.visitor,f.conversation.id);
+    expect(read.messages.at(-1)!.responseDurationMs).toBeGreaterThanOrEqual(0);
+    expect(read.responseStatus).toBeNull();expect(read.responseActivity?.replyMessageId).toBe(read.messages.at(-1)!.id);
+    expect(read.responseActivity!.completedAt!.getTime()).toBeGreaterThanOrEqual(start.getTime());
+    const app=Fastify();registerInboxRoutes(app,{inbox,resolveScope:async()=>f.scope,resolveVisitor:async()=>f.visitor});
+    try {const result=await app.inject({url:`/api/website/${f.deployment.id}/customer-conversations/${f.conversation.id}/messages`});
+      expect(result.json().responseActivity.inputMessageId).toBe(input.message.id);
+      expect(result.body).not.toContain(input.message.task_id!);expect(result.body).not.toContain("PRIVATE_PROVIDER_DETAIL");
+    } finally {await app.close()}
+    await command(f,"claim");await command(f,"takeover");
+    await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[input.message.task_id]);
+    read=await inbox.readVisitor(f.visitor,f.conversation.id);expect(read.responseStatus).toBeNull();expect(read.responseActivity).toBeNull();
+    await command(f,"return");
+    expect((await inbox.readVisitor(f.visitor,f.conversation.id)).responseStatus).toBeNull();
   });
   it("reports the website channel as unavailable when paused or revoked", async () => {
     const f = await fixture();

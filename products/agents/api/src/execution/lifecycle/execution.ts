@@ -289,6 +289,12 @@ export async function settleTask(pool: Pool, taskId: string, requested: TaskOutc
     const execution = await loadExecution(db, taskId, true), task = execution.task;
     if (terminalTaskStates.has(task.state)) return;
     let outcome = requested;
+    // A customer may already have been told this turn timed out while cancellation is
+    // still in flight. Do not publish a late success after that deadline.
+    if (task.channel_binding && !task.parent_task_id && outcome.state === "completed") {
+      const {expired}=(await db.query<{expired:boolean}>("SELECT deadline_at IS NOT NULL AND deadline_at<=clock_timestamp() AS expired FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0]!;
+      if(expired)outcome={state:"uncertain",errorCode:"TASK_DEADLINE"};
+    }
     if (task.pending_outcome && (await db.query("SELECT 1 FROM agents_platform.task_events WHERE task_id=$1 AND kind='cancel_requested'",[taskId])).rowCount) {
       outcome={state:"cancelled"};
     }

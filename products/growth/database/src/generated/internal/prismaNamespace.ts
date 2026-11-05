@@ -478,6 +478,10 @@ export const ModelName = {
   SocialPublishBatchItem: 'SocialPublishBatchItem',
   SocialPostInsightObservation: 'SocialPostInsightObservation',
   SocialPostInsightSyncState: 'SocialPostInsightSyncState',
+  ContentMediaLibraryMutation: 'ContentMediaLibraryMutation',
+  ContentTemplate: 'ContentTemplate',
+  ContentTemplateMedia: 'ContentTemplateMedia',
+  ContentTemplateMutation: 'ContentTemplateMutation',
   ContentMediaAsset: 'ContentMediaAsset',
   ContentMediaRendition: 'ContentMediaRendition',
   SocialPostMedia: 'SocialPostMedia',
@@ -516,7 +520,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "organization" | "organizationMember" | "organizationOnboardingProfile" | "organizationInvitation" | "externalConnection" | "externalConnectionCapability" | "externalConnectionPermission" | "externalConnectionAuthorizationAttempt" | "externalConnectionConsumer" | "emailConnection" | "emailInboxBinding" | "emailOAuthState" | "product" | "productPlan" | "userProductTour" | "planEntitlement" | "organizationSubscription" | "organizationEntitlementGrant" | "usageEvent" | "referralCode" | "referralAttribution" | "creditAccount" | "creditGrant" | "creditLedgerEntry" | "creditReservation" | "creditUsageEvent" | "creditAdminOperation" | "publicApiRequest" | "developerApiKey" | "publicApiWebhookSubscription" | "publicApiWebhookDelivery" | "billingCheckout" | "billingInvoice" | "paystackWebhookEvent" | "billingReconciliationIssue" | "user" | "pushSubscription" | "account" | "session" | "externalIdentity" | "oidcTransaction" | "oidcLogoutReplay" | "verificationToken" | "adminUser" | "adminSavedReport" | "adminReportExportAuditEvent" | "adminSupportAccessGrant" | "adminSupportAccessAuditEvent" | "adminWebhookReplayCommand" | "adminCustomerReplayApproval" | "adminWebhookReplayAuditEvent" | "businessProfile" | "onboardingConversation" | "quoteRequest" | "productWaitlistEntry" | "earlyAccessInvitation" | "productWaitlistEvent" | "quotation" | "invoice" | "invoiceRun" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "customer" | "customerIdentity" | "bookingService" | "booking" | "conversation" | "communicationCall" | "communicationCallLeg" | "message" | "messageAttachment" | "messageReference" | "messageReaction" | "messageEvent" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "whatsappCallSession" | "whatsappCallEvent" | "socialChannelConnection" | "socialDataDeletionRequest" | "socialWebhookEvent" | "socialOAuthAuthorization" | "socialPost" | "socialPostVariant" | "socialPublishJob" | "socialPublishBatch" | "socialPublishBatchItem" | "socialPostInsightObservation" | "socialPostInsightSyncState" | "contentMediaAsset" | "contentMediaRendition" | "socialPostMedia" | "socialPostVariantMedia" | "whatsappContact" | "whatsappContactListMembership" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent" | "growthAgentReview" | "adminSession" | "adminCommercialAudit" | "adminOutreachSendAttempt" | "growthAgentSetup" | "growthAgentSourceHandle" | "growthOAuthClient" | "growthOAuthRequest" | "growthOAuthCode" | "growthOAuthConnection" | "growthOAuthRefresh" | "growthOperationReview" | "growthMediaTransfer"
+    modelProps: "organization" | "organizationMember" | "organizationOnboardingProfile" | "organizationInvitation" | "externalConnection" | "externalConnectionCapability" | "externalConnectionPermission" | "externalConnectionAuthorizationAttempt" | "externalConnectionConsumer" | "emailConnection" | "emailInboxBinding" | "emailOAuthState" | "product" | "productPlan" | "userProductTour" | "planEntitlement" | "organizationSubscription" | "organizationEntitlementGrant" | "usageEvent" | "referralCode" | "referralAttribution" | "creditAccount" | "creditGrant" | "creditLedgerEntry" | "creditReservation" | "creditUsageEvent" | "creditAdminOperation" | "publicApiRequest" | "developerApiKey" | "publicApiWebhookSubscription" | "publicApiWebhookDelivery" | "billingCheckout" | "billingInvoice" | "paystackWebhookEvent" | "billingReconciliationIssue" | "user" | "pushSubscription" | "account" | "session" | "externalIdentity" | "oidcTransaction" | "oidcLogoutReplay" | "verificationToken" | "adminUser" | "adminSavedReport" | "adminReportExportAuditEvent" | "adminSupportAccessGrant" | "adminSupportAccessAuditEvent" | "adminWebhookReplayCommand" | "adminCustomerReplayApproval" | "adminWebhookReplayAuditEvent" | "businessProfile" | "onboardingConversation" | "quoteRequest" | "productWaitlistEntry" | "earlyAccessInvitation" | "productWaitlistEvent" | "quotation" | "invoice" | "invoiceRun" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "customer" | "customerIdentity" | "bookingService" | "booking" | "conversation" | "communicationCall" | "communicationCallLeg" | "message" | "messageAttachment" | "messageReference" | "messageReaction" | "messageEvent" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "whatsappCallSession" | "whatsappCallEvent" | "socialChannelConnection" | "socialDataDeletionRequest" | "socialWebhookEvent" | "socialOAuthAuthorization" | "socialPost" | "socialPostVariant" | "socialPublishJob" | "socialPublishBatch" | "socialPublishBatchItem" | "socialPostInsightObservation" | "socialPostInsightSyncState" | "contentMediaLibraryMutation" | "contentTemplate" | "contentTemplateMedia" | "contentTemplateMutation" | "contentMediaAsset" | "contentMediaRendition" | "socialPostMedia" | "socialPostVariantMedia" | "whatsappContact" | "whatsappContactListMembership" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent" | "growthAgentReview" | "adminSession" | "adminCommercialAudit" | "adminOutreachSendAttempt" | "growthAgentSetup" | "growthAgentSourceHandle" | "growthOAuthClient" | "growthOAuthRequest" | "growthOAuthCode" | "growthOAuthConnection" | "growthOAuthRefresh" | "growthOperationReview" | "growthMediaTransfer"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -7476,6 +7480,302 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    ContentMediaLibraryMutation: {
+      payload: Prisma.$ContentMediaLibraryMutationPayload<ExtArgs>
+      fields: Prisma.ContentMediaLibraryMutationFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ContentMediaLibraryMutationFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentMediaLibraryMutationPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ContentMediaLibraryMutationFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentMediaLibraryMutationPayload>
+        }
+        findFirst: {
+          args: Prisma.ContentMediaLibraryMutationFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentMediaLibraryMutationPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ContentMediaLibraryMutationFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentMediaLibraryMutationPayload>
+        }
+        findMany: {
+          args: Prisma.ContentMediaLibraryMutationFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentMediaLibraryMutationPayload>[]
+        }
+        create: {
+          args: Prisma.ContentMediaLibraryMutationCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentMediaLibraryMutationPayload>
+        }
+        createMany: {
+          args: Prisma.ContentMediaLibraryMutationCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ContentMediaLibraryMutationCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentMediaLibraryMutationPayload>[]
+        }
+        delete: {
+          args: Prisma.ContentMediaLibraryMutationDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentMediaLibraryMutationPayload>
+        }
+        update: {
+          args: Prisma.ContentMediaLibraryMutationUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentMediaLibraryMutationPayload>
+        }
+        deleteMany: {
+          args: Prisma.ContentMediaLibraryMutationDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ContentMediaLibraryMutationUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ContentMediaLibraryMutationUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentMediaLibraryMutationPayload>[]
+        }
+        upsert: {
+          args: Prisma.ContentMediaLibraryMutationUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentMediaLibraryMutationPayload>
+        }
+        aggregate: {
+          args: Prisma.ContentMediaLibraryMutationAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateContentMediaLibraryMutation>
+        }
+        groupBy: {
+          args: Prisma.ContentMediaLibraryMutationGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ContentMediaLibraryMutationGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ContentMediaLibraryMutationCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ContentMediaLibraryMutationCountAggregateOutputType> | number
+        }
+      }
+    }
+    ContentTemplate: {
+      payload: Prisma.$ContentTemplatePayload<ExtArgs>
+      fields: Prisma.ContentTemplateFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ContentTemplateFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplatePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ContentTemplateFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplatePayload>
+        }
+        findFirst: {
+          args: Prisma.ContentTemplateFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplatePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ContentTemplateFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplatePayload>
+        }
+        findMany: {
+          args: Prisma.ContentTemplateFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplatePayload>[]
+        }
+        create: {
+          args: Prisma.ContentTemplateCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplatePayload>
+        }
+        createMany: {
+          args: Prisma.ContentTemplateCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ContentTemplateCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplatePayload>[]
+        }
+        delete: {
+          args: Prisma.ContentTemplateDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplatePayload>
+        }
+        update: {
+          args: Prisma.ContentTemplateUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplatePayload>
+        }
+        deleteMany: {
+          args: Prisma.ContentTemplateDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ContentTemplateUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ContentTemplateUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplatePayload>[]
+        }
+        upsert: {
+          args: Prisma.ContentTemplateUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplatePayload>
+        }
+        aggregate: {
+          args: Prisma.ContentTemplateAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateContentTemplate>
+        }
+        groupBy: {
+          args: Prisma.ContentTemplateGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ContentTemplateGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ContentTemplateCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ContentTemplateCountAggregateOutputType> | number
+        }
+      }
+    }
+    ContentTemplateMedia: {
+      payload: Prisma.$ContentTemplateMediaPayload<ExtArgs>
+      fields: Prisma.ContentTemplateMediaFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ContentTemplateMediaFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMediaPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ContentTemplateMediaFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMediaPayload>
+        }
+        findFirst: {
+          args: Prisma.ContentTemplateMediaFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMediaPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ContentTemplateMediaFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMediaPayload>
+        }
+        findMany: {
+          args: Prisma.ContentTemplateMediaFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMediaPayload>[]
+        }
+        create: {
+          args: Prisma.ContentTemplateMediaCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMediaPayload>
+        }
+        createMany: {
+          args: Prisma.ContentTemplateMediaCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ContentTemplateMediaCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMediaPayload>[]
+        }
+        delete: {
+          args: Prisma.ContentTemplateMediaDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMediaPayload>
+        }
+        update: {
+          args: Prisma.ContentTemplateMediaUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMediaPayload>
+        }
+        deleteMany: {
+          args: Prisma.ContentTemplateMediaDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ContentTemplateMediaUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ContentTemplateMediaUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMediaPayload>[]
+        }
+        upsert: {
+          args: Prisma.ContentTemplateMediaUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMediaPayload>
+        }
+        aggregate: {
+          args: Prisma.ContentTemplateMediaAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateContentTemplateMedia>
+        }
+        groupBy: {
+          args: Prisma.ContentTemplateMediaGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ContentTemplateMediaGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ContentTemplateMediaCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ContentTemplateMediaCountAggregateOutputType> | number
+        }
+      }
+    }
+    ContentTemplateMutation: {
+      payload: Prisma.$ContentTemplateMutationPayload<ExtArgs>
+      fields: Prisma.ContentTemplateMutationFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ContentTemplateMutationFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMutationPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ContentTemplateMutationFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMutationPayload>
+        }
+        findFirst: {
+          args: Prisma.ContentTemplateMutationFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMutationPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ContentTemplateMutationFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMutationPayload>
+        }
+        findMany: {
+          args: Prisma.ContentTemplateMutationFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMutationPayload>[]
+        }
+        create: {
+          args: Prisma.ContentTemplateMutationCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMutationPayload>
+        }
+        createMany: {
+          args: Prisma.ContentTemplateMutationCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ContentTemplateMutationCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMutationPayload>[]
+        }
+        delete: {
+          args: Prisma.ContentTemplateMutationDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMutationPayload>
+        }
+        update: {
+          args: Prisma.ContentTemplateMutationUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMutationPayload>
+        }
+        deleteMany: {
+          args: Prisma.ContentTemplateMutationDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ContentTemplateMutationUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ContentTemplateMutationUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMutationPayload>[]
+        }
+        upsert: {
+          args: Prisma.ContentTemplateMutationUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentTemplateMutationPayload>
+        }
+        aggregate: {
+          args: Prisma.ContentTemplateMutationAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateContentTemplateMutation>
+        }
+        groupBy: {
+          args: Prisma.ContentTemplateMutationGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ContentTemplateMutationGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ContentTemplateMutationCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ContentTemplateMutationCountAggregateOutputType> | number
+        }
+      }
+    }
     ContentMediaAsset: {
       payload: Prisma.$ContentMediaAssetPayload<ExtArgs>
       fields: Prisma.ContentMediaAssetFieldRefs
@@ -10961,6 +11261,69 @@ export const SocialPostInsightSyncStateScalarFieldEnum = {
 export type SocialPostInsightSyncStateScalarFieldEnum = (typeof SocialPostInsightSyncStateScalarFieldEnum)[keyof typeof SocialPostInsightSyncStateScalarFieldEnum]
 
 
+export const ContentMediaLibraryMutationScalarFieldEnum = {
+  orgId: 'orgId',
+  operationKey: 'operationKey',
+  assetId: 'assetId',
+  action: 'action',
+  inputDigest: 'inputDigest',
+  result: 'result',
+  createdAt: 'createdAt'
+} as const
+
+export type ContentMediaLibraryMutationScalarFieldEnum = (typeof ContentMediaLibraryMutationScalarFieldEnum)[keyof typeof ContentMediaLibraryMutationScalarFieldEnum]
+
+
+export const ContentTemplateScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  name: 'name',
+  description: 'description',
+  category: 'category',
+  content: 'content',
+  channels: 'channels',
+  variants: 'variants',
+  fields: 'fields',
+  revision: 'revision',
+  creatorId: 'creatorId',
+  updatedById: 'updatedById',
+  sourcePostId: 'sourcePostId',
+  sourceKey: 'sourceKey',
+  inputDigest: 'inputDigest',
+  lastMutationKey: 'lastMutationKey',
+  lastMutationDigest: 'lastMutationDigest',
+  archivedAt: 'archivedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ContentTemplateScalarFieldEnum = (typeof ContentTemplateScalarFieldEnum)[keyof typeof ContentTemplateScalarFieldEnum]
+
+
+export const ContentTemplateMediaScalarFieldEnum = {
+  id: 'id',
+  templateId: 'templateId',
+  assetId: 'assetId',
+  sortOrder: 'sortOrder',
+  altText: 'altText'
+} as const
+
+export type ContentTemplateMediaScalarFieldEnum = (typeof ContentTemplateMediaScalarFieldEnum)[keyof typeof ContentTemplateMediaScalarFieldEnum]
+
+
+export const ContentTemplateMutationScalarFieldEnum = {
+  orgId: 'orgId',
+  operationKey: 'operationKey',
+  templateId: 'templateId',
+  action: 'action',
+  inputDigest: 'inputDigest',
+  result: 'result',
+  createdAt: 'createdAt'
+} as const
+
+export type ContentTemplateMutationScalarFieldEnum = (typeof ContentTemplateMutationScalarFieldEnum)[keyof typeof ContentTemplateMutationScalarFieldEnum]
+
+
 export const ContentMediaAssetScalarFieldEnum = {
   id: 'id',
   orgId: 'orgId',
@@ -10978,6 +11341,11 @@ export const ContentMediaAssetScalarFieldEnum = {
   processingStatus: 'processingStatus',
   scanStatus: 'scanStatus',
   metadata: 'metadata',
+  displayName: 'displayName',
+  tags: 'tags',
+  defaultAltText: 'defaultAltText',
+  archivedAt: 'archivedAt',
+  revision: 'revision',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -11376,6 +11744,7 @@ export const GrowthOperationReviewScalarFieldEnum = {
   state: 'state',
   result: 'result',
   errorCode: 'errorCode',
+  decisionSource: 'decisionSource',
   taskId: 'taskId',
   conversationId: 'conversationId',
   operationId: 'operationId',
@@ -12135,6 +12504,10 @@ export type GlobalOmitConfig = {
   socialPublishBatchItem?: Prisma.SocialPublishBatchItemOmit
   socialPostInsightObservation?: Prisma.SocialPostInsightObservationOmit
   socialPostInsightSyncState?: Prisma.SocialPostInsightSyncStateOmit
+  contentMediaLibraryMutation?: Prisma.ContentMediaLibraryMutationOmit
+  contentTemplate?: Prisma.ContentTemplateOmit
+  contentTemplateMedia?: Prisma.ContentTemplateMediaOmit
+  contentTemplateMutation?: Prisma.ContentTemplateMutationOmit
   contentMediaAsset?: Prisma.ContentMediaAssetOmit
   contentMediaRendition?: Prisma.ContentMediaRenditionOmit
   socialPostMedia?: Prisma.SocialPostMediaOmit

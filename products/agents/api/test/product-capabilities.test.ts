@@ -115,3 +115,63 @@ describe("direct private product writes", () => {
   expect(dispatch.mock.calls.map(call=>call[4])).toEqual(["review"]);
  });
 });
+
+
+describe("direct private product writes", () => {
+ it("requires installed product authority and rejects unsafe policy combinations", () => {
+  const {bindings} = fixture("draft_write"), binding = bindings[0]!;
+  expect(binding.policy.effect).toBe("draft_write");
+  for(const patch of [{retry:"safe_read"},{approval:"exact_single_use"},{disclosure:"approved_resource_identifiers"},{cancel:"stop_admission"}])
+    expect(capabilityPolicySchema.safeParse({...binding.policy,...patch}).success).toBe(false);
+  const {authority:_,digest:__,...rest}=binding, forged={...rest,digest:requestDigest(rest)};
+  const parsed=capabilityBindingSchema.safeParse(forged);
+  expect(parsed.success).toBe(false);
+  if(!parsed.success)expect(parsed.error.issues.some(issue=>issue.message==="Direct product writes require installed product authority")).toBe(true);
+ });
+ it("requires product.write even though no separate draft review is needed", () => {
+  const {bindings}=fixture("draft_write"),config=defaultBusinessConfiguration();config.program={id:"tool-directed",version:"3"};config.productBindings=bindings;
+  const authority={product:"growth" as const,organizationId:bindings[0]!.organizationId,resourceId:"business",callerClientId:"growth-api",principal:{kind:"human" as const,issuer:"https://identity.example",subject:"person"}};
+  const versionId=randomUUID(),grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId,operations:["model.reply","product.read"],sourceRevisionIds:[],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+60000).toISOString(),revokedAt:null});
+  expect(()=>assertGrantAuthority(grant,authority,versionId,config)).toThrowError(expect.objectContaining({code:"GRANT_PRODUCT_DENIED"}));
+  expect(()=>assertGrantAuthority({...grant,operations:[...grant.operations,"product.write"]},authority,versionId,config)).not.toThrow();
+ });
+ function runtimeFixture(effect: "draft_write" | "authorized_write" = "draft_write") {
+  const {bindings}=fixture(effect),binding=bindings[0]!,operationId="tool:"+randomUUID(),args={id:"one"};
+  const receipt={id:randomUUID(),operationId,payloadDigest:requestDigest({operation:binding.definition.providerOperation,version:"1",input:args}),state:"saved" as const};
+  const runtime=Object.create(ProductRuntime.prototype) as ProductRuntime;
+  Object.assign(runtime,{observe:vi.fn(async(_task:unknown,_operation:unknown,_binding:unknown,value:unknown)=>value)});
+  return {runtime,binding,operationId,args,receipt,taskId:randomUUID()};
+ }
+ it("executes delegated public writes directly and reconciles interrupted calls without a second mutation", async () => {
+  const {runtime,binding,operationId,args,receipt,taskId}=runtimeFixture("authorized_write");
+  expect(binding.policy.effect).toBe("authorized_write");
+  const dispatch=vi.fn(async(..._input:unknown[])=>({value:{state:"succeeded"},receipt}));Object.assign(runtime,{dispatch});
+  await expect(runtime.invoke(taskId,operationId,binding,args)).resolves.toMatchObject({receipt});
+  expect(dispatch.mock.calls.map(call=>call[4])).toEqual(["invoke"]);
+  dispatch.mockReset();dispatch.mockRejectedValueOnce(new PlatformError("PRODUCT_UNAVAILABLE",503,"Unavailable")).mockResolvedValueOnce({value:{state:"succeeded"},receipt});
+  await expect(runtime.invoke(taskId,operationId,binding,args)).resolves.toMatchObject({receipt});
+  expect(dispatch.mock.calls.map(call=>call[4])).toEqual(["invoke","review"]);
+ });
+ it("invokes requested private writes directly and requires their exact saved receipt", async () => {
+  const {runtime,binding,operationId,args,receipt,taskId}=runtimeFixture();
+  const dispatch=vi.fn(async(..._input:unknown[])=>({value:{postId:"saved-post"},receipt}));Object.assign(runtime,{dispatch});
+  await expect(runtime.invoke(taskId,operationId,binding,args)).resolves.toMatchObject({receipt});
+  expect(dispatch).toHaveBeenCalledOnce();expect(dispatch.mock.calls[0]?.[4]).toBe("invoke");
+  for(const wrong of [{...receipt,operationId:"another"},{...receipt,payloadDigest:"f".repeat(64)}]){
+    Object.assign(runtime,{dispatch:vi.fn(async()=>({value:{},receipt:wrong}))});
+    await expect(runtime.invoke(taskId,operationId,binding,args)).rejects.toMatchObject({code:"PRODUCT_EFFECT_UNCERTAIN"});
+  }
+ });
+ it("uses observation only after interruption and never repeats an uncertain draft mutation", async () => {
+  const {runtime,binding,operationId,args,receipt,taskId}=runtimeFixture();
+  const dispatch=vi.fn(async(..._input:unknown[])=>({value:{},receipt}));Object.assign(runtime,{dispatch});
+  await expect(runtime.invoke(taskId,operationId,binding,args,undefined,true)).resolves.toMatchObject({receipt});
+  expect(dispatch).toHaveBeenCalledOnce();expect(dispatch.mock.calls[0]?.[4]).toBe("review");
+  dispatch.mockReset();dispatch.mockRejectedValueOnce(new PlatformError("PRODUCT_UNAVAILABLE",503,"Unavailable")).mockResolvedValueOnce({value:{},receipt});
+  await expect(runtime.invoke(taskId,operationId,binding,args)).resolves.toMatchObject({receipt});
+  expect(dispatch.mock.calls.map(call=>call[4])).toEqual(["invoke","review"]);
+  dispatch.mockReset();dispatch.mockResolvedValueOnce({value:{}} as never);
+  await expect(runtime.invoke(taskId,operationId,binding,args,undefined,true)).rejects.toMatchObject({code:"PRODUCT_EFFECT_UNCERTAIN"});
+  expect(dispatch.mock.calls.map(call=>call[4])).toEqual(["review"]);
+ });
+});

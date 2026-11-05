@@ -15,12 +15,13 @@ are [MCP integration](https://docs.kasitek.co.za/api/mcp-integration) and
 
 The [coverage matrix](../architecture/growth-operations.md) records implemented operation families
 and exclusions. [ADR 0001](https://github.com/Kasitek-Labs/kastek/blob/main/products/growth/docs/adr/0001-growth-owned-delegation-and-operation-parity.md) records
-the ownership decision. Managed defaults and publication target revision `11` (adapter release `6`);
-retained requests at revisions `2`–`10` keep their matching publication and adapter. Revision `11`
+the ownership decision. Managed defaults and publication target revision `13` (adapter release `10`);
+retained requests at revisions `2`–`12` keep their matching publication and adapter. Revision `13`
 lets the Assistant delegate to all three specialists and lets Content/Campaigns delegate focused
 evidence work to Research. Upgrade an existing workspace
 explicitly with `pnpm --filter @kasitek/growth-core agents:setup upgrade-defaults <organization-id>`;
-the setup worker must be running. Customized selections and existing task versions remain pinned.
+the setup worker must be running. Customized selections and existing task versions remain pinned. Revision `13` describes the
+consolidated source; it does not establish which publication is serving in production.
 
 ## Configuration and migrations
 
@@ -35,7 +36,7 @@ remains required for consent; OAuth creates no separate login credentials.
 
 `GROWTH_AGENT_ACCESS_ENABLED` and `GROWTH_AGENT_EFFECTS_ENABLED` must explicitly equal `true` in
 production. Agent access gates MCP, canonical REST, typed canonical aliases and discovery.
-External effects can be disabled while leaving reads and reviewed drafts available. Local nonproduction environments allow
+External effects can be disabled while leaving reads and requested private drafts available. Local nonproduction environments allow
 access/effects unless explicitly disabled. `GROWTH_MCP_ALLOWED_ORIGINS` is a comma-separated
 allowlist of additional browser client origins. Exact Growth frontend origin is always allowed;
 nonbrowser clients need not send Origin. Do not use wildcard origins for bearer access.
@@ -46,7 +47,18 @@ artifact. The additive migrations are:
 - `20261101130000_growth_oauth`: client registration, consent requests, authorization codes,
   independently revocable connections and refresh-token families;
 - `20261101140000_growth_operation_reviews`: durable exact-input reviews and results;
-- `20261101150000_growth_media_transfers`: scoped, expiring media transfer state.
+- `20261101150000_growth_media_transfers`: scoped, expiring media transfer state;
+- `20261102190000_content_agent_workflows`: nullable, constrained `decisionSource` audit column.
+
+- `20261102200000_content_mcp_app_confirmation`: retained historical `mcp_app` source;
+- `20261102210000_content_requested_actions`: adds `requested_action` for authorized content execution;
+- `20261103110000_content_media_library`: additive media metadata, indexes and durable mutation receipts;
+- `20261103111000_content_templates`: social templates, retained media references and mutation receipts.
+
+Apply each migration once using the existing ledger procedure. The former
+`GROWTH_MCP_CONFIRMATION_SECRET` is no longer consumed by the MCP route. Retain historical receipts
+and additive schema during rollback. Deployment evidence belongs in
+`docs/operations/platform-0.3.0-release.md`; never commit an environment export.
 
 Analytics separately requires `services/analytics/migrations/20261101160000_growth_agent_access.sql`
 to permit the existing `core-customer-analytics` producer's Growth namespace. Its registry version
@@ -100,16 +112,23 @@ MCP connection is not evidence of working provider publishing, comments, message
 
 ## Reviews, recovery and observations
 
-Every effect goes through the same exact review and stable idempotency path. Operation state is
-separate from embedded draft-review state. Human review renders the persisted copy/variants, scheduled time, selected account identities,
-media filenames and target identity where applicable, with the exact request under an expandable
-disclosure. The preview participates in the immutable snapshot checked before execution.
-The human review API uses the current signed-in user,
-workspace and exact payload digest. The review page polls approved and executing actions until a terminal state or review expiry,
-shows a saved-post link when available, and keeps raw results collapsed. Polling only reads state.
-Approved external calls resume from the agent using their
-original identity; signed embedded actions use verified product context. Direct UI editing keeps
-its established explicit-human-action flow.
+All authorized content writes execute through the durable operation ledger without mandatory
+Growth human approval. Private drafts/media record `requested_draft`; public/destructive content
+execution records `requested_action`. Neither value means a human approval was observed. Historical
+`growth_ui`, `mcp_form`, `mcp_app` and null provenance remains intact. Non-content reviews are unchanged.
+
+`content.actions.preview` is an optional normal model-readable operation. It freezes exact input,
+content/media/account revisions, destinations, timing and readiness. Preview-only calls return
+`prepared` and never contact providers. A supplied `_previewId` is checked against current authority,
+unchanged input and expiry before execution; execution without one validates the current snapshot.
+The MCP adapters use ordinary tools with accurate write/destructive annotations. There is no
+mandatory form, embedded approval card, app-only confirm control or browser approval detour.
+
+Existing manual review pages still inspect their persisted requests. Their polling only reads
+state. Internal content actions use the same canonical handlers, current authority and receipts
+without a public MCP round trip. Ordinary calls do not fabricate approved events. Verify direct
+MCP content execution, optional preview, duplicate/unknown outcomes and revoked/stale denials rather
+than requiring a custom card render or button click.
 
 An executing or uncertain receipt must be reconciled before retry; do not mint a fresh request
 identity to force another effect. A succeeded receipt returns the stored result. Revocation or
@@ -219,7 +238,7 @@ Final full-suite and cross-product runtime evidence belongs in the implementatio
 
 Start with disabled flags, apply the additive schema in a controlled environment, configure
 issuer/frontend/origins, and enable access for an owned test workspace. Exercise discovery,
-real OAuth authorization/refresh, scoped tool listing, exact review, approved resume, independent
+real OAuth authorization/refresh, scoped tool listing, optional exact previews, direct authorized content execution, independent
 revocation and actual internal/REST/MCP result comparison. Verify user/workspace separation and
 capture the deployed release/config identity. Enable effects separately only after reviewing
 provider fixtures and required provider approval.

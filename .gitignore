@@ -82,3 +82,5 @@ outreach-emails/
 __pycache__/
 *.pyc
 *.pyo
+
+# Bundled inline MCP App UI

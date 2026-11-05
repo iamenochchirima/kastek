@@ -1,14 +1,12 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
 import type { FastifyInstance } from "fastify";
-import { apiJson } from "../json.js";
 import type { CoreContext } from "../context.js";
 import { ApiError } from "../error.js";
-import { listGrowthOperations } from "./policy.js";
 import { executeGrowthOperation } from "./reviews.js";
-import { growthToolArguments, growthToolInputSchema, resolveGrowthOperationContext } from "./transport.js";
-import { auditGrowthAccess } from "./telemetry.js";
+import { growthToolArguments, resolveGrowthOperationContext } from "./transport.js";
+import { growthMcpToolList, growthMcpToolResult, handleGrowthMcp2026, isMcp2026Request } from "./mcp-2026.js";
 
 export function registerGrowthMcpRoutes(app: FastifyInstance, core: CoreContext) {
   app.post("/mcp", { bodyLimit: 4 * 1024 * 1024 }, async (request, reply) => {
@@ -26,23 +24,20 @@ export function registerGrowthMcpRoutes(app: FastifyInstance, core: CoreContext)
     const origin = request.headers.origin;
     const origins = new Set([core.config.frontendUrl, ...(core.config.env.GROWTH_MCP_ALLOWED_ORIGINS ?? "").split(",").filter(Boolean)]);
     if (origin && !origins.has(origin)) throw new ApiError(403, "origin_denied", "MCP request origin is not allowed");
-    const server = new Server({ name: "kasitek-growth", version: "1.0.0" }, { capabilities: { tools: {} } });
-    server.setRequestHandler(ListToolsRequestSchema, async () => auditGrowthAccess(core, context, "discovery", async () => ({ tools: (await listGrowthOperations(core, context)).map(operation => ({
-      name: operation.name, description: operation.description,
-      inputSchema: growthToolInputSchema(operation) as { type: "object" },
-      outputSchema: operation.outputSchema as { type: "object" },
-      annotations: { readOnlyHint: operation.effect === "read", destructiveHint: operation.effect === "destructive", idempotentHint: operation.idempotency === "required", openWorldHint: operation.effect === "external_effect" },
-    })) })));
+    if (isMcp2026Request(request)) return handleGrowthMcp2026(core, context, request, reply);
+    const version = request.headers["mcp-protocol-version"];
+    request.log.info({ event: "growth.mcp.capabilities",
+      protocol_version: typeof version === "string" && SUPPORTED_PROTOCOL_VERSIONS.includes(version) ? version : "legacy" }, "Growth MCP request capabilities");
+    const server = new Server({ name: "kasitek-growth", version: "1.3.0" }, { capabilities: { tools: {} } });
+    server.setRequestHandler(ListToolsRequestSchema, async () => growthMcpToolList(core, context));
     server.setRequestHandler(CallToolRequestSchema, async call => {
       const started = Date.now();
       try {
         const args = growthToolArguments(call.params.arguments ?? {});
         const value = await executeGrowthOperation(core, context, { operation: call.params.name, ...args });
-        const output = JSON.parse(apiJson(value));
-        const text = JSON.stringify(output);
-        if (Buffer.byteLength(text) > 256 * 1024) throw new ApiError(413, "operation_result_too_large", "Narrow the requested range or page size");
+        const result = growthMcpToolResult(value);
         request.log.info({ event: "growth.operation.completed", operation: call.params.name, duration_ms: Date.now() - started, outcome: value.state }, "Growth tool completed");
-        return { content: [{ type: "text" as const, text }], structuredContent: output, isError: value.state === "uncertain" };
+        return result;
       } catch (error) {
         request.log.warn({ event: "growth.operation.failed", operation: call.params.name, duration_ms: Date.now() - started, error_type: error instanceof ApiError ? error.code : "internal_error" }, "Growth tool failed");
         const value = { code: error instanceof ApiError ? error.code : "internal_error", message: error instanceof ApiError ? error.message : "Could not complete the Growth operation" };

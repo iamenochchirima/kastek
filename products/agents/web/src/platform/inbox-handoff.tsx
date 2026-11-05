@@ -96,7 +96,8 @@ export function InboxHandoff({ conversation, handoff, accountId, owner, members,
   const mine = assigneeAccountId === accountId;
   const disabled = busy || pending;
   const name = inboxAssigneeName(assigneeAccountId, members, conversation.assigneeDisplayName);
-  const title = state === "handoff_pending" ? "Waiting for a person" : state === "human_owned" ? "Human support" : state === "resolved" ? "Conversation resolved" : "Automation active";
+  const requested = conversation.humanRequest?.status === "requested";
+  const title = state === "handoff_pending" ? "Waiting for a person" : state === "human_owned" ? "Human support" : state === "resolved" ? "Conversation resolved" : requested ? "Human support requested" : "Automation active";
   const detail = state === "human_owned" ? mine ? "Assigned to you" : `Assigned to ${name}` : assigneeAccountId ? mine ? "Assigned to you" : `Assigned to ${name}` : "Unassigned";
 
   return <section ref={section} className={`inbox-handoff inbox-handoff--${state}`} aria-label="Conversation ownership">
@@ -104,7 +105,7 @@ export function InboxHandoff({ conversation, handoff, accountId, owner, members,
     <div className="inbox-handoff-actions">
       {!assigneeAccountId ? <Button size="sm" variant="outline" disabled={disabled} data-handoff-focus="claim" onClick={event => void moveAfterCommand("claim", event.currentTarget)}>Assign to me</Button> : null}
       {mine && state !== "human_owned" && state !== "resolved" ? <Button size="sm" disabled={disabled} data-handoff-focus="takeover" onClick={event => void moveAfterCommand("takeover", event.currentTarget)}>Take over</Button> : null}
-      {mine && (state === "human_owned" || state === "handoff_pending") ? <Button size="sm" variant="outline" disabled={disabled} onClick={event => void moveAfterCommand("return", event.currentTarget)}>Return to automation</Button> : null}
+      {mine && (state === "human_owned" || state === "handoff_pending") ? <Button size="sm" variant="outline" className="inbox-return-agent" disabled={disabled} onClick={event => void moveAfterCommand("return", event.currentTarget)}>Return to Agent</Button> : null}
       {mine && state !== "resolved" ? <Button size="sm" variant="outline" disabled={disabled} onClick={event => void moveAfterCommand("resolve", event.currentTarget)}>Resolve</Button> : null}
       {mine && state === "resolved" ? <Button size="sm" variant="outline" disabled={disabled} data-handoff-focus="reopen" onClick={event => void moveAfterCommand("reopen", event.currentTarget)}>Reopen</Button> : null}
       {(owner || mine) && assigneeAccountId ? <Button size="sm" variant="ghost" disabled={disabled} onClick={event => void moveAfterCommand("unassign", event.currentTarget)}>Unassign</Button> : null}

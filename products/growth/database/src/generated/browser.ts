@@ -492,6 +492,26 @@ export type SocialPostInsightObservation = Prisma.SocialPostInsightObservationMo
  */
 export type SocialPostInsightSyncState = Prisma.SocialPostInsightSyncStateModel
 /**
+ * Model ContentMediaLibraryMutation
+ * 
+ */
+export type ContentMediaLibraryMutation = Prisma.ContentMediaLibraryMutationModel
+/**
+ * Model ContentTemplate
+ * 
+ */
+export type ContentTemplate = Prisma.ContentTemplateModel
+/**
+ * Model ContentTemplateMedia
+ * 
+ */
+export type ContentTemplateMedia = Prisma.ContentTemplateMediaModel
+/**
+ * Model ContentTemplateMutation
+ * 
+ */
+export type ContentTemplateMutation = Prisma.ContentTemplateMutationModel
+/**
  * Model ContentMediaAsset
  * 
  */

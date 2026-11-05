@@ -1,3 +1,4 @@
+import {verifyHumanAssistanceEvidence} from "../product/inbox/human-assistance";
 import { createCursorCodec, cursorKeysFromEnvironment, type CursorKeys } from "../infrastructure/read-pages";
 import type { Pool, PoolClient } from "pg";
 import { PlatformError, type AgentConfiguration } from "../contracts/contracts";
@@ -117,6 +118,10 @@ export function composeInbox(pool: Pool, options: { publicOrigin: string; cursor
     ...(options.followupEnabled||options.followupAccessEnabled ? { visitorLineage:verifiedVisitorLineage } : {}),
     assertBinding: (db, binding, task) => inbox.assertBinding(db, binding, task),
     requestHandoff: (db, binding, taskId, brief, cause) => inbox.requestHandoff(db, binding, taskId, brief, cause),
+    procedureSnapshot:(...args)=>inbox.procedureSnapshot(...args),
+    verifyProcedureEvidence:verifyHumanAssistanceEvidence,
+    requestHumanAssistance:(...args)=>inbox.requestHumanAssistance(...args),
+    updateHumanAssistance:(...args)=>inbox.updateHumanAssistance(...args),
     requestHandoffV2: (db, binding, taskId, brief, feedback) => inbox.requestHandoffV2(db, binding, taskId, brief, HANDOFF_RECEIPT_DEADLINE_MS, feedback),
     publishAutomated: (db, input) => inbox.publishAutomated(db, input),
     publishEnquiryReview:(db,input)=>inbox.publishEnquiryReview(db,input),

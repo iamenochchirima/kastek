@@ -1,4 +1,6 @@
 import "./customer-workspace.css";
+import { CustomerViews } from "./customer-views";
+import { CustomerFollowupsPage } from "./customer-followups";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -103,6 +105,10 @@ type Editor =
   | { kind: "contact"; contact?: Contact }
   | { kind: "enquiry"; enquiry?: CustomerEnquiry };
 export function CustomersPage() {
+  const [params] = useSearchParams();
+  return params.get("view") === "followups" ? <CustomerFollowupsPage /> : <CustomerRecordsPage />;
+}
+function CustomerRecordsPage() {
   const { organizationId, session } = useWorkspace();
   const service = useMemo(
     () => customerRecordsApi(organizationId),
@@ -564,18 +570,7 @@ export function CustomersPage() {
           {view === "contacts" ? "Add contact" : "Add enquiry"}
         </Button>
       </header>
-      <nav aria-label="Customer views" className="customer-tabs flex border-b gap-5">
-        {(["enquiries", "contacts"] as const).map((value) => (
-          <Link
-            key={value}
-            aria-current={view === value ? "page" : undefined}
-            className={`pb-3 text-sm capitalize ${view === value ? "border-b-2 border-primary font-medium" : "text-muted-foreground"}`}
-            to={value === "contacts" ? "?view=contacts" : "?"}
-          >
-            {value}
-          </Link>
-        ))}
-      </nav>
+      <CustomerViews view={view} />
       <ErrorMessage value={error} />
       {error && !pendingUpdate ? (
         <Button

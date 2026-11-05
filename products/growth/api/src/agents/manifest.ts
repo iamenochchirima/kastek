@@ -1,5 +1,6 @@
 import type { ProductCapabilityDescriptor, ProductCapabilityManifest, GrowthAgentDelegationPolicy, GrowthAgentFeatureId } from "@kasitek-labs/contracts";
 import { growthAgentDigest } from "./security.js";
+import { growthOperationDescriptors } from "../operations/manifest.js";
 const object=(properties:Record<string,unknown>,required:string[]=[])=>({type:"object",properties,required,additionalProperties:false});
 const identifier={type:"string",minLength:1,maxLength:256};
 const continuation={type:"string",maxLength:2048};
@@ -106,6 +107,21 @@ const {digest:retainedDigest,...retainedBody}=growthAgentPublicationV12.manifest
 void retainedDigest;
 const connectionBody={...retainedBody,revision:"13",adapter:{id:connectionAdapter.id,release:connectionAdapter.release,manifestDigest:growthAgentDigest(connectionAdapter)}};
 export const growthAgentPublicationV13={...growthAgentPublicationV12,manifest:{...connectionBody,digest:growthAgentDigest(connectionBody)},policy:{...growthAgentPublicationV12.policy,revision:"13"}};
-export const growthAgentPublication=growthAgentPublicationV13;
+
+
+const consolidatedAdapter={...growthAdapterManifest,release:"10",executableDigest:growthAgentDigest({release:"growth-operations-v2",
+  handlers:growthOperationDescriptors.map(operation=>operation.handlerRef),modelProjection:"growth-content-post-read-v1"})};
+const consolidatedBody={schemaVersion:1 as const,product:"growth",revision:"13",adapter:{id:consolidatedAdapter.id,release:consolidatedAdapter.release,manifestDigest:growthAgentDigest(consolidatedAdapter)},operations:growthOperationDescriptors};
+export const growthAgentPublicationV13Consolidated = {...growthAgentPublicationV12,
+ manifest:{...consolidatedBody,digest:growthAgentDigest(consolidatedBody)},
+ presets:growthAgentPublicationV12.presets.map(preset=>({...preset,
+  operations:growthOperationDescriptors.filter(operation=>preset.id==="research"||preset.id==="campaigns"?operation.policy.effect==="read":preset.id==="content"?/^(content\.|operations\.reviews\.|workspace\.|connections\.|analytics\.)/.test(operation.operation):true).map(operation=>operation.operation),
+ })),
+ policy:{...growthAgentPublicationV12.policy,revision:"13"}
+};
+
+const currentBodyV14={...consolidatedBody,revision:"14"};
+export const growthAgentPublication={...growthAgentPublicationV13Consolidated,manifest:{...currentBodyV14,digest:growthAgentDigest(currentBodyV14)},policy:{...growthAgentPublicationV13Consolidated.policy,revision:"14"}};
+
 export const growthCapabilityManifest = growthAgentPublication.manifest;
 export const growthAgentPresets = growthAgentPublication.presets;

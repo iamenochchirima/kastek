@@ -30,6 +30,7 @@ const sidebars = {
         "operations/conversations",
         "operations/audio-input",
         "operations/social-connections",
+        "operations/content-reuse",
       ],
     },
     {

@@ -1,3 +1,5 @@
+import { procedureModelTools } from "../contracts/procedure-tools";
+import { procedureToolNames } from "../contracts/procedures";
 import { orchestrationContracts } from "../contracts/orchestration";
 import { z } from "zod";
 import { PlatformError,requestDigest,type AgentConfiguration } from "../contracts/contracts";
@@ -7,9 +9,10 @@ import { PROTOCOL_TOOL_NAMES, protocolToolBindings } from "./protocol-tools";
 import { builtinContract } from "./tool-contracts";
 export { fitUtf8 } from "../infrastructure/utf8";
 
-export const BUILTIN_MODEL_ALIASES = Object.freeze({ tools_discover:"tools.discover", tools_load:"tools.load", artifact_create:"artifact.create", tasks_inspect: "tasks.inspect", tasks_cancel: "tasks.cancel", knowledge_search: "knowledge.search", knowledge_read: "knowledge.read",
+export const BUILTIN_MODEL_ALIASES = Object.freeze({ procedures_discover:"procedures.discover",procedures_load:"procedures.load",procedures_start:"procedures.start",procedures_inspect:"procedures.inspect",procedures_update:"procedures.update",procedures_cancel:"procedures.cancel",support_request_assistance:"support.request_assistance",support_update_assistance:"support.update_assistance", tools_discover:"tools.discover", tools_load:"tools.load", artifact_create:"artifact.create", tasks_inspect: "tasks.inspect", tasks_cancel: "tasks.cancel", knowledge_search: "knowledge.search", knowledge_read: "knowledge.read",
   memory_search: "memory.search", memory_read:"memory.read", memory_propose: "memory.propose", skills_activate: "skills.activate", skills_read: "skills.read", skills_run:"skills.run", agents_delegate: "agents.delegate", agents_discover:"agents.discover",agents_start:"agents.start",agents_status:"agents.status",agents_result:"agents.result",agents_wait:"agents.wait",agents_followup:"agents.followup",agents_cancel:"agents.cancel",work_update:"work.update",work_inspect:"work.inspect", sandbox_analyze: "sandbox.analyze", booking_availability:"booking.availability",booking_reserve:"booking.reserve",enquiry_submit:"enquiry.submit",enquiry_read:"enquiry.read",enquiry_amend:"enquiry.amend",records_search:"records.search",records_update:"records.update",channel_request_handoff: "channel.request_handoff", support_request_handoff: "support.request_handoff", support_request_handoff_v2: "support.request_handoff_v2", support_get_status: "support.get_status", support_get_status_v2: "support.get_status_v2" } as const);
 export function builtinToolEnabled(config: AgentConfiguration, name: string): boolean {
+  if((procedureToolNames as readonly string[]).includes(name)) return Boolean(config.procedures?.length) && config.tools.includes("channel.request_handoff") && config.tools.includes("support.get_status_v2");
   if(name === "tools.discover" || name === "tools.load") return config.executionKind === "business";
   if(name === "memory.read") return config.memory.enabled && (config.tools.includes("memory.read") || config.tools.includes("memory.search"));
   if(name.startsWith("agents.")&&name!=="agents.delegate"||name.startsWith("work.")) return config.program.id==="tool-directed"&&config.program.version==="4"&&config.capabilities.delegation.enabled&&config.tools.includes(name as AgentConfiguration["tools"][number]);
@@ -81,6 +84,7 @@ export function toolsFor(config: AgentConfiguration, connectedTools: readonly To
       tool.function.parameters={type:"object",properties:{query:{type:"string",maxLength:512}},required:["query"],additionalProperties:false};
     }
   }
+  result.push(...procedureModelTools(config));
   if(builtinToolEnabled(config,"artifact.create"))result.push({type:"function",function:{name:"artifact_create",
     description:"Create a downloadable text, Markdown or JSON file when a file is useful for the request. The file stays in this task and is not sent externally.",
     parameters:z.toJSONSchema(builtinContract("artifact.create")!.input)}});

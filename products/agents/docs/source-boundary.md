@@ -14,6 +14,33 @@ Shared errors, initiating principals and canonical request digests are defined i
 execution validates complete model-message groups. Support schedule calculations and aggregate
 presence reads belong to the support capabilities; Inbox owns presence updates and waiting notices.
 
+## Business workflow boundary
+
+`contracts/procedures.ts` owns versioned definition references and durable progress contracts.
+`contracts/procedure-definitions.ts` contains the first immutable playbook,
+`after-hours-assistance@1`; `execution/procedures/store.ts` owns instance/revision/idempotency
+storage. Schemas116/117 add procedure state and the independent human-assistance request domain.
+`capabilities/procedure-tools.ts` exposes discovery, loading, lifecycle and support request tools
+to the existing business model loop. Procedures grant no capability authority.
+
+Per-agent `configuration.procedures` defaults to empty. The authenticated
+`GET /api/organizations/:organizationId/agents/:agentId/procedures` catalogue powers
+Configure → Tools → Workflows. Execution intersects selected accepted/current definitions with
+trusted organization, agent, conversation and channel authority. Cross-agent visibility is denied.
+The current runtime remains `product-capabilities-v15` / `AgentsBusinessRunV25`.
+
+Inbox owns human requests, optional customer-evidenced contact preferences, historical customer notices,
+assignment and speaking ownership. After-hours request tools save state without appending or enqueueing
+a customer message. The agent publishes the conversational reply through the normal output path. A requested human can coexist with active agent replies;
+staff takeover and explicit human-only choice fence those replies. Procedure completion checks
+actual domain receipts and unresolved effects. Model claims, queue admission or a saved contact
+preference cannot prove delivery, human response or a callback. The existing ownership-changing
+handoff remains a distinct path for configurations without this opt-in.
+
+[Business workflows](operations/business-procedures.md) records contracts and release limits.
+Deployment and rollback are joint owner steps pending; neither these source boundaries nor
+focused local checks establish production rollout or live-model acceptance.
+
 ## Private organization assistant
 
 `/app/assistant` opens an ordinary organization business agent and its current member's private
@@ -51,17 +78,23 @@ is added.
 
 ## Native customer records
 
-`/app/customers` exposes Enquiries and Contacts. Real confirmed channel submissions project
-transactionally into schema078 records. Unconfirmed/rejected submissions, private operator tests
-and evaluation trials never create ordinary contacts or follow-up records. No historical backfill
-runs. Original submitted evidence remains in the existing enquiry store and Inbox reads.
+`/app/customers` exposes Enquiries, Contacts and Follow-ups. Real confirmed channel submissions
+project transactionally into schema078 records. Validated human-support contact saves also
+project into Contacts in the same transaction. Follow-ups reads the existing support requests,
+including their reason, preferred contact, status, assignee, agent and original Inbox conversation.
+Unconfirmed/rejected submissions, private operator tests and evaluation trials do not create
+ordinary contacts. Original evidence remains in the enquiry/request store and Inbox reads.
+The explicit `pnpm --filter @kasitek/agents backfill:support-contacts` command brings previously
+saved support contact preferences into Contacts. It is repeatable and does not log contact values.
 Website contact association uses deployment/session identity; messaging uses deployment/verified
-sender identity. No email/phone matching or cross-channel merging occurs.
+sender identity. No email/phone matching or cross-channel merging occurs. Support projection fills missing
+contact fields and preserves existing staff corrections; repeated saves do not increment revisions.
 
 Membership-authorized APIs are under `/api/organizations/:organizationId/customer-records`:
 
 | Route | Contract |
 | --- | --- |
+| GET `/followups` | Search support requests and filter by requested/human-owned/completed/withdrawn status; signed stable cursors, limit1–100. Returns contact and Inbox links without duplicating request state. |
 | GET `/members` | Current staff eligible for assignment. Revoked assignees remain visibly former members until reassigned. |
 | GET `/enquiries` | Search and filter by status, assignee, due date, agent, conversation or contact; signed stable cursors, limit1–100. |
 | GET `/enquiries/:id` and `/enquiries/:id/activity` | Current and original fields, permitted source/booking references and paginated internal activity. An original submitted enquiry ID resolves its projected record. |
@@ -299,13 +332,29 @@ colour, title, greeting, avatar URL, position, window size, corner radius, launc
 suggested messages and branding visibility. Settings use current owner authorization and
 optimistic appearance digests. Existing JSON settings receive recovered defaults; no schema
 migration is required. Avatars permit HTTPS or local development HTTP and use no referrer.
-The widget can start and switch separate conversations in one browser tab. Each uses its own
-visitor session and pending request, stored in that tab's session storage. Switching waits for
-in-flight requests to finish. An expired session does not grant access to its earlier conversation.
+The website widget shows one active conversation. New conversation starts a separate visitor
+session after in-flight requests finish; the header has no conversation selector. The active
+session and pending request survive reloads in the same browser tab. Previous conversations
+remain in the staff Inbox. An expired session does not grant access to its earlier conversation.
 Rejected sends retain their text and a separate visible error through background refreshes.
 An unknown send outcome retains its original request key for retry. Model-configuration failures
 show a temporary-unavailability message to visitors; owners configure the provider and default
 model under Settings → Model providers. A connected website alone does not establish reply readiness.
+The widget shows responding dots and elapsed seconds for the current automated turn. Visitor
+message reads expose bounded response activity from the authorized conversation's current
+ownership generation. Once acknowledged, timing runs from server message acceptance to the
+published assistant message, including queue and tool time. The completed duration remains on
+that reply as seconds only, such as `2s`, with an explanatory tooltip and accessible label. Human ownership, handoff, resolution and terminal failures stop the animation;
+reduced-motion mode keeps a static indicator. After 60 seconds, the indicator says the reply is
+taking longer than expected while the execution remains active; this does not imply cancellation
+or failure. For an uncertain outcome the widget asks the visitor to check before trying again and
+does not automatically resend the accepted message. Response activity does not expose task IDs or
+private errors.
+Assistant and staff replies render a limited Markdown subset: paragraphs, headings, emphasis,
+code, lists, pipe tables and HTTP/HTTPS links. Tables keep their header and cell structure and
+scroll within the message on narrow screens. The widget builds DOM nodes without interpreting raw HTML;
+unsupported syntax remains text. Visitor messages remain literal. Rendering does not change
+stored message bodies, model instructions or tool execution.
 Audio recording and arbitrary file uploads remain unavailable and have no widget controls.
 
 Website connection input accepts bare domains such as `kasitek.co.za` and stores the exact
@@ -673,7 +722,7 @@ these mocked transports do not establish live model acceptance.
 
 Direct agent chat and principal-scoped conversation history are implemented. Customer website
 messages have a separate canonical timeline with staff assignment, human takeover/replies,
-resolution and explicit return to automation. Human-owned ingress does not admit model work.
+resolution and explicit return to automation through the green **Return to Agent** action. Human-owned ingress does not admit model work.
 Returning control admits only a new visitor message. Generation checks suppress late automated
 output and fence subsequent operations, including inherited specialist authority.
 The automation occurrence inbox below is an event deduplication mechanism, not a customer inbox.
@@ -1372,7 +1421,7 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 | `/app/agents` | Searchable, paginated agent directory with configuration-status filters, selected-agent responsibilities, connected channels and latest customer-conversation update. Chat and configuration open from the selected agent; conversation history appears in its chat workspace. | `agent-entry-directory.spec.ts`, chat workspace and discovery regression suites. |
 | `/app/agents/:agentId` | Chat, Activity, General/Tools/Skills/Website setup, immutable skill selection, exact-revision requirement repair, contextual compatible Analysis access and optional pinned booking policy. Connect saves draft selections before navigation. | `catalogue.spec.ts`, `skill-requirements.spec.ts`, `bookings.spec.ts`, and actual API `catalogue-live.spec.ts` / `catalogue-execution-live.spec.ts`. |
 | `/app/agents/:agentId/conversations/:conversationId` | Authorized history scoped to its original agent and principal, per-turn configuration snapshots, current-policy output and inline report review. | Scope/recovery browser regressions and PostgreSQL history tests. |
-| `/app/customers` | Enquiry and contact lists with follow-up, activity and authorized Inbox links. Desktop can show a selected record beside the list; smaller screens open the detail view. | `customer-records.spec.ts` and native record database checks. |
+| `/app/customers` | Enquiry, contact and support follow-up lists with activity and authorized Inbox links. Desktop can show a selected record beside the list; smaller screens open the detail view. | `customer-records.spec.ts` and native record database checks. |
 | `/app/tasks` | Paginated authorized root tasks, filters and conversation/review links. | Actual PostgreSQL collection tests and browser navigation checks. |
 | `/app/settings` | Real account/workspace identity, workspace creation/switching, theme and sign-out. | Settings browser checks and theme tracking regression. |
 | `/app/knowledge` | Upload text/PDF/HTML, import one public URL, inspect candidates, approve, adopt revisions and withdraw. | Actual compiled ingestion, crash recovery and responsive browser acceptance. |
@@ -2183,6 +2232,25 @@ reclaimed after its transport deadline through the normal capacity phase. Ordina
 250 ms. Connected-read reconciliation may separately retry its existing status
 check with a bounded durable delay.
 
+Built-in tool dispatch awaits asynchronous validation and converts schema failures to bounded
+`TOOL_ARGUMENTS_INVALID` feedback. The agent receives guidance to clarify questionable inputs,
+confirm suggested changes and describe only effects established by receipts; model wording is not
+deterministically guaranteed. Contact email and phone formats are checked before saving.
+Operation admission journal retries are bounded to three attempts; an unconfirmed admission is
+reported uncertain. Human approval and authority waits retain their continuation behavior.
+A database or worker outage can prevent settlement until service recovers.
+Unexpected errors after operation admission settle as `OPERATION_OUTCOME_UNCERTAIN` rather than
+blindly repeating a possible effect. Customer root tasks whose authority expires terminate instead
+of waiting for an unavailable renewal. New customer turns have a deadline no later than their
+existing grant expiry or an earlier configured wall limit. Cancellation may still be delayed if
+the database, runtime or worker is unavailable; an adapter that ignores cancellation may finish
+late, requiring reconciliation before retry. Other tasks without a configured deadline are not
+generally bounded.
+When the dispatcher records customer deadline cancellation, the website reports the reply outcome
+as uncertain while cancellation continues. Late customer completion is fenced from publication;
+already terminal results remain unchanged. Connected messaging channels use the separate
+receipt-backed notice described below.
+
 A known provider outcome is retained in the Restate journal before native receipt
 persistence starts. The receipt step may retry three recognized PostgreSQL failures
 locally, then Restate retries that durable step using the journaled outcome. It never
@@ -2493,3 +2561,27 @@ composition for OAuth, tool discovery, agent creation/configuration, private-pre
 website review. Restate preview completion is conditional on the test binary; live hosted-client
 compatibility and serving rollout require separate evidence.
 See [integration boundaries](mcp-integration.md#standalone-agents-mcp-server).
+### Unavailable historical execution releases
+
+Conversation planning omits a prior turn when its program, workflow or harness release is no
+longer available. It records the omission reason and includes a bounded context notice so the
+model can ask for missing information instead of inventing history. Current-task publication,
+authority and release validation remain strict. This handles unavailable history; it does not
+make an old executable release available or restore its customer-visible output.
+
+This correction is rolled out to the local Agents API and worker through `dev:local restart`;
+production is excluded. No API/schema migration, permission change, analytics event or new
+alert is required. Existing omission codes and bounded context metadata provide diagnosis.
+Validation covers the release-drift history regression, strict current-release rejection, build
+and module boundaries, plus a same-conversation local check. Rollback restores the preceding
+API/worker artifact; it does not modify stored tasks or conversation records.
+
+
+Customer channel timeouts use platform-owned `customer_timeout_notices` receipts, not model output.
+Migration 130 must be applied before API and worker rollout. The worker derives each notice from a
+deadline cancellation event, original scoped turn and nonrevoked grant, and enqueues it on the same
+active conversation and destination. It suppresses the notice when later conversation activity exists.
+The channel worker revalidates receipt provenance, current ownership, connection revision and provider
+policy immediately before send. Failed and unknown provider outcomes are recorded by the existing
+outbox; an unknown acknowledgement is not automatically resent. The notice does not prove whether an
+earlier external side effect happened. Database or dispatcher downtime can delay it.

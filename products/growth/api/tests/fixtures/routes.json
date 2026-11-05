@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generatedBy": "scripts/refresh-route-contracts.ts",
-  "routeCount": 393,
+  "routeCount": 397,
   "routes": [
     "DELETE /api/admin/invoices/:id",
     "DELETE /api/admin/leads/:id",
@@ -79,6 +79,7 @@
     "GET /api/agents/conversations/:conversationId",
     "GET /api/agents/draft-destinations",
     "GET /api/agents/features/:featureId/memory",
+    "GET /api/agents/features/:featureId/models",
     "GET /api/agents/features/:featureId/resources",
     "GET /api/agents/features/:featureId/resources/preview",
     "GET /api/agents/tasks",
@@ -229,6 +230,7 @@
     "PATCH /api/admin/web-services/:id",
     "PATCH /api/agents/conversations/:conversationId/context",
     "PATCH /api/agents/features/:featureId/memory/settings",
+    "PATCH /api/agents/features/:featureId/model",
     "PATCH /api/agents/tasks/:taskId/reviews/:reviewId",
     "PATCH /api/bookings/:id",
     "PATCH /api/bookings/services/:id",
@@ -309,6 +311,8 @@
     "POST /api/agents/features/:featureId/sources",
     "POST /api/agents/features/:featureId/sources/review",
     "POST /api/agents/features/:featureId/sources/state",
+    "POST /api/agents/features/:featureId/upgrade/apply",
+    "POST /api/agents/features/:featureId/upgrade/preview",
     "POST /api/agents/reviews/:reviewId/decision",
     "POST /api/agents/tasks/:taskId/cancel",
     "POST /api/agents/tasks/:taskId/continue",

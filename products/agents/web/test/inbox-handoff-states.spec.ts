@@ -88,7 +88,7 @@ test("handoff requires assignment before takeover and enables reply only after t
   await handoff.getByRole("button", { name: "Take over" }).click();
   await expect(handoff.getByText("Human support")).toBeVisible();
   await expect(page.getByLabel("Reply to customer")).toBeVisible();
-  await handoff.getByRole("button", { name: "Return to automation" }).click();
+  await handoff.getByRole("button", { name: "Return to Agent" }).click();
   await expect(handoff.getByText("Automation active")).toBeVisible();
   await expect(page.getByLabel("Reply to customer")).toHaveCount(0);
   expect(commands.map(command => command.action)).toEqual(["claim", "takeover", "return"]);

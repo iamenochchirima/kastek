@@ -151,10 +151,11 @@ export class AdmissionStore extends AuthorityStore {
     [input.taskId ?? randomUUID(), input.authority.product, input.authority.organizationId, input.authority.resourceId, input.authority.callerClientId, input.authority.principal,
       input.versionId, grant.id, conversationId, requestKey, digest, input.input, sequence, models.primary.policy.maxRootTokens, composition, input.evaluationTrialId ?? null,input.channelBinding??null,composition.runtime.release,input.continuationOf??null,...(episodeCommandId?["support_status_v1"]:privatePreview?["private_preview_v1"]:[])])).rows[0]!;
     const policyVersion=models.primary.policy.revision==="model-execution-policy-v1"?1:2;
+    const customerDeadline = input.authority.principal.kind === "visitor" || input.authority.principal.kind === "channel_customer" ? grant.expiresAt : null;
     const admitted=(await db.query(`UPDATE agents_platform.tasks SET execution_policy_version=$2,
-      deadline_at=CASE WHEN $2=1 THEN deadline_at WHEN $3::double precision IS NULL THEN NULL
-        ELSE created_at+($3::double precision * interval '1 millisecond') END
-      WHERE id=$1 RETURNING deadline_at,execution_policy_version`,[task.id,policyVersion,models.primary.policy.maxWallDurationMs])).rows[0];
+      deadline_at=LEAST($4::timestamptz, CASE WHEN $2=1 THEN deadline_at WHEN $3::double precision IS NULL THEN NULL
+        ELSE created_at+($3::double precision * interval '1 millisecond') END)
+      WHERE id=$1 RETURNING deadline_at,execution_policy_version`,[task.id,policyVersion,models.primary.policy.maxWallDurationMs,customerDeadline])).rows[0];
     Object.assign(task,admitted);
     await db.query("INSERT INTO agents_platform.execution_roots(root_task_id) VALUES($1)", [task.id]);
     if(config.program.id==="tool-directed"&&config.program.version==="4") await recordOrchestrationLifecycle(db,{organizationId:task.organization_id,key:task.id,action:"started",outcome:"pending",occurredAt:new Date(task.created_at).toISOString()});

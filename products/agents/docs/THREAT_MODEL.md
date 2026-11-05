@@ -90,6 +90,9 @@ launch and output publication. The original operation deadline and root budget b
 existing finalization and the independent reaper retain cleanup responsibility.
 
 Every tool call passes server validation against the selected configuration.
+The built-in dispatcher awaits asynchronous handlers inside its validation boundary,
+so schema rejections return `TOOL_ARGUMENTS_INVALID` to the agent instead of causing
+durable infrastructure retries. Unexpected infrastructure failures retain retry semantics.
 The current tools search or read approved knowledge, read personal memory, or
 propose a candidate, delegate bounded specialist work, or request isolated analysis. The model cannot directly dispatch external report writes. Memory
 acceptance, correction, and forgetting require authenticated management actions.

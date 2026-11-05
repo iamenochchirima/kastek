@@ -1,3 +1,5 @@
+import type {ProcedureDomainSnapshot} from "./procedure-domain";
+import type {ProcedureScope,ProcedureEvidence} from "./procedures";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { dependencyManifestSchema } from "./source-contracts";
@@ -30,6 +32,11 @@ export interface VisitorLineage {
   current: { deploymentId: string; sessionId: string }; origin: { deploymentId: string; sessionId: string }; originTaskId?: string;
 }
 export interface ChannelExecutionPorts {
+  procedureSnapshot?(db:PoolClient,scope:ProcedureScope,binding:ChannelBinding,taskId:string):Promise<ProcedureDomainSnapshot>;
+  verifyProcedureEvidence?(db:PoolClient,scope:ProcedureScope,evidence:ProcedureEvidence):Promise<boolean>;
+  requestHumanAssistance?(db:PoolClient,binding:ChannelBinding,taskId:string,input:unknown):Promise<{requestId:string;status:"requested"|"human_owned"|"completed"|"withdrawn";state:string;noticeMessageId:string|null;supportFacts:unknown}>;
+  updateHumanAssistance?(db:PoolClient,binding:ChannelBinding,taskId:string,input:unknown):Promise<{requestId:string;status:"requested"|"human_owned"|"completed"|"withdrawn";state:string;noticeMessageId:string|null;supportFacts:unknown}>;
+
   assertBinding(db: Pool | PoolClient, binding: ChannelBinding, task: { organization_id: string; version_id: string; root_task_id: string }): Promise<void>;
   requestHandoff(db: PoolClient, binding: ChannelBinding, taskId: string, brief?: HandoffBrief, cause?: { bookingOperationId: string }): Promise<{ state: "handoff_pending" }>;
   requestHandoffV2?(db: PoolClient, binding: ChannelBinding, taskId: string, brief: HandoffBrief, feedback?: HandoffFeedbackRequest): Promise<{ state: "handoff_pending" }>;

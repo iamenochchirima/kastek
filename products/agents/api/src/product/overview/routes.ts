@@ -19,7 +19,8 @@ export function registerOverviewRoutes(app: FastifyInstance, options: {
           SELECT (date_trunc('day', now() AT TIME ZONE 'UTC') - ($2::int - 1) * interval '1 day') AT TIME ZONE 'UTC' AS start_at,
                  now() AS end_at
         ), conversations AS (
-          SELECT c.id, c.agent_id, a.name AS agent_name, c.channel_kind, c.state, c.created_at, c.updated_at
+          SELECT c.id, c.agent_id, a.name AS agent_name, c.channel_kind, c.state, c.created_at, c.updated_at,
+            EXISTS(SELECT 1 FROM agents_platform.human_assistance_requests h WHERE h.conversation_id=c.id AND h.status='requested') AS human_requested
           FROM agents_platform.customer_conversations c
           JOIN agents_platform.agents a ON a.id = c.agent_id AND a.organization_id = c.organization_id
           WHERE c.organization_id = $1
@@ -30,7 +31,7 @@ export function registerOverviewRoutes(app: FastifyInstance, options: {
         ), recent AS (
           SELECT * FROM conversations ORDER BY updated_at DESC, id DESC LIMIT 5
         ), attention AS (
-          SELECT * FROM conversations WHERE state = 'handoff_pending' ORDER BY updated_at DESC, id DESC LIMIT 5
+          SELECT * FROM conversations WHERE state = 'handoff_pending' OR human_requested ORDER BY updated_at DESC, id DESC LIMIT 5
         ), daily AS (
           SELECT to_char(day, 'YYYY-MM-DD') AS date,
             (SELECT count(*)::int FROM in_period c WHERE (c.created_at AT TIME ZONE 'UTC')::date = day::date) AS count
@@ -43,7 +44,7 @@ export function registerOverviewRoutes(app: FastifyInstance, options: {
           'period', json_build_object('days', $2::int),
           'counts', json_build_object(
             'conversations', (SELECT count(*)::int FROM in_period),
-            'needsAttention', (SELECT count(*)::int FROM conversations WHERE state = 'handoff_pending'),
+            'needsAttention', (SELECT count(*)::int FROM conversations WHERE state = 'handoff_pending' OR human_requested),
             'enquiries', (SELECT count(*)::int FROM agents_platform.customer_record_enquiries e CROSS JOIN bounds b
               WHERE e.organization_id = $1 AND e.created_at >= b.start_at AND e.created_at <= b.end_at),
             'activeAgents', (SELECT count(DISTINCT agent_id)::int FROM in_period)

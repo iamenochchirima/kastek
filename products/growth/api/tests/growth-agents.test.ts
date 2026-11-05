@@ -19,7 +19,7 @@ test("Growth synchronizes its current publication before direct resource calls a
   const client=new GrowthAgentClient(settings,{fetch:(async(_url,init)=>{
     const command=parseGrowthAgentCommand(JSON.parse(String(init?.body)));operations.push(command.operation);
     if(command.operation==="features.list"){
-      assert.equal(command.input.publication?.manifest.revision,"11");assert.equal(command.input.publication?.policy.optionalCapabilities.knowledge,true);
+      assert.equal(command.input.publication?.manifest.revision,"14");assert.equal(command.input.publication?.policy.optionalCapabilities.knowledge,true);
       return Response.json({features:[],model:null});
     }
     assert.equal(command.operation,"resources.list");assert.deepEqual(command.actor,actor);return Response.json({featureId:"assistant",revision:1});

@@ -7,6 +7,38 @@ product capabilities alongside native and connected tools. Instructions, selecte
 capabilities and current authority determine an agent's available work. A preset
 name does not select a separate execution engine or grant access.
 
+## Business workflows
+
+Agents may select immutable playbook references in `configuration.procedures`, default `[]`.
+Configure → Tools → Workflows exposes the per-agent catalogue. `after-hours-assistance@1`
+provides the first **After-hours support** workflow. The ordinary agent discovers and loads
+selected definitions through `procedures.*`, while durable instances track revision-checked
+progress and verified domain receipts. A definition never expands tool or tenant authority.
+
+Support facts come from the backend. The agent gives the customer-facing workflow reply;
+request tools save state without sending an additional system message. Human-assistance request tools keep a pending human
+request independent from agent speaking ownership; staff takeover and explicit human-only
+choices still fence automated work. Optional contact preferences are customer-evidenced data,
+not promises of an outbound call or message. Only verified domain outcomes can satisfy workflow
+completion. Cancellation does not undo recorded effects or withdraw the separate support request.
+
+Schemas116/117 store instances, commands and human requests. Definition version1 opt-in does
+not change `product-capabilities-v15` / `AgentsBusinessRunV25`. This capability is separate
+from `capabilities.workflows`, the existing report-delivery feature. See
+[Business workflows](operations/business-procedures.md) for API, scope, receipt and rollout rules.
+
+## Customer follow-ups
+
+`/app/customers` includes Contacts and Follow-ups alongside Enquiries. Customer-consented support
+details populate Contacts automatically using the verified website participant or channel sender.
+Follow-ups shows the saved request, preferred contact, status, assignee, agent and original
+conversation. Existing saved preferences can be brought across with the explicit support-contact
+backfill command. A matching email alone never merges customers.
+
+Agents ask for a name when collecting contact preferences, reuse details already supplied and
+save an email/phone promptly if the name is not yet available. A customer may decline a name
+without losing their support request. No email or call is sent by saving these details.
+
 ## Publication and installation
 
 Shared contracts in `packages/contracts/src/product-capabilities.ts` describe

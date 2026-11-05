@@ -1,14 +1,15 @@
 ---
 title: MCP integration
 owner: engineering
-last_reviewed: 2026-11-01
+last_reviewed: 2026-11-02
 ---
 
 # MCP integration
 
 Growth implements an OAuth-protected MCP endpoint at `<Growth API origin>/mcp`.
-It uses Streamable HTTP POST with JSON responses. GET/SSE sessions and DELETE session
-termination are not supported. Availability depends on the deployment's agent-access flag;
+It accepts HTTP POST with JSON responses. Legacy clients use Streamable HTTP; clients using
+protocol `2026-07-28` use stateless discovery and per-request capabilities. GET/SSE sessions and
+DELETE session termination are not supported. Availability depends on the deployment's agent-access flag;
 source support does not establish that a hosted endpoint has been enabled.
 
 Open **Developers → MCP** for the configured endpoint and your agent connections. Add that
@@ -29,23 +30,38 @@ permissions and supported account type for the requested operation.
 | Scope | Authority |
 | --- | --- |
 | `growth:read` | Authorized workspace records, including content and customer data permitted by the operation. |
-| `growth:draft` | Reviewed draft and internal record changes. |
-| `growth:publish` | Reviewed publication, scheduling, message sending and other external effects. |
-| `growth:manage` | Reviewed destructive or account-management operations. |
+| `growth:draft` | Requested private content drafts/media; reviewed changes to other internal records. |
+| `growth:publish` | Content publication and scheduling; reviewed message sending and other external effects. |
+| `growth:manage` | Authorized content deletion; reviewed non-content destructive or account-management operations. |
 
-`tools/list` returns only currently permitted canonical operations. Current membership,
-credential scope and entitlements are rechecked when a tool runs. The same operations, schemas,
-results and review rules serve [REST](./agent-rest.md) and internal Growth agents; internal agents
-call the application directly rather than making an MCP request. The standalone Agents product
-retains separate identity, storage and configuration.
+`tools/list` returns currently permitted business operations. Current membership, credential
+scope and entitlements are rechecked when a tool runs. MCP, [REST](./agent-rest.md) and internal
+Growth agents share the same handlers and content execution rules. Internal agents call the
+application directly; the standalone Agents product retains separate identity and storage.
 
-Non-read calls require `_requestId`, a stable request identity. The response supplies
-`state: "approval_required"`, `_reviewId`'s value in `review.id`, a payload digest and `reviewUrl`.
-The user reviews the saved copy, accounts, media and target identity where applicable, and approves or rejects the exact proposed input in Growth. Approval alone does not execute
-an action. Resume with the same arguments, `_requestId` and `_reviewId`. Never create a new
-request identity to retry an uncertain provider result. Tool results are bounded; follow the
-returned `_continuation` using unchanged business arguments to read further JSON chunks.
-Large media uses reviewed staged transfers rather than placing entire files in tool results.
+## Content actions and optional previews
+
+Authorized content writes execute directly with a stable `_requestId`. This includes private
+drafts/media, publication, scheduling, retries, cancellation, deletion and supported published-post
+updates. Growth does not require a separate approval page, form, card or approval token. Client
+confirmation follows the MCP client's settings. A client tool call is delegated execution authority,
+not evidence that Growth observed a human approval.
+
+Use `content.actions.preview` when you need to inspect exact content before execution. Supply the
+action name, business `input` and a stable `requestId`. The model-readable result includes saved
+copy and platform variants, ordered media, selected accounts, timing/timezone, proposed changes
+and readiness errors. Previewing does not change content or contact a provider. It is optional.
+
+To bind an action to that preview, pass its `_previewId`, unchanged business input and the same
+`_requestId`. Changed content, media, account state or input invalidates that preview. Without a
+preview, execution validates the current snapshot. Both paths enforce current scopes, workspace
+membership, entitlements, provider readiness, durable receipts and duplicate prevention.
+Provider permissions and supported formats still differ across Facebook, Instagram, Threads,
+TikTok, LinkedIn, X and Bluesky. Non-content operations retain their existing review rules.
+
+Never create a new request identity to retry an uncertain result. Tool results are bounded;
+follow `_continuation` with unchanged business arguments to read further JSON chunks. Large media
+uses staged transfers rather than placing entire files in tool results.
 
 Access tokens expire after one hour; refresh tokens expire after 30 days. Refresh rotates the
 access and refresh tokens. Reusing an old refresh token revokes that connection. Clients must
@@ -57,3 +73,9 @@ identity-provider subject revocation invalidate them. Each connection is indepen
 OAuth metadata, consent and token routes remain available for discovery and connection lifecycle;
 operation access and effects can be disabled separately by the operator. Additional browser MCP
 origins must be explicitly allowed. Do not send tokens or private customer data to support logs.
+
+## Reusable content
+
+[Media and content templates](../operations/content-reuse.md) covers library search, metadata, usage,
+archive/restore, literal template rendering and independent draft creation. These use the same
+canonical operations across REST, MCP and internal agents.

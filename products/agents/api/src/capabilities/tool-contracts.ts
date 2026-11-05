@@ -1,3 +1,4 @@
+import { procedureToolContracts } from "../contracts/procedure-tools";
 import { orchestrationContracts, specialistFollowupV2Contract, specialistFollowupV3Contract, specialistFollowupV4Contract, specialistStartV2Contract, specialistStartV3Contract, specialistStartV4Contract } from "../contracts/orchestration";
 import { z } from "zod";
 import { PlatformError, taskStateSchema } from "../contracts/contracts";
@@ -66,6 +67,7 @@ const contracts={
 } as const;
 
 export function builtinContract(name:string,version?:string){
+  if(Object.hasOwn(procedureToolContracts,name))return procedureToolContracts[name as keyof typeof procedureToolContracts];
   const contract=Object.hasOwn(contracts,name)?contracts[name as keyof typeof contracts]:undefined;
   if(!contract)return undefined;
   if(name==="agents.start"&&version!=="1")return{...contract,...(version==="2"?specialistStartV2Contract:version==="3"?specialistStartV3Contract:specialistStartV4Contract)};

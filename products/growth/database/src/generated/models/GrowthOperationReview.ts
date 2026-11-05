@@ -36,6 +36,7 @@ export type GrowthOperationReviewMinAggregateOutputType = {
   payloadDigest: string | null
   state: string | null
   errorCode: string | null
+  decisionSource: string | null
   taskId: string | null
   conversationId: string | null
   operationId: string | null
@@ -56,6 +57,7 @@ export type GrowthOperationReviewMaxAggregateOutputType = {
   payloadDigest: string | null
   state: string | null
   errorCode: string | null
+  decisionSource: string | null
   taskId: string | null
   conversationId: string | null
   operationId: string | null
@@ -79,6 +81,7 @@ export type GrowthOperationReviewCountAggregateOutputType = {
   state: number
   result: number
   errorCode: number
+  decisionSource: number
   taskId: number
   conversationId: number
   operationId: number
@@ -101,6 +104,7 @@ export type GrowthOperationReviewMinAggregateInputType = {
   payloadDigest?: true
   state?: true
   errorCode?: true
+  decisionSource?: true
   taskId?: true
   conversationId?: true
   operationId?: true
@@ -121,6 +125,7 @@ export type GrowthOperationReviewMaxAggregateInputType = {
   payloadDigest?: true
   state?: true
   errorCode?: true
+  decisionSource?: true
   taskId?: true
   conversationId?: true
   operationId?: true
@@ -144,6 +149,7 @@ export type GrowthOperationReviewCountAggregateInputType = {
   state?: true
   result?: true
   errorCode?: true
+  decisionSource?: true
   taskId?: true
   conversationId?: true
   operationId?: true
@@ -240,6 +246,7 @@ export type GrowthOperationReviewGroupByOutputType = {
   state: string
   result: runtime.JsonValue | null
   errorCode: string | null
+  decisionSource: string | null
   taskId: string | null
   conversationId: string | null
   operationId: string | null
@@ -284,6 +291,7 @@ export type GrowthOperationReviewWhereInput = {
   state?: Prisma.StringFilter<"GrowthOperationReview"> | string
   result?: Prisma.JsonNullableFilter<"GrowthOperationReview">
   errorCode?: Prisma.StringNullableFilter<"GrowthOperationReview"> | string | null
+  decisionSource?: Prisma.StringNullableFilter<"GrowthOperationReview"> | string | null
   taskId?: Prisma.StringNullableFilter<"GrowthOperationReview"> | string | null
   conversationId?: Prisma.StringNullableFilter<"GrowthOperationReview"> | string | null
   operationId?: Prisma.StringNullableFilter<"GrowthOperationReview"> | string | null
@@ -307,6 +315,7 @@ export type GrowthOperationReviewOrderByWithRelationInput = {
   state?: Prisma.SortOrder
   result?: Prisma.SortOrderInput | Prisma.SortOrder
   errorCode?: Prisma.SortOrderInput | Prisma.SortOrder
+  decisionSource?: Prisma.SortOrderInput | Prisma.SortOrder
   taskId?: Prisma.SortOrderInput | Prisma.SortOrder
   conversationId?: Prisma.SortOrderInput | Prisma.SortOrder
   operationId?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -334,6 +343,7 @@ export type GrowthOperationReviewWhereUniqueInput = Prisma.AtLeast<{
   state?: Prisma.StringFilter<"GrowthOperationReview"> | string
   result?: Prisma.JsonNullableFilter<"GrowthOperationReview">
   errorCode?: Prisma.StringNullableFilter<"GrowthOperationReview"> | string | null
+  decisionSource?: Prisma.StringNullableFilter<"GrowthOperationReview"> | string | null
   taskId?: Prisma.StringNullableFilter<"GrowthOperationReview"> | string | null
   conversationId?: Prisma.StringNullableFilter<"GrowthOperationReview"> | string | null
   operationId?: Prisma.StringNullableFilter<"GrowthOperationReview"> | string | null
@@ -357,6 +367,7 @@ export type GrowthOperationReviewOrderByWithAggregationInput = {
   state?: Prisma.SortOrder
   result?: Prisma.SortOrderInput | Prisma.SortOrder
   errorCode?: Prisma.SortOrderInput | Prisma.SortOrder
+  decisionSource?: Prisma.SortOrderInput | Prisma.SortOrder
   taskId?: Prisma.SortOrderInput | Prisma.SortOrder
   conversationId?: Prisma.SortOrderInput | Prisma.SortOrder
   operationId?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -386,6 +397,7 @@ export type GrowthOperationReviewScalarWhereWithAggregatesInput = {
   state?: Prisma.StringWithAggregatesFilter<"GrowthOperationReview"> | string
   result?: Prisma.JsonNullableWithAggregatesFilter<"GrowthOperationReview">
   errorCode?: Prisma.StringNullableWithAggregatesFilter<"GrowthOperationReview"> | string | null
+  decisionSource?: Prisma.StringNullableWithAggregatesFilter<"GrowthOperationReview"> | string | null
   taskId?: Prisma.StringNullableWithAggregatesFilter<"GrowthOperationReview"> | string | null
   conversationId?: Prisma.StringNullableWithAggregatesFilter<"GrowthOperationReview"> | string | null
   operationId?: Prisma.StringNullableWithAggregatesFilter<"GrowthOperationReview"> | string | null
@@ -409,6 +421,7 @@ export type GrowthOperationReviewCreateInput = {
   state?: string
   result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   errorCode?: string | null
+  decisionSource?: string | null
   taskId?: string | null
   conversationId?: string | null
   operationId?: string | null
@@ -432,6 +445,7 @@ export type GrowthOperationReviewUncheckedCreateInput = {
   state?: string
   result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   errorCode?: string | null
+  decisionSource?: string | null
   taskId?: string | null
   conversationId?: string | null
   operationId?: string | null
@@ -455,6 +469,7 @@ export type GrowthOperationReviewUpdateInput = {
   state?: Prisma.StringFieldUpdateOperationsInput | string
   result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  decisionSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taskId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   conversationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   operationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -478,6 +493,7 @@ export type GrowthOperationReviewUncheckedUpdateInput = {
   state?: Prisma.StringFieldUpdateOperationsInput | string
   result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  decisionSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taskId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   conversationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   operationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -501,6 +517,7 @@ export type GrowthOperationReviewCreateManyInput = {
   state?: string
   result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   errorCode?: string | null
+  decisionSource?: string | null
   taskId?: string | null
   conversationId?: string | null
   operationId?: string | null
@@ -524,6 +541,7 @@ export type GrowthOperationReviewUpdateManyMutationInput = {
   state?: Prisma.StringFieldUpdateOperationsInput | string
   result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  decisionSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taskId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   conversationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   operationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -547,6 +565,7 @@ export type GrowthOperationReviewUncheckedUpdateManyInput = {
   state?: Prisma.StringFieldUpdateOperationsInput | string
   result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  decisionSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taskId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   conversationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   operationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -577,6 +596,7 @@ export type GrowthOperationReviewCountOrderByAggregateInput = {
   state?: Prisma.SortOrder
   result?: Prisma.SortOrder
   errorCode?: Prisma.SortOrder
+  decisionSource?: Prisma.SortOrder
   taskId?: Prisma.SortOrder
   conversationId?: Prisma.SortOrder
   operationId?: Prisma.SortOrder
@@ -597,6 +617,7 @@ export type GrowthOperationReviewMaxOrderByAggregateInput = {
   payloadDigest?: Prisma.SortOrder
   state?: Prisma.SortOrder
   errorCode?: Prisma.SortOrder
+  decisionSource?: Prisma.SortOrder
   taskId?: Prisma.SortOrder
   conversationId?: Prisma.SortOrder
   operationId?: Prisma.SortOrder
@@ -617,6 +638,7 @@ export type GrowthOperationReviewMinOrderByAggregateInput = {
   payloadDigest?: Prisma.SortOrder
   state?: Prisma.SortOrder
   errorCode?: Prisma.SortOrder
+  decisionSource?: Prisma.SortOrder
   taskId?: Prisma.SortOrder
   conversationId?: Prisma.SortOrder
   operationId?: Prisma.SortOrder
@@ -642,6 +664,7 @@ export type GrowthOperationReviewSelect<ExtArgs extends runtime.Types.Extensions
   state?: boolean
   result?: boolean
   errorCode?: boolean
+  decisionSource?: boolean
   taskId?: boolean
   conversationId?: boolean
   operationId?: boolean
@@ -665,6 +688,7 @@ export type GrowthOperationReviewSelectCreateManyAndReturn<ExtArgs extends runti
   state?: boolean
   result?: boolean
   errorCode?: boolean
+  decisionSource?: boolean
   taskId?: boolean
   conversationId?: boolean
   operationId?: boolean
@@ -688,6 +712,7 @@ export type GrowthOperationReviewSelectUpdateManyAndReturn<ExtArgs extends runti
   state?: boolean
   result?: boolean
   errorCode?: boolean
+  decisionSource?: boolean
   taskId?: boolean
   conversationId?: boolean
   operationId?: boolean
@@ -711,6 +736,7 @@ export type GrowthOperationReviewSelectScalar = {
   state?: boolean
   result?: boolean
   errorCode?: boolean
+  decisionSource?: boolean
   taskId?: boolean
   conversationId?: boolean
   operationId?: boolean
@@ -719,7 +745,7 @@ export type GrowthOperationReviewSelectScalar = {
   updatedAt?: boolean
 }
 
-export type GrowthOperationReviewOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "orgId" | "userId" | "principalId" | "principalKind" | "operation" | "version" | "requestKey" | "payloadDigest" | "input" | "snapshot" | "state" | "result" | "errorCode" | "taskId" | "conversationId" | "operationId" | "expiresAt" | "createdAt" | "updatedAt", ExtArgs["result"]["growthOperationReview"]>
+export type GrowthOperationReviewOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "orgId" | "userId" | "principalId" | "principalKind" | "operation" | "version" | "requestKey" | "payloadDigest" | "input" | "snapshot" | "state" | "result" | "errorCode" | "decisionSource" | "taskId" | "conversationId" | "operationId" | "expiresAt" | "createdAt" | "updatedAt", ExtArgs["result"]["growthOperationReview"]>
 
 export type $GrowthOperationReviewPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "GrowthOperationReview"
@@ -739,6 +765,7 @@ export type $GrowthOperationReviewPayload<ExtArgs extends runtime.Types.Extensio
     state: string
     result: runtime.JsonValue | null
     errorCode: string | null
+    decisionSource: string | null
     taskId: string | null
     conversationId: string | null
     operationId: string | null
@@ -1182,6 +1209,7 @@ export interface GrowthOperationReviewFieldRefs {
   readonly state: Prisma.FieldRef<"GrowthOperationReview", 'String'>
   readonly result: Prisma.FieldRef<"GrowthOperationReview", 'Json'>
   readonly errorCode: Prisma.FieldRef<"GrowthOperationReview", 'String'>
+  readonly decisionSource: Prisma.FieldRef<"GrowthOperationReview", 'String'>
   readonly taskId: Prisma.FieldRef<"GrowthOperationReview", 'String'>
   readonly conversationId: Prisma.FieldRef<"GrowthOperationReview", 'String'>
   readonly operationId: Prisma.FieldRef<"GrowthOperationReview", 'String'>

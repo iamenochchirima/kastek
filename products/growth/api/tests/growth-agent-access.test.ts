@@ -45,7 +45,7 @@ test("real OAuth, SDK MCP, REST aliases and internal operations share contracts,
   try {
     await pool.query('ALTER TABLE "SocialPost" ALTER COLUMN channels TYPE "SocialPlatform"[] USING channels::text[]::"SocialPlatform"[]');
     await pool.query(await readFile(new URL("../../database/prisma/migrations/20260829180000_add_core_analytics_outbox/migration.sql", import.meta.url), "utf8"));
-    for (const migration of ["20261101130000_growth_oauth.sql", "20261101140000_growth_operation_reviews.sql", "20261101150000_growth_media_transfers.sql"])
+    for (const migration of ["20261101130000_growth_oauth.sql", "20261101140000_growth_operation_reviews.sql", "20261101150000_growth_media_transfers.sql", "20261102190000_content_agent_workflows.sql", "20261102200000_content_mcp_app_confirmation.sql", "20261102210000_content_requested_actions.sql"])
       await pool.query(await readFile(new URL(`../sql/${migration}`, import.meta.url), "utf8"));
     await pool.query(`INSERT INTO "User"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES('alice','Alice','alice@example.test',NOW(),NOW(),NOW());
       INSERT INTO "Organization"(id,name,slug,"ownerId","createdAt","updatedAt") VALUES('org-a','Fixture business','fixture-business','alice',NOW(),NOW());
@@ -171,12 +171,10 @@ test("real OAuth, SDK MCP, REST aliases and internal operations share contracts,
     const uploaded = await fetch(transfer.result.uploadUrl, {method:"PUT",headers:{...bearer,"content-type":"application/octet-stream"},body:png});
     assert.equal(uploaded.status,200,await uploaded.text());
     const mediaArgs={transferId:transfer.result.transferId,_requestId:"http-media-finalize"};
-    const mediaReview=await toolCall("content.media.upload",mediaArgs);
-    assert.equal(mediaReview.state,"approval_required");
-    await request(`/api/operations/reviews/${mediaReview.review.id}/decision`,{decision:"approve",payloadDigest:mediaReview.review.payloadDigest},human);
-    const mediaSaved=await toolCall("content.media.upload",{...mediaArgs,_reviewId:mediaReview.review.id});
+    const mediaSaved=await toolCall("content.media.upload",mediaArgs);
     assert.equal(mediaSaved.state,"succeeded");
-    assert.deepEqual(await toolCall("content.media.upload",{...mediaArgs,_reviewId:mediaReview.review.id}),mediaSaved);
+    assert.equal(mediaSaved.review.decisionSource,"requested_draft");
+    assert.deepEqual(await toolCall("content.media.upload",mediaArgs),mediaSaved);
     assert.equal((await pool.query('SELECT count(*) FROM "ContentMediaAsset"')).rows[0].count,"1");
 
     await pool.query(`INSERT INTO "Customer"(id,"orgId","displayName","updatedAt") VALUES('customer','org-a','Fixture customer',NOW());
@@ -220,23 +218,21 @@ test("real OAuth, SDK MCP, REST aliases and internal operations share contracts,
     const noIdentity = await client.callTool({name:"content.posts.draft.create",arguments:{draft}});
     assert.equal(noIdentity.isError,true);
     assert.equal((noIdentity.structuredContent as any).code,"operation_identity_required");
-    const proposed = await toolCall("content.posts.draft.create", args);
-    assert.equal(proposed.state, "approval_required");
-    assert.equal((await pool.query('SELECT count(*) FROM "SocialPost"')).rows[0].count, "0");
-    assert.equal((await request(`/api/operations/reviews/${proposed.review.id}/decision`, { decision: "approve", payloadDigest: "wrong" }, human)).status, 409);
+    const draftSaved = await toolCall("content.posts.draft.create", args);
+    assert.equal(draftSaved.state, "succeeded");
+    assert.equal(draftSaved.review.decisionSource, "requested_draft");
+    assert.equal((await pool.query('SELECT count(*) FROM "SocialPost"')).rows[0].count, "1");
+    assert.equal((await request(`/api/operations/reviews/${draftSaved.review.id}/decision`, { decision: "approve", payloadDigest: "wrong" }, human)).status, 409);
     const second = await issue();
-    assert.equal((await request(`/v1/operation-reviews/${proposed.review.id}`, undefined, { authorization: `Bearer ${second.access_token}` })).status, 404);
-    const approval = await request(`/api/operations/reviews/${proposed.review.id}/decision`, { decision: "approve", payloadDigest: proposed.review.payloadDigest }, human);
-    assert.equal(approval.status, 200, JSON.stringify(approval.body));
-    const committed = await toolCall("content.posts.draft.create", { ...args, _reviewId: proposed.review.id });
-    assert.equal(committed.state, "succeeded");
-    assert.deepEqual(await toolCall("content.posts.draft.create", { ...args, _reviewId: proposed.review.id }), committed);
+    assert.equal((await request(`/v1/operation-reviews/${draftSaved.review.id}`, undefined, { authorization: `Bearer ${second.access_token}` })).status, 404);
+    const committed = await toolCall("content.posts.draft.create", args);
+    assert.deepEqual(committed, draftSaved);
     assert.equal((await pool.query('SELECT count(*) FROM "SocialPost"')).rows[0].count, "1");
     const reviewed=async(name:string,input:Record<string,unknown>,requestId:string)=>{
-      const proposal=await toolCall(name,{...input,_requestId:requestId});assert.equal(proposal.state,"approval_required",JSON.stringify(proposal));
-      const decision=await request(`/api/operations/reviews/${proposal.review.id}/decision`,{decision:"approve",payloadDigest:proposal.review.payloadDigest},human);
-      assert.equal(decision.status,200,JSON.stringify(decision.body));
-      const args={...input,_requestId:requestId,_reviewId:proposal.review.id};const outcome=await toolCall(name,args);assert.equal(outcome.state,"succeeded",JSON.stringify(outcome));return {outcome,args};
+      const args={...input,_requestId:requestId};
+      const outcome=await toolCall(name,args);assert.equal(outcome.state,"succeeded",JSON.stringify(outcome));
+      assert.equal(outcome.review.decisionSource,"requested_action");
+      return {outcome,args};
     };
     const flowId=committed.result.post.id;
     const firstSchedule=new Date(Date.now()+3600000).toISOString(),secondSchedule=new Date(Date.now()+7200000).toISOString();
@@ -266,46 +262,43 @@ test("real OAuth, SDK MCP, REST aliases and internal operations share contracts,
     assert.equal((await pool.query('SELECT count(*) FROM "SocialPublishBatch" WHERE "postId"=$1',[flowId])).rows[0].count,"1");
     const editable = await toolCall("content.posts.get", { postId: flowId });
     const editInput = { postId: flowId, content: "Exact corrected Facebook caption", expectedUpdatedAt: editable.result.post.updated_at };
-    const editProposal = await toolCall("content.posts.update_published", { ...editInput, _requestId: "published-edit-review" });
-    assert.equal(editProposal.state, "approval_required");
-    assert.equal(editProposal.review.preview.content, editInput.content);
-    assert.equal(editProposal.review.preview.previousContent, draft.content);
-    assert.equal(editProposal.review.preview.accounts[0].externalAccountId, "fixture-page");
-    const removePhotoProposal = await toolCall("content.posts.update_published", { ...editInput, removePhoto: true, _requestId: "published-remove-photo-review" });
-    assert.equal(removePhotoProposal.state, "approval_required");
-    assert.equal(removePhotoProposal.review.preview.removePhoto, true);
-    assert.match(removePhotoProposal.review.preview.targetLabel, /remove photo/);
-    assert.deepEqual(removePhotoProposal.review.preview.media, []);
-    assert.notEqual(removePhotoProposal.review.payloadDigest, editProposal.review.payloadDigest);
+    const editProposal = (await toolCall("content.actions.preview", {action:"content.posts.update_published",input:editInput,requestId:"published-edit-review"})).result.preview;
+    assert.equal(editProposal.state, "proposed");
+    assert.equal(editProposal.preview.content, editInput.content);
+    assert.equal(editProposal.preview.previousContent, draft.content);
+    assert.equal(editProposal.preview.accounts[0].externalAccountId, "fixture-page");
+    const removePhotoProposal = (await toolCall("content.actions.preview", {action:"content.posts.update_published",input:{...editInput,removePhoto:true},requestId:"published-remove-photo-review"})).result.preview;
+    assert.equal(removePhotoProposal.state, "proposed");
+    assert.equal(removePhotoProposal.preview.removePhoto, true);
+    assert.match(removePhotoProposal.preview.targetLabel, /remove photo/);
+    assert.deepEqual(removePhotoProposal.preview.media, []);
+    assert.notEqual(removePhotoProposal.payloadDigest, editProposal.payloadDigest);
     assert.equal((await pool.query('SELECT metadata FROM "SocialPublishJob" WHERE id=$1', [admittedJob.id])).rows[0].metadata?._kasitek_edit_intent, undefined);
     const internalEdit = await invokeInternalGrowthOperation(core, { operation: "content.posts.update_published", control: "prepare", input: { ...editInput, _requestId: "internal-published-edit-review" }, actor: { subject: "alice" }, authority: { tenantId: "org-a" }, operationId: "internal-published-edit-review", requestId: "internal-published-edit-review", taskId: "fixture-task", conversationId: "fixture-chat" } as ProductCapabilityInvocation);
     assert.equal((internalEdit.value as any).review.preview.content, editInput.content);
-    assert.equal((await request(`/api/operations/reviews/${editProposal.review.id}/decision`, { decision: "approve", payloadDigest: editProposal.review.payloadDigest }, human)).status, 200);
     await pool.query('UPDATE "SocialPost" SET "updatedAt"="updatedAt"+interval \'1 second\' WHERE id=$1', [flowId]);
-    const staleEdit = await client.callTool({ name: "content.posts.update_published", arguments: { ...editInput, _requestId: "published-edit-review", _reviewId: editProposal.review.id } });
+    const staleEdit = await client.callTool({ name: "content.posts.update_published", arguments: { ...editInput, _requestId: "published-edit-review", _reviewId: editProposal.id } });
     assert.equal(staleEdit.isError, true);
     assert.equal((staleEdit.structuredContent as any).code, "operation_review_conflict");
     assert.equal((await pool.query('SELECT content FROM "SocialPost" WHERE id=$1', [flowId])).rows[0].content, draft.content);
     assert.equal((await pool.query('SELECT metadata FROM "SocialPublishJob" WHERE id=$1', [admittedJob.id])).rows[0].metadata?._kasitek_edit_intent, undefined);
-    const changed = await client.callTool({ name: "content.posts.draft.create", arguments: { ...args, draft: { ...draft, content: "Changed after approval" }, _reviewId: proposed.review.id } });
+    const changed = await client.callTool({ name: "content.posts.draft.create", arguments: { ...args, draft: { ...draft, content: "Changed after approval" }, _reviewId: draftSaved.review.id } });
     assert.equal(changed.isError, true);
     assert.equal((changed.structuredContent as any).code, "operation_review_conflict");
     assert.deepEqual((await request("/v1/content/posts", undefined, bearer)).body, (await request("/v1/operations/content.posts.list", {}, bearer)).body.result);
 
     const aliasArgs = { ...draft, title: "Alias draft", _requestId: "alias-draft-fixture" };
     const alias = await request("/v1/content/posts", aliasArgs, bearer);
-    assert.equal(alias.status, 202, JSON.stringify(alias.body));
-    await request(`/api/operations/reviews/${alias.body.review.id}/decision`, { decision: "approve", payloadDigest: alias.body.review.payloadDigest }, human);
-    const aliasSaved = await request("/v1/content/posts", { ...aliasArgs, _reviewId: alias.body.review.id }, bearer);
+    assert.equal(alias.status, 201, JSON.stringify(alias.body));
+    const aliasSaved = await request("/v1/content/posts", aliasArgs, bearer);
     assert.equal(aliasSaved.status, 201, JSON.stringify(aliasSaved.body));
-    assert.equal((await request("/v1/content/posts", { ...aliasArgs, _reviewId: alias.body.review.id }, bearer)).status, 201);
+    assert.equal((await request("/v1/content/posts", aliasArgs, bearer)).status, 201);
     assert.equal((await pool.query('SELECT count(*) FROM "SocialPost"')).rows[0].count, "2");
     const postId = (await pool.query('SELECT id FROM "SocialPost" WHERE title=$1', ["Alias draft"])).rows[0].id;
     const patchArgs = { ...draft, title: "Updated alias", _requestId: "alias-patch-fixture" };
     const patch = await request(`/v1/content/posts/${postId}`, patchArgs, bearer, "PATCH");
-    assert.equal(patch.status, 202, JSON.stringify(patch.body));
-    await request(`/api/operations/reviews/${patch.body.review.id}/decision`, { decision: "approve", payloadDigest: patch.body.review.payloadDigest }, human);
-    const patched = await request(`/v1/content/posts/${postId}`, { ...patchArgs, _reviewId: patch.body.review.id }, bearer, "PATCH");
+    assert.equal(patch.status, 200, JSON.stringify(patch.body));
+    const patched = await request(`/v1/content/posts/${postId}`, patchArgs, bearer, "PATCH");
     assert.equal(patched.status, 200, JSON.stringify(patched.body));
     assert.equal((await pool.query('SELECT title FROM "SocialPost" WHERE id=$1', [postId])).rows[0].title, "Updated alias");
 
@@ -316,16 +309,13 @@ test("real OAuth, SDK MCP, REST aliases and internal operations share contracts,
     const longContent="Large exact approved copy. ".repeat(400).trim();
     const largeArgs={...draft,title:"Large typed draft",content:longContent,_requestId:"large-typed-draft"};
     const largeProposal=await request("/v1/content/posts",largeArgs,bearer);
-    assert.equal(largeProposal.status,202,JSON.stringify(largeProposal.body));
-    await request(`/api/operations/reviews/${largeProposal.body.review.id}/decision`,{decision:"approve",payloadDigest:largeProposal.body.review.payloadDigest},human);
-    const largeResume={...largeArgs,_reviewId:largeProposal.body.review.id};
+    assert.equal(largeProposal.status,201,JSON.stringify(largeProposal.body));
+    const largeResume=largeArgs;
     assert.equal(largeProposal.body.review.requestId,largeArgs._requestId);
     assert.equal(largeProposal.body.result.encoding,"json");
-    for(const cursor of [largeProposal.body.result.continuation,"invalid-approved-continuation"]){
-      const observation=await request("/v1/content/posts",{...largeResume,_continuation:cursor},bearer);
-      assert.equal(observation.status,409,JSON.stringify(observation.body));
-      assert.equal((await pool.query('SELECT count(*) FROM "SocialPost"')).rows[0].count,"2");
-    }
+    const invalidObservation=await request("/v1/content/posts",{...largeResume,_continuation:"invalid-receipt-continuation"},bearer);
+    assert.equal(invalidObservation.status,409,JSON.stringify(invalidObservation.body));
+    assert.equal((await pool.query('SELECT count(*) FROM "SocialPost"')).rows[0].count,"3");
 
     const largeCommit=await request("/v1/content/posts",largeResume,bearer);
     assert.equal(largeCommit.status,201,JSON.stringify(largeCommit.body));
@@ -357,19 +347,35 @@ test("real OAuth, SDK MCP, REST aliases and internal operations share contracts,
     assert.equal((await request("/v1/content/posts",largeResume,bearer)).status,201);
     assert.equal((await pool.query('SELECT count(*) FROM "SocialPost"')).rows[0].count,"3");
 
-    const stale = await toolCall("content.posts.draft.create", { ...args, _requestId: "stale-review-fixture" });
-    await request(`/api/operations/reviews/${stale.review.id}/decision`, { decision: "approve", payloadDigest: stale.review.payloadDigest }, human);
+    const previewAction = async (requestId:string) => {
+      const input = {action:"content.posts.delete",input:{postId:largeId},requestId};
+      let result = await toolCall("content.actions.preview", input);
+      assert.equal(result.state,"succeeded");
+      if (result.result.encoding === "json") {
+        let encoded = "";
+        for (let page=0;page<100;page++) {
+          encoded += result.result.chunk;
+          if (!result.result.continuation) break;
+          result = await toolCall("content.actions.preview", {...input,_continuation:result.result.continuation});
+        }
+        result = JSON.parse(encoded);
+      }
+      return result.result.preview;
+    };
+    const stale = await previewAction("stale-review-fixture");
+    await request(`/api/operations/reviews/${stale.id}/decision`, { decision: "approve", payloadDigest: stale.payloadDigest }, human);
     await pool.query('UPDATE "SocialChannelConnection" SET "updatedAt"=NOW()+interval \'1 second\' WHERE id=\'facebook\'');
-    const staleResult = await client.callTool({ name: "content.posts.draft.create", arguments: { ...args, _requestId: "stale-review-fixture", _reviewId: stale.review.id } });
+    const staleResult = await client.callTool({ name: "content.posts.delete", arguments: {postId:largeId,_previewId:stale.id} });
     assert.equal(staleResult.isError, true);
     assert.equal((staleResult.structuredContent as any).code, "operation_review_conflict");
 
-    const rejectedProposal = await toolCall("content.posts.draft.create", { ...args, _requestId: "rejected-fixture" });
-    await request(`/api/operations/reviews/${rejectedProposal.review.id}/decision`, { decision: "reject", payloadDigest: rejectedProposal.review.payloadDigest }, human);
-    const rejectedReplay = await toolCall("content.posts.draft.create", { ...args, _requestId: "rejected-fixture", _reviewId: rejectedProposal.review.id });
+    const rejectedProposal = await previewAction("rejected-fixture");
+    await request(`/api/operations/reviews/${rejectedProposal.id}/decision`, { decision: "reject", payloadDigest: rejectedProposal.payloadDigest }, human);
+    const rejectedReplay = await toolCall("content.posts.delete", {postId:largeId,_previewId:rejectedProposal.id});
     assert.equal(rejectedReplay.state, "rejected");
     const accessEvents = (await pool.query(`SELECT envelope->'data' AS data FROM analytics_outbox WHERE contract_name='growth.agent.access@1'`)).rows.map(row => row.data);
-    for (const action of ["proposed", "approved", "rejected", "succeeded"]) assert(accessEvents.some(event => event.action === action), action);
+    assert(!accessEvents.some(event=>event.action === "approved" && ["content.posts.schedule","content.posts.reschedule","content.posts.unschedule","content.posts.publish_batch","content.jobs.cancel"].includes(event.operation)),"direct actions must not fabricate approval events");
+    for (const action of ["rejected", "succeeded"]) assert(accessEvents.some(event => event.action === action), action);
     assert(accessEvents.every(event => Object.keys(event).sort().join(",") === "action,kind,operation,outcome"));
     for(const event of accessEvents.filter(event=>event.action==="succeeded")) assert.equal(event.outcome,["content.posts.publish","content.posts.publish_batch","content.posts.publish_batch.retry","content.posts.schedule","content.posts.reschedule","content.jobs.retry"].includes(event.operation)?"admitted":"completed");
 
@@ -381,13 +387,13 @@ test("real OAuth, SDK MCP, REST aliases and internal operations share contracts,
     assert.equal(denied.isError, true);
     assert.equal((denied.structuredContent as any).code, "operation_scope_denied");
     assert.equal((await request("/v1/content/posts", aliasArgs, { authorization: `Bearer ${readToken.access_token}` })).status, 403);
-    const secondBearer = {authorization:`Bearer ${second.access_token}`};
-    const revokedArgs = {...args,_requestId:"revoked-before-commit"};
-    const revokedProposal = await request("/v1/operations/content.posts.draft.create",revokedArgs,secondBearer);
-    assert.equal(revokedProposal.status,200,JSON.stringify(revokedProposal.body));
-    await request(`/api/operations/reviews/${revokedProposal.body.review.id}/decision`,{decision:"approve",payloadDigest:revokedProposal.body.review.payloadDigest},human);
+    const secondBearer={authorization:`Bearer ${second.access_token}`};
+    const revokedArgs={action:"content.posts.delete",input:{postId},requestId:"revoke-approved-fixture"};
+    const revokedProposal=await request("/v1/operations/content.actions.preview",revokedArgs,secondBearer);
+    const revokedPreview=revokedProposal.body.result.preview;
+    await request(`/api/operations/reviews/${revokedPreview.id}/decision`,{decision:"approve",payloadDigest:revokedPreview.payloadDigest},human);
     await request("/oauth/revoke",{client_id:clientId,token:second.refresh_token});
-    assert.equal((await request("/v1/operations/content.posts.draft.create",{...revokedArgs,_reviewId:revokedProposal.body.review.id},secondBearer)).status,401);
+    assert.equal((await request("/v1/operations/content.posts.delete",{postId,_previewId:revokedPreview.id},secondBearer)).status,401);
     await request("/oauth/revoke", { client_id: clientId, token: token.refresh_token });
     await assert.rejects(client.listTools(), /OAuth access expired or revoked/);
     const revoked = await request("/mcp", { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }, { ...bearer, accept: "application/json, text/event-stream" });

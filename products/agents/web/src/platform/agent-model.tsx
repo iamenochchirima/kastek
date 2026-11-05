@@ -51,7 +51,7 @@ export function ChatModelPicker({ organizationId, agentId, configuration, dirty,
   const active = configuration.model.selection ?? { kind: "organization_default" as const };
   const activeKey = JSON.stringify(active);
   const [open, setOpen] = useState(false), [search, setSearch] = useState(""), [pending, setPending] = useState(activeKey), [saveError, setSaveError] = useState("");
-  const requiresTools = Boolean(configuration.tools?.length || configuration.connectedToolBindingIds?.length || configuration.skillIds?.length);
+  const requiresTools = Boolean(configuration.tools?.length || configuration.connectedToolBindingIds?.length || configuration.skillIds?.length || configuration.procedures?.length);
   const resolved = active.kind === "organization_default" ? defaultModel?.selection : active;
   const selected = choices.find(choice => choice.connection.id === resolved?.connectionId && choice.model.id === resolved.modelId);
   const label = selected ? `${selected.connection.name} · ${selected.model.name}` : resolved ? resolved.modelId : loading ? "Loading model…" : "Choose model";
@@ -100,7 +100,7 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
   }, [organizationId, agentId, configurationKey, routeKey]);
   const [search, setSearch] = useState("");
   const current = JSON.stringify(selection);
-  const requiresTools = Boolean(configuration.tools?.length || configuration.connectedToolBindingIds?.length || configuration.skillIds?.length);
+  const requiresTools = Boolean(configuration.tools?.length || configuration.connectedToolBindingIds?.length || configuration.skillIds?.length || configuration.procedures?.length);
   const incompatibility = (choice: Choice) => modelIncompatibility(choice, requiresTools);
   const filtered = choices.filter(choice => `${choice.connection.name} ${choice.connection.providerId} ${choice.model.id} ${choice.model.name}`.toLowerCase().includes(search.toLowerCase()));
   const selected = choices.find(choice => selection.kind === "connection" && choice.connection.id === selection.connectionId && choice.model.id === selection.modelId);

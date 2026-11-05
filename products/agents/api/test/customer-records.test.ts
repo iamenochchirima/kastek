@@ -10,6 +10,8 @@ import {transaction} from '../src/infrastructure/database';
 import {projectSubmittedEnquiry,searchStaffCustomerRecords} from '../src/capabilities/enquiries/record-projection';
 import {defaultBusinessConfiguration} from '../src/contracts/contracts';
 import {connectFixtureModel} from './model-fixture';
+import {projectSupportContact} from '../src/product/customer-records/support-contacts';
+import {backfillSupportContacts} from '../src/composition/backfill-support-contacts';
 const url=process.env.AGENTS_TEST_DATABASE_URL;
 (url?describe:describe.skip)('native customer records',()=>{
  let admin:Pool,pool:Pool,store:CustomerRecordStore,platform:PlatformStore;
@@ -43,4 +45,49 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
  async function source(f:Awaited<ReturnType<typeof customerSource>>,name='Ada',principal=f.grant.principal){const id=randomUUID();await pool.query(`INSERT INTO agents_platform.enquiries(id,organization_id,agent_id,task_id,conversation_id,customer_conversation_id,principal,operation_id,request_digest,fields,state,expires_at,submitted_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'submitted',now()+interval '1 hour',now())`,[id,f.owner.organizationId,f.agent.id,f.task.id,f.task.conversation_id,f.customerId,principal,randomUUID(),'0'.repeat(64),{name,email:'same@example.test'}]);return id;}
  it('projects verified website submissions once and reuses contact only for the same verified participant',async()=>{const f=await customerSource(),id=await source(f);await transaction(pool,db=>projectSubmittedEnquiry(db,id));await transaction(pool,db=>projectSubmittedEnquiry(db,id));const first=(await store.list(f.owner)).enquiries;expect(first).toHaveLength(1);expect(first[0].sourceEnquiryId).toBe(id);expect((await store.read(f.owner,id)).id).toBe(first[0].id);const another=await source(f,'New name');await transaction(pool,db=>projectSubmittedEnquiry(db,another));expect((await store.contacts(f.owner)).contacts).toHaveLength(1);const other=await customerSource(),otherId=await source(other);await transaction(pool,db=>projectSubmittedEnquiry(db,otherId));expect((await store.contacts(other.owner)).contacts[0].id).not.toBe(first[0].contactId);});
  it('does not project a forged participant submission',async()=>{const f=await customerSource(),id=await source(f,'Forged',{kind:'visitor',deploymentId:f.grant.principal.kind==='visitor'?f.grant.principal.deploymentId:randomUUID(),sessionId:randomUUID()});await transaction(pool,db=>projectSubmittedEnquiry(db,id));expect((await store.list(f.owner)).enquiries).toEqual([]);});
+ async function supportSource(f:Awaited<ReturnType<typeof customerSource>>,contact:{method:string;value?:string;name?:string}){
+  const messageId=randomUUID(),id=randomUUID();
+  await pool.query("INSERT INTO agents_platform.customer_messages(id,conversation_id,sequence,author_kind,body,request_key,request_digest,ownership_generation) VALUES($1,$2,1,'visitor',$3,$4,$5,1)",[messageId,f.customerId,JSON.stringify(contact),randomUUID(),'0'.repeat(64)]);
+  const saved={...contact,evidenceMessageId:messageId,consentQuote:JSON.stringify(contact)};
+  await pool.query(`INSERT INTO agents_platform.human_assistance_requests(id,organization_id,conversation_id,task_id,input_message_id,ownership_generation,status,brief,support_facts,notice_body,contact)
+   VALUES($1,$2,$3,$4,$5,1,'requested',$6,'{}','',$7)`,[id,f.owner.organizationId,f.customerId,f.task.id,messageId,{reason:'Needs help',brief:'Please contact the customer'},saved]);
+  return {id,saved};
+ }
+ it('projects support contact once, adds a later name, and preserves staff corrections',async()=>{
+  const f=await customerSource(),request=await supportSource(f,{method:'email',value:'support@example.test'});
+  const id=await transaction(pool,db=>projectSupportContact(db,request.id));expect(id).toBeTruthy();
+  const followups=await store.followups(f.owner,{search:'support@example.test',status:'requested'});expect(followups.followups).toHaveLength(1);expect(followups.followups[0]).toMatchObject({contactId:id,email:'support@example.test',customerConversationId:f.customerId,agentName:'Service'});
+  const foreign=await fixture();expect((await store.followups(foreign.owner,{search:'support@example.test'})).followups).toHaveLength(0);await expect(store.followups({...f.owner,accountId:foreign.owner.accountId},{})).rejects.toMatchObject({code:'ACCESS_DENIED'});
+  const first=(await store.contacts(f.owner)).contacts[0];expect(first).toMatchObject({id,name:null,email:'support@example.test',revision:'1'});
+  await transaction(pool,db=>projectSupportContact(db,request.id));expect((await store.contacts(f.owner)).contacts[0]).toEqual(first);
+  await pool.query('UPDATE agents_platform.human_assistance_requests SET contact=$2 WHERE id=$1',[request.id,{...request.saved,name:'Ada'}]);
+  await transaction(pool,db=>projectSupportContact(db,request.id));const named=(await store.contacts(f.owner)).contacts[0];expect(named).toMatchObject({id,name:'Ada',revision:'2'});
+  const corrected=await store.correctContact(f.owner,id!,{...command(named.revision,'correct'),name:'Staff corrected',email:'corrected@example.test'});
+  await transaction(pool,db=>projectSupportContact(db,request.id));expect((await store.contacts(f.owner)).contacts).toEqual([corrected]);
+ });
+ it('backfills saved support contacts without merging different participants with the same email',async()=>{
+  const f=await customerSource(),first=await supportSource(f,{method:'email',value:'same@example.test'});
+  const principal=f.grant.principal;if(principal.kind!=='visitor')throw Error('Website fixture required');
+  const sessionId=randomUUID();await pool.query('INSERT INTO agents_platform.website_sessions(id,deployment_id,token_hash,origin) VALUES($1,$2,$3,$4)',[sessionId,principal.deploymentId,randomUUID().replaceAll('-','').repeat(2),'https://site.example.test']);
+  const grant=await platform.createWebsiteGrant({deploymentId:principal.deploymentId,sessionId,origin:'https://site.example.test'});
+  const {task}=await platform.admitTask({authority:grant,grantId:grant.id,versionId:f.task.version_id,requestKey:randomUUID(),input:'Other customer'});
+  const customerId=randomUUID();await pool.query('INSERT INTO agents_platform.customer_conversations(id,organization_id,deployment_id,agent_id,version_id,session_id,execution_conversation_id) VALUES($1,$2,$3,$4,$5,$6,$7)',[customerId,f.owner.organizationId,principal.deploymentId,f.agent.id,f.task.version_id,sessionId,task.conversation_id]);
+  await supportSource({...f,task,grant,customerId},{method:'email',value:'same@example.test',name:'Other customer'});
+  await pool.query("UPDATE agents_platform.human_assistance_requests SET status='completed' WHERE id=$1",[first.id]);
+  await backfillSupportContacts(pool);const contacts=(await store.contacts(f.owner)).contacts;expect(contacts).toHaveLength(2);expect(new Set(contacts.map(c=>c.id)).size).toBe(2);expect(contacts.every(c=>c.email==='same@example.test')).toBe(true);
+  await backfillSupportContacts(pool);expect((await store.contacts(f.owner)).contacts).toEqual(contacts);
+ });
+ it('does not project support details from evaluation website deployments or a mismatched participant',async()=>{
+  const f=await customerSource(),request=await supportSource(f,{method:'email',value:'trial@example.test'}),principal=f.grant.principal;if(principal.kind!=='visitor')throw Error('Website fixture required');
+  const trialId=randomUUID();await pool.query(`INSERT INTO agents_platform.evaluation_trials(id,trial_id,organization_id,account_id,agent_id,version_id,composition_digest,max_tokens,request_digest,model_routes,model_routes_digest,root_token_limit,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,2048,$7,'{}',$7,2048,now()+interval '1 hour')`,[trialId,randomUUID(),f.owner.organizationId,f.owner.accountId,f.agent.id,f.task.version_id,'0'.repeat(64)]);
+  await pool.query(`INSERT INTO agents_platform.evaluation_trial_channels(trial_id,deployment_id,session_id,origin,request_digest,root_token_limit) VALUES($1,$2,$3,'https://site.example.test',$4,2048)`,[trialId,principal.deploymentId,principal.sessionId,'0'.repeat(64)]);
+  expect(await transaction(pool,db=>projectSupportContact(db,request.id))).toBeNull();expect((await store.contacts(f.owner)).contacts).toHaveLength(0);
+  const other=await customerSource();
+  const newSession=randomUUID(),p=other.grant.principal;if(p.kind!=='visitor')throw Error('Website fixture required');
+  await pool.query('INSERT INTO agents_platform.website_sessions(id,deployment_id,token_hash,origin) VALUES($1,$2,$3,$4)',[newSession,p.deploymentId,randomUUID().replaceAll('-','').repeat(2),'https://site.example.test']);
+  const forgedConversation=randomUUID();await pool.query('INSERT INTO agents_platform.customer_conversations(id,organization_id,deployment_id,agent_id,version_id,session_id,execution_conversation_id) VALUES($1,$2,$3,$4,$5,$6,$7)',[forgedConversation,other.owner.organizationId,p.deploymentId,other.agent.id,other.task.version_id,newSession,other.task.conversation_id]);
+  const otherRequest=await supportSource({...other,customerId:forgedConversation},{method:'email',value:'forged@example.test'});
+  expect(await transaction(pool,db=>projectSupportContact(db,otherRequest.id))).toBeNull();expect((await store.contacts(other.owner)).contacts).toHaveLength(0);
+ });
+
 });

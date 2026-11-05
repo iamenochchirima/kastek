@@ -1,5 +1,5 @@
 import { describe,expect,it } from "vitest";
-import { builtinArgumentFeedback } from "../src/capabilities/tool-argument-feedback";
+import { builtinArgumentFeedback, externalArgumentFeedback } from "../src/capabilities/tool-argument-feedback";
 import { validateBuiltinArguments } from "../src/capabilities/tool-contracts";
 
 const request=(bindingId:string)=>({bindingId,brief:"PRIVATE_BRIEF_DO_NOT_ECHO"});
@@ -23,6 +23,14 @@ describe("bounded builtin argument feedback",()=>{
   expect(feedback?.argumentIssues).toContainEqual({path:["requests",0,"brief"],code:"invalid_type",type:"string",message:"Expected string."});
   expect(JSON.stringify(feedback)).not.toContain("PRIVATE_INVALID_ID");expect(JSON.stringify(feedback)).not.toContain("42");
  });
+ it("gives actionable contact format feedback without echoing private input",()=>{
+  const base={requestId:crypto.randomUUID(),action:"save_contact",evidenceMessageId:crypto.randomUUID(),evidenceQuote:"PRIVATE_CUSTOMER_MESSAGE"};
+  for(const [method,value,message] of [["email","PRIVATE_ADDRESS_WITHOUT_AT","Enter a valid email address. Ask the customer to confirm any correction."],["phone","123","Enter a valid phone number. Ask the customer to confirm any correction."]] as const){
+   const feedback=builtinArgumentFeedback("support.update_assistance",JSON.stringify({...base,contact:{method,value}}),"TOOL_ARGUMENTS_INVALID");
+   expect(feedback?.argumentIssues).toContainEqual({path:["contact","value"],code:"custom",message});
+   expect(JSON.stringify(feedback)).not.toContain("PRIVATE_");
+  }
+ });
  it("never echoes unrecognized property names, enum values or malformed JSON",()=>{
   for(const [name,args]of [
     ["agents.start",JSON.stringify({requests:[request("research")],PRIVATE_KEY_CONTAINING_CONTENT:"PRIVATE_VALUE"})],
@@ -44,4 +52,10 @@ describe("bounded builtin argument feedback",()=>{
   expect(builtinArgumentFeedback("unknown.tool","{}","TOOL_ARGUMENTS_INVALID")).toBeUndefined();
   expect(builtinArgumentFeedback("t_"+"a".repeat(32),"{}","TOOL_ARGUMENTS_INVALID")).toBeUndefined();
  });
+ it("provides bounded connected-tool feedback without provider content or customer data",()=>{
+  expect(externalArgumentFeedback('{"secret":"PRIVATE"}',"MCP_ARGUMENTS_INVALID")).toEqual({argumentIssues:[{path:[],code:"invalid_arguments",message:"Check the supplied arguments against the tool schema. Ask the user to confirm any correction to their information."}]});
+  expect(externalArgumentFeedback('{"PRIVATE":',"TOOL_ARGUMENTS_INVALID")).toEqual({argumentIssues:[{path:[],code:"invalid_json",message:"Use valid JSON matching the tool schema."}]});
+  expect(externalArgumentFeedback('{}',"CONNECTED_OPERATION_UNCERTAIN")).toBeUndefined();
+ });
+
 });

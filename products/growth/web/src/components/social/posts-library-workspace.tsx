@@ -1,3 +1,4 @@
+import { ContentWorkspaceNavigation } from "./content-workspace-navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { AskGrowthAgent } from "@/components/dashboard/agents/agent-context";
@@ -65,6 +66,7 @@ type Props = {
   initialStatus: "ALL" | SocialPostStatus;
   onCreate(): void;
   onEdit(post: SocialPost): void;
+  onDuplicate(post: SocialPost): void;
   onRefresh(): void;
   onActivity(post: SocialPost): void;
   onDelete(post: SocialPost): void;
@@ -214,6 +216,7 @@ export function PostsLibraryWorkspace(props: Props) {
             </Button>
           </div>
         </header>
+        <div className="mx-4 mb-4 border-b border-border sm:mx-6"><ContentWorkspaceNavigation active={props.initialStatus === "PUBLISHED" ? "history" : "posts"}/></div>
         <div
           className="posts-library-tabs"
           role="tablist"
@@ -547,6 +550,8 @@ export function PostsLibraryWorkspace(props: Props) {
                             >
                               Edit post
                             </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={()=>props.onDuplicate(post)}>Duplicate</DropdownMenuItem>
+                            <DropdownMenuItem asChild><Link to={`/content/templates?sourcePostId=${post.id}`}>Save as template</Link></DropdownMenuItem>
                             <DropdownMenuItem asChild>
                               <Link
                                 to={`/content/posts/${encodeURIComponent(post.id)}`}
@@ -610,6 +615,7 @@ function PostPreview({
   channels,
   onClose,
   onEdit,
+  onDuplicate,
   onActivity,
   onDelete,
   renderPublishActions,
@@ -702,6 +708,7 @@ function PostPreview({
         >
           Edit post
         </Button>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={()=>onDuplicate(post)}>Duplicate</Button><Button variant="outline" size="sm" asChild><Link to={`/content/templates?sourcePostId=${post.id}`}>Save as template</Link></Button></div>
         <details className="posts-publishing-details">
           <summary>Publishing and actions</summary>
           {post.publishJobs?.map((job) => (

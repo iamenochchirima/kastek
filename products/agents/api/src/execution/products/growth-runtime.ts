@@ -7,7 +7,7 @@ import type { CapabilityBinding } from "../../contracts/capability-catalog";
 import { productDescriptor, registerProductManifest, type InstalledProductAdapter } from "../../capabilities/products/product-capabilities";
 import { growthInstalledAdapterManifest, growthInstalledHandlers, growthInstalledModelProjections,
   growthHistoricalModelProjections, growthLocalRetainedVariants, growthRetainedOperationAdapters, growthFullOperationHandlers, growthFullOperationAccessHandlers, growthFullOperationModelProjections,
-  growthContentReadAdapterManifest,growthConnectionReadAdapterManifest,growthContentReadModelProjections } from "../../adapters/products/growth-capability-manifests";
+  growthContentReadAdapterManifest,growthCurrentContentReadAdapterManifest,growthConnectionReadAdapterManifest,growthRetainedContentReadHandlers,growthContentReadModelProjections } from "../../adapters/products/growth-capability-manifests";
 export { growthOperationAdapterManifest,growthOperationAdapterManifestV7,growthOperationAdapterManifestV8,
   growthOperationAdapterManifestV9,growthOperationAdapterManifestV10,growthCurrentOperationAdapterManifest } from "../../adapters/products/growth-capability-manifests";
 import { EvidenceStore } from "../context/evidence";
@@ -33,8 +33,9 @@ export class GrowthProductRuntime extends ProductRuntime {
       accessReceiptHandlers:growthFullOperationAccessHandlers.filter(handler=>(handlers as readonly string[]).includes(handler)),
       modelProjections:Object.fromEntries(Object.entries(Number(manifest.release)<8?growthHistoricalModelProjections:growthFullOperationModelProjections).filter(([handler])=>(handlers as readonly string[]).includes(handler))),
       invoke:client.invoke.bind(client)});
-    this.registerAdapter(growthContentReadAdapterManifest,{handlers:growthFullOperationHandlers,accessReceiptHandlers:growthFullOperationAccessHandlers,modelProjections:growthContentReadModelProjections,invoke:client.invoke.bind(client)});
+    this.registerAdapter(growthContentReadAdapterManifest,{handlers:growthRetainedContentReadHandlers,accessReceiptHandlers:growthFullOperationAccessHandlers.filter(handler=>growthRetainedContentReadHandlers.includes(handler)),modelProjections:Object.fromEntries(Object.entries(growthContentReadModelProjections).filter(([handler])=>growthRetainedContentReadHandlers.includes(handler))),invoke:client.invoke.bind(client)});
     this.registerAdapter(growthConnectionReadAdapterManifest,{handlers:growthFullOperationHandlers,accessReceiptHandlers:growthFullOperationAccessHandlers,modelProjections:growthContentReadModelProjections,invoke:client.invoke.bind(client)});
+    this.registerRetainedAdapter(growthCurrentContentReadAdapterManifest,{handlers:growthFullOperationHandlers,accessReceiptHandlers:growthFullOperationAccessHandlers,modelProjections:growthContentReadModelProjections,invoke:client.invoke.bind(client)});
     for(const {manifest,handlers,accessReceiptHandlers,modelProjections} of growthLocalRetainedVariants.filter(local=>!growthRetainedOperationAdapters.some(standard=>requestDigest(standard.manifest)===requestDigest(local.manifest))))this.registerRetainedAdapter(manifest,{handlers,accessReceiptHandlers,modelProjections,invoke:client.invoke.bind(client)});
     this.registerContextReader("growth",async(taskId,db)=>{
       const context=await selectedContext(db,taskId);

@@ -1,3 +1,8 @@
+import {assertCustomerTimeoutNotice} from "./customer-timeout-notice";
+import type {ProcedureScope} from "../../contracts/procedures";
+import type {CustomerConversation,CustomerMessage} from "./inbox-contracts";
+export type {CustomerConversation,CustomerMessage} from "./inbox-contracts";
+import { humanAssistanceSnapshot, requestHumanAssistance, updateHumanAssistance, currentHumanRequest, humanAssistanceNoticeValid } from "./human-assistance";
 import {enquiryReviewText,enquiryReviewButtons,assertEnquiryReviewPrompt} from "../channels/channel-enquiry-reviews";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
@@ -24,16 +29,6 @@ export type { ChannelBinding } from "../../contracts/channel";
 type Db = Pool | PoolClient;
 export interface InboxScope { organizationId: string; accountId: string }
 export interface VisitorScope { deploymentId: string; sessionId: string }
-export interface CustomerConversation {
-  id: string; organization_id: string; deployment_id: string | null; agent_id: string; version_id: string; session_id: string | null;
-  channel_kind: ChannelKind; channel_deployment_id: string | null; external_conversation_id: string | null; external_sender_id: string | null;
-  execution_conversation_id: string | null; state: "automation_active" | "handoff_pending" | "human_owned" | "resolved";
-  assignee_account_id: string | null; revision: string; ownership_generation: string; next_sequence: string;
-  return_watermark: string; created_at: Date; updated_at: Date;
-  customer_name?: string | null; customer_contact_id?: string | null; assignee_display_name?: string | null; channel_available?: boolean; last_message_body?: string | null; last_message_author_kind?: CustomerMessage["author_kind"] | null; last_message_created_at?: Date | null;
-  last_message_id?: string | null; last_message_task_id?: string | null;
-  last_message_ownership_generation?: string | null;
-}
 // A conversation can have multiple enquiries; only expose a name when they resolve to one contact.
 const customerIdentityJoin = `LEFT JOIN LATERAL (
   SELECT CASE WHEN count(DISTINCT contact.id)=1 THEN max(NULLIF(trim(contact.name),'')) END AS customer_name,
@@ -42,11 +37,6 @@ const customerIdentityJoin = `LEFT JOIN LATERAL (
   JOIN agents_platform.customer_contacts contact ON contact.organization_id=record.organization_id AND contact.id=record.contact_id
   WHERE record.organization_id=c.organization_id AND record.customer_conversation_id=c.id
 ) identity ON true`;
-export interface CustomerMessage { id: string; conversation_id: string; sequence: string; author_kind: "visitor" | "human" | "assistant";
-  author_account_id: string | null; body: string; task_id: string | null; ownership_generation: string; created_at: Date; request_key?: string;
-  displayKind?: "system";
-  channelFacts?: { occurredAt: Date | null; replyToProviderMessageId: string | null; attachments: {kind:string;fileName?:string;index:number}[] };
-  deliveries?: {id:string;segment:number;state:string;reason:string|null}[] }
 export interface InboxPorts {
   followupAccess?(db: Db, scope: VisitorScope, conversationId?: string): Promise<string | null>;
   enqueueFollowup?(db: PoolClient, conversationId: string, messageId: string): Promise<string | null>;
@@ -122,6 +112,7 @@ export class InboxStore {
   }
   private async admitWaitingStatus(db:PoolClient,row:CustomerConversation,message:CustomerMessage,sessionId?:string):Promise<void> {
     if(row.state!=="handoff_pending" || !this.ports.admitSupportStatus)return;
+    if((await db.query("SELECT 1 FROM agents_platform.human_assistance_requests WHERE conversation_id=$1 AND human_only=true AND status IN ('requested','human_owned')",[row.id])).rowCount)return;
     const episode=(await db.query(`SELECT w.task_id,w.source_message_id,c.action FROM agents_platform.support_waiting w
       JOIN agents_platform.customer_commands c ON c.conversation_id=w.conversation_id AND c.command_id=w.task_id
       WHERE w.conversation_id=$1 AND w.ownership_generation<=$2 AND c.action IN ('request_handoff','message_handoff')
@@ -214,6 +205,13 @@ export class InboxStore {
       "SELECT * FROM agents_platform.customer_messages WHERE conversation_id=$1 AND sequence>$2 ORDER BY sequence LIMIT $3", [id, before ?? (after === "0" ? null : after), limit])).rows;
     for (const message of rows) if (message.author_kind === "assistant") message.body = await this.readableMessage(db,message)??"[Response unavailable]";
     if (rows.length) {
+      const timings = (await db.query(`SELECT reply.id,
+        greatest(0,extract(epoch FROM (reply.created_at-input.created_at))*1000)::double precision AS duration_ms
+        FROM agents_platform.customer_messages reply
+        JOIN agents_platform.customer_task_links l ON l.task_id=reply.task_id AND l.conversation_id=reply.conversation_id
+        JOIN agents_platform.customer_messages input ON input.id=l.input_message_id AND input.conversation_id=reply.conversation_id
+        WHERE reply.conversation_id=$1 AND reply.id=ANY($2::uuid[]) AND reply.author_kind='assistant'`,[id,rows.map(row=>row.id)])).rows;
+      for (const message of rows) { const timing=timings.find(row=>row.id===message.id);if(timing)message.responseDurationMs=timing.duration_ms; }
       const systemIds = await systemMessageIds(db,id,rows.map(row=>row.id));
       for (const message of rows) if (systemIds.has(message.id)) message.displayKind="system";
       const facts = (await db.query("SELECT * FROM agents_platform.channel_message_facts WHERE message_id=ANY($1::uuid[])",[rows.map(row=>row.id)])).rows;
@@ -231,22 +229,29 @@ export class InboxStore {
     return transaction(this.pool, async db => {
       const conversation = await this.visitorConversation(db, scope, id);
       let responseStatus: "working" | "incomplete" | "failed" | "cancelled" | "uncertain" | null = null;
+      let responseActivity: {inputMessageId:string;startedAt:Date;completedAt:Date|null;replyMessageId:string|null}|null = null;
       if (conversation.state === "automation_active") {
-        const latest = (await db.query<{ state: string | null; replied: boolean }>(`SELECT t.state,
-          EXISTS(SELECT 1 FROM agents_platform.customer_messages reply WHERE reply.conversation_id=m.conversation_id
-            AND reply.sequence>m.sequence AND reply.author_kind IN ('assistant','human')) AS replied
+        const latest = (await db.query<{state:string|null;error_code:string|null;input_message_id:string;started_at:Date;reply_message_id:string|null;completed_at:Date|null}>(`SELECT t.state,t.error_code,
+          m.id AS input_message_id,m.created_at AS started_at,reply.id AS reply_message_id,reply.created_at AS completed_at
           FROM agents_platform.customer_messages m
           LEFT JOIN agents_platform.customer_task_links l ON l.input_message_id=m.id AND l.conversation_id=m.conversation_id AND l.task_id=m.task_id
           LEFT JOIN agents_platform.tasks t ON t.id=l.task_id AND t.organization_id=$2 AND t.root_task_id=t.id
+          LEFT JOIN LATERAL (SELECT id,created_at FROM agents_platform.customer_messages
+            WHERE conversation_id=m.conversation_id AND task_id=t.id AND author_kind='assistant'
+              AND request_key='assistant:'||t.id::text ORDER BY sequence DESC LIMIT 1) reply ON true
           WHERE m.conversation_id=$1 AND m.author_kind='visitor' AND m.ownership_generation=$3 AND m.sequence>$4
           ORDER BY m.sequence DESC LIMIT 1`, [id, conversation.organization_id, conversation.ownership_generation, conversation.return_watermark])).rows[0];
-        if (latest?.state && !latest.replied) {
-          if (["completed", "incomplete", "refused"].includes(latest.state)) responseStatus = "incomplete";
-          else if (latest.state === "failed" || latest.state === "cancelled" || latest.state === "uncertain") responseStatus = latest.state;
-          else responseStatus = "working";
+        if (latest?.state) {
+          responseActivity={inputMessageId:latest.input_message_id,startedAt:latest.started_at,completedAt:latest.completed_at,replyMessageId:latest.reply_message_id};
+          if (!latest.reply_message_id) {
+            if (latest.state === "cancel_requested" && latest.error_code === "TASK_DEADLINE") responseStatus = "uncertain";
+            else if (["completed", "incomplete", "refused"].includes(latest.state)) responseStatus = "incomplete";
+            else if (latest.state === "failed" || latest.state === "cancelled" || latest.state === "uncertain") responseStatus = latest.state;
+            else responseStatus = "working";
+          }
         }
       }
-      return { conversation, messages: await this.messages(db, id, after, limit, before), responseStatus };
+      return { conversation, responseStatus, responseActivity, messages: await this.messages(db, id, after, limit, before) };
     });
   }
   async readStaff(scope: InboxScope, id: string, after = "0", limit = 100, before?: string) {
@@ -275,6 +280,7 @@ export class InboxStore {
             OR (e.state='pending' AND e.last_error_code='authority_unavailable'))
         ORDER BY e.operation_id`,[scope.organizationId,id])).rows.map(row=>({operationId:row.operation_id,kind:'contact_save_uncertain' as const,
           ...(row.reconciliation_state?{reconciliation:{state:row.reconciliation_state,observedAt:row.reconciliation_observed_at}}:{})}));
+      conversation.humanRequest = await currentHumanRequest(db,id);
       return { conversation, handoff, handoffBrief: parsed.success ? parsed.data : null, uncertainEffects, followupFailures, channelAvailable: await this.activeBinding(db, conversation), messages: await this.messages(db, id, after, limit, before) }; });
   }
   async list(scope: InboxScope, filters: { state?: string; agentId?: string; channel?: ChannelKind; connectionId?: string; assigned?: string; search?: string; sort?: "newest" | "oldest"; cursor?: string; limit: number }) {
@@ -292,7 +298,7 @@ export class InboxStore {
         LEFT JOIN agents_platform.accounts assignee ON assignee.id=c.assignee_account_id
         ${customerIdentityJoin}
         LEFT JOIN LATERAL (SELECT id,task_id,request_key,body,author_kind,created_at,ownership_generation FROM agents_platform.customer_messages WHERE conversation_id=c.id ORDER BY sequence DESC LIMIT 1) last_message ON true
-        WHERE c.organization_id=$1 AND ($2::text IS NULL OR c.state=$2) AND ($3::uuid IS NULL OR c.agent_id=$3)
+        WHERE c.organization_id=$1 AND ($2::text IS NULL OR c.state=$2 OR ($2='human_requested' AND EXISTS(SELECT 1 FROM agents_platform.human_assistance_requests h WHERE h.conversation_id=c.id AND h.status IN ('requested','human_owned')))) AND ($3::uuid IS NULL OR c.agent_id=$3)
         AND ($4::text IS NULL OR ($4='mine' AND c.assignee_account_id=$5) OR ($4='unassigned' AND c.assignee_account_id IS NULL))
         AND ($10::text IS NULL OR c.channel_kind=$10)
         AND ($11::uuid IS NULL OR cn.id=$11)
@@ -313,6 +319,7 @@ export class InboxStore {
         }
         item.last_message_body = item.last_message_body.slice(0,500);
       }
+      for (const item of items) item.humanRequest = await currentHumanRequest(db,item.id);
       return { items, nextCursor: rows.length > filters.limit && last ? this.cursors.next({ snapshot: anchor.snapshot, position: last.cursor_position, id: last.id }, scopeKey) : null };
     });
   }
@@ -365,6 +372,10 @@ export class InboxStore {
       }
       const updated = (await db.query<CustomerConversation>(`UPDATE agents_platform.customer_conversations SET state=$2,assignee_account_id=$3,revision=revision+1,
         ownership_generation=ownership_generation+$4,return_watermark=CASE WHEN $5 THEN next_sequence-1 ELSE return_watermark END,updated_at=now() WHERE id=$1 RETURNING *`, [id, state, assignee, fence ? 1 : 0, input.action === "return" || input.action === "resolve"])).rows[0]!;
+      if (input.action === "takeover" || input.action === "reopen") await db.query("UPDATE agents_platform.human_assistance_requests SET status='human_owned',updated_at=now() WHERE conversation_id=$1 AND status='requested'",[id]);
+      if (input.action === "unassign") await db.query("UPDATE agents_platform.human_assistance_requests SET status='requested',updated_at=now() WHERE conversation_id=$1 AND status='human_owned'",[id]);
+      if (input.action === "resolve") await db.query("UPDATE agents_platform.human_assistance_requests SET status='completed',updated_at=now() WHERE conversation_id=$1 AND status IN ('requested','human_owned')",[id]);
+      if (input.action === "return") await db.query("UPDATE agents_platform.human_assistance_requests SET status='requested',human_only=false,updated_at=now() WHERE conversation_id=$1 AND status IN ('requested','human_owned')",[id]);
       if (fence) await this.queueCancellation(db, id, updated.ownership_generation);
       let transitionMessageId: string | null = null;
       if (row.channel_kind === "website" && row.state !== updated.state && (input.action === "return" || input.action === "resolve")) {
@@ -425,6 +436,17 @@ export class InboxStore {
     if (!await this.activeBinding(db,row)) return {outcome:'authority_unavailable'};
     await this.requestHandoff(db,binding,input.taskId);
     return {outcome:'recorded',commandId:input.taskId};
+  }
+  async procedureSnapshot(db:PoolClient,scope:ProcedureScope,binding:ChannelBinding,taskId:string) {
+    return humanAssistanceSnapshot(db,await this.conversation(db,binding.customerConversationId,true),scope,binding,taskId,{assertBinding:(...args)=>this.assertBinding(...args)});
+  }
+  async requestHumanAssistance(db:PoolClient,binding:ChannelBinding,taskId:string,input:unknown) {
+    return requestHumanAssistance(db,await this.conversation(db,binding.customerConversationId,true),binding,taskId,input,{
+      assertBinding:(...args)=>this.assertBinding(...args),append:(...args)=>this.append(...args),cancel:(...args)=>this.queueCancellation(...args)});
+  }
+  async updateHumanAssistance(db:PoolClient,binding:ChannelBinding,taskId:string,input:unknown) {
+    return updateHumanAssistance(db,await this.conversation(db,binding.customerConversationId,true),binding,taskId,input,{
+      assertBinding:(...args)=>this.assertBinding(...args),append:(...args)=>this.append(...args),cancel:(...args)=>this.queueCancellation(...args)});
   }
   async requestHandoff(db: PoolClient, binding: ChannelBinding, taskId: string, brief?: HandoffBrief, cause?: { bookingOperationId: string }): Promise<{ state: "handoff_pending" }> {
     if (brief) brief = handoffBriefSchema.parse(brief);
@@ -596,6 +618,9 @@ export class InboxStore {
     if(!await assertSupportStatusNotice(db,binding,message.id,message.body,this.ports.verifySupportStatus))throw new PlatformError('CHANNEL_AUTHORITY_CHANGED',403,'Message authority changed');
   }
   private async readableMessage(db:Db,message:CustomerMessage):Promise<string|null>{
+    if(!message.task_id && message.request_key?.startsWith("timeout-notice:"))
+      return await assertCustomerTimeoutNotice(db as PoolClient,message.id,false) ? message.body : null;
+    if(message.request_key?.startsWith("human-assistance:"))return await humanAssistanceNoticeValid(db,message)?message.body:null;
     if (message.request_key?.startsWith('connected-uncertainty:')) {
       const receipt=(await db.query('SELECT operation_id FROM agents_platform.connected_uncertainty_notices WHERE message_id=$1 AND conversation_id=$2',[message.id,message.conversation_id])).rows[0];
       return receipt && await assertConnectedUncertaintyNotice(db as PoolClient,receipt.operation_id,message.id,'history') ? message.body : null;

@@ -27,7 +27,10 @@ export function growthToolInputSchema(operation: GrowthOperationDefinition): Rec
     _continuation: { type: "string", minLength: 1, maxLength: 512, description: "Continuation returned by this same operation. Repeat unchanged business arguments to retrieve the next bounded result chunk." },
     ...(operation.effect === "read" ? {} : {
       _requestId: { type: "string", minLength: 8, maxLength: 240, description: "Stable request identity. Reuse it when resuming this exact action; never change it to retry an uncertain result." },
-      _reviewId: { type: "string", minLength: 1, maxLength: 256, description: "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval." },
+      _reviewId: { type: "string", minLength: 1, maxLength: 256, description: "Legacy review ID for the exact unchanged action or receipt." },
+      ...(operation.name.startsWith("content.") && ["external_effect", "destructive"].includes(operation.effect) ? {
+        _previewId: { type: "string", minLength: 1, maxLength: 256, description: "Preview ID returned by content.actions.preview. Repeat the exact action input; client confirmation follows the client settings. The preview retains its stable request identity." },
+      } : {}),
     }),
   };
   const withControls = (schema: Record<string, unknown>): Record<string, unknown> => ({ ...schema,
@@ -37,9 +40,11 @@ export function growthToolInputSchema(operation: GrowthOperationDefinition): Rec
   return withControls(operation.inputSchema);
 }
 export function growthToolArguments(input: Record<string, unknown>) {
-  const { _requestId, _reviewId, _continuation, ...business } = input;
+  const { _requestId, _reviewId, _previewId, _continuation, ...business } = input;
+  if (_previewId !== undefined && (typeof _previewId !== "string" || !_previewId || _previewId.length > 256 || _reviewId !== undefined && _reviewId !== _previewId))
+    throw new ApiError(422, "operation_arguments_invalid", "Choose one exact preview or review identity");
   if ((_requestId !== undefined && (typeof _requestId !== "string" || _requestId.length < 8 || _requestId.length > 240)) ||
       (_reviewId !== undefined && (typeof _reviewId !== "string" || !_reviewId || _reviewId.length > 256))) throw new ApiError(422, "operation_arguments_invalid", "Check the request or review identity");
   if (_continuation !== undefined && (typeof _continuation !== "string" || !_continuation || _continuation.length > 512)) throw new ApiError(422, "operation_arguments_invalid", "Check the continuation");
-  return { input: business, requestId: _requestId as string | undefined, reviewId: _reviewId as string | undefined, continuation: _continuation as string | undefined };
+  return { input: business, requestId: _requestId as string | undefined, reviewId: (_previewId ?? _reviewId) as string | undefined, continuation: _continuation as string | undefined };
 }

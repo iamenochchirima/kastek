@@ -23,6 +23,7 @@ type EditIntent = {
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const conflict = (message: string) => new ApiError(409, "conflict", message);
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
+export const THREADS_PUBLISHED_EDIT_UNSUPPORTED = "The Threads API does not support editing published posts.";
 export interface PublishedFacebookUpdate { content: string; expectedUpdatedAt: string; removePhoto?: boolean }
 type PublishedEditOptions = PostMutationOptions & ProviderOptions & { reconcileOnly?: boolean };
 
@@ -50,6 +51,8 @@ export async function updatePublishedFacebookPost(
     await lockSocialPost(tx, ctx.organizationId, postId);
     const post = await getSocialPost(pool, ctx.organizationId, postId);
     if (!post) throw new ApiError(404, "not_found", "Post not found");
+    if (post.channels.length === 1 && post.channels[0] === "THREADS")
+      throw new ApiError(409, "platform_edit_unsupported", THREADS_PUBLISHED_EDIT_UNSUPPORTED);
     if (post.status !== "PUBLISHED" || post.channels.length !== 1 || post.channels[0] !== "FACEBOOK" || post.publishJobs.length !== 1)
       throw conflict("Only published Facebook-only posts can be updated");
     const job = post.publishJobs[0]!;

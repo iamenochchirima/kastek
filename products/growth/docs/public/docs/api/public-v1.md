@@ -37,12 +37,17 @@ Typed content aliases invoke the canonical operations:
 - `GET /content/media/{id}` and `/content/media/{id}/preview`;
 - `POST /content/posts` and `PATCH /content/posts/{id}` for drafts.
 
-Draft writes require an `Idempotency-Key` header or `_requestId`. The first request returns
-`202` with `state: "approval_required"` and an exact review link; it does not save a draft.
-After the workspace user approves, repeat the same input and request identity with `_reviewId`.
-A completed create returns `201`; an update returns `200`. Reusing the approved receipt returns
-the recorded result. Changing the input requires a new review. These aliases reject publication
-and scheduling fields; use the corresponding canonical operations for those actions.
+Requested private draft writes require an `Idempotency-Key` header or `_requestId` and execute
+directly with current write authority. A completed create returns `201`; an update returns `200`.
+Receipt replay returns the recorded result without saving twice. `202` represents a nonterminal
+receipt; it does not establish success. Reconcile uncertain outcomes using the same input and
+request identity, rather than admitting a new write. `_reviewId` remains supported for retained
+reviews. These aliases reject publication and scheduling fields.
+
+Public/destructive content actions execute through canonical operation tools under current scopes
+and validation, without a separate Growth approval. `content.actions.preview` is optional; passing
+its `_previewId` binds execution to unchanged content and the same request identity. See
+[agent REST](./agent-rest.md) for exact inputs, receipts and recovery rules.
 
 ## Organization read routes
 
@@ -60,7 +65,7 @@ additional independent redaction policy.
 Read aliases project the canonical operation's `result` into the typed response. Collection
 pagination uses `limit`, `cursor` and `nextCursor`; totals are returned only by services that
 provide them. Large canonical observations return a JSON chunk and continuation rather than
-an unbounded response. Repeat the same typed read URL and business query with `_continuation=<returned cursor>` to read subsequent chunks. Reconstruct the canonical JSON envelope from its ordered chunks. Draft write aliases accept `_continuation` in the body on the same approved request; receipt replay does not repeat the effect.
+an unbounded response. Repeat the same typed read URL and business query with `_continuation=<returned cursor>` to read subsequent chunks. Reconstruct the canonical JSON envelope from its ordered chunks. Draft write aliases accept `_continuation` in the body on the same original request; receipt replay does not repeat the effect.
 
 These are read-only resources. Every authenticated request reserves a durable `PublicApiRequest`
 row before dispatch, keyed by organization and principal. The shared `/v1` middleware finalizes the
