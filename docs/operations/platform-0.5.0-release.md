@@ -7,8 +7,9 @@ last_reviewed: 2026-11-05
 # Platform 0.5.0 release record
 
 Change: Agents business workflows, after-hours assistance, validated customer follow-up,
-recoverable tool failures, and current Agents/MCP integrations. Growth publishes the combined
-revision 14 capability catalogue while retaining distinct historical publication identities.
+recoverable tool failures, guarded context-overflow recovery, and current Agents/MCP integrations.
+Growth publishes the combined revision 14 capability catalogue while retaining distinct historical
+publication identities.
 
 Owner: Enoch Chirima. Risk: high.
 
@@ -48,7 +49,7 @@ approved versioned-procedure architecture and retains the existing tool executio
 
 ## Validation and rollout
 
-Validation records Node 24 builds, focused Agents workflow/contact/error checks, Growth API tests,
+Validation records Node 24 builds, focused Agents workflow/contact/error/context checks, Growth API tests,
 Growth frontend checks where source changed, contract checks, database migration evidence, import
 boundaries, and the production smoke results. Database and external-channel acceptance use the
 separately owned test environment; no test post is part of deployment.

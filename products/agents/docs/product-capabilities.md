@@ -95,6 +95,12 @@ Version3 schema loads validate the entire prior-plus-new selection before persis
 oversized sets return `TOOL_SCHEMA_LIMIT` with fewer/replace guidance. Loading grants no authority.
 The directory uses one eighth of the input/request allowance with a minimal totals/category fallback;
 the complete request still passes the ordinary context-fit gate. All omitted details remain explicit.
+If that full request still exceeds the accepted context limit, the worker may compact the directory
+only when every listed operation remains directly callable, and there are no selected skills,
+specialists, or unavailable product bindings. It preserves the summary and tool schemas and marks
+the directory as incomplete. If the reduced request still exceeds the limit, normal compaction or
+the bounded context-limit response applies; the worker does not drop conversation evidence or
+silently remove tools.
 
 Browse mode enumerates; bounded batched purpose queries use normalized/stemmed ranked overlap
 across readable metadata and parameter descriptions. Results carry matched/returned counts,
