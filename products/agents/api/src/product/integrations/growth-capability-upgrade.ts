@@ -9,7 +9,8 @@ import { toolDescriptorPresentation } from "../../capabilities/tool-descriptors"
 import { productAuthorityBindings, productDescriptor } from "../../capabilities/products/product-capabilities";
 import { pinProductCompositionSources, validateProductNativeSelection } from "../../capabilities/products/native-selection";
 import { compilePublishedComposition } from "../../execution/programs/publication";
-import { growthFeatureConfiguration, growthDelegationPolicy, assertGrowthOptionalAuthority, validateGrowthPublication } from "./growth-features";
+import { growthFeatureConfiguration, growthDelegationPolicy, assertGrowthConfigurationPreservingConnections, validateGrowthPublication } from "./growth-features";
+import { growthConnectedPins,pinGrowthConnectedTools } from "./growth-connected-pins";
 
 type Baseline = Pick<AgentConfiguration,"tools"|"productBindings"|"commissionableProductBindings"|"program"> & { delegation: AgentConfiguration["capabilities"]["delegation"] };
 type Delegation = AgentConfiguration["capabilities"]["delegation"];
@@ -173,8 +174,8 @@ export async function planGrowthCapabilityUpgrade(db:PoolClient,input:{tenantId:
       if(preview.conflicts.some(conflict=>conflict.featureId===selected.feature_id&&resolutions[conflict.id]===undefined))pendingCapacity.add(selected.feature_id);
       else throw new PlatformError("CAPABILITY_AUTHORITY_LIMIT",409,`Update ${selected.name} specialist selections before applying its capabilities.`);
     }
-    assertGrowthOptionalAuthority(config,publication);
-    const parsed=agentConfigurationSchema.parse(config),newBindings=publishedToolBindings(parsed),composition=pendingCapacity.has(selected.feature_id)?null:compilePublishedComposition(parsed,[]);
+    assertGrowthConfigurationPreservingConnections(config,selected.configuration,publication);
+    const parsed=agentConfigurationSchema.parse(config),connected=await growthConnectedPins(db,selected.organization_id,selected.version_id,parsed),newBindings=publishedToolBindings(parsed),composition=pendingCapacity.has(selected.feature_id)?null:compilePublishedComposition(parsed,connected.direct);
     if(!equal(newBindings,selected.tool_bindings)||!equal(composition,selected.effective_composition))changes.push({id:`${selected.feature_id}:runtime`,kind:"runtime",action:"change",label:"Current capability protocol",conflict:false});
     selectedChanged=!equal(parsed,selected.configuration)||!equal(newBindings,selected.tool_bindings)||!equal(composition,selected.effective_composition);
     if(selectedChanged||preview.conflicts.some(conflict=>conflict.featureId===selected.feature_id))updates.push({feature:selected,configuration:parsed,baseline:growthCapabilityBaseline(target),versionId:uuid([versionSeed,selected.feature_id]),changes});
@@ -224,7 +225,8 @@ export async function planGrowthCapabilityUpgrade(db:PoolClient,input:{tenantId:
       if(coalesceGrowthAuthority(parentConfig))parentChanges.push({id:`${parent.feature_id}:equivalent-authority`,kind:"runtime",action:"change",label:"Reuse equivalent specialist capabilities",conflict:false});
       const capacity=new Set([...parentConfig.productBindings,...parentConfig.commissionableProductBindings??[]].map(binding=>binding.id)).size;
       if(capacity>64)throw new PlatformError("CAPABILITY_AUTHORITY_LIMIT",409,`Keep current for this specialist link, or update ${parent.name} capabilities first.`);
-      compilePublishedComposition(parentConfig,[]);
+      const parentConnected=await growthConnectedPins(db,parent.organization_id,parent.version_id,parentConfig);
+      compilePublishedComposition(parentConfig,parentConnected.direct);
       const nextBaseline=structuredClone(parentBase??growthCapabilityBaseline(parent.configuration));
       if(nextBaseline.delegation.enabled&&parentConfig.capabilities.delegation.enabled&&managedPins.size){
         nextBaseline.delegation.bindings=nextBaseline.delegation.bindings.map(binding=>managedPins.has(binding.id)?structuredClone(roster(parentConfig.capabilities.delegation).find(role=>role.id===binding.id)!):binding);
@@ -254,15 +256,16 @@ export async function applyGrowthCapabilityUpgrade(db:PoolClient,plan:GrowthCapa
   const revisions:Partial<Record<GrowthAgentFeatureId,number>>={};
   for(const update of plan.updates){
     const {feature,configuration}=update;
-    if(equal(configuration,feature.configuration)&&equal(publishedToolBindings(configuration),feature.tool_bindings)&&equal(compilePublishedComposition(configuration,[]),feature.effective_composition))continue;
+    const connected=await growthConnectedPins(db,feature.organization_id,feature.version_id,configuration);
+    if(equal(configuration,feature.configuration)&&equal(publishedToolBindings(configuration),feature.tool_bindings)&&equal(compilePublishedComposition(configuration,connected.direct),feature.effective_composition))continue;
     const number=feature.revision+1;
     const saved=await db.query("UPDATE agents_platform.agents SET draft=$2,draft_revision=$3,updated_at=now() WHERE id=$1 AND draft=$4::jsonb",[feature.agent_id,configuration,number,feature.configuration]);if(!saved.rowCount)throw changed();
     await db.query(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition)
-      VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)`,[update.versionId,feature.organization_id,feature.agent_id,number,configuration,provenance,JSON.stringify(publishedToolBindings(configuration)),compilePublishedComposition(configuration,[])]);
+      VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)`,[update.versionId,feature.organization_id,feature.agent_id,number,configuration,provenance,JSON.stringify(publishedToolBindings(configuration)),compilePublishedComposition(configuration,connected.direct)]);
     const mapped=await db.query("UPDATE agents_platform.product_execution_features SET version_id=$3,revision=$4,managed_defaults_revision=$5,managed_capability_baseline=$6,updated_at=now() WHERE product='growth' AND tenant_id=$1 AND feature_id=$2 AND revision=$7",[tenantId,feature.feature_id,update.versionId,number,plan.publication.manifest.revision,update.baseline,feature.revision]);
     if(!mapped.rowCount)throw changed();
     await pinProductCompositionSources(db,{product:"growth",tenantId,organizationId:feature.organization_id},update.versionId,configuration);
-    await db.query("INSERT INTO agents_platform.version_connected_tools(organization_id,version_id,binding_id) SELECT organization_id,$2,binding_id FROM agents_platform.version_connected_tools WHERE version_id=$1",[feature.version_id,update.versionId]);
+    await pinGrowthConnectedTools(db,feature.organization_id,update.versionId,connected.ids);
     revisions[feature.feature_id]=number;
   }
   const existing=(await db.query("SELECT digest FROM agents_platform.growth_capability_publications WHERE tenant_id=$1 AND revision=$2",[tenantId,plan.publication.manifest.revision])).rows[0];

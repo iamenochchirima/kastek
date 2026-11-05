@@ -141,6 +141,8 @@ export const growthContentReadModelProjections={...growthFullOperationModelProje
   "growth.operation.content.posts.list@1":"growth-content-post-read-v1"} as const;
 export const growthContentReadAdapterManifest={...growthInstalledAdapterManifest,release:"9",
   executableDigest:requestDigest({release:"growth-operations-v2",handlers:growthFullOperationHandlers,modelProjection:"growth-content-post-read-v1"})};
+export const growthConnectionReadAdapterManifest={...growthInstalledAdapterManifest,release:"10",
+  executableDigest:requestDigest({release:"growth-operations-v2",handlers:growthFullOperationHandlers,modelProjection:"growth-content-post-read-v1",connectionProjection:"growth-connections-read-v1"})};
 export const growthRetainedOperationAdapters=[
   {manifest:growthOperationAdapterManifest,handlers:growthOperationHandlers},
   {manifest:growthOperationAdapterManifestV7,handlers:growthRetainedOperationHandlers},

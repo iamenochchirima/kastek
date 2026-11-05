@@ -40,7 +40,10 @@
   "dependencies": {
     "@earendil-works/pi-ai": "1.1.0",
     "@fastify/cookie": "^11.1.2",
+    "@kasitek-labs/contracts": "workspace:*",
+    "@kasitek-labs/server-support": "workspace:*",
     "@modelcontextprotocol/client": "2.3.1",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@opentelemetry/api": "1.9.0",
     "@opentelemetry/exporter-metrics-otlp-http": "0.221.0",
     "@opentelemetry/exporter-trace-otlp-http": "0.221.0",
@@ -54,9 +57,7 @@
     "pg": "^8.16.0",
     "yaml": "2.9.1",
     "yauzl": "3.4.0",
-    "zod": "^4.0.0",
-    "@kasitek-labs/contracts": "workspace:*",
-    "@kasitek-labs/server-support": "workspace:*"
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

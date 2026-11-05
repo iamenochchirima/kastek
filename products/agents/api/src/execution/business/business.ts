@@ -1073,8 +1073,8 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               ...builtinArgumentFeedback(name,call.function.arguments,result.code,acceptedToolVersion),
               ...(snapshot.catalog&&name==="tools.load"?toolSchemaFailureFeedback(snapshot.catalog,result.code):undefined),
             }:undefined;
-            const modelValue=result.ok&&productBinding?productModelResult(productBinding,result.value,taskId,id):result.ok?result.value:undefined;
-            let content=JSON.stringify(result.ok ? binding ? connectedModelView(result.value as ConnectedObservation) : productBinding ? modelValue : builtinObservationView(name,call.function.arguments,result.value) : { error: result.code,...argumentFeedback });
+            const modelValue=result.ok&&productBinding?productModelResult(productBinding,result.value,taskId,id):result.ok&&binding?connectedModelView(result.value as ConnectedObservation):result.ok?builtinObservationView(name,call.function.arguments,result.value):undefined;
+            let content=JSON.stringify(result.ok ? modelValue : { error: result.code,...argumentFeedback });
             let previewed=false;
             if(sharedProtocol&&result.ok&&options.evidence&&Buffer.byteLength(content)>4096){
               const estimated=await guardedRun(ctx,`result-context-cost:${step}:${callIndex}`,async()=>

@@ -16,7 +16,7 @@ export interface WebsiteDeployment { id: string; organization_id: string; agent_
   allowed_origins: string[]; published_by: string; published_at: Date; revoked_at: Date | null }
 export interface TaskRecord { id: string; product: AdmissionAuthority["product"]; organization_id: string; resource_id: string;
   work_id?: string; prior_task_id?: string | null; execution_policy_version?: number;
-  execution_purpose?: "business_v1" | "support_status_v1";
+  execution_purpose?: "business_v1" | "support_status_v1" | "private_preview_v1";
   caller_client_id: string; principal: AdmissionAuthority["principal"]; version_id: string; grant_id: string;
   conversation_id: string; request_key: string; request_digest: string; input: string; state: TaskState;
   runtime_invocation_id: string | null; output: string | null; error_code: string | null; created_at: Date; updated_at: Date;

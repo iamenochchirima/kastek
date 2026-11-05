@@ -1,6 +1,6 @@
 # Implementation boundary
 
-Owner: Agents engineering. Last reviewed: 2026-10-27.
+Owner: Agents engineering. Last reviewed: 2026-11-04.
 
 Agents is a fresh standalone product. Its API and business worker use the dedicated
 `agents_platform` PostgreSQL schema. Setup loads the ordered SQL files in
@@ -2471,3 +2471,25 @@ manifest digest); a persisted manifest cannot install an executor. Hosted releas
 release 6 remains executable only at its exact frozen digest, alongside hosted
 release 6. New publication 12 selects projection-aware release 9. Runtime adoption
 does not add or replace product operation assignments.
+
+Growth publication 13 uses release 10 for structured connection and account reads.
+Eligible existing agents receive derived versions that preserve their selected tools,
+specialist ceilings and accepted task versions. Schema 116 records runtime-version
+lineage without consuming the author's draft revision. Unsupported source lineages
+are deferred; installation alone does not prove every feature was upgraded.
+
+Ordinary task replies, activity and supported text artifact downloads apply a scoped
+view of known internal references. Explicit authenticated technical exports retain
+their native capture contract. Checks protect identified values, not all possible
+secrets or transformed identifiers; legacy partial records and long histories have
+the limits documented in the runtime and Growth integration references.
+
+The standalone Agents API includes an opt-in inbound MCP endpoint. When enabled, it provides
+organization-scoped OAuth connections and creation, configuration, knowledge, private-preview,
+and reviewed website-activation operations. Private preview permits knowledge and discovery;
+it does not exercise connected actions or delegation. Connection and review views are available
+in the standalone client. A focused database test uses an MCP SDK client through the actual API
+composition for OAuth, tool discovery, agent creation/configuration, private-preview admission and
+website review. Restate preview completion is conditional on the test binary; live hosted-client
+compatibility and serving rollout require separate evidence.
+See [integration boundaries](mcp-integration.md#standalone-agents-mcp-server).

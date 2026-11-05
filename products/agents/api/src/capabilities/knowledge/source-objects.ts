@@ -4,17 +4,18 @@ import { PlatformError } from "../../contracts/contracts";
 import { textDigest } from "../../contracts/source-contracts";
 import { transaction } from "../../infrastructure/database";
 import { PrivateObjectStore } from "../../infrastructure/object-store";
+import { assertMcpJobAuthority } from "../../infrastructure/mcp-job-authority";
 
 export interface SourceObjectWrite {jobId:string;key:string;bytes:Uint8Array;contentType:string;kind:"raw"|"stage"|"text"}
 const fail=(code:string)=>new PlatformError(code,409,"Source content cannot be stored");
 const leaseMs=30000,replayMs=7*86400000+900000;
 
-async function current(db:PoolClient,jobId:string,lock=false){
+async function current(db:PoolClient,jobId:string,lock=false,requireMcp=true){
  const first=(await db.query("SELECT organization_id FROM agents_platform.ingestion_jobs WHERE id=$1",[jobId])).rows[0];if(!first)throw fail("SOURCE_NOT_FOUND");
  if(lock)await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[first.organization_id]);
  const job=(await db.query(`SELECT j.*,s.state AS source_state,s.generation AS source_generation,
   agents_platform.knowledge_import_authorized(j) AS member_active
-  FROM agents_platform.ingestion_jobs j JOIN agents_platform.sources s ON s.id=j.source_id WHERE j.id=$1 ${lock?"FOR UPDATE OF j,s":""}`,[jobId])).rows[0];return job;
+  FROM agents_platform.ingestion_jobs j JOIN agents_platform.sources s ON s.id=j.source_id WHERE j.id=$1 ${lock?"FOR UPDATE OF j,s":""}`,[jobId])).rows[0];if(job&&requireMcp)await assertMcpJobAuthority(db,job);return job;
 }
 function eligible(job:Record<string,any>):boolean{return job.member_active&&job.source_state==="active"&&job.source_generation===job.accepted_generation&&!["cancelled","failed"].includes(job.state)&&(job.state==="ready"||new Date(job.deadline).getTime()>Date.now());}
 function assertKey(input:SourceObjectWrite,job:Record<string,any>,digest:string){
@@ -84,7 +85,7 @@ export async function reapSourceObjects(pool:Pool,objects:PrivateObjectStore,opt
  for(const candidate of rows)await transaction(pool,async db=>{
   const row=(await db.query("SELECT * FROM agents_platform.source_objects WHERE id=$1 FOR UPDATE SKIP LOCKED",[candidate.id])).rows[0];if(!row)return;
   if(!row.put_ack_at&&new Date(row.write_lease_until).getTime()>now.getTime())return;
-  const job=await current(db,row.job_id);
+  const job=await current(db,row.job_id,false,false);
   const sealed=(await db.query("SELECT 1 FROM agents_platform.source_revisions WHERE source_id=$1 AND id=$2 AND (raw_key=$3 OR text_key=$3)",[job.source_id,job.revision_id,row.object_key])).rowCount;
   if(row.state==="available"&&row.kind==="text"&&job.source_state==="active"&&sealed)return;
   // Keep seven days after job settlement plus its wall-time/acknowledgment margin.

@@ -5,7 +5,7 @@ import Fastify from "fastify";
 import {createServer} from "node:http";
 import {generateKeyPair,exportSPKI,exportPKCS8,jwtVerify,SignJWT} from "jose";
 import {beforeAll,afterAll,describe,it,expect} from "vitest";
-import type {GrowthAgentProvisionRequest} from "@kasitek-labs/contracts";
+import {GROWTH_AGENT_PROVISION_PATH,GROWTH_AGENT_PUBLICATION_MAX_BYTES,type GrowthAgentProvisionRequest} from "@kasitek-labs/contracts";
 import {GrowthProvisionAuth,GrowthProvisionService,registerGrowthProvisionRoute,growthManagedModelProfileSchema} from "../src/product/integrations/growth-provisioning";
 import {GrowthProductRuntime} from "../src/execution/products/growth-runtime";
 import {growthInstalledAdapterManifest} from "../src/adapters/products/growth-capability-manifests";
@@ -30,6 +30,17 @@ function publication(revision="1"):GrowthAgentPublication {
  return {manifest:{...body,digest:requestDigest(body)},presets:(["assistant","research","content","campaigns"] as const).map(id=>({id,name:id,description:"Fixture preset",instructions:"Choose permitted tools as needed. Revision "+revision,operations:["workspace.read"]})),policy:{revision,optionalCapabilities:{knowledge:false,skills:false,memory:false,delegation:false,sandbox:false,workflows:false,connections:false}}};
 }
 const request=(tenantId=randomUUID()):GrowthAgentProvisionRequest=>({version:"1",requestId:randomUUID(),tenantId,publication:publication(),defaultsRevision:"1",modelProfileId:profile.id,modelProfileRevision:profile.revision});
+it("current Growth publication reaches provisioning authentication within the bounded HTTP body",async()=>{
+  const app=Fastify({bodyLimit:128_000}),input={...request(),publication:currentGrowthPublication};
+  registerGrowthProvisionRoute(app,{} as Pool,undefined,{});
+  try {
+    const accepted=await app.inject({method:"POST",url:GROWTH_AGENT_PROVISION_PATH,payload:input});
+    expect(accepted.statusCode).toBe(503);
+    expect(accepted.json().message).toBe("Growth provisioning is not configured");
+    const oversized=await app.inject({method:"POST",url:GROWTH_AGENT_PROVISION_PATH,payload:{...input,padding:"x".repeat(GROWTH_AGENT_PUBLICATION_MAX_BYTES)}});
+    expect(oversized.statusCode).toBe(413);
+  } finally { await app.close(); }
+});
 it("provision authority rejects human command identity, changed payload, foreign audience and expired signatures",async()=>{
   const keys=await generateKeyPair("RS256",{extractable:true}),auth=new GrowthProvisionAuth(issuer,{setup:await exportSPKI(keys.publicKey)}),input=request(),now=Math.floor(Date.now()/1000);
   const token=(sub="growth-provisioner",aud="agents-product-provisioning",start=now)=>new SignJWT({product:"growth",requestDigest:requestDigest(input)})

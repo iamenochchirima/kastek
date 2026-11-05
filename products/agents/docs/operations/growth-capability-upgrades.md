@@ -2,6 +2,12 @@
 
 Owner: Agents engineering. Reviewed: 2026-11-03.
 
+Runtime-derived versions share their source draft revision (schema116). Rollback must retain a
+binary that understands `runtime_derived_from` and chooses the newest matching version when looking
+up a draft revision. Disable further runtime binding upgrades without deleting derived versions,
+accepted task pins or receipts. An older binary with unordered draft lookup is unsafe once derived
+versions exist; restoring it requires an independently verified migration and reconciliation plan.
+
 Growth managers review capability changes independently from instructions, model, context, memory,
 source and skill selections. The signed `features.upgrade.preview` and `features.upgrade.apply`
 commands use the current Growth publication supplied by the product API. The browser cannot submit
@@ -22,6 +28,11 @@ same plan and publishes new immutable versions with compare-and-swap. A stale re
 configuration rejects the request. Exact retries recover the committed receipt. Instructions, model,
 context, memory, source/skill selections and enabled/disabled state remain unchanged. Existing
 accepted tasks keep their original versions, snapshots, grants and receipts.
+
+Growth recognizes published capabilities by the exact policy revision and manifest digest.
+Source-owned retained publications can share a revision across prior builds; the revision alone
+does not identify their operations. Descriptor hashes and current actor permissions are checked
+against the selected full publication. An unknown or mixed identity remains denied.
 
 Dependent custom coordinators are included in the preview. An approved pin update intersects the
 existing source/tool ceilings with the new child configuration and retains explicit product-operation

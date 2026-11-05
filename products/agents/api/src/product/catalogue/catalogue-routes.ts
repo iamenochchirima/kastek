@@ -19,6 +19,19 @@ export interface CatalogueRouteOptions {
   connectorReadiness?:Record<string,{available:boolean;reasons?:{code:string;message:string}[]}>;
 }
 
+export async function readAgentCatalogue(options: CatalogueRouteOptions, scope: ActionScope, kind: "tools" | "skills", raw: unknown) {
+  const query = catalogueQuerySchema.parse(raw);
+  const agent = query.agentId ? await options.getAgent(scope, query.agentId) : undefined;
+  const purpose = agent ? agent.offering ?? "general" : query.purpose ?? "general";
+  const [connections, bindings, skills, permissions, calendarProviderId] = await Promise.all([
+    options.listConnections(scope), options.listBindings(scope),
+    kind === "skills" ? options.listSkills?.(scope, agent?.id) ?? Promise.resolve([]) : Promise.resolve([]),
+    options.permissions(scope), agent ? options.calendarProviderId?.(scope,agent) : undefined,
+  ]);
+  return queryCatalogue(kind, query, { agentId: agent?.id, calendarProviderId, configuration: agent?.draft, purpose,
+    product: options.product ?? "agents", connections, bindings, skills, permissions, connectorReadiness: options.connectorReadiness });
+}
+
 export function registerCatalogueRoutes(app: FastifyInstance, options: CatalogueRouteOptions): void {
   app.get(`/api/organizations/:organizationId/connectors`,async request=>{
     const scope=await options.resolveScope(request),organizationId=z.uuid().parse((request.params as Record<string,string>).organizationId);
@@ -32,18 +45,7 @@ export function registerCatalogueRoutes(app: FastifyInstance, options: Catalogue
       const scope = await options.resolveScope(request);
       const organizationId = z.uuid().parse((request.params as Record<string, string>).organizationId);
       if (organizationId !== scope.organizationId) throw new PlatformError("ACCESS_DENIED", 403, "Access denied");
-      const query = catalogueQuerySchema.parse(request.query);
-      const agent = query.agentId ? await options.getAgent(scope, query.agentId) : undefined;
-      // Purpose describes the scoped agent. A query cannot change its product or offering authority.
-      const purpose = agent ? agent.offering ?? "general" : query.purpose ?? "general";
-      const [connections, bindings, skills, permissions, calendarProviderId] = await Promise.all([
-        options.listConnections(scope), options.listBindings(scope),
-        kind === "skills" ? options.listSkills?.(scope, agent?.id) ?? Promise.resolve([]) : Promise.resolve([]),
-        options.permissions(scope),
-        agent?options.calendarProviderId?.(scope,agent):undefined,
-      ]);
-      return queryCatalogue(kind, query, { agentId: agent?.id, calendarProviderId, configuration: agent?.draft, purpose,
-        product: options.product ?? "agents", connections, bindings, skills, permissions, connectorReadiness: options.connectorReadiness });
+      return readAgentCatalogue(options,scope,kind,request.query);
     });
   }
 }

@@ -16,11 +16,34 @@ const contentPost=z.object({
 });
 const postRead=z.object({post:contentPost});
 const postList=z.object({posts:z.array(contentPost),pagination:z.object({limit:z.number().int().positive(),cursor:z.number().int().nonnegative(),nextCursor:z.number().int().nonnegative().nullable()})});
+const mediaPreviewAsset=z.object({id:z.string().min(1),kind:z.string().min(1),mimeType:z.string().min(1),fileName:z.string().nullable().optional(),
+  byteSize:z.union([z.number(),z.string()]).optional(),checksum:z.string().nullable().optional(),width:z.number().nullable().optional(),height:z.number().nullable().optional(),
+  durationMs:z.number().nullable().optional(),processingStatus:z.string().optional(),scanStatus:z.string().optional(),createdAt:z.string().optional()});
 
 /** The native receipt remains unchanged; only its authorized model view is narrowed. */
 export function productModelResult(binding:CapabilityBinding,output:unknown,taskId:string,operationId:string):unknown {
   if(binding.policy.effect==="read"){
     const descriptor=productDescriptor(binding),operation=descriptor.operation;
+    if(binding.adapter.id==="growth-product"&&binding.authority?.destinationProduct==="growth"&&operation==="content.media.preview"&&
+      descriptor.evidence==="none"&&descriptor.handlerRef===`growth.operation.${operation}@${descriptor.revision}`){
+      const result=z.object({value:z.object({state:z.literal("succeeded"),result:z.record(z.string(),z.unknown())})}).safeParse(output);
+      if(!result.success)throw projectionUnavailable();
+      const asset=mediaPreviewAsset.safeParse(result.data.value.result.asset);
+      if(asset.success)return {value:{state:"succeeded",result:{asset:asset.data,previewReady:true}}};
+      // Historical transport chunks can contain parts of a signed URL. Do not replay them.
+      if(result.data.value.result.encoding==="json"&&typeof result.data.value.result.chunk==="string")
+        return {value:{state:"succeeded",result:{previewReady:true}}};
+      throw projectionUnavailable();
+    }
+    // Agency's workspace identifier is authority metadata, not an agent selector. The
+    // per-agent IDs and continuation remain available for legitimate follow-up reads.
+    if(binding.authority?.destinationProduct==="agencies" && operation==="agency.workspace_agents.read" &&
+      descriptor.handlerRef==="agency.workspace-agent-metadata@1" && descriptor.revision==="1") {
+      const parsed=z.object({value:z.object({data:z.object({workspaceId:z.string(),agents:z.array(z.unknown()),next:z.string().nullable()}).passthrough()}).passthrough()}).passthrough().safeParse(output);
+      if(!parsed.success)throw projectionUnavailable();
+      const {workspaceId:_workspaceId,...data}=parsed.data.value.data;
+      return {...parsed.data,value:{...parsed.data.value,data}};
+    }
     const installedProjection=productReadProjection(binding)==="growth-content-post-read-v1";
     // Retained tasks may still pin earlier Growth adapter releases. Apply the same safe model
     // view to their exact canonical read operations without changing their native receipts.

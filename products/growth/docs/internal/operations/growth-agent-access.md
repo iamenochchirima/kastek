@@ -158,7 +158,10 @@ current product scope and issue the same actor-scoped grant without running the 
 review ownership and entitlement are checked without repeating any reviewed effect. This protocol
 confirms current access to an observed result; it does not claim the business content is unchanged,
 create source citations or guarantee provider unlearning. Read results whose identities cannot be
-established are unavailable. A media preview reference expires with its signed URL. Inbox summaries
+established are unavailable. A media preview reference expires with its signed URL. Newly requested
+signed URLs stay inside Growth; agent tool results contain the asset metadata and preview readiness. Existing
+retained agent receipts are projected again before model history is read. The ordinary Growth media
+preview endpoint retains its existing behavior. Inbox summaries
 retain the identity of the message that supplied their preview; messages with unattributable quoted
 text or withdrawn message content fail closed.
 

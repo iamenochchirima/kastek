@@ -19,6 +19,7 @@ import { finishPage, pageQuery, readPageCursor } from "../../infrastructure/read
 import { readGrowthRuntime } from "./growth-runtime-reporting";
 import { observeProductTask, readProductChildren } from "./growth-observation";
 import { readPublicAgentUpdates } from "./public-agent-activity";
+import { projectRecipientText, taskRecipientTextScope } from "../../execution/context/recipient-text";
 import { MemoryStore, type ProductMemoryManagementScope } from "../../execution/memory/memory";
 import { builtinProviderRegistry } from "../../adapters/models/registry";
 import { TaskArtifactStore } from "../../execution/artifacts/task-artifacts";
@@ -194,6 +195,7 @@ export class AgencyExecutionService {
         artifacts=await new TaskArtifactStore(this.pool,privateStoreFromEnvironment()).listForRoot(row.id);
     }
     catch(error){if(!(error instanceof PlatformError)||![403,404,409,503].includes(error.statusCode))throw error;return {...dto,output:null,errorCode:"EVIDENCE_UNAVAILABLE",sources:[],children:[],updates:[]};}
+    if(typeof dto.output==="string")dto.output=projectRecipientText(dto.output,await taskRecipientTextScope(this.pool,row.id,[dto.output]));
     return {...dto,...await readPublicAgentUpdates(this.pool,row.id),children:await readProductChildren(this.pool,row as never,"agencies"),runtime:await readGrowthRuntime(this.pool,row as never,"agencies"),
       results:artifacts.map(artifact=>({id:artifact.id,kind:"artifact" as const,title:artifact.name,artifactId:artifact.id}))};
   }

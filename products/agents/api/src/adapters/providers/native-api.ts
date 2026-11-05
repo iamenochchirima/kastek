@@ -4,6 +4,7 @@ import type { RequestArguments, RequestTemplate, ResolvedOpenApiCredential } fro
 import { compileOpenApiRequest, injectOpenApiCredentials } from "./openapi";
 import { requestDigest, PlatformError } from "../../contracts/contracts";
 import { createBoundedFetch, type NetworkAttempt } from "../../infrastructure/connected-network";
+import { credentialReflectionVariants } from "../../capabilities/connected-tools/credential-reflection";
 
 export const NATIVE_API_RELEASE = "native-api-v2";
 export const NATIVE_API_LIMITS = Object.freeze({ requestBytes: 32768, responseBytes: 1048576, responseDepth: 24, responseNodes: 20000, wallMs: 30000 });
@@ -37,7 +38,7 @@ function boundedJson(value: unknown): void {
 }
 
 function privateCredentialValues(operation:NativeApiOperationRuntime):string[]{
-  return Object.values(operation.credentials).flatMap(value=>value.type==="api_key"?[value.value]:value.type==="basic"?[value.password,Buffer.from(`${value.username}:${value.password}`).toString("base64")]:[value.token]).filter(value=>value.length>0);
+  return Object.values(operation.credentials).flatMap(value=>value.type==="api_key"?[value.value]:value.type==="basic"?[value.password,Buffer.from(`${value.username}:${value.password}`).toString("base64")]:[value.token]).flatMap(credentialReflectionVariants);
 }
 function rejectDecodedCredentialReflection(value:unknown,secrets:readonly string[]):void{
   const pending:unknown[]=[value];

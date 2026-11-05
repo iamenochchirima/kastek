@@ -13,7 +13,8 @@ import { requireProductResourceAccess, type ProductResourceScope } from "../../c
 import { validateProductNativeSelection, pinProductCompositionSources } from "../../capabilities/products/native-selection";
 import { compilePublishedComposition } from "../../execution/programs/publication";
 import { publishedToolBindings } from "../../capabilities/tool-definitions";
-import { assertGrowthOptionalAuthority } from "./growth-features";
+import { assertGrowthConfigurationPreservingConnections } from "./growth-features";
+import { growthConnectedPins,pinGrowthConnectedTools } from "./growth-connected-pins";
 import { textDigest } from "../../contracts/source-contracts";
 import { refreshGrowthManagedRoster } from "./growth-managed-roster";
 type NativeInventory = [Awaited<ReturnType<KnowledgeStore["list"]>>, Awaited<ReturnType<SkillPackageStore["list"]>>];
@@ -81,14 +82,16 @@ export class GrowthResourceService {
       configuration.sourceRevisionIds = input.sourceRevisionIds; configuration.skillIds = input.skillIds;
       configuration.tools = configuration.tools.filter(tool => !tool.startsWith("knowledge."));
       if (configuration.sourceRevisionIds.length) configuration.tools.push("knowledge.search", "knowledge.read");
-      assertGrowthOptionalAuthority(configuration, publication);
+      assertGrowthConfigurationPreservingConnections(configuration, agentConfigurationSchema.parse(previous.configuration), publication);
       await validateProductNativeSelection(db, scope, configuration);
       if (requestDigest(configuration) === requestDigest(previous.configuration)) return;
+      const connected=await growthConnectedPins(db,scope.organizationId,previous.version_id,configuration);
       const versionId = randomUUID(), number = previous.revision + 1, service = { product: "growth", clientId: scope.service.clientId, issuer: scope.service.issuer, actor: scope.actor };
-      await db.query("UPDATE agents_platform.agents SET draft=$2,draft_revision=$3,updated_at=now() WHERE id=$1 AND draft=$4::jsonb", [scope.agentId, configuration, number, previous.configuration]);
+      const updated=await db.query("UPDATE agents_platform.agents SET draft=$2,draft_revision=$3,updated_at=now() WHERE id=$1 AND draft=$4::jsonb", [scope.agentId, configuration, number, previous.configuration]);
+      if(!updated.rowCount)throw new PlatformError("CONFIGURATION_CHANGED",409,"Agent settings changed. Refresh and try again.");
       await db.query(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition)
-        VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)`, [versionId, scope.organizationId, scope.agentId, number, configuration, service, JSON.stringify(publishedToolBindings(configuration)), compilePublishedComposition(configuration, [])]);
-      await db.query("INSERT INTO agents_platform.version_connected_tools(organization_id,version_id,binding_id) SELECT organization_id,$2,binding_id FROM agents_platform.version_connected_tools WHERE version_id=$1", [previous.version_id, versionId]);
+        VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)`, [versionId, scope.organizationId, scope.agentId, number, configuration, service, JSON.stringify(publishedToolBindings(configuration)), compilePublishedComposition(configuration, connected.direct)]);
+      await pinGrowthConnectedTools(db,scope.organizationId,versionId,connected.ids);
       await db.query(`UPDATE agents_platform.product_execution_features SET version_id=$3,revision=$4,
         managed_configuration_digest=CASE WHEN managed_configuration_digest=$5 THEN $6 ELSE managed_configuration_digest END,updated_at=now()
         WHERE product='growth' AND tenant_id=$1 AND feature_id=$2`, [scope.tenantId, input.featureId, versionId, number, requestDigest(previous.configuration), requestDigest(configuration)]);

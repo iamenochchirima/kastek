@@ -58,7 +58,7 @@ function response(protocol: ModelProtocol) {
   return sse({ id: "fixture-message", model: "fixture-model", choices: [{ index: 0, delta: { role: "assistant", content: "Hello" }, finish_reason: "stop" }],
     usage: { prompt_tokens: 3, completion_tokens: 1 } }) + "data: [DONE]\n\n";
 }
-async function fixture(protocol: ModelProtocol = "openai_chat_completions", onRequest?: () => void, status = 200, counter?: { status: number; body: unknown }, origin = "https://fixture.invalid") {
+async function fixture(protocol: ModelProtocol = "openai_chat_completions", onRequest?: () => void, status = 200, counter?: { status: number; body: unknown }, origin = "https://fixture.invalid", streamBody?: string) {
   const calls: Array<{ path: string; headers: IncomingHttpHeaders; body: Record<string, unknown> }> = [];
   const server = createServer((request, reply) => {
     onRequest?.(); let body = "";
@@ -67,7 +67,7 @@ async function fixture(protocol: ModelProtocol = "openai_chat_completions", onRe
       calls.push({ path: request.url!, headers: request.headers, body: JSON.parse(body) });
       if (request.url?.endsWith("/input_tokens")) { reply.writeHead(counter?.status ?? 200, { "content-type": "application/json" }); reply.end(JSON.stringify(counter?.body ?? {input_tokens:3})); return; }
       reply.writeHead(status, { "Content-Type": status === 200 ? "text/event-stream" : "application/json" });
-      reply.end(status === 200 ? response(protocol) : JSON.stringify({ error: { message: "private-fixture-key denied" } }));
+      reply.end(status === 200 ? streamBody ?? response(protocol) : JSON.stringify({ error: { message: "private-fixture-key denied" } }));
     });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -91,6 +91,28 @@ async function fixture(protocol: ModelProtocol = "openai_chat_completions", onRe
 }
 
 describe("authorized bound model dispatch", () => {
+  it("withholds a reflected credential across streamed chunks", async () => {
+    const state = input(), visible: string[] = [];
+    const stream = sse({ id: "fixture-message", model: "fixture-model", choices: [{ index: 0, delta: { role: "assistant", content: "private-fixture-" }, finish_reason: null }] }) +
+      sse({ id: "fixture-message", model: "fixture-model", choices: [{ index: 0, delta: { content: "key" }, finish_reason: "stop" }], usage: { prompt_tokens: 3, completion_tokens: 2 } }) + "data: [DONE]\n\n";
+    const server = await fixture("openai_chat_completions", undefined, 200, undefined, undefined, stream);
+    await expect(dispatchBoundModel({ ...state.request, onText: text => visible.push(text) }, server.factory))
+      .rejects.toMatchObject({ code: "MODEL_CREDENTIAL_REFLECTION", outcome: "uncertain" });
+    expect(visible).toEqual([]);
+    expect(server.calls).toHaveLength(1);
+  });
+  it("does not transmit its credential in model context", async () => {
+    const state = input(), server = await fixture();
+    await expect(dispatchBoundModel({ ...state.request, messages: [{ role: "user", content: "private-fixture-key" }] }, server.factory))
+      .rejects.toMatchObject({ code: "MODEL_CREDENTIAL_IN_CONTEXT", outcome: "rejected" });
+    expect(server.calls).toHaveLength(0);
+  });
+  it("keeps the completed response when a progress observer fails", async () => {
+    const state = input(), server = await fixture();
+    const result = await dispatchBoundModel({ ...state.request, onText: () => { throw new Error("observer unavailable"); } }, server.factory);
+    expect(result.message.content).toBe("Hello");
+    expect(server.calls).toHaveLength(1);
+  });
   it.each(["openai_chat_completions", "openai_responses", "anthropic_messages"] as const)("streams %s through a protected exact HTTP route", async protocol => {
     const state = input(accepted(protocol)), deltas: string[] = [];
     const server = await fixture(protocol, () => { expect(state.activeConnections()).toBe(0); });

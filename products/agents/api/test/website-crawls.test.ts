@@ -8,6 +8,7 @@ import { KnowledgeStore, requireKnowledgeMember } from "../src/capabilities/know
 import { KnowledgeRetrieval } from "../src/capabilities/knowledge/retrieval";
 import { textDigest } from "../src/contracts/source-contracts";
 import { PlatformStore } from "../src/product/agents/store";
+import { websiteCrawlOperations } from "../src/product/agents/website-crawl-routes";
 import { WebsiteCrawlStore, websiteCrawlUrl } from "../src/product/agents/website-crawls";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
@@ -62,6 +63,49 @@ describe("website crawl URL admission",()=>{
   const sources=await knowledge.list(scope);expect(sources).toHaveLength(1);expect(sources[0].visibility).toBe("private");expect(sources[0].revisions).toHaveLength(0);
   expect((await pool.query("SELECT convert_from(k.content, 'UTF8') AS content FROM agents_platform.knowledge_object_contents k JOIN agents_platform.ingestion_jobs j ON j.raw_key=k.object_key WHERE j.id=$1",[imported.job.id])).rows[0].content).toContain("Source: https://example.com/services");
   expect((await pool.query("SELECT count(*) FROM agents_platform.ingestion_outbox WHERE job_id=$1",[imported.job.id])).rows[0].count).toBe("1");
+ });
+ it("imports plain website text without document runtime and resumes the same selection",async()=>{
+  const{scope,agentId}=await fixture();provider();
+  const crawl=await store.start(scope,agentId,{operationId:randomUUID(),url:"example.com"});await tick();await tick();const complete=await store.get(scope,agentId,crawl.id);
+  const selected={operationId:randomUUID(),pageIds:[complete.pages[0].id]};
+  const admit=vi.spyOn(knowledge,"admitText").mockRejectedValueOnce(new Error("interrupted"));
+  await expect(store.import(scope,agentId,crawl.id,selected)).rejects.toThrow("interrupted");
+  const resumed=await store.import(scope,agentId,crawl.id,selected,"document-test-v1");
+  expect(resumed.job.state).toBe("ready");expect(resumed.job.parserRelease).toBe("inline-text-v1");
+  expect((await store.import(scope,agentId,crawl.id,selected)).job.id).toBe(resumed.job.id);
+  expect(admit).toHaveBeenCalledTimes(2);
+  const sources=await knowledge.list(scope);expect(sources[0].revisions[0].state).toBe("candidate");
+  expect((await knowledge.preview(scope,resumed.job.sourceId,resumed.job.revisionId)).text).toContain("We offer booking support.");
+  expect((await pool.query("SELECT count(*)::int n FROM agents_platform.ingestion_jobs WHERE organization_id=$1",[scope.organizationId])).rows[0].n).toBe(1);
+ });
+ it("deduplicates concurrent identical plain-text imports",async()=>{
+  const{scope,agentId}=await fixture();provider();const crawl=await store.start(scope,agentId,{operationId:randomUUID(),url:"example.com"});await tick();await tick();const complete=await store.get(scope,agentId,crawl.id);
+  const selected={operationId:randomUUID(),pageIds:[complete.pages[0].id]};
+  const [first,second]=await Promise.all([store.import(scope,agentId,crawl.id,selected),store.import(scope,agentId,crawl.id,selected)]);
+  expect(first.job.id).toBe(second.job.id);expect(first.job.state).toBe("ready");expect((await knowledge.list(scope))[0].revisions).toHaveLength(1);
+ });
+ it("selects the installed document profile and falls back only when it is unavailable",async()=>{
+  const{scope,agentId}=await fixture();provider();const makeCrawl=async()=>{const c=await store.start(scope,agentId,{operationId:randomUUID(),url:"example.com"});await tick();await tick();const done=await store.get(scope,agentId,c.id);return {id:c.id,input:{operationId:randomUUID(),pageIds:[done.pages[0].id]}};};
+  const runtime={available:vi.fn().mockResolvedValue(true),profile:vi.fn().mockResolvedValue({profileRelease:"document-test-v1"})};
+  const first=await makeCrawl(),sandboxed=await websiteCrawlOperations({crawls:store,runtime}).import(scope,agentId,first.id,first.input);
+  expect(sandboxed.job.parserRelease).toBe("document-test-v1");expect(sandboxed.job.state).toBe("queued");
+  runtime.available.mockResolvedValue(false);const second=await makeCrawl(),plain=await websiteCrawlOperations({crawls:store,runtime}).import(scope,agentId,second.id,second.input);
+  expect(plain.job.parserRelease).toBe("inline-text-v1");expect(plain.job.state).toBe("ready");expect(runtime.profile).toHaveBeenCalledTimes(1);
+ });
+ it("does not silently replace an agent's semantic indexing",async()=>{
+  const{scope,agentId}=await fixture();provider();const crawl=await store.start(scope,agentId,{operationId:randomUUID(),url:"example.com"});await tick();await tick();const complete=await store.get(scope,agentId,crawl.id);
+  await pool.query("UPDATE agents_platform.agents SET draft=jsonb_set(draft,'{retrievalProfile}', $2::jsonb) WHERE id=$1",[agentId,JSON.stringify({kind:"hybrid-v1",embeddingRelease:"document-test-v1"})]);
+  await expect(store.import(scope,agentId,crawl.id,{operationId:randomUUID(),pageIds:[complete.pages[0].id]})).rejects.toMatchObject({code:"DOCUMENT_RUNTIME_UNAVAILABLE"});
+ });
+ it("does not import when the originating MCP grant is revoked",async()=>{
+  const{scope,agentId}=await fixture();provider();
+  const connectionId=randomUUID(),clientId=`client-${randomUUID()}`;
+  await pool.query("INSERT INTO agents_platform.mcp_oauth_clients(id,name,redirect_uris,registration_hash) VALUES($1,'Fixture',ARRAY['https://client.example/callback'],'test')",[clientId]);
+  await pool.query("INSERT INTO agents_platform.mcp_oauth_connections(id,client_id,account_id,organization_id,resource,scopes,access_hash,access_expires_at) VALUES($1,$2,$3,$4,'https://agents.test/mcp',ARRAY['agents:manage'],$5,now()+interval '1 hour')",[connectionId,clientId,scope.accountId,scope.organizationId,randomUUID()]);
+  const mcpScope={...scope,connectionId};const crawl=await store.start(mcpScope,agentId,{operationId:randomUUID(),url:"example.com"});await tick();await tick();const complete=await store.get(mcpScope,agentId,crawl.id);
+  await pool.query("UPDATE agents_platform.mcp_oauth_connections SET revoked_at=now() WHERE id=$1",[connectionId]);
+  await expect(store.import(mcpScope,agentId,crawl.id,{operationId:randomUUID(),pageIds:[complete.pages[0].id]})).rejects.toMatchObject({code:"ACCESS_DENIED"});
+  expect((await pool.query("SELECT count(*)::int n FROM agents_platform.ingestion_jobs WHERE organization_id=$1",[scope.organizationId])).rows[0].n).toBe(0);
  });
  it("seals reviewed website evidence, binds only approved revisions, and fences private or withdrawn customer retrieval",async()=>{
   const{scope,agentId}=await fixture();provider();

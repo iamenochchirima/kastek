@@ -5,6 +5,7 @@ import { assertCurrentEvidence, taskEvidenceManifest } from "../../execution/con
 import { pageQuery, readPageCursor, finishPage, nextPageCursor } from "../../infrastructure/read-pages";
 import { readGrowthRuntime, projectGrowthRuntime,productOperationMetadataSql } from "./growth-runtime-reporting";
 import { readPublicAgentUpdates } from "./public-agent-activity";
+import { projectRecipientText, taskRecipientTextScope } from "../../execution/context/recipient-text";
 import { TaskArtifactStore } from "../../execution/artifacts/task-artifacts";
 
 interface GrowthObservationReader {
@@ -29,7 +30,8 @@ export async function readProductChildren(pool:Pool,parent:{id:string;organizati
   const children:NonNullable<GrowthAgentTask["children"]>=[];
   for(const child of rows)try {
     await assertCurrentEvidence(pool,child.id,await taskEvidenceManifest(pool,child.id),{requireActiveTask:false});
-    children.push({id:child.id,name:child.name,state:state(child.state),errorCode:child.error_code,createdAt:iso(child.created_at),assignment:typeof child.input==="string"?child.input.slice(0,4000):""});
+    const assignment=typeof child.input==="string"?child.input.slice(0,4000):"";
+    children.push({id:child.id,name:child.name,state:state(child.state),errorCode:child.error_code,createdAt:iso(child.created_at),assignment:projectRecipientText(assignment,await taskRecipientTextScope(pool,child.id,[assignment]))});
   } catch(error){if(!(error instanceof PlatformError)||![403,404,409,503].includes(error.statusCode))throw error;}
   return children;
 }
@@ -85,7 +87,7 @@ export async function observeProductTask(service: GrowthObservationReader, comma
   }
   const task:GrowthAgentTask = row.id===root.id ? await service.taskDto(root) : {
     observedAt:new Date().toISOString(),id:row.id,conversationId:row.conversation_id,featureId:row.feature_id,
-    state:state(row.state),input:row.input,output:row.output,errorCode:row.error_code,
+    state:state(row.state),input:typeof row.input==="string"?projectRecipientText(row.input,await taskRecipientTextScope(pool,row.id,[row.input])):row.input,output:typeof row.output==="string"?projectRecipientText(row.output,await taskRecipientTextScope(pool,row.id,[row.output])):row.output,errorCode:row.error_code,
     createdAt:iso(row.created_at),updatedAt:iso(row.updated_at),runtime:await readGrowthRuntime(pool,row as never,product),
     canSteer:false,canContinue:false,sources:[],results:childResults,children:await readProductChildren(pool,row as never,product),
   };

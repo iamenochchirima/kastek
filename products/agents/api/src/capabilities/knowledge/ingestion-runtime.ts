@@ -10,6 +10,7 @@ import { KnowledgeStore,requireKnowledgeMember } from "./knowledge";
 import { acquirePublicSource,SourceAcquisitionError } from "./source-acquisition";
 import { writeSourceObject } from "./source-objects";
 import { knowledgeJobScope } from "../products/resource-scope";
+import { assertMcpJobAuthority } from "../../infrastructure/mcp-job-authority";
 
 export const INGESTION_WORKFLOW = "AgentsKnowledgeImportV1";
 type Runtime = Pick<DocumentRuntime, "start" | "status" | "result" | "destroy">;
@@ -62,6 +63,7 @@ export class IngestionService {
     const job = (await db.query(`SELECT j.*,s.state AS source_state,s.generation AS current_generation FROM agents_platform.ingestion_jobs j
       JOIN agents_platform.sources s ON s.id=j.source_id WHERE j.id=$1 FOR UPDATE OF s,j`, [jobId])).rows[0];
     await requireKnowledgeMember(db, knowledgeJobScope(job));
+    await assertMcpJobAuthority(db,job);
     if (["cancelled", "failed"].includes(job.state) || job.source_state !== "active" || job.accepted_generation !== job.current_generation || new Date(job.deadline).getTime() <= Date.now()) throw failure("INGESTION_INVALIDATED");
     return job;
   }

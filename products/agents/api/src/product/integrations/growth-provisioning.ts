@@ -3,7 +3,7 @@ import {importPKCS8,importSPKI,jwtVerify,SignJWT} from "jose";
 import type {FastifyInstance} from "fastify";
 import type {Pool,PoolClient} from "pg";
 import {z} from "zod";
-import {GROWTH_AGENT_PROVISION_PATH,GROWTH_AGENT_PROVISION_CHECK_PATH,parseGrowthAgentProvisionRequest,type GrowthAgentProvisionRequest,type GrowthAgentProvisionResult} from "@kasitek-labs/contracts";
+import {GROWTH_AGENT_PROVISION_PATH,GROWTH_AGENT_PROVISION_CHECK_PATH,GROWTH_AGENT_PUBLICATION_MAX_BYTES,parseGrowthAgentProvisionRequest,type GrowthAgentProvisionRequest,type GrowthAgentProvisionResult} from "@kasitek-labs/contracts";
 import {PlatformError,requestDigest,agentConfigurationSchema} from "../../contracts/contracts";
 import {modelDescriptorSchema,modelEndpointSchema} from "../../contracts/model-providers";
 import {connectionVaultFromEnvironment} from "../../infrastructure/vault";
@@ -12,7 +12,7 @@ import type {GrowthServiceTrust} from "../../adapters/products/growth-service-au
 import {GrowthExecutionService} from "./growth-execution";
 import {assertModelCredentialAvailable} from "../../execution/models/credential-readiness";
 import {discoverGrowthModel,provisionGrowthModel,type PreparedGrowthModel} from "./growth-model-provisioning";
-import type {ModelDiscoveryFetch} from "../../adapters/models/discovery";
+import {ModelDiscoveryError,type ModelDiscoveryFetch} from "../../adapters/models/discovery";
 import {resolveAcceptedModelRoutes} from "../../execution/models/resolution";
 import {modelServicePolicy,executionModelLayers,contextGrantCeiling} from "../../execution/models/settings";
 
@@ -138,7 +138,7 @@ export function registerGrowthProvisionRoute(app:FastifyInstance,pool:Pool,trust
   const vault=connectionVaultFromEnvironment(env),active=growthProvisionLifecycleFromEnvironment(env);
   const service=trust&&vault&&active?new GrowthProvisionService(pool,{trust,vault:new ModelCredentialVault(vault),active,
     profile:()=>{try{return JSON.parse(env.GROWTH_MANAGED_MODEL_PROFILE_JSON??"null");}catch{return null;}},credential:ref=>env[ref],discoveryFetch:options.discoveryFetch}):undefined;
-  app.post(GROWTH_AGENT_PROVISION_PATH,async request=>{
+  app.post(GROWTH_AGENT_PROVISION_PATH,{bodyLimit:GROWTH_AGENT_PUBLICATION_MAX_BYTES+16_384},async request=>{
     if(!auth||!service)throw new PlatformError("PRODUCT_PROVISION_UNAVAILABLE",503,"Growth provisioning is not configured");
     let input:GrowthAgentProvisionRequest;try {input=parseGrowthAgentProvisionRequest(request.body);}catch {throw new PlatformError("INVALID_PRODUCT_PROVISION",400,"Check the provisioning fields");}
     const bearer=request.headers.authorization?.match(/^Bearer ([A-Za-z0-9_.-]+)$/)?.[1];
@@ -147,7 +147,16 @@ export function registerGrowthProvisionRoute(app:FastifyInstance,pool:Pool,trust
     await pool.query("INSERT INTO agents_platform.product_service_assertions(product,client_id,jti,request_digest,expires_at) VALUES('growth','growth-provisioner',$1,$2,$3) ON CONFLICT DO NOTHING",[verified.jti,digest,verified.expiresAt]);
     const row=(await pool.query("SELECT request_digest FROM agents_platform.product_service_assertions WHERE product='growth' AND client_id='growth-provisioner' AND jti=$1",[verified.jti])).rows[0];
     if(row?.request_digest!==digest)throw new PlatformError("PRODUCT_ASSERTION_CONFLICT",409,"Provisioning assertion input changed");
-    const result=await service.provision(input);
+    let result:GrowthAgentProvisionResult;
+    try { result=await service.provision(input); }
+    catch(error) {
+      const known=error instanceof PlatformError;
+      const code=known&&/^[A-Z][A-Z0-9_]{0,63}$/.test(error.code)?error.code:
+        error instanceof ModelDiscoveryError&&/^[a-z_]{1,40}$/.test(error.code)?`MODEL_DISCOVERY_${error.code.toUpperCase()}`:"INTERNAL_ERROR";
+      const status=known&&Number.isInteger(error.statusCode)&&error.statusCode>=400&&error.statusCode<=599?error.statusCode:500;
+      request.log.warn({event:"growth_default_provision_failed",code,status},"Growth defaults provisioning failed");
+      throw error;
+    }
     request.log.info({event:"growth_default_provision",tenantId:input.tenantId,operationId:input.requestId,state:result.state,code:result.code},"Growth defaults provisioning");
     return result;
   });

@@ -15,6 +15,7 @@ import { operationDomainKey, reconcileGrowthOperationReceipt } from "./reconcili
 import { recordGrowthOperation } from "./telemetry.js";
 import { getSocialPost } from "../services/social/posts.js";
 import type { GrowthReadDetails } from "./read-access.js";
+import { reviewedRecipientLabel } from "./review-recipient.js";
 
 export interface OperationReviewRow {
   id: string; orgId: string; userId: string; principalId: string; principalKind: string;
@@ -28,7 +29,8 @@ export interface OperationInvocation {
   prepareOnly?: boolean;
   continuation?: string;
   requestAudit?: RequestAuditHandle;
-  captureRead?: (result: Record<string, unknown>, details: GrowthReadDetails) => Promise<(bounded: Record<string, unknown>) => Promise<void>>;
+  captureRead?: (result: Record<string, unknown>, details: GrowthReadDetails, native: Record<string, unknown>) => Promise<(bounded: Record<string, unknown>) => Promise<void>>;
+  projectRead?: (result: Record<string, unknown>) => Record<string, unknown>;
 }
 const digest = (value: unknown) => createHash("sha256").update(canonicalJson(JSON.parse(apiJson(value)))).digest("hex");
 const conflict = (message: string) => new ApiError(409, "operation_review_conflict", message);
@@ -130,7 +132,11 @@ async function resourceSnapshot(core: CoreContext, ctx: RequestContext, input: R
     const target = field === "conversationId"
       ? (await core.pool.query(`SELECT "customerName" AS name,"customerIdentifier" AS identifier,channel FROM "Conversation" WHERE id=$1 AND "orgId"=$2`, [input[field], ctx.organizationId])).rows[0]
       : (await core.pool.query(`SELECT "displayName" AS name,handle AS identifier,provider AS channel FROM "ExternalConnection" WHERE id=$1 AND "orgId"=$2`, [input[field], ctx.organizationId])).rows[0];
-    if (target) preview.targetLabel = [target.name,target.identifier,target.channel].filter(Boolean).join(" · ");
+    if (operation === "inbox.messages.send" && field === "conversationId") {
+      const targetLabel = reviewedRecipientLabel(target);
+      if (!targetLabel) throw new ApiError(409, "operation_review_recipient_unavailable", "The message recipient is unavailable for review");
+      preview.targetLabel = targetLabel;
+    } else if (target) preview.targetLabel = [target.name,target.identifier,target.channel].filter(Boolean).join(" · ");
   }
   if (Object.keys(preview).length) snapshot.preview = apiJson(preview);
   return snapshot;
@@ -267,8 +273,9 @@ export async function executeGrowthOperation(core: CoreContext, context: Request
   try {
     const details: GrowthReadDetails = {};
     const unbounded = await runGrowthOperation(core, context, call, details);
-    const finishRead = call.captureRead ? await call.captureRead(unbounded, details) : undefined;
-    const result = boundedGrowthOperationResult(unbounded, call.continuation);
+    const projected = call.projectRead ? call.projectRead(unbounded) : unbounded;
+    const finishRead = call.captureRead ? await call.captureRead(projected, details, unbounded) : undefined;
+    const result = boundedGrowthOperationResult(projected, call.continuation);
     await finishRead?.(result);
     if (!call.requestAudit) await finishRequest(core.pool, audit, 200);
     recordGrowthOperation(context, call.operation, String(result.state), started);

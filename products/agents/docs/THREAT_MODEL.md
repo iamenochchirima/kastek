@@ -1,6 +1,6 @@
 # Agents threat model
 
-Owner: Agents engineering. Last reviewed: 2026-10-20.
+Owner: Agents engineering. Last reviewed: 2026-11-04.
 
 This reference covers the current management API, shared business harness, dedicated database,
 private content store, website widget, identity provider, and model boundary. It
@@ -21,6 +21,30 @@ permission. Continuation must remain within the original task's authority ceilin
 Implemented continuation paths require their own runtime acceptance; the presence
 of a resume endpoint alone is not evidence of successful durable recovery.
 
+## External MCP clients
+
+The standalone Agents MCP endpoint is opt-in and uses OAuth resource discovery,
+Streamable HTTP, PKCE, account consent, and organization-scoped grants. Listing a
+tool is not permission to call it: every invocation checks its current scope,
+connection, organization membership, and the owning operation's authorization.
+Configuration changes, knowledge review, and website activation produce
+short-lived reviews bound to the proposed revision; the external model cannot
+approve them. MCP identifiers returned as references are scoped to their OAuth
+connection and organization, and those references do not authorize an operation.
+
+The response projection rejects known reflections of the active MCP bearer token.
+Host and present Origin headers are checked against explicit deployment
+allowlists; browser origins must be configured exactly, with no wildcard. A
+non-browser client that omits Origin still has to use an allowed Host. Revoking a
+connection blocks later requests but cannot recall data already returned to an
+external client. Growth's MCP server remains separately owned and does not share
+Agents identities, grants, or business operations. OAuth authorization is limited
+per socket peer and per registered client; forwarded IP headers are not trusted.
+Expired requests, codes and refresh records are removed in bounded batches. The
+consent screen treats the client-supplied name as unverified and shows its client
+ID and callback host before granting access; this identifies the requested target
+but does not prove domain ownership.
+
 Website access binds deployment, allowed origin, visitor session, version, and
 approved public knowledge. Website agents cannot enable personal memory, memory tools, or
 generic personal connection bindings. Only enabled, reviewed server-curated instruction packages
@@ -33,6 +57,9 @@ Website Inbox assignment, takeover, human replies and return to automation are i
 Organization membership, assignee permissions, revision checks, deduplicated commands and durable
 ownership generations fence admission and canonical automated delivery. Human-owned visitor input
 is recorded without automatic model admission. Late model results cannot become customer messages.
+Tasks with a customer-channel binding require an Agents visitor or channel-customer principal at
+admission and on current authority checks. This guard does not classify arbitrary staff-authored
+content or replace source and recipient authorization for outbound product actions.
 WhatsApp, Facebook, and Instagram remain unavailable. Google Calendar appointments use explicit
 organization service sharing, an owner-pinned policy, and exact customer confirmation. The
 standalone Booking creation offering and live Google OAuth acceptance remain unavailable.
@@ -80,9 +107,15 @@ before an operation is admitted prevents that claim. Invalidation after admissio
 cannot undo transmitted context or a provider result. Compaction output is a
 summary, never authority or evidence that an external effect succeeded.
 
-Provider credentials remain outside model arguments, context, UI responses, and
-ordinary diagnostic logs. Model output is checked for valid protocol, bounds,
-termination, and usage. The approved profile disables reasoning and fallback.
+The model dispatcher resolves provider credentials outside model arguments and checks
+the prepared request and completed response for the active credential before the
+response is released. The check covers the exact value and common JSON-escaped,
+URL-encoded, Base64, and Base64URL forms. Connected-tool execution applies the same
+known-value check to its active credential before retaining a response. These checks
+are a reflection backstop, not general data-loss prevention: unknown credentials,
+other secrets, and arbitrary transformations can still pass. Model output is checked
+for valid protocol, bounds, termination, and usage. The approved profile disables
+reasoning and fallback.
 Conservative serialized-byte accounting, output reserves, root quotas, operation
 counts, deadlines, and concurrency bounds limit resource use.
 

@@ -13,6 +13,8 @@ import { ExecutableAdapterRegistry,capabilityBindingSchema,createCatalog,digestT
 import type { ActionScope,ConnectionCredentialPort } from "../../contracts/connections";
 import { isCustomerPrincipal,PlatformError,requestDigest } from "../../contracts/contracts";
 import { assertCustomerNativeBindings } from "./customer-native-policy";
+import { containsConnectorCredential } from "./credential-reflection";
+import { retainedSecurityOverlayManifests } from "./retained-security-overlays";
 import {channelPorts} from "../../infrastructure/channel-ports";
 import { textDigest } from "../../contracts/source-contracts";
 import { writeExecutionObject } from "../../execution/artifacts/execution-objects";
@@ -56,7 +58,7 @@ export class ConnectedExecutor {
  readonly nativeAdapter;readonly mcpAdapter;readonly stashAdapter;readonly publicMcpAdapter;readonly remoteMcpAdapter;readonly nativeApiAdapter;readonly nativeProviderAdapter;
  constructor(readonly pool:Pool,readonly connections:ConnectionCredentialPort,readonly objects:PrivateObjectStore,readonly evidence:EvidenceStore,private readonly options:ConnectedExecutorOptions={}){
   const extension=extname(__filename),modules=[
-    ["connected-executor","./connected-executor"],["connected-tool-schema","./connected-tool-schema"],
+    ["connected-executor","./connected-executor"],["connected-tool-schema","./connected-tool-schema"],["credential-reflection","./credential-reflection"],["retained-security-overlays","./retained-security-overlays"],
     ["connected-network","../../infrastructure/connected-network"],["github-adapter","../../adapters/providers/github-adapter"],
     ["github-mcp-file","../../adapters/providers/github-mcp-file"],["stash-adapter","../../adapters/providers/stash-adapter"],
     ["mcp-adapter","../../adapters/providers/mcp-adapter"],["adapter-process","../../adapters/providers/adapter-process"],
@@ -71,6 +73,8 @@ export class ConnectedExecutor {
   this.remoteMcpAdapter=this.registry.register(remoteMcpAdapterManifest(),this);
   this.nativeApiAdapter=this.registry.register(nativeApiAdapterManifest(),this);
   this.nativeProviderAdapter=this.registry.register(nativeProviderAdapterManifest(),this);
+  // These verified hosted identities execute the current, stricter credential-reflection checks.
+  for(const manifest of retainedSecurityOverlayManifests)this.registry.registerRetainedVariant(manifest,this);
   this.catalogs=new ConnectedCatalogStore(pool,connections,this.registry);
  }
  assertAvailable(bindings:readonly CapabilityBinding[]):void{assertConnectedBindingDependencies(bindings);for(const binding of bindings){capabilityBindingSchema.parse(binding);this.registry.resolve(binding);}}
@@ -242,7 +246,7 @@ export class ConnectedExecutor {
   const capture=async(response:{body:unknown;digest:string;observedAt:string})=>{
     checkDeadline();
     const bytes=Buffer.from(JSON.stringify(response.body));if(bytes.length>MAX_BODY_BYTES)throw new PlatformError("CONNECTED_BODY_LIMIT",413,"Provider response exceeds private storage limit");
-    if(claim.credential.authorization&&bytes.includes(Buffer.from(claim.credential.authorization)))throw new PlatformError("CONNECTED_CREDENTIAL_REFLECTION",502,"Provider response reflected private authorization");
+    if(containsConnectorCredential(bytes,claim.credential.authorization))throw new PlatformError("CONNECTED_CREDENTIAL_REFLECTION",502,"Provider response reflected private authorization");
     const contentDigest=textDigest(bytes),key=`connected/${claim.execution.task.organization_id}/${claim.execution.task.root_task_id}/${textDigest(operationId)}/response-${++responseOrdinal}-${contentDigest}`;
     await writeExecutionObject(this.pool,this.objects,{taskId,operationId,key,bytes,contentType:"application/json"});
     checkDeadline();
@@ -332,7 +336,7 @@ export class ConnectedExecutor {
    }
    checkDeadline();
    const body=Buffer.from(JSON.stringify(full));if(body.length>MAX_BODY_BYTES)throw new PlatformError("CONNECTED_BODY_LIMIT",413,"Connected receipt exceeds the private storage limit");
-   if(claim.credential.authorization&&body.includes(Buffer.from(claim.credential.authorization)))throw new PlatformError("CONNECTED_CREDENTIAL_REFLECTION",502,"The connected response reflected private authorization");
+   if(containsConnectorCredential(body,claim.credential.authorization))throw new PlatformError("CONNECTED_CREDENTIAL_REFLECTION",502,"The connected response reflected private authorization");
    const bodyDigest=textDigest(body),bodyKey=`connected/${claim.execution.task.organization_id}/${claim.execution.task.root_task_id}/${textDigest(operationId)}/${bodyDigest}`;
    await writeExecutionObject(this.pool,this.objects,{taskId,operationId,key:bodyKey,bytes:body,contentType:"application/json"});
    if(reviewed&&projection.isError){

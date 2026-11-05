@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import type { GrowthAgentPublicUpdate } from "@kasitek-labs/contracts";
 import { assertCurrentEvidence, taskEvidenceManifest } from "../../execution/context/evidence-policy";
 import { PlatformError } from "../../contracts/contracts";
+import { projectRecipientText, taskRecipientTextScope } from "../../execution/context/recipient-text";
 
 /** Public assistant preambles are already durable in model receipts. Native reasoning is never selected. */
 export async function readPublicAgentUpdates(pool: Pool, taskId: string): Promise<{updates: GrowthAgentPublicUpdate[]; updatesTruncated: boolean}> {
@@ -18,5 +19,6 @@ export async function readPublicAgentUpdates(pool: Pool, taskId: string): Promis
       AND CASE WHEN jsonb_typeof(output->'message'->'tool_calls')='array' THEN jsonb_array_length(output->'message'->'tool_calls')>0 ELSE false END
       AND length(output->'message'->>'content')>0
     ORDER BY started_at DESC,id DESC LIMIT 61`, [taskId])).rows;
-  return {updates: rows.slice(0,60).reverse().map(row=>({id:row.id,text:row.text,createdAt:new Date(row.completed_at).toISOString()})),updatesTruncated:rows.length>60};
+  const scope=await taskRecipientTextScope(pool,taskId,rows.slice(0,60).map(row=>row.text));
+  return {updates: rows.slice(0,60).reverse().map(row=>({id:row.id,text:projectRecipientText(row.text,scope),createdAt:new Date(row.completed_at).toISOString()})),updatesTruncated:rows.length>60};
 }

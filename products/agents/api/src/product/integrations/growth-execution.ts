@@ -1,6 +1,7 @@
 import { planGrowthCapabilityUpgrade, applyGrowthCapabilityUpgrade, growthCapabilityBaseline, growthDefaultCommissions } from "./growth-capability-upgrade";
 import { listGrowthModels, authorizeGrowthModelSelection } from "./growth-model-selection";
 import { readPublicAgentUpdates } from "./public-agent-activity";
+import { projectRecipientText, taskRecipientTextScope, projectWorkProgress, projectRecipientMessages } from "../../execution/context/recipient-text";
 import { readProductChildren,observeGrowthTask } from "./growth-observation";
 import { readGrowthRuntime } from "./growth-runtime-reporting";
 import { orchestrationTools } from "../../contracts/orchestration";
@@ -12,7 +13,8 @@ import { exportProductExecutionCapture } from "../evaluation/product-capture";
 import { randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import type { GrowthAgentCommand,GrowthAgentConversation,GrowthAgentFeatureId,GrowthAgentTask,GrowthAgentTaskState,GrowthAgentResult,GrowthAgentContext,GrowthAgentContextEvidence,GrowthAgentPublication,GrowthAgentSpecialist } from "@kasitek-labs/contracts";
-import { agentConfigurationSchema,modelSchema,canonicalJson,executionGrantSchema,PlatformError,requestDigest,terminalTaskStates,sourceAuthorityIds,type AdmissionAuthority } from "../../contracts/contracts";
+import { agentConfigurationSchema,modelSchema,canonicalJson,executionGrantSchema,PlatformError,requestDigest,terminalTaskStates,sourceAuthorityIds,connectedToolAuthorityIds,type AdmissionAuthority } from "../../contracts/contracts";
+import { capabilityBindingSchema } from "../../contracts/capability-catalog";
 import type { TaskRecord,VersionRecord } from "../../contracts/records";
 import { assertCurrentEvidence, taskEvidenceManifest } from "../../execution/context/evidence-policy";
 import { transaction } from "../../infrastructure/database";
@@ -25,11 +27,14 @@ import { modelServicePolicy, executionModelLayers, contextGrantCeiling } from ".
 import { requestTreeCancellation } from "../../execution/lifecycle/execution";
 import { privateStoreFromEnvironment } from "../../infrastructure/object-store";
 import { TaskArtifactStore } from "../../execution/artifacts/task-artifacts";
-import { growthDelegationPolicy,growthFeatureConfiguration,growthFeatureProvisionOrder,validateGrowthPublication,assertGrowthOptionalAuthority } from "./growth-features";
+import { growthDelegationPolicy,growthFeatureConfiguration,growthFeatureProvisionOrder,validateGrowthPublication,assertGrowthOptionalAuthority,assertGrowthConfigurationPreservingConnections } from "./growth-features";
 import { assertModelCredentialAvailable } from "../../execution/models/credential-readiness";
 import { productAuthorityBindings } from "../../capabilities/products/product-capabilities";
 import { MemoryStore, type ProductMemoryManagementScope } from "../../execution/memory/memory";
 import { refreshGrowthManagedRoster } from "./growth-managed-roster";
+import { rebaseGrowthRuntimeDraft } from "./growth-runtime-binding-plan";
+import { rolloutGrowthConnectionBindings } from "./growth-runtime-binding-rollout";
+import { growthConnectedPins,pinGrowthConnectedTools } from "./growth-connected-pins";
 import type { GrowthServiceTrust } from "../../adapters/products/growth-service-auth";
 import type { GrowthProductRuntime } from "../../execution/products/growth-runtime";
 import { isGrowthResourceOperation } from "@kasitek-labs/contracts";
@@ -135,19 +140,21 @@ export class GrowthExecutionService {
               previous.tool_bindings?.some((binding:{name:string;version:string})=>["agents.start","agents.followup"].includes(binding.name)&&["1","2","3"].includes(binding.version)&&
                 builtinToolEnabled(agentConfigurationSchema.parse(previous.configuration),binding.name)))) {
             const config=agentConfigurationSchema.parse(previous.configuration),versionId=randomUUID(),number=previous.revision+1;
-            await db.query("INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition) VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)",[versionId,org,previous.agent_id,number,config,provenance,JSON.stringify(publishedToolBindings(config)),compilePublishedComposition(config,[])]);
+            const connected=await growthConnectedPins(db,org,previous.version_id,config);
+            await db.query("INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition) VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)",[versionId,org,previous.agent_id,number,config,provenance,JSON.stringify(publishedToolBindings(config)),compilePublishedComposition(config,connected.direct)]);
             await db.query("INSERT INTO agents_platform.version_sources(organization_id,version_id,source_id,revision_id) SELECT organization_id,$2,source_id,revision_id FROM agents_platform.version_sources WHERE version_id=$1",[previous.version_id,versionId]);
-            await db.query("INSERT INTO agents_platform.version_connected_tools(organization_id,version_id,binding_id) SELECT organization_id,$2,binding_id FROM agents_platform.version_connected_tools WHERE version_id=$1",[previous.version_id,versionId]);
+            await pinGrowthConnectedTools(db,org,versionId,connected.ids);
             await db.query("UPDATE agents_platform.product_execution_features SET version_id=$3,revision=$4,updated_at=now() WHERE product='growth' AND tenant_id=$1 AND feature_id=$2",[command.tenantId,feature.id,versionId,number]);
           } else if(previous.artifact_rollout_revision===0&&previous.enabled&&!previous.agent_deleted_at&&managed&&previous.managed_configuration_digest&&
             previous.draft_revision===previous.version_draft_revision&&previous.agent_service?.product==="growth"&&previous.version_service?.product==="growth"&&
             previous.agent_service?.issuer===this.trust.issuer&&previous.version_service?.issuer===this.trust.issuer){
             const config=agentConfigurationSchema.parse(previous.configuration),versionId=randomUUID(),number=previous.revision+1;
             if(!config.tools.includes("artifact.create"))config.tools.push("artifact.create");
+            const connected=await growthConnectedPins(db,org,previous.version_id,config);
             await db.query("UPDATE agents_platform.agents SET draft=$2,draft_revision=$3,updated_at=now() WHERE id=$1",[previous.agent_id,config,number]);
-            await db.query("INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition) VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)",[versionId,org,previous.agent_id,number,config,provenance,JSON.stringify(publishedToolBindings(config)),compilePublishedComposition(config,[])]);
+            await db.query("INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition) VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)",[versionId,org,previous.agent_id,number,config,provenance,JSON.stringify(publishedToolBindings(config)),compilePublishedComposition(config,connected.direct)]);
             await db.query("INSERT INTO agents_platform.version_sources(organization_id,version_id,source_id,revision_id) SELECT organization_id,$2,source_id,revision_id FROM agents_platform.version_sources WHERE version_id=$1",[previous.version_id,versionId]);
-            await db.query("INSERT INTO agents_platform.version_connected_tools(organization_id,version_id,binding_id) SELECT organization_id,$2,binding_id FROM agents_platform.version_connected_tools WHERE version_id=$1",[previous.version_id,versionId]);
+            await pinGrowthConnectedTools(db,org,versionId,connected.ids);
             await db.query("UPDATE agents_platform.product_execution_features SET version_id=$3,revision=$4,managed_configuration_digest=$5,artifact_rollout_revision=1,updated_at=now() WHERE product='growth' AND tenant_id=$1 AND feature_id=$2",[command.tenantId,feature.id,versionId,number,requestDigest(config)]);
             await db.query("UPDATE agents_platform.product_execution_features SET managed_capability_baseline=$3 WHERE product='growth' AND tenant_id=$1 AND feature_id=$2",[command.tenantId,feature.id,growthCapabilityBaseline(config)]);
           } else if(previous.artifact_rollout_revision===0&&previous.agent_service?.product==="growth"){
@@ -163,6 +170,7 @@ export class GrowthExecutionService {
         await db.query("UPDATE agents_platform.product_execution_features SET managed_capability_baseline=$3 WHERE product='growth' AND tenant_id=$1 AND feature_id=$2",[command.tenantId,feature.id,growthCapabilityBaseline(config)]);
       }
       await refreshGrowthManagedRoster(db,command.tenantId,provenance);
+      if(command.upgradeRuntime)await rolloutGrowthConnectionBindings(db,command.tenantId,org,publication);
       return this.tenant(db,command);
     });
   }
@@ -275,13 +283,14 @@ export class GrowthExecutionService {
       !(await this.pool.query(`SELECT 1 FROM agents_platform.tasks t WHERE t.work_id=$1 AND
         (t.prior_task_id=$2 OR t.state NOT IN ('completed','incomplete','refused','failed','cancelled') OR
          EXISTS(SELECT 1 FROM agents_platform.operations o WHERE o.task_id=t.id AND o.state IN ('started','uncertain'))) LIMIT 1`,[row.work_id??row.root_task_id,row.id])).rowCount;
-    return {...await readPublicAgentUpdates(this.pool,row.id),observedAt,id:row.id,conversationId:row.conversation_id,featureId:row.feature_id,state:state(row.state),input:row.input,output:row.output,errorCode:row.error_code,
+    const output=typeof row.output==="string"?projectRecipientText(row.output,await taskRecipientTextScope(this.pool,row.id,[row.output])):row.output;
+    return {...await readPublicAgentUpdates(this.pool,row.id),observedAt,id:row.id,conversationId:row.conversation_id,featureId:row.feature_id,state:state(row.state),input:row.input,output,errorCode:row.error_code,
       runtime:await readGrowthRuntime(this.pool,row as Parameters<typeof readGrowthRuntime>[1]),
       workId:row.work_id??row.root_task_id,priorTaskId:row.prior_task_id??null,
       ...(limitBoundary?{boundary:limitBoundary}:row.error_code?{boundary:{reason:row.error_code,scope:row.state==="waiting_authority"?"authority" as const:row.state==="uncertain"?"runtime" as const:"work" as const,policyRevision:null,limit:null,used:null,policySource:null,retryable:terminalContinuation||row.state==="waiting_authority",action:terminalContinuation||row.state==="waiting_authority"?"continue" as const:row.state==="uncertain"?"reconcile" as const:null}}:{}),
       canContinue:terminalContinuation||row.state==="waiting_authority"||row.state==="waiting_children"&&Boolean((await this.pool.query("SELECT 1 FROM agents_platform.tasks WHERE root_task_id=$1 AND parent_task_id IS NOT NULL AND state='waiting_authority' LIMIT 1",[row.id])).rowCount),
       ...(adaptive?{canSteer:!terminalTaskStates.has(row.state)&&!["cancel_requested","waiting_authority"].includes(row.state)&&new Date(admitted.expires_at).getTime()>Date.now()&&!closed,
-        orchestration:await readWorkProgress(this.pool,row.id),children:visibleChildren}:{}),
+        orchestration:await projectWorkProgress(this.pool,row.id,await readWorkProgress(this.pool,row.id)),children:visibleChildren}:{}),
       createdAt:iso(row.created_at),updatedAt:iso(row.updated_at),reviewIds:reviews.map(r=>r.id),sources:row.sources??[],
       results:[...reviews.flatMap(r=>r.kind==="content_draft"&&r.result?.state==="saved"?[{id:r.result.recordId,kind:"draft" as const,title:r.draft.title,route:r.result.route,revision:r.result.revision}]:[]),...artifactResults]};
   }
@@ -338,12 +347,14 @@ export class GrowthExecutionService {
         const previous=await this.feature(db,command,command.input.featureId);
         if(previous.revision!==command.input.expectedRevision)throw new PlatformError("CONFIGURATION_CHANGED",409,"Agent settings changed. Refresh and try again.");
         const configuration=await authorizeGrowthModelSelection(db,previous,command.input.selection);
+        const connected=await growthConnectedPins(db,previous.organization_id,previous.version_id,configuration);
         const versionId=randomUUID(),number=previous.revision+1,service={product:"growth",clientId:"growth-api",issuer:this.trust.issuer};
         const updated=await db.query("UPDATE agents_platform.agents SET draft=$2,draft_revision=$3,updated_at=now() WHERE id=$1 AND draft=$4::jsonb",[previous.agent_id,configuration,number,previous.configuration]);
         if(!updated.rowCount)throw new PlatformError("CONFIGURATION_CHANGED",409,"Agent settings changed. Refresh and try again.");
         await db.query(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition)
-          VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)`,[versionId,previous.organization_id,previous.agent_id,number,configuration,service,JSON.stringify(publishedToolBindings(configuration)),compilePublishedComposition(configuration,[])]);
+          VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)`,[versionId,previous.organization_id,previous.agent_id,number,configuration,service,JSON.stringify(publishedToolBindings(configuration)),compilePublishedComposition(configuration,connected.direct)]);
         await db.query("INSERT INTO agents_platform.version_sources(organization_id,version_id,source_id,revision_id) SELECT organization_id,$2,source_id,revision_id FROM agents_platform.version_sources WHERE version_id=$1",[previous.version_id,versionId]);
+        await pinGrowthConnectedTools(db,previous.organization_id,versionId,connected.ids);
         await db.query("UPDATE agents_platform.product_execution_features SET version_id=$3,revision=$4,updated_at=now() WHERE product='growth' AND tenant_id=$1 AND feature_id=$2",[command.tenantId,command.input.featureId,versionId,number]);
         if(command.input.featureId!=="assistant")await refreshGrowthManagedRoster(db,command.tenantId,service);
         return {revision:number};
@@ -378,12 +389,15 @@ export class GrowthExecutionService {
         const configuration=agentConfigurationSchema.parse(previous.configuration),publication=await this.publication(db,command.tenantId);
         configuration.memory={enabled:command.input.enabled};configuration.tools=configuration.tools.filter(tool=>!tool.startsWith("memory."));
         if(command.input.enabled)configuration.tools.push("memory.search","memory.propose");
-        assertGrowthOptionalAuthority(configuration,publication);
+        assertGrowthConfigurationPreservingConnections(configuration,agentConfigurationSchema.parse(previous.configuration),publication);
+        const connected=await growthConnectedPins(db,previous.organization_id,previous.version_id,configuration);
         const versionId=randomUUID(),number=previous.revision+1,service={product:"growth",clientId:"growth-api",issuer:this.trust.issuer};
-        await db.query("UPDATE agents_platform.agents SET draft=$2,draft_revision=$3,updated_at=now() WHERE id=$1 AND draft=$4::jsonb",[previous.agent_id,configuration,number,previous.configuration]);
+        const updated=await db.query("UPDATE agents_platform.agents SET draft=$2,draft_revision=$3,updated_at=now() WHERE id=$1 AND draft=$4::jsonb",[previous.agent_id,configuration,number,previous.configuration]);
+        if(!updated.rowCount)throw new PlatformError("CONFIGURATION_CHANGED",409,"Agent settings changed. Refresh and try again.");
         await db.query(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition)
-          VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)`,[versionId,previous.organization_id,previous.agent_id,number,configuration,service,JSON.stringify(publishedToolBindings(configuration)),compilePublishedComposition(configuration,[])]);
+          VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)`,[versionId,previous.organization_id,previous.agent_id,number,configuration,service,JSON.stringify(publishedToolBindings(configuration)),compilePublishedComposition(configuration,connected.direct)]);
         await db.query("INSERT INTO agents_platform.version_sources(organization_id,version_id,source_id,revision_id) SELECT organization_id,$2,source_id,revision_id FROM agents_platform.version_sources WHERE version_id=$1",[previous.version_id,versionId]);
+        await pinGrowthConnectedTools(db,previous.organization_id,versionId,connected.ids);
         await db.query(`UPDATE agents_platform.product_execution_features SET version_id=$3,revision=$4,
           managed_configuration_digest=CASE WHEN managed_configuration_digest=$5 THEN $6 ELSE managed_configuration_digest END,updated_at=now()
           WHERE product='growth' AND tenant_id=$1 AND feature_id=$2`,[command.tenantId,command.input.featureId,versionId,number,requestDigest(previous.configuration),requestDigest(configuration)]);
@@ -398,9 +412,12 @@ export class GrowthExecutionService {
         await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[tenant.organization_id]);
         const previous=await this.feature(db,command,command.input.featureId),parsed=agentConfigurationSchema.safeParse(command.input.configuration),publication=await this.publication(db,command.tenantId);
         if(!parsed.success)throw new PlatformError("PRODUCT_CAPABILITY_UNAVAILABLE",409,"The feature configuration exceeds its authorized capabilities");
-        const configuration=parsed.data;
-        assertGrowthOptionalAuthority(configuration,publication);
+        const source=(await db.query(`SELECT source.configuration FROM agents_platform.agent_versions current
+          JOIN agents_platform.agent_versions source ON source.id=current.runtime_derived_from AND source.organization_id=current.organization_id AND source.agent_id=current.agent_id
+          WHERE current.id=$1 AND current.organization_id=$2`,[previous.version_id,previous.organization_id])).rows[0];
+        const configuration=source?rebaseGrowthRuntimeDraft(parsed.data,agentConfigurationSchema.parse(source.configuration),agentConfigurationSchema.parse(previous.configuration)):parsed.data;
         const oldConfig=agentConfigurationSchema.parse(previous.configuration);
+        assertGrowthConfigurationPreservingConnections(configuration,oldConfig,publication);
         if(configuration.program.id!=="tool-directed"||!(["3","4"].includes(configuration.program.version))||
           (configuration.capabilities.delegation.enabled&&configuration.program.version!=="4")||
           configuration.tools.some(tool=>!["knowledge.search","knowledge.read","memory.search","memory.read","memory.propose","artifact.create",...(configuration.program.version==="4"?orchestrationTools:[])].includes(tool))||configuration.productBindings.some(binding=>{
@@ -421,12 +438,23 @@ export class GrowthExecutionService {
           const allowed=[...productAuthorityBindings(oldConfig),...versions.flatMap(row=>productAuthorityBindings(agentConfigurationSchema.parse(row.configuration)))];
           if(commissioned.some(binding=>!allowed.some(value=>value.id===binding.id&&value.digest===binding.digest)))throw new PlatformError("DELEGATION_BINDING_DENIED",403,"The commissioned product capability is outside the selected specialists");
         }
+        const connectedIds=connectedToolAuthorityIds(configuration);
+        const connected=(await db.query(`SELECT b.id,b.binding FROM agents_platform.capability_bindings b
+          JOIN agents_platform.version_connected_tools v ON v.organization_id=b.organization_id AND v.binding_id=b.id AND v.version_id=$3
+          JOIN agents_platform.connections c ON c.organization_id=b.organization_id AND c.id=b.connection_id AND c.account_id=b.account_id
+          JOIN agents_platform.accounts a ON a.id=b.account_id AND a.issuer=$4 AND a.subject=$5
+          JOIN agents_platform.memberships m ON m.organization_id=b.organization_id AND m.account_id=b.account_id AND m.revoked_at IS NULL
+          WHERE b.organization_id=$1 AND b.id=ANY($2::uuid[]) AND c.state='active' AND c.expires_at>now()
+            AND c.policy_revision=(b.binding->'connection'->>'policyRevision')::integer FOR SHARE OF b,c,m`,[previous.organization_id,connectedIds,previous.version_id,command.actor.issuer,command.actor.subject])).rows;
+        if(connected.length!==connectedIds.length)throw new PlatformError("PRODUCT_CAPABILITY_UNAVAILABLE",409,"Connected tools are unavailable");
+        const directConnected=connected.map(row=>capabilityBindingSchema.parse(row.binding)).filter(binding=>configuration.connectedToolBindingIds.includes(binding.id));
         const versionId=randomUUID(),number=previous.revision+1,provenance={product:"growth",clientId:"growth-control",issuer:this.trust.issuer};
         await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[previous.organization_id]);
         await db.query("UPDATE agents_platform.agents SET draft=$2,draft_revision=$3,updated_at=now() WHERE id=$1",[previous.agent_id,configuration,number]);
-        await db.query("INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition) VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)",[versionId,previous.organization_id,previous.agent_id,number,configuration,provenance,JSON.stringify(publishedToolBindings(configuration)),compilePublishedComposition(configuration,[])]);
+        await db.query("INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition) VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)",[versionId,previous.organization_id,previous.agent_id,number,configuration,provenance,JSON.stringify(publishedToolBindings(configuration)),compilePublishedComposition(configuration,directConnected)]);
         await db.query("UPDATE agents_platform.product_execution_features SET version_id=$3,revision=$4,updated_at=now() WHERE product='growth' AND tenant_id=$1 AND feature_id=$2",[command.tenantId,command.input.featureId,versionId,number]);
         await pinProductCompositionSources(db,{product:"growth",tenantId:command.tenantId,organizationId:previous.organization_id},versionId,configuration);
+        if(connectedIds.length)await db.query("INSERT INTO agents_platform.version_connected_tools(organization_id,version_id,binding_id) SELECT $1,$2,unnest($3::uuid[])",[previous.organization_id,versionId,connectedIds]);
         if(command.input.featureId!=="assistant")await refreshGrowthManagedRoster(db,command.tenantId,provenance);
         const def=publication.presets.find(f=>f.id===command.input.featureId)!;
         return {feature:{id:def.id,name:def.name,description:def.description,ready:false,reasons:[{code:"CHECK_READINESS",message:"Refresh agent readiness"}]}};
@@ -473,7 +501,7 @@ export class GrowthExecutionService {
           if(t.output&&visible)items.push({id:t.id+":assistant",role:"assistant",text:t.output,createdAt:iso(t.updated_at),taskId:t.id,sources:t.sources??[]});
           return items;
         });
-        return {conversation:this.conversationDto(c),messages:messages.flat(),nextCursor:page.nextCursor};
+        return {conversation:this.conversationDto(c),messages:await projectRecipientMessages(this.pool,latest.id,messages.flat()),nextCursor:page.nextCursor};
       }
       case "tasks.export": {
         const task=await this.task(command,command.input.taskId);

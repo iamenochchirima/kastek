@@ -138,9 +138,11 @@ export class AgentStore extends AuthorityStore {
     });
   }
   async saveConfiguration(input:{accountId:string;organizationId:string;agentId:string;name?:string;configuration:AgentConfiguration;expectedRevision:number;confirmImpact?:boolean;setup?:CustomerSetup;setupStep?:string}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
+    return this.transaction(db=>this.saveConfigurationInTransaction(db,input));
+  }
+  async saveConfigurationInTransaction(db:PoolClient,input:{accountId:string;organizationId:string;agentId:string;name?:string;configuration:AgentConfiguration;expectedRevision:number;confirmImpact?:boolean;setup?:CustomerSetup;setupStep?:string}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
     let setup=input.setup===undefined?undefined:customerSetupSchema.parse(input.setup);
     let config=agentConfigurationSchema.parse(input.configuration);
-    return this.transaction(async db=>{
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
       await this.membership(db,input.accountId,input.organizationId);
       let agent=(await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR UPDATE",[input.organizationId,input.agentId])).rows[0]??absent();
@@ -193,7 +195,6 @@ export class AgentStore extends AuthorityStore {
         WHERE organization_id=$1 AND revoked_at IS NULL AND version_id IN
         (SELECT id FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 AND id<>$3)`,[input.organizationId,input.agentId,snapshot.id]);
       return {agent,snapshot,deployments};
-    });
   }
   async createVersion(input: { accountId: string; organizationId: string; agentId: string; expectedRevision: number }): Promise<VersionRecord> {
     return this.transaction(async (db) => {
@@ -201,7 +202,7 @@ export class AgentStore extends AuthorityStore {
       await this.membership(db, input.accountId, input.organizationId);
       const agent = (await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR UPDATE", [input.organizationId, input.agentId])).rows[0] ?? absent();
       if (agent.draft_revision !== input.expectedRevision) throw new PlatformError("DRAFT_CONFLICT", 409, "Agent settings changed. Refresh and try again.");
-      const existing = (await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE agent_id=$1 AND draft_revision=$2", [agent.id, agent.draft_revision])).rows[0];
+      const existing = (await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE agent_id=$1 AND draft_revision=$2 ORDER BY number DESC LIMIT 1", [agent.id, agent.draft_revision])).rows[0];
       if (existing) return existing;
       return this.createVersionInTransaction(db,input,agent);
 

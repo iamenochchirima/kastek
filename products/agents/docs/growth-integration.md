@@ -170,6 +170,22 @@ that already expose the canonical post read operations, despite their pinned ada
 Older accepted work keeps its permission and native receipt; only private fields in the model-facing
 read result are removed.
 
+Growth's internal shared-agent endpoint also builds `connections.list` and `content.accounts.list`
+model views before applying the bounded transport format. It keeps the page/account name, platform,
+status, permitted capabilities, usable selector and explicit continuation while omitting unrelated
+provider metadata. A public platform account identifier is available in the typed account view so an
+agent can answer an explicit Page ID question; ordinary recipient text still hides it unless the
+current user asks for it. Internal connection, account selector, and execution identifiers remain
+hidden. This projection applies to existing as well as current Growth agent publications; it does not
+change grants, saved agent settings, native records or Growth's direct REST responses.
+The signed URL returned by `content.media.preview` is excluded from model results for the same reason.
+
+Release impact for these read projections: Growth API only; no database migration, configuration
+revision, product analytics event or new structured log/metric. The serving Growth API release must
+carry the projection for all active Growth agents. Verify with the focused connection projection test
+and API build. If rolling back to code without these projections, pause the affected internal read
+operations until projection-aware code is restored; do not resume raw results as a fallback.
+
 Local verification covers the V10-to-V11 managed upgrade, recursive child configuration, publication
 identity and content-read projection. No live model prompt was replayed. Hosted rollout is not
 included. Deploy matching Agents and Growth APIs/workers together, then use the existing
@@ -437,6 +453,11 @@ composition/product bindings, model-route pins, operations and evidence coverage
 optional expected composition, manifest and model-route digests and converts supported native
 records to ATIF without inventing missing calls or results. Oversized, withheld or unsupported
 capture remains explicit.
+
+This endpoint is an explicit technical export, not the ordinary agent transcript. It includes
+model inputs and tool observations, including internal references. The product checks the current
+actor, task and evidence access, but it does not guarantee that arbitrary historical input or
+tool text contains no credentials. There is no link to this export in the ordinary Growth agent UI.
 
 Growth still has no server-native evaluation-trial reservation/revocation contract. Configure and
 discard the isolated environment through owner-run setup. Each preset or custom composition can

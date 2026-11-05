@@ -18,6 +18,10 @@ import { InboxPage } from "@/platform/inbox";
 import { OverviewPage } from "@/platform/overview";
 import { AssistantPage } from "@/platform/assistant";
 import { CustomerReturn } from "@/platform/customer-return";
+import { McpConsent } from "@/platform/mcp-consent";
+import { McpWebsiteReview } from "@/platform/mcp-website-review";
+import { McpConfigReview } from "@/platform/mcp-config-review";
+import { McpSourceReview } from "@/platform/mcp-source-review";
 
 const LandingV2 = lazy(() => import("@/platform/landing-v2").then(module => ({ default: module.LandingV2 })));
 
@@ -33,6 +37,10 @@ export const router = createBrowserRouter([
   { path: "/landingv2", Component: LandingV2Route },
   { path: "/signup", Component: Signup },
   { path: "/login", Component: Login },
+  { path: "/app/oauth/consent", Component: McpConsent },
+  { path: "/app/mcp/website-review", Component: McpWebsiteReview },
+  { path: "/app/mcp/config-review", Component: McpConfigReview },
+  { path: "/app/mcp/source-review", Component: McpSourceReview },
   { path: "/chat/:deploymentId", Component: WebsiteChat },
   { path: "/support/return/:deploymentId", Component: CustomerReturn },
   { path: "/app", Component: WorkspaceShell, children: [

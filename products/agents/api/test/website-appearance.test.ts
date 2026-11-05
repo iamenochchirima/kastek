@@ -32,6 +32,18 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   await setupPlatformSchema(pool);platform=new PlatformStore(pool);appearance=new WebsiteAppearanceStore(pool);
  });
  afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
+ it("keeps a private draft until publication and rejects stale updates",async()=>{
+  const account=await platform.ensureAccount({issuer:"https://appearance.test",subject:randomUUID(),email:"draft@example.test",displayName:"Owner"});
+  const org=await platform.createOrganization(account.id,"Draft"),scope={accountId:account.id,organizationId:org.id};
+  const agent=await platform.createConfiguredAgent({...scope,name:"Support",offering:"faq"}),agentId=agent.agent.id;
+  const initial=await appearance.getDraft(scope,agentId),settings={...initial.appearance,title:"Bike support"};
+  expect(initial.revision).toBe(0);
+  expect((await appearance.updateDraft(scope,agentId,{appearance:settings,expectedRevision:0})).revision).toBe(1);
+  await expect(appearance.updateDraft(scope,agentId,{appearance:settings,expectedRevision:0})).rejects.toMatchObject({code:"WEBSITE_SETTINGS_CHANGED"});
+  expect(await platform.listDeployments(scope.accountId,scope.organizationId,agentId)).toHaveLength(0);
+  const deployment=await platform.publishCurrentWebsite({...scope,agentId,allowedOrigins:["example.com"]});
+  expect((await appearance.get(scope,agentId,deployment.id)).appearance.title).toBe("Bike support");
+ });
  it("saves the full recovered settings with revision and current owner checks",async()=>{
   const account=await platform.ensureAccount({issuer:"https://appearance.test",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"});
   const org=await platform.createOrganization(account.id,"Website"),scope={accountId:account.id,organizationId:org.id};

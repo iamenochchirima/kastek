@@ -7,6 +7,7 @@ import { transaction } from "../../infrastructure/database";
 import { type PrivateObjectStore } from "../../infrastructure/object-store";
 import { productPorts } from "../../infrastructure/product-ports";
 import { assertCurrentEvidence,EvidenceStore,taskEvidenceManifest } from "../context/evidence";
+import { assertRecipientArtifact } from "../context/recipient-text";
 import { inspectionAuthority } from "../context/evidence-policy";
 import { currentProductInformation } from "../products/product-information";
 import { delegationAncestors } from "../delegation/scope";
@@ -165,9 +166,12 @@ export class TaskArtifactStore {
       const result=await this.read(selected.child.task,artifactId);
       if(result.artifact.taskId!==childTaskId)throw missing();
       const current=await this.selectedChild(taskId,childTaskId);if(!current.permitted)throw missing();
+      await assertRecipientArtifact(this.pool,childTaskId,result.artifact.contentType,result.content);
       return result;
     }
-    return this.read(actor.task,artifactId);
+    const result=await this.read(actor.task,artifactId);
+    await assertRecipientArtifact(this.pool,taskId,result.artifact.contentType,result.content);
+    return result;
   }
   async readForTask(taskId:string,artifactId:string):Promise<{artifact:TaskArtifact;content:Uint8Array}> {
     z.uuid().parse(artifactId);
@@ -310,7 +314,9 @@ export class TaskArtifactStore {
       if(!(await this.pool.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL",[organizationId,accountId])).rowCount)throw missing();
       if(!(await this.pool.query("SELECT 1 FROM agents_platform.actions WHERE root_task_id=$1 AND artifact_id=$2 AND reviewer_account_id=$3",[actor.task.root_task_id,artifactId,accountId])).rowCount)throw missing();
     }
-    return this.read(actor.task,z.uuid().parse(artifactId));
+    const result=await this.read(actor.task,z.uuid().parse(artifactId));
+    await assertRecipientArtifact(this.pool,taskId,result.artifact.contentType,result.content);
+    return result;
   }
   async transfer(parentTaskId:string,targetTaskId:string,artifactId:string):Promise<void> {
     await this.readForTask(parentTaskId,artifactId);

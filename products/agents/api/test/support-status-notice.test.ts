@@ -31,6 +31,10 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
       CREATE TABLE agents_platform.agent_versions(id uuid,organization_id uuid,agent_id uuid,configuration jsonb);
       CREATE TABLE agents_platform.support_status_executions(task_id uuid PRIMARY KEY,organization_id uuid,conversation_id uuid,input_message_id uuid,episode_command_id uuid,ownership_generation bigint);
       CREATE TABLE agents_platform.operations(id text PRIMARY KEY,task_id uuid,kind text,name text,state text,output jsonb);
+      ALTER TABLE agents_platform.tasks ADD COLUMN turn_sequence bigint DEFAULT 1, ADD COLUMN parent_task_id uuid, ADD COLUMN input text DEFAULT '';
+      ALTER TABLE agents_platform.operations ADD COLUMN request jsonb, ADD COLUMN started_at timestamptz DEFAULT now();
+      CREATE TABLE agents_platform.evidence_nodes(id uuid,task_id uuid);
+      CREATE TABLE agents_platform.evidence_history_links(node_id uuid,origin_task_id uuid);
       CREATE TABLE agents_platform.test_outbound(message_id uuid PRIMARY KEY);`);
     await pool.query(await readFile(join(__dirname,"fixtures/support-status-notice-minimal.sql"),"utf8"));
   });
@@ -50,7 +54,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
     await pool.query("INSERT INTO agents_platform.support_waiting VALUES($1,$2,2,$1,NULL)",[episodeCommandId,conversationId]);
     await pool.query("INSERT INTO agents_platform.customer_commands VALUES($1,$2,'request_handoff',$3)",[conversationId,episodeCommandId,{ownership_generation:"2"}]);
     await pool.query("INSERT INTO agents_platform.support_status_executions VALUES($1,$2,$3,$4,$5,2)",[taskId,organizationId,conversationId,inputMessageId,episodeCommandId]);
-    await pool.query("INSERT INTO agents_platform.operations VALUES($1,$2,'model','model.support_status','completed',$3)",[`support-status:${taskId}`,taskId,{finishReason:"stop",message:{role:"assistant",content:JSON.stringify({reply:body})}}]);
+    await pool.query("INSERT INTO agents_platform.operations(id,task_id,kind,name,state,output) VALUES($1,$2,'model','model.support_status','completed',$3)",[`support-status:${taskId}`,taskId,{finishReason:"stop",message:{role:"assistant",content:JSON.stringify({reply:body})}}]);
     const binding:StatusNoticeBinding={taskId,organizationId,conversationId,inputMessageId,episodeCommandId,ownershipGeneration:"2"};
     let allowed=true;
     const verify=async()=>allowed;
@@ -71,6 +75,13 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
     await expect(pool.query("DELETE FROM agents_platform.support_status_notices WHERE task_id=$1",[f.binding.taskId])).rejects.toMatchObject({code:"23514"});
     await pool.query("UPDATE agents_platform.tasks SET state='completed' WHERE id=$1",[f.binding.taskId]);
     expect((await pool.query("DELETE FROM agents_platform.support_status_notices WHERE task_id=$1",[f.binding.taskId])).rowCount).toBe(1);
+  });
+  it("withholds an exact model notice containing a known internal task ID",async()=>{
+    const f=await fixture(),body=`Your reference is ${f.binding.taskId}.`;
+    await pool.query("UPDATE agents_platform.operations SET output=$2 WHERE task_id=$1",[f.binding.taskId,
+      {finishReason:"stop",message:{role:"assistant",content:JSON.stringify({reply:body})}}]);
+    const result=await transaction(pool,db=>publishSupportStatus(db,f.binding,body,async()=>true,async()=>{throw new Error("Unsafe notice must not be sent");}));
+    expect(result).toBeNull();
   });
   it("rejects stale ownership, newer messages, revoked grants and disconnected recipients",async()=>{
     for(const kind of ["ownership","conversation","newer","grant","disconnected","cancelled","deadline"]){

@@ -17,6 +17,7 @@ import type { Receipt } from "./handoff-pending-receipt";
 import { reserveReceipt } from "./handoff-pending-receipt";
 import { parseHandoffFeedbackRequest, type HandoffFeedbackRequest } from "../../execution/lifecycle/handoff-feedback-contract";
 import { publishSupportStatus,assertSupportStatusNotice,assertSupportStatusNoticeVisible,type StatusNoticeBinding,type StatusEvidenceVerifier } from './support-status-notice';
+import { projectRecipientText, taskRecipientTextScope } from "../../execution/context/recipient-text";
 import { recordSupportLifecycle } from "../reporting/support-lifecycle";
 export type { ChannelBinding } from "../../contracts/channel";
 
@@ -533,6 +534,7 @@ export class InboxStore {
           AND t.principal->>'deploymentId'=$7::text AND t.principal->>'participantId'=r.conversation_id::text))
       FOR SHARE OF t,g,m,c,l`, [receipt.task_id,row.id,row.organization_id,row.ownership_generation,row.channel_kind,row.deployment_id,row.channel_deployment_id])).rowCount;
     if (!valid || !await this.ports.verifyPendingHandoffReceipt(db,input)) return null;
+    if(origin==="model"&&projectRecipientText(text,await taskRecipientTextScope(db,receipt.task_id,[text]))!==text)return null;
     const message = await this.append(db,row,{ key:`handoff-receipt:${receipt.task_id}`, digest:requestDigest({origin,text}), kind:"assistant", body:text, taskId:receipt.task_id });
     await enqueueChannelMessage(db,row,message);
     const waiting=(await db.query<{requested_at:Date}>("SELECT requested_at FROM agents_platform.support_waiting WHERE task_id=$1 AND conversation_id=$2",[receipt.task_id,row.id])).rows[0];
@@ -604,7 +606,8 @@ export class InboxStore {
       if(!row)return null;
       const binding:StatusNoticeBinding={taskId:row.task_id,organizationId:row.organization_id,conversationId:row.conversation_id,
         inputMessageId:row.input_message_id,episodeCommandId:row.episode_command_id,ownershipGeneration:String(row.ownership_generation)};
-      return await assertSupportStatusNoticeVisible(db as PoolClient,binding,message.id,message.body,this.ports.verifyHistoricalSupportStatus)?message.body:null;
+      return await assertSupportStatusNoticeVisible(db as PoolClient,binding,message.id,message.body,this.ports.verifyHistoricalSupportStatus)
+        ? projectRecipientText(message.body,await taskRecipientTextScope(db,binding.taskId,[message.body])) : null;
     }
     if (!message.task_id && message.request_key?.startsWith("transition:")) {
       const receipt = (await db.query(`SELECT action FROM agents_platform.customer_commands
@@ -621,7 +624,8 @@ export class InboxStore {
       if(!receipt) return null;
       if(receipt.outcome==='fallback') return message.body===HANDOFF_RECEIPT?message.body:null;
       // The model receipt must continue to satisfy the same provenance and evidence checks on reads.
-      return this.ports.verifyPendingHandoffReceipt && await this.ports.verifyPendingHandoffReceipt(db,{receipt,origin:'model',text:message.body}) ? message.body : null;
+      return this.ports.verifyPendingHandoffReceipt && await this.ports.verifyPendingHandoffReceipt(db,{receipt,origin:'model',text:message.body})
+        ? projectRecipientText(message.body,await taskRecipientTextScope(db,message.task_id,[message.body])) : null;
     }
     if (!message.task_id && message.body===HANDOFF_RECEIPT && (await db.query(`SELECT 1 FROM agents_platform.customer_commands c
       JOIN agents_platform.support_waiting w ON w.task_id=c.command_id AND w.conversation_id=c.conversation_id AND w.source_message_id=c.command_id
