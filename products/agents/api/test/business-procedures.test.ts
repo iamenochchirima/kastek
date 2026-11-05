@@ -8,6 +8,8 @@ describe('after-hours procedure contract',()=>{
   const base={requestId:crypto.randomUUID(),evidenceMessageId:crypto.randomUUID(),evidenceQuote:'Please save alex@example.test for staff to contact me.'};
   const contact={method:'email',value:'alex@example.test'};
   expect(publicUpdateAssistanceSchema.safeParse({...base,action:'save_contact',contact}).success).toBe(true);
+  expect(publicUpdateAssistanceSchema.safeParse({...base,action:'save_contact',contact:{method:'email',value:'alexexample.com'}}).success).toBe(false);
+  expect(publicUpdateAssistanceSchema.safeParse({...base,action:'save_contact',contact:{method:'phone',value:'123'}}).success).toBe(false);
   expect(publicUpdateAssistanceSchema.safeParse({...base,action:'human_only',contact}).success).toBe(false);
   expect(publicUpdateAssistanceSchema.safeParse({...base,action:'save_contact'}).success).toBe(false);
  });

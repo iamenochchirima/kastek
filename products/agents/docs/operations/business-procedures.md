@@ -139,3 +139,13 @@ follow up?” The agent asks only for missing details. It handles refusals or a 
 when they arise, rather than explaining all options and optional-field rules upfront. Simple
 after-hours acknowledgments use conversational prose without status headings or lists. These
 are playbook instructions, not fixed customer text or a global sentence limit.
+
+### Contact validation and operation failures
+
+Contact email and phone inputs are validated before saving; a suggested change requires customer confirmation. The agent receives field-level validation feedback without submitted values and should only claim the specific contact was saved after a successful tool result. This guidance does not verify mailbox ownership or guarantee model wording. Unknown admitted operation outcomes are recorded as uncertain; customer root turns with expired authority terminate. New customer turns are bounded by their existing grant expiry or an earlier configured deadline. An unavailable worker or database may delay cancellation; a late external effect requires reconciliation.
+
+Local release: API and worker with existing widget and published bindings. Migration `118_customer_timeout_notices.sql` adds receipt provenance; apply it before the new worker and API. Analytics and new alerts are not applicable; existing bounded operation outcome codes provide evidence. Verify the real after-hours flow and focused execution tests. Roll back by restoring the preceding API/worker artifacts and bindings while preserving requests and operation receipts. Production deployment and rollout review remain joint with the owner.
+
+When deadline cancellation is recorded, the website reports an uncertain outcome while the dispatcher continues cancellation. Late completion is not published as a customer reply; already terminal results and effect receipts are preserved. For active messaging channels, the worker can enqueue one platform-owned notice backed by a timeout receipt. It checks the original customer turn and nonrevoked grant, current channel and ownership, and absence of a later message. Delivery rechecks the same facts, connection revision and provider policy. An expired grant does not authorize further agent actions; the notice is a separate operational message. Unknown provider receipts are not retried automatically. Database or dispatcher outages can still delay status updates.
+
+Customer record writes and enquiry contact input also validate email and phone formats. Operation admission retries are limited to three; unconfirmed admission is uncertain. Existing human approval and authority waits remain resumable. Persistent database or worker outages can delay settlement.

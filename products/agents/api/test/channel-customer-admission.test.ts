@@ -1,3 +1,4 @@
+import {publishCustomerTimeoutNotice,CUSTOMER_TIMEOUT_NOTICE} from "../src/product/inbox/customer-timeout-notice";
 import { randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -7,7 +8,7 @@ import { ChannelStore } from "../src/product/channels/channel-store";
 import { ConnectionVault } from "../src/infrastructure/vault";
 import { composeInbox } from "../src/composition/inbox";
 import { transaction } from "../src/infrastructure/database";
-import { assertCurrentAuthority, loadExecution, settleTask } from "../src/execution/lifecycle/execution";
+import { assertCurrentAuthority, event, loadExecution, settleTask } from "../src/execution/lifecycle/execution";
 import { MemoryStore } from "../src/execution/memory/memory";
 import { isCustomerPrincipal } from "../src/contracts/contracts";
 import { customerConfiguration } from "../src/product/offerings/offerings";
@@ -39,6 +40,67 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const receive = (key: string, body: string) => inbox.ingressChannel({ deploymentId: deployment.id, externalConversationId: physicalChannel ? "1234" : "chat-1", senderId: physicalChannel ? "1234" : "customer-1", requestKey: key, body });
     return { scope, owner, org, ...configured, connection, deployment, inbox, receive };
   }
+  it("sends one receipt-bound timeout notice and fences later customer activity",async()=>{
+    let calls=0;
+    const worker = new ChannelDelivery(pool,channels,composeInbox(pool,{publicOrigin:"https://agents.fixture.test",assertServices:async()=>undefined}),{
+      assertPolicy:async()=>undefined,
+      context:(_connection,credentials,beforeAttempt)=>({credential:credentials.botToken,fetch:async()=>{await beforeAttempt();calls++;return Response.json({ok:true,result:{message_id:42}});}}),
+    });
+    const timeout=async(f:Awaited<ReturnType<typeof fixture>>,taskId:string)=>{
+      await pool.query("UPDATE agents_platform.tasks SET state='cancel_requested',error_code='TASK_DEADLINE',deadline_at=now()-interval '1 second' WHERE id=$1",[taskId]);
+      await event(pool,taskId,"deadline-stop","cancel_requested",{errorCode:"TASK_DEADLINE"});
+    };
+    const f=await fixture(true),turn=await f.receive("deadline","Please help"),taskId=turn.message.task_id!;
+    await timeout(f,taskId);
+    expect(await publishCustomerTimeoutNotice(pool,taskId)).toBe(true);
+    expect(await publishCustomerTimeoutNotice(pool,taskId)).toBe(false);
+    const view=await f.inbox.readStaff(f.scope,turn.conversation.id);
+    expect(view.messages.filter(m=>m.body===CUSTOMER_TIMEOUT_NOTICE)).toHaveLength(1);
+    expect(view.messages.find(m=>m.body===CUSTOMER_TIMEOUT_NOTICE)?.displayKind).toBe("system");
+    await worker.drain(10);await worker.drain(10);expect(calls).toBe(1);
+    const newer=await fixture(true),old=await newer.receive("old-timeout","Please help"),oldId=old.message.task_id!;
+    await timeout(newer,oldId);expect(await publishCustomerTimeoutNotice(pool,oldId)).toBe(true);
+    await newer.receive("new-input","Never mind");
+    await worker.drain(10);expect(calls).toBe(1);
+    expect((await worker.readDeliveries(newer.scope,old.conversation.id))[0].state).toBe("suppressed");
+  });
+  it("preserves unknown provider receipts and never sends after takeover or disconnect",async()=>{
+    let calls=0;
+    const worker=new ChannelDelivery(pool,channels,composeInbox(pool,{publicOrigin:"https://agents.fixture.test",assertServices:async()=>undefined}),{
+      assertPolicy:async()=>undefined,
+      context:(_connection,credentials,beforeAttempt)=>({credential:credentials.botToken,fetch:async()=>{await beforeAttempt();calls++;throw new Error("network lost");}}),
+    });
+    async function timed(f:Awaited<ReturnType<typeof fixture>>,key:string){
+      const turn=await f.receive(key,"Please help"),taskId=turn.message.task_id!;
+      await pool.query("UPDATE agents_platform.tasks SET state='cancel_requested',error_code='TASK_DEADLINE',deadline_at=now()-interval '1 second' WHERE id=$1",[taskId]);
+      await event(pool,taskId,"deadline-stop","cancel_requested",{errorCode:"TASK_DEADLINE"});
+      expect(await publishCustomerTimeoutNotice(pool,taskId)).toBe(true);return turn;
+    }
+    const unknown=await fixture(true),turn=await timed(unknown,"unknown");
+    await worker.drain(10);await worker.drain(10);
+    expect(calls).toBe(1);expect((await worker.readDeliveries(unknown.scope,turn.conversation.id))[0].state).toBe("unknown");
+    const takeover=await fixture(true),other=await timed(takeover,"takeover");
+    await pool.query("UPDATE agents_platform.customer_conversations SET state='human_owned',ownership_generation=ownership_generation+1 WHERE id=$1",[other.conversation.id]);
+    const disconnected=await fixture(true),third=await timed(disconnected,"disconnect");
+    await pool.query("UPDATE agents_platform.channel_connections SET state='disconnected',revision=revision+1 WHERE id=$1",[disconnected.connection.id]);
+    await worker.drain(10);expect(calls).toBe(1);
+    expect((await worker.readDeliveries(takeover.scope,other.conversation.id))[0].state).toBe("suppressed");
+    expect((await worker.readDeliveries(disconnected.scope,third.conversation.id))[0].state).toBe("suppressed");
+  });
+  it("requires unrevoked originating authority and does not replace a normal reply",async()=>{
+    const revoked=await fixture(true),first=await revoked.receive("revoked","Please help"),firstTask=first.message.task_id!;
+    await pool.query("UPDATE agents_platform.tasks SET state='cancel_requested',error_code='TASK_DEADLINE' WHERE id=$1",[firstTask]);
+    await event(pool,firstTask,"deadline-stop","cancel_requested",{errorCode:"TASK_DEADLINE"});
+    await pool.query("UPDATE agents_platform.execution_grants SET revoked_at=now() WHERE id=(SELECT grant_id FROM agents_platform.tasks WHERE id=$1)",[firstTask]);
+    expect(await publishCustomerTimeoutNotice(pool,firstTask)).toBe(false);
+    const normal=await fixture(true),second=await normal.receive("normal","Please help"),secondTask=second.message.task_id!;
+    await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[secondTask]);
+    await settleTask(pool,secondTask,{state:"completed",output:"Normal reply"});
+    await event(pool,secondTask,"deadline-stop","cancel_requested",{errorCode:"TASK_DEADLINE"});
+    expect(await publishCustomerTimeoutNotice(pool,secondTask)).toBe(false);
+    const view=await normal.inbox.readStaff(normal.scope,second.conversation.id);
+    expect(view.messages.some(message=>message.body===CUSTOMER_TIMEOUT_NOTICE)).toBe(false);
+  });
   it("delivers a committed handoff receipt once and fences it after ownership changes", async () => {
     let calls = 0;
     const f = await fixture(true), incoming = await f.receive("support", "I need a person");

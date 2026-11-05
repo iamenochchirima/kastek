@@ -17,7 +17,8 @@ export async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, tas
   perform: (recovering?:boolean) => Promise<{ value: T; tokens: number }>, journalName = input.id): Promise<Result<T>> {
   for(let capacityAttempt=0;capacityAttempt<256;capacityAttempt++) {
     const attemptName=capacityAttempt===0?journalName:`${journalName}:capacity:${capacityAttempt}`;
-    const outcome:JournaledOperation<T> = await ctx.run(`${attemptName}:perform`, async () => {
+    let outcome:JournaledOperation<T>;
+    try { outcome = await ctx.run(`${attemptName}:perform`, async () => {
       let attemptId:string|undefined;
       try {
         const admission = input.name === "model.handoff_feedback" ? await beginHandoffFeedbackOperation(pool,taskId,input) : await beginOperation(pool, taskId, input);
@@ -33,13 +34,26 @@ export async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, tas
         if (!Number.isSafeInteger(result.tokens) || result.tokens < 0) throw new ModelOperationError("MODEL_ACCOUNTING_INVALID", "uncertain");
         return {receipt:{attemptId,state:"completed" as const,value:result.value,tokens:result.tokens,code:null}};
       } catch (error) {
-        if (!(error instanceof ModelOperationError) && !(error instanceof PlatformError)) throw error;
+        if(error instanceof restate.CancelledError)throw error;
+        // Once admitted, an unexpected failure may have occurred after an external effect.
+        // Journal an uncertain outcome instead of retrying the physical operation blindly.
+        if (!(error instanceof ModelOperationError) && !(error instanceof PlatformError)) {
+          if (!attemptId) throw error;
+          return {receipt:{attemptId,state:"uncertain" as const,value:null,tokens:input.reservedTokens,code:"OPERATION_OUTCOME_UNCERTAIN"}};
+        }
         if(error instanceof PlatformError&&error.code==="CONNECTED_READ_IN_PROGRESS")return {result:{ok:false as const,code:"CONNECTED_READ_IN_PROGRESS",uncertain:false}};
         const uncertain = uncertainOperation(error);
         if(attemptId)return {receipt:{attemptId,state:uncertain?"uncertain" as const:"failed" as const,value:null,tokens:uncertain?input.reservedTokens:0,code:error.code}};
         return {result:{ok:false as const,code:error.code,uncertain}};
       }
-    });
+    }, {maxRetryAttempts:3}); }
+    catch(error) {
+      // A transaction may have committed before its acknowledgement was lost.
+      // An exhausted admission must not be reported as a definite failed write.
+      if(error instanceof restate.CancelledError)throw error;
+      if(error instanceof restate.TerminalError)return {ok:false,code:"OPERATION_ADMISSION_UNAVAILABLE",uncertain:true};
+      throw error;
+    }
     if('waiting' in outcome){
       if(input.name === "model.handoff_feedback" || input.name === "model.support_status") return {ok:false,code:"CAPACITY_UNAVAILABLE",uncertain:false};
       const remaining=new Date(outcome.waiting.deadline).getTime()-await ctx.date.now();

@@ -1,4 +1,5 @@
 import {randomUUID} from "node:crypto";
+import {validContactPhone} from "../../contracts/contact-validation";
 import type {Pool,PoolClient} from "pg";
 import {z} from "zod";
 import {PlatformError,requestDigest,principalSchema,terminalTaskStates,type AgentConfiguration} from "../../contracts/contracts";
@@ -17,6 +18,7 @@ export function enquiryArguments(configuration:AgentConfiguration,input:unknown,
   if(!capability?.enabled||!configuration.tools.includes(operation))throw new PlatformError("ENQUIRY_DISABLED",403,"Enquiries are unavailable");
   const parsed=validateBuiltinArguments(operation,input) as {fields:EnquiryFields;enquiryId?:string};
   if(Object.keys(parsed.fields).some(field=>!capability.fields.includes(field as keyof EnquiryFields))||capability.fields.some(field=>!parsed.fields[field]))throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Provide the configured enquiry fields");
+  if(parsed.fields.phone && !validContactPhone(parsed.fields.phone))throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Enter a valid phone number");
   if(Object.values(parsed.fields).some(value=>value?.includes("\0")))throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Enquiry fields cannot contain null characters");
   // PostgreSQL jsonb adds separator spaces when rendering the bounded stored object.
   if(Buffer.byteLength(JSON.stringify(parsed.fields),"utf8")+2*Object.keys(parsed.fields).length>8192)throw new PlatformError("TOOL_ARGUMENTS_LIMIT",413,"Enquiry details exceed the storage limit");

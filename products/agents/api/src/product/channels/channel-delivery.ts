@@ -1,3 +1,4 @@
+import {assertCustomerTimeoutNotice} from "../inbox/customer-timeout-notice";
 import {humanAssistanceNoticeValid} from "../inbox/human-assistance";
 import { MemberChannels } from "../assistant/member-channels";
 import {assertEnquiryReviewPrompt,enquiryReviewDecision} from "./channel-enquiry-reviews";
@@ -237,6 +238,14 @@ export class ChannelDelivery {
         FOR SHARE OF o,p,d,c,m`,[row.id,row.claim_id,HANDOFF_RECEIPT,BOOKING_UNCERTAIN_RECEIPT])).rows[0];
       if (!result) throw new PlatformError("CHANNEL_AUTHORITY_CHANGED",403,"Message authority changed");
       if(result.message.request_key?.startsWith('human-assistance:')&&!await humanAssistanceNoticeValid(db,result.message,true))throw new PlatformError('CHANNEL_AUTHORITY_CHANGED',403,'Message authority changed');
+      if(result.message.request_key?.startsWith('timeout-notice:')) {
+        if(!await assertCustomerTimeoutNotice(db,result.message.id,true))throw new PlatformError('CHANNEL_AUTHORITY_CHANGED',403,'Message authority changed');
+        const request=row.request;
+        if(row.segment!==0 || request.text!==result.message.body || request.assetId!==result.connection.asset_id
+          || request.recipientId!==channelRecipient(result.connection.kind,result.connection.asset_id,result.conversation.external_conversation_id)
+          || Object.keys(request).some(key=>!['assetId','recipientId','text'].includes(key)))
+          throw new PlatformError('CHANNEL_DELIVERY_INTEGRITY',403,'Message authority changed');
+      }
       if(pendingReceipt) await this.inbox.assertPendingReceiptDelivery(db,result.message);
       if(supportStatus) await this.inbox.assertSupportStatusDelivery(db,result.message);
       if(connectedUncertainty) {

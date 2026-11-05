@@ -1,3 +1,4 @@
+import { validContactPhone } from "../contracts/contact-validation";
 import { builtinContract,capabilityContractMetadata } from "./tool-contracts";
 
 export interface ToolArgumentIssue {
@@ -27,11 +28,21 @@ export function builtinArgumentFeedback(name:string,argumentsJson:string,errorCo
   const contract=builtinContract(name,version);if(!contract)return;
   let value:unknown;
   try{value=JSON.parse(argumentsJson);}catch{return{argumentIssues:[{path:[],code:"invalid_json",message:"Use valid JSON matching the tool schema."}]};}
-  const parsed=contract.input.safeParse(value);if(parsed.success)return;
+  const parsed=contract.input.safeParse(value);
+  if(parsed.success){
+    const fields=object(object(value)?.fields);
+    if((name==="enquiry.submit"||name==="enquiry.amend") && typeof fields?.phone==="string" && !validContactPhone(fields.phone))
+      return {argumentIssues:[{path:["fields","phone"],code:"invalid_format",message:"Enter a valid phone number. Ask the customer to confirm any correction."}]};
+    return;
+  }
   const schema=capabilityContractMetadata(name,false,version).inputSchema;
   const issues:ToolArgumentIssue[]=parsed.error.issues.slice(0,6).map(issue=>{
     const result:ToolArgumentIssue={path:safePath(issue.path,schema),code:issue.code,message:"Check this field against the tool schema."};
-    if(issue.code==="too_big"&&bounded(issue.maximum)){
+    if(name==="support.update_assistance" && issue.code==="custom" && issue.path.length===2 && issue.path[0]==="contact" && issue.path[1]==="value" && issue.message==="Enter a valid email"){
+      result.message="Enter a valid email address. Ask the customer to confirm any correction.";
+    }else if(name==="support.update_assistance" && issue.code==="custom" && issue.path.length===2 && issue.path[0]==="contact" && issue.path[1]==="value" && issue.message==="Enter a valid phone number"){
+      result.message="Enter a valid phone number. Ask the customer to confirm any correction.";
+    }else if(issue.code==="too_big"&&bounded(issue.maximum)){
       result.maximum=issue.maximum;
       result.message=`Use at most ${issue.maximum}${issue.origin==="array"?" items":issue.origin==="string"?" characters":""}.`;
       if(types.has(issue.origin))result.type=issue.origin;
@@ -48,4 +59,13 @@ export function builtinArgumentFeedback(name:string,argumentsJson:string,errorCo
   });
   while(Buffer.byteLength(JSON.stringify(issues))>2048&&issues.length)issues.pop();
   return issues.length?{argumentIssues:issues}:undefined;
+}
+
+/** Connected schemas and provider messages are untrusted. Return fixed guidance only. */
+export function externalArgumentFeedback(argumentsJson:string,errorCode:string):{argumentIssues:ToolArgumentIssue[]}|undefined {
+  if(errorCode!=="TOOL_ARGUMENTS_INVALID" && errorCode!=="CONNECTED_ARGUMENTS_INVALID" && errorCode!=="MCP_ARGUMENTS_INVALID")return;
+  try { JSON.parse(argumentsJson); } catch {
+    return {argumentIssues:[{path:[],code:"invalid_json",message:"Use valid JSON matching the tool schema."}]};
+  }
+  return {argumentIssues:[{path:[],code:"invalid_arguments",message:"Check the supplied arguments against the tool schema. Ask the user to confirm any correction to their information."}]};
 }

@@ -2,7 +2,7 @@ import {z} from 'zod';
 import type {AgentConfiguration} from './contracts';
 import type {ToolDefinition} from './model-messages';
 import {procedureToolNames,procedureInstanceSchema,procedureReferenceSchema,type ProcedureReference} from './procedures';
-import {requestHumanAssistanceInputSchema} from './human-assistance';
+import {requestHumanAssistanceInputSchema, preferredSupportContactSchema} from './human-assistance';
 import {afterHoursAssistance} from './procedure-definitions';
 export {procedureToolNames} from './procedures';
 
@@ -34,6 +34,10 @@ export const publicUpdateAssistanceSchema=z.strictObject({
  }).optional().describe("Include only for action save_contact. Do not put evidenceMessageId or consentQuote inside contact; evidence is supplied at the top level."),
 }).superRefine((value,context)=>{
  if(value.action==='save_contact'&&!value.contact)context.addIssue({code:'custom',path:['contact'],message:'Contact is required for save_contact'});
+ if(value.action==='save_contact'&&value.contact){
+  const result=preferredSupportContactSchema.safeParse({...value.contact,evidenceMessageId:value.evidenceMessageId,consentQuote:value.evidenceQuote});
+  if(!result.success)for(const issue of result.error.issues)context.addIssue({code:'custom',path:['contact',...issue.path],message:issue.message});
+ }
  if(value.action!=='save_contact'&&value.contact)context.addIssue({code:'custom',path:['contact'],message:'Contact is only allowed with save_contact'});
 });
 export const procedureToolContracts={

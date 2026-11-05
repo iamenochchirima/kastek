@@ -345,7 +345,10 @@ message reads expose bounded response activity from the authorized conversation'
 ownership generation. Once acknowledged, timing runs from server message acceptance to the
 published assistant message, including queue and tool time. The completed duration remains on
 that reply as seconds only, such as `2s`, with an explanatory tooltip and accessible label. Human ownership, handoff, resolution and terminal failures stop the animation;
-reduced-motion mode keeps a static indicator. Response activity does not expose task IDs or
+reduced-motion mode keeps a static indicator. After 60 seconds, the indicator says the reply is
+taking longer than expected while the execution remains active; this does not imply cancellation
+or failure. For an uncertain outcome the widget asks the visitor to check before trying again and
+does not automatically resend the accepted message. Response activity does not expose task IDs or
 private errors.
 Assistant and staff replies render a limited Markdown subset: paragraphs, headings, emphasis,
 code, lists, pipe tables and HTTP/HTTPS links. Tables keep their header and cell structure and
@@ -2229,6 +2232,25 @@ reclaimed after its transport deadline through the normal capacity phase. Ordina
 250 ms. Connected-read reconciliation may separately retry its existing status
 check with a bounded durable delay.
 
+Built-in tool dispatch awaits asynchronous validation and converts schema failures to bounded
+`TOOL_ARGUMENTS_INVALID` feedback. The agent receives guidance to clarify questionable inputs,
+confirm suggested changes and describe only effects established by receipts; model wording is not
+deterministically guaranteed. Contact email and phone formats are checked before saving.
+Operation admission journal retries are bounded to three attempts; an unconfirmed admission is
+reported uncertain. Human approval and authority waits retain their continuation behavior.
+A database or worker outage can prevent settlement until service recovers.
+Unexpected errors after operation admission settle as `OPERATION_OUTCOME_UNCERTAIN` rather than
+blindly repeating a possible effect. Customer root tasks whose authority expires terminate instead
+of waiting for an unavailable renewal. New customer turns have a deadline no later than their
+existing grant expiry or an earlier configured wall limit. Cancellation may still be delayed if
+the database, runtime or worker is unavailable; an adapter that ignores cancellation may finish
+late, requiring reconciliation before retry. Other tasks without a configured deadline are not
+generally bounded.
+When the dispatcher records customer deadline cancellation, the website reports the reply outcome
+as uncertain while cancellation continues. Late customer completion is fenced from publication;
+already terminal results remain unchanged. Connected messaging channels use the separate
+receipt-backed notice described below.
+
 A known provider outcome is retained in the Restate journal before native receipt
 persistence starts. The receipt step may retry three recognized PostgreSQL failures
 locally, then Restate retries that durable step using the journaled outcome. It never
@@ -2532,3 +2554,13 @@ alert is required. Existing omission codes and bounded context metadata provide 
 Validation covers the release-drift history regression, strict current-release rejection, build
 and module boundaries, plus a same-conversation local check. Rollback restores the preceding
 API/worker artifact; it does not modify stored tasks or conversation records.
+
+
+Customer channel timeouts use platform-owned `customer_timeout_notices` receipts, not model output.
+Migration 118 must be applied before API and worker rollout. The worker derives each notice from a
+deadline cancellation event, original scoped turn and nonrevoked grant, and enqueues it on the same
+active conversation and destination. It suppresses the notice when later conversation activity exists.
+The channel worker revalidates receipt provenance, current ownership, connection revision and provider
+policy immediately before send. Failed and unknown provider outcomes are recorded by the existing
+outbox; an unknown acknowledgement is not automatically resent. The notice does not prove whether an
+earlier external side effect happened. Database or dispatcher downtime can delay it.

@@ -1,3 +1,4 @@
+import {publishCustomerTimeoutBatch} from "../product/inbox/customer-timeout-notice";
 import { assertKnowledgeBackfilled } from "../capabilities/knowledge/cutover";
 import { runMemoryRetention } from "./memory-retention";
 import { PostgresKnowledgeObjectStore } from "../capabilities/knowledge/postgres-object-store";
@@ -119,7 +120,7 @@ async function main(): Promise<void> {
   const channelServices=composeChannels(pool,inbox,process.env.AGENTS_PUBLIC_URL??"http://localhost:3100",abort.signal);
   let cancellationPending: Promise<unknown> | undefined;
   const cancellationTimer = setInterval(() => {
-    if(!cancellationPending) cancellationPending=(async()=>{await inbox.drainCancellations();await channelServices.delivery.drain();})()
+    if(!cancellationPending) cancellationPending=(async()=>{await inbox.drainCancellations();await publishCustomerTimeoutBatch(pool,20,code=>console.error(JSON.stringify({...diagnosticIdentity,event:"customer_timeout_notice_failed",code})));await channelServices.delivery.drain();})()
       .catch(()=>console.error(JSON.stringify({...diagnosticIdentity,event:"channel_maintenance_failed",code:"CHANNEL_MAINTENANCE_UNAVAILABLE"})))
       .finally(()=>{cancellationPending=undefined;});
   },1000); cancellationTimer.unref();

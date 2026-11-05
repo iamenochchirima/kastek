@@ -1,4 +1,6 @@
+import { confirmValidProposal } from "./confirmation-proposal";
 import { procedureContext } from "../../capabilities/procedure-tools";
+import { outcomeGuidance } from "./outcome-guidance";
 import { measureCompactionProgress, compactionDidNotProgress, compactionForecast, type CompactionProgress } from "../context/compaction-progress";
 import { executionReservationPressure } from "../lifecycle/reservation-pressure";
 import { executionAllowanceObservation } from "../lifecycle/work-policy";
@@ -6,7 +8,7 @@ import { deadlineMillis } from "../lifecycle/deadline";
 import { builtinObservationView } from "../../capabilities/tool-observation-feedback";
 import { visibleTaskControlTools } from "../../capabilities/task-control";
 import {validateBuiltinArguments,validateBuiltinResult} from "../../capabilities/tool-contracts";
-import { builtinArgumentFeedback } from "../../capabilities/tool-argument-feedback";
+import { builtinArgumentFeedback, externalArgumentFeedback } from "../../capabilities/tool-argument-feedback";
 import * as restate from "@restatedev/restate-sdk";
 import type { Pool } from "pg";
 import { z } from "zod";
@@ -128,7 +130,7 @@ async function guardedRun<T>(ctx:restate.WorkflowContext,name:string,perform:()=
   return result.value;
 }
 
-async function awaitAuthority(ctx: restate.WorkflowContext, pool: Pool, taskId: string, label: string): Promise<Execution | TaskOutcome> {
+export async function awaitAuthority(ctx: restate.WorkflowContext, pool: Pool, taskId: string, label: string): Promise<Execution | TaskOutcome> {
   for (let renewal = 0; ; renewal++) {
     const status = await ctx.run(`${label}:check:${renewal}`, async () => {
       const loaded = await loadExecution(pool, taskId);
@@ -139,6 +141,9 @@ async function awaitAuthority(ctx: restate.WorkflowContext, pool: Pool, taskId: 
       } catch (error) {
         if (!(error instanceof PlatformError)) throw error;
         if (error.code !== "AUTHORITY_EXPIRED") return { denied: error.code };
+        // Customer root turns have no continuation endpoint to renew their grant.
+        // End the turn so the channel can report failure instead of waiting forever.
+        if (!loaded.task.parent_task_id && isCustomerPrincipal(loaded.task.principal)) return { denied: error.code };
         await pool.query("UPDATE agents_platform.tasks SET state='waiting_authority' WHERE id=$1 AND state IN ('accepted','running','waiting_review','waiting_children')", [taskId]);
         await event(pool, taskId, `authority-wait:${loaded.task.control_generation}`, "authority.required");
         return { ...((loaded.task.execution_policy_version??1)>=2?{modern:true as const}:{}), generation: loaded.task.control_generation, deadline: loaded.task.deadline_at === null ? null : deadlineMillis(loaded.task.deadline_at) };
@@ -336,7 +341,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const selectedProductContext=task.product!=="agents"?await options.product!.selectedContextReference(taskId):null;
   if(selectedProductContext&&!options.evidence)throw new PlatformError("PRODUCT_CONTEXT_UNAVAILABLE",503,"Selected context evidence is unavailable");
   const originatingRequest=sharedProtocol&&task.parent_task_id?await originatingRequestContext(pool,task):undefined;
-  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: config.instructions+recoveryInstructions+procedureInstructions+(directory?"\n"+directory.text:"")+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":""), compactContinuation: (task.execution_policy_version??1)>=2, ...(originatingRequest?{originatingRequest,currentInputOrigin:"coordinator" as const}:{}), currentInput: [task.input,...(selectedProductContext?[selectedProductContextText(selectedProductContext.reference)]:[]),...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
+  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: config.instructions+outcomeGuidance+recoveryInstructions+procedureInstructions+(directory?"\n"+directory.text:"")+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":""), compactContinuation: (task.execution_policy_version??1)>=2, ...(originatingRequest?{originatingRequest,currentInputOrigin:"coordinator" as const}:{}), currentInput: [task.input,...(selectedProductContext?[selectedProductContextText(selectedProductContext.reference)]:[]),...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
     summary: invalidated ? undefined : summary, sources,
     skills: loadedSkills.sources, skillCatalog: loadedSkills.catalog,
     tools: modelTools, model: execution.models.primary.binding.modelId, modelPolicy: contextModelPolicy(execution, "primary", await nativeContextCosts(pool, execution), packingOverhead), maxInputTokens: execution.models.primary.policy.maxInputTokens, maxOutputTokens: execution.models.primary.policy.maxOutputTokens };
@@ -854,17 +859,16 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
             }
             const resultBound = productBinding?.limits.maxModelResultBytes ?? (binding ? binding.limits.maxModelResultBytes : historyResultBytes[name as keyof typeof historyResultBytes] ?? descriptor?.maxResultBytes ?? 8192);
             if(name==="enquiry.submit"||name==="enquiry.amend") {
-              let proposal:unknown;
-              try{proposal=validateBuiltinArguments(name,JSON.parse(call.function.arguments),acceptedToolVersion);}catch{outcome={state:"failed",errorCode:"TOOL_ARGUMENTS_INVALID"};stop=true;break;}
-              const confirmed=await awaitEnquiryConfirmation(ctx,pool,taskId,id,proposal,name);
-              if(confirmed){outcome=confirmed;stop=true;break;}
+              const checked=await confirmValidProposal(name,call.function.arguments,acceptedToolVersion,
+                proposal=>awaitEnquiryConfirmation(ctx,pool,taskId,id,proposal,name));
+              if(checked.valid&&checked.result){outcome=checked.result;stop=true;break;}
             }
             if(name==="booking.reserve") {
               if(!options.bookings){outcome={state:"incomplete",errorCode:"BOOKING_PROVIDER_UNAVAILABLE"};stop=true;break;}
-              let proposal:{start:string};
-              try{proposal=validateBuiltinArguments(name,JSON.parse(call.function.arguments),acceptedToolVersion) as {start:string};}catch{outcome={state:"failed",errorCode:"TOOL_ARGUMENTS_INVALID"};stop=true;break;}
-              const confirmed=await awaitBookingConfirmation(ctx,pool,options.bookings,taskId,id,proposal.start);
-              if(confirmed){outcome=confirmed;stop=true;break;}
+              const bookings=options.bookings;
+              const checked=await confirmValidProposal(name,call.function.arguments,acceptedToolVersion,
+                proposal=>awaitBookingConfirmation(ctx,pool,bookings,taskId,id,(proposal as {start:string}).start));
+              if(checked.valid&&checked.result){outcome=checked.result;stop=true;break;}
             }
             if(binding?.policy.approval==="exact_single_use") {
               if(!options.toolReviews) {outcome={state:"incomplete",errorCode:"TOOL_REVIEW_UNAVAILABLE"};stop=true;break;}
@@ -1074,10 +1078,10 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               outcome = failed(result); stop = true; break;
             }
             if(result.ok && Buffer.byteLength(JSON.stringify(result.value))>resultBound) {outcome={state:"incomplete",errorCode:"TOOL_RESULT_LIMIT"};stop=true;break;}
-            const argumentFeedback=!result.ok&&!binding&&!productBinding?{
-              ...builtinArgumentFeedback(name,call.function.arguments,result.code,acceptedToolVersion),
-              ...(snapshot.catalog&&name==="tools.load"?toolSchemaFailureFeedback(snapshot.catalog,result.code):undefined),
-            }:undefined;
+            const argumentFeedback=!result.ok ? (binding||productBinding
+              ? externalArgumentFeedback(call.function.arguments,result.code)
+              : {...builtinArgumentFeedback(name,call.function.arguments,result.code,acceptedToolVersion),
+                ...(snapshot.catalog&&name==="tools.load"?toolSchemaFailureFeedback(snapshot.catalog,result.code):undefined)}) : undefined;
             const modelValue=result.ok&&productBinding?productModelResult(productBinding,result.value,taskId,id):result.ok?result.value:undefined;
             let content=JSON.stringify(result.ok ? binding ? connectedModelView(result.value as ConnectedObservation) : productBinding ? modelValue : builtinObservationView(name,call.function.arguments,result.value) : { error: result.code,...argumentFeedback });
             let previewed=false;

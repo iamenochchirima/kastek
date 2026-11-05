@@ -1,3 +1,4 @@
+import {assertCustomerTimeoutNotice} from "./customer-timeout-notice";
 import type {ProcedureScope} from "../../contracts/procedures";
 import type {CustomerConversation,CustomerMessage} from "./inbox-contracts";
 export type {CustomerConversation,CustomerMessage} from "./inbox-contracts";
@@ -229,7 +230,7 @@ export class InboxStore {
       let responseStatus: "working" | "incomplete" | "failed" | "cancelled" | "uncertain" | null = null;
       let responseActivity: {inputMessageId:string;startedAt:Date;completedAt:Date|null;replyMessageId:string|null}|null = null;
       if (conversation.state === "automation_active") {
-        const latest = (await db.query<{state:string|null;input_message_id:string;started_at:Date;reply_message_id:string|null;completed_at:Date|null}>(`SELECT t.state,
+        const latest = (await db.query<{state:string|null;error_code:string|null;input_message_id:string;started_at:Date;reply_message_id:string|null;completed_at:Date|null}>(`SELECT t.state,t.error_code,
           m.id AS input_message_id,m.created_at AS started_at,reply.id AS reply_message_id,reply.created_at AS completed_at
           FROM agents_platform.customer_messages m
           LEFT JOIN agents_platform.customer_task_links l ON l.input_message_id=m.id AND l.conversation_id=m.conversation_id AND l.task_id=m.task_id
@@ -242,7 +243,8 @@ export class InboxStore {
         if (latest?.state) {
           responseActivity={inputMessageId:latest.input_message_id,startedAt:latest.started_at,completedAt:latest.completed_at,replyMessageId:latest.reply_message_id};
           if (!latest.reply_message_id) {
-            if (["completed", "incomplete", "refused"].includes(latest.state)) responseStatus = "incomplete";
+            if (latest.state === "cancel_requested" && latest.error_code === "TASK_DEADLINE") responseStatus = "uncertain";
+            else if (["completed", "incomplete", "refused"].includes(latest.state)) responseStatus = "incomplete";
             else if (latest.state === "failed" || latest.state === "cancelled" || latest.state === "uncertain") responseStatus = latest.state;
             else responseStatus = "working";
           }
@@ -614,6 +616,8 @@ export class InboxStore {
     if(!await assertSupportStatusNotice(db,binding,message.id,message.body,this.ports.verifySupportStatus))throw new PlatformError('CHANNEL_AUTHORITY_CHANGED',403,'Message authority changed');
   }
   private async readableMessage(db:Db,message:CustomerMessage):Promise<string|null>{
+    if(!message.task_id && message.request_key?.startsWith("timeout-notice:"))
+      return await assertCustomerTimeoutNotice(db as PoolClient,message.id,false) ? message.body : null;
     if(message.request_key?.startsWith("human-assistance:"))return await humanAssistanceNoticeValid(db,message)?message.body:null;
     if (message.request_key?.startsWith('connected-uncertainty:')) {
       const receipt=(await db.query('SELECT operation_id FROM agents_platform.connected_uncertainty_notices WHERE message_id=$1 AND conversation_id=$2',[message.id,message.conversation_id])).rows[0];

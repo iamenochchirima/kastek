@@ -12,7 +12,7 @@ import { registerInboxRoutes } from "../src/product/inbox/inbox-routes";
 import { registerOverviewRoutes } from "../src/product/overview/routes";
 import { transaction } from "../src/infrastructure/database";
 import { channelPorts, registerChannelPorts } from "../src/infrastructure/channel-ports";
-import { beginOperation } from "../src/execution/lifecycle/execution";
+import { beginOperation, requestTreeCancellation, settleTask } from "../src/execution/lifecycle/execution";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { executeTool, publishedToolBindings, assertPublishedTools } from "../src/capabilities/tools";
 
@@ -107,6 +107,64 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const paused=await transaction(pool,db=>inbox.updateHumanAssistance(db,binding(f,only.message.id,returned.ownership_generation),only.message.task_id!,{operationId:randomUUID(),requestId:request.requestId,disposition:"human_only",evidenceMessageId:only.message.id,evidenceQuote:"Stop the assistant."}));
     expect(paused.state).toBe("handoff_pending");
     const pending=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Here are more details"});expect(pending.message.task_id).toBeNull();
+  });
+  it("bounds a customer turn by its existing grant expiry", async () => {
+    const f=await fixture();
+    const turn=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Hello"});
+    const row=(await pool.query(`SELECT t.deadline_at,g.expires_at FROM agents_platform.tasks t
+      JOIN agents_platform.execution_grants g ON g.id=t.grant_id WHERE t.id=$1`,[turn.message.task_id])).rows[0];
+    expect(row.deadline_at).toBeInstanceOf(Date);
+    expect(row.deadline_at.getTime()).toBeLessThanOrEqual(row.expires_at.getTime());
+  });
+  it("keeps an earlier configured wall deadline for a customer turn", async () => {
+    const f=await fixture(),previous=process.env.AGENTS_MODEL_POLICY_JSON;
+    try {
+      process.env.AGENTS_MODEL_POLICY_JSON=JSON.stringify({maxWallDurationMs:30000});
+      const turn=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Hello"});
+      const row=(await pool.query(`SELECT t.created_at,t.deadline_at,g.expires_at FROM agents_platform.tasks t
+        JOIN agents_platform.execution_grants g ON g.id=t.grant_id WHERE t.id=$1`,[turn.message.task_id])).rows[0];
+      expect(row.deadline_at.getTime()-row.created_at.getTime()).toBe(30000);
+      expect(row.deadline_at.getTime()).toBeLessThan(row.expires_at.getTime());
+    } finally { if(previous===undefined)delete process.env.AGENTS_MODEL_POLICY_JSON;else process.env.AGENTS_MODEL_POLICY_JSON=previous; }
+  });
+  it("reports an expired turn as uncertain while cancellation remains pending and fences late output", async () => {
+    const f=await fixture();
+    const turn=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Hello"});
+    await pool.query("UPDATE agents_platform.tasks SET deadline_at=now()-interval '1 second',state='cancel_requested',error_code='TASK_DEADLINE' WHERE id=$1",[turn.message.task_id]);
+    const pending=await inbox.readVisitor(f.visitor,f.conversation.id);
+    expect(pending.responseStatus).toBe("uncertain");
+    expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[turn.message.task_id])).rows[0].state).toBe("cancel_requested");
+    await settleTask(pool,turn.message.task_id!,{state:"completed",output:"Late success"});
+    const finished=await inbox.readVisitor(f.visitor,f.conversation.id);
+    expect(finished.responseStatus).toBe("uncertain");
+    expect(finished.messages.some(message=>message.body==="Late success")).toBe(false);
+  });
+  it("retains an uncertain in-flight effect when deadline cancellation races a late completion", async () => {
+    const f=await fixture();
+    const turn=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Hello"});
+    const taskId=turn.message.task_id!,operationId=randomUUID();
+    await beginOperation(pool,taskId,{id:operationId,kind:"tool",name:"test.effect",request:{},reservedTokens:0,reservedMs:1000});
+    await requestTreeCancellation(pool,taskId);
+    await pool.query("UPDATE agents_platform.tasks SET deadline_at=now()-interval '1 second',error_code='TASK_DEADLINE',pending_outcome=$2 WHERE id=$1",[taskId,JSON.stringify({state:"completed",output:"Late success"})]);
+    expect((await inbox.readVisitor(f.visitor,f.conversation.id)).responseStatus).toBe("uncertain");
+    await settleTask(pool,taskId,{state:"completed",output:"Late success"});
+    const task=(await pool.query("SELECT state,error_code FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];
+    const op=(await pool.query("SELECT state,error_code FROM agents_platform.operations WHERE id=$1",[operationId])).rows[0];
+    expect(task).toMatchObject({state:"uncertain",error_code:"OPERATION_OUTCOME_UNCERTAIN"});
+    expect(op).toMatchObject({state:"uncertain",error_code:"OPERATION_INTERRUPTED"});
+    expect((await inbox.readVisitor(f.visitor,f.conversation.id)).messages.some(message=>message.body==="Late success")).toBe(false);
+  });
+  it("preserves a response completed before its deadline", async () => {
+    const f=await fixture();
+    const turn=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Hello"});
+    await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[turn.message.task_id]);
+    await settleTask(pool,turn.message.task_id!,{state:"completed",output:"On time"});
+    await pool.query("UPDATE agents_platform.tasks SET deadline_at=now()-interval '1 second' WHERE id=$1",[turn.message.task_id]);
+    await settleTask(pool,turn.message.task_id!,{state:"completed",output:"Late overwrite"});
+    const view=await inbox.readVisitor(f.visitor,f.conversation.id);
+    expect(view.messages.some(message=>message.body==="On time")).toBe(true);
+    expect(view.messages.some(message=>message.body==="Late overwrite")).toBe(false);
+    expect(view.responseStatus).toBeNull();
   });
   it("projects the latest visitor reply status without exposing execution errors or stale failures", async () => {
     const f = await fixture(), other = await fixture();

@@ -30,16 +30,21 @@ describe('generated widget response progress with controlled HTTP',()=>{
    release();await check(page.getByRole('textbox',{name:'Message',exact:true})).toHaveValue('');
    await page.clock.runFor(5000);await check(indicator).toHaveText('Responding · 7s');
    await page.reload();await open();await check(indicator).toHaveText('Responding · 7s');
+   await page.clock.fastForward(53000);await check(page.getByRole('status',{name:'Assistant is taking longer than expected'})).toHaveText('Taking longer than expected · 60s');
+   await page.reload();await open();await check(page.getByRole('status',{name:'Assistant is taking longer than expected'})).toBeVisible();
    failReads=true;await page.clock.runFor(1500);await check(page.getByText('History temporarily unavailable',{exact:true})).toBeVisible();await check(indicator).toBeHidden();
-   failReads=false;await page.clock.runFor(1500);await check(indicator).toBeVisible();
+   failReads=false;await page.clock.runFor(1500);await check(page.getByRole('status',{name:'Assistant is taking longer than expected'})).toBeVisible();
    await page.emulateMedia({reducedMotion:'reduce'});
-   expect(await indicator.locator('span').first().evaluate((node:HTMLElement)=>getComputedStyle(node).animationName)).toBe('none');
+   expect(await page.getByRole('status',{name:'Assistant is taking longer than expected'}).locator('span').first().evaluate((node:HTMLElement)=>getComputedStyle(node).animationName)).toBe('none');
    replied=true;phase=null;let before=reads;await page.clock.runFor(1500);await check.poll(()=>reads).toBeGreaterThan(before);
    await check(page.getByText('7s',{exact:true})).toBeVisible();await check(indicator).toBeHidden();
    await page.reload();await open();await check(page.getByText('7s',{exact:true})).toBeVisible();
    for(const state of ['handoff_pending','human_owned','resolved']){ownership=state;phase='working';before=reads;await page.clock.runFor(1500);await check.poll(()=>reads).toBeGreaterThan(before);await check(indicator).toBeHidden();}
    ownership='automation_active';phase='failed';before=reads;await page.clock.runFor(1500);await check.poll(()=>reads).toBeGreaterThan(before);
    await check(page.getByText('Could not finish the reply. Please try again.',{exact:true})).toBeVisible();await check(indicator).toBeHidden();
+   phase='uncertain';before=reads;await page.clock.runFor(1500);await check.poll(()=>reads).toBeGreaterThan(before);
+   await check(page.getByText('Could not confirm the outcome. Check before trying again.',{exact:true})).toBeVisible();
+   await check(page.getByRole('button',{name:'Retry message',exact:true})).toBeHidden();
   }finally{await browser.close()}
  },30000);
 });
