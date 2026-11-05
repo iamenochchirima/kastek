@@ -1,6 +1,6 @@
 # Growth shared login
 
-This page describes the current Growth login contract. Keycloak 26.6.0 is also selected for the
+This page describes the current Growth login contract. Keycloak 26.6.4 is also selected for the
 initial standalone Agents product, with a separate application client and fresh Agents membership
 records. Shared identity does not synchronize product permissions or workspace membership.
 
@@ -110,5 +110,5 @@ Production monitoring and release date: pending production work.
 
 - [openidconnect authorization code and PKCE verification](https://docs.rs/openidconnect/latest/openidconnect/)
 - [OIDC Back-Channel Logout](https://openid.net/specs/openid-connect-backchannel-1_0.html)
-- [Keycloak refresh-token introspection implementation](https://github.com/keycloak/keycloak/blob/26.6.0/services/src/main/java/org/keycloak/protocol/oidc/RefreshTokenIntrospectionProvider.java)
+- [Keycloak refresh-token introspection implementation](https://github.com/keycloak/keycloak/blob/26.6.4/services/src/main/java/org/keycloak/protocol/oidc/RefreshTokenIntrospectionProvider.java)
 - [Mailpit Send API](https://mailpit.axllent.org/docs/api-v1/)

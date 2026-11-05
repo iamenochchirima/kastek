@@ -1,8 +1,8 @@
 [
   {
     "name": "keycloak",
-    "url": "https://github.com/keycloak/keycloak/releases/download/26.6.0/keycloak-26.6.0.tar.gz",
-    "sha256": "f4aabdbdf3d51e6a3725b15d2bc54816c79db835527201f2b73412acc44eb216"
+    "url": "https://github.com/keycloak/keycloak/releases/download/26.6.4/keycloak-26.6.4.tar.gz",
+    "sha256": "386b566bbea05527226e275c43e5cf6f218896ad2441ac4be5c39f1226772e8f"
   },
   {
     "name": "mailpit",

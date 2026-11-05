@@ -1,6 +1,6 @@
 # Hosted Identity
 
-This image runs the pinned Keycloak 26.6.0 server with PostgreSQL. It does not use
+This image runs the pinned Keycloak 26.6.4 server with PostgreSQL. It does not use
 `identity.sh`, local runtime data, Mailpit or the development `.env` file.
 
 Build from the monorepo root:
@@ -48,12 +48,15 @@ waits to five/ten seconds. It does not automatically retry an uncertain send. Fa
 a bounded category or HTTP status, without logging provider response bodies, recipients,
 credentials or action links. Keycloak's existing verification expiry and resend controls apply.
 
-The email-sender SPI is internal to Keycloak, so keep the server pinned to 26.6.0 and repeat
-provider tests and real verification-email acceptance before upgrading it.
+Keep the hosted server at 26.6.4 or a later supported release. Keycloak 26.6.0 can spin a
+JGroups `PerDestinationBundler` thread at one CPU core with the `jdbc-ping` cache stack. The
+production Identity profile matched that issue; Keycloak 26.6.3 includes the upstream fix.
+The email-sender SPI is internal to Keycloak, so repeat provider tests and real
+verification-email acceptance before upgrading it.
 
 The Docker build compiles the provider against the pinned Keycloak distribution and runs its
 transport tests before packaging the jar. To run those checks outside Docker, set `JAVA_HOME`
-to a JDK 21 installation and `KEYCLOAK_HOME` to Keycloak 26.6.0, then run:
+to a JDK 21 installation and `KEYCLOAK_HOME` to the hosted Keycloak version, then run:
 
 ```sh
 IDENTITY_PROVIDER_BUILD_DIR=/tmp/kasitek-email-provider bash infra/identity/email-provider/build.sh
