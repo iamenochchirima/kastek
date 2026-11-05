@@ -1,5 +1,5 @@
 # Build from the monorepo root; runtime configuration remains in Railway variables.
-FROM quay.io/keycloak/keycloak:26.6.0 AS keycloak
+FROM quay.io/keycloak/keycloak:26.6.4 AS keycloak
 
 FROM eclipse-temurin:21.0.9_10-jdk AS email-provider
 COPY --from=keycloak /opt/keycloak/lib/ /opt/keycloak/lib/

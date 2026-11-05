@@ -2,7 +2,7 @@
 set -euo pipefail
 
 provider_root="$(cd "$(dirname "$0")" && pwd)"
-keycloak_home="${KEYCLOAK_HOME:?Set KEYCLOAK_HOME to the pinned Keycloak 26.6.0 distribution}"
+keycloak_home="${KEYCLOAK_HOME:?Set KEYCLOAK_HOME to the pinned Keycloak distribution}"
 build_dir="${IDENTITY_PROVIDER_BUILD_DIR:-$provider_root/target}"
 java_bin="${JAVA_HOME:+$JAVA_HOME/bin/}"
 mkdir -p "$build_dir/classes" "$build_dir/test-classes"

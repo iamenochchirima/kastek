@@ -1,6 +1,6 @@
 # Local shared identity
 
-Labs operates native Keycloak 26.6.0 with a dedicated PostgreSQL database and Mailpit. No Docker is used. This setup is for local development. Production requires HTTPS, a stable hostname, production email delivery, secret management, and a separately reviewed deployment.
+Labs operates native Keycloak 26.6.4 with a dedicated PostgreSQL database and Mailpit. No Docker is used. This setup is for local development. Production requires HTTPS, a stable hostname, production email delivery, secret management, and a separately reviewed deployment.
 
 ## Start
 
