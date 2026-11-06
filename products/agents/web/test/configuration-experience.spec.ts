@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 const org = "11111111-1111-4111-8111-111111111111", agentId = "22222222-2222-4222-8222-222222222222";
 const configuration = () => ({ executionKind: "business", instructions: "Answer customer questions.", context: { maxInputTokens:8192, compactAtTokens:6144 }, model: { selection: { kind:"organization_default" }, maxCostMicros:null, maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, sourceRevisionIds: [], connectedToolBindingIds: [], skillIds: [], tools: [], capabilities: Object.fromEntries(["delegation", "sandbox", "businessActions", "workflows", "schedules"].map(key => [key, { enabled: false }])) });
-async function fixture(page: Page, impact = false, tools = false, missingSelection = false, support: "configured" | "missing" | false = false) {
+async function fixture(page: Page, impact = false, tools = false, missingSelection = false, support: "configured" | "missing" | false = false, facebookState: "connected" | "needs_connection" = "connected") {
   let draft = configuration(), revision = 1;
   if (tools) Object.assign(draft, { tools: ["knowledge_search"] });
   if (missingSelection) Reflect.deleteProperty(draft.model, "selection");
@@ -16,7 +16,9 @@ async function fixture(page: Page, impact = false, tools = false, missingSelecti
     const agent = () => ({ id: agentId, name: "Support", offering: support ? "customer-service" : "faq", setup, setupStep: setup ? "complete" : undefined, draft, draftRevision: revision });
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.com" }, organizations: [{ id: org, name: "Workspace", role: "owner" }] };
-    else if (path.endsWith("/setup-readiness")) data = { readiness: {readyToTest:false, setupStep:"complete", requirements:{model:{state:"ready",code:null},knowledge:{state:"deferred",code:null},bookings:{state:"blocked",code:"BOOKING_POLICY_REQUIRED"},handoff:{state:"ready",code:null}}, channels:[{kind:"website",state:"needs_connection"},{kind:"facebook",state:"connected"}] }};
+    else if (path.endsWith("/setup-readiness")) data = { readiness: {readyToTest:false, setupStep:"complete", requirements:{model:{state:"ready",code:null},knowledge:{state:"deferred",code:null},bookings:{state:"blocked",code:"BOOKING_POLICY_REQUIRED"},handoff:{state:"ready",code:null}}, channels:[{kind:"website",state:"needs_connection"},{kind:"facebook",state:facebookState}] }};
+    else if (path.endsWith("/channels/growth/organizations")) data = { organizations: [{ id: "growth-org", name: "KasiTek Growth" }] };
+    else if (path.endsWith("/channels")) data = { connections: [], deployments: [], websites: [] };
     else if (path.endsWith("/procedures")) data = {entries:[]};
     else if (path.endsWith("/booking-policies")) data = {policies:[]};
     else if (path.endsWith("/provider-calendars/connections")) data = {connections:[]};
@@ -54,6 +56,16 @@ async function fixture(page: Page, impact = false, tools = false, missingSelecti
   });
   return { saves, posts, tasks, snapshots, deployments, policies };
 }
+
+test("Connect from setup status stays in the selected agent's Channels section", async ({ page }) => {
+  await fixture(page, false, false, false, "configured", "needs_connection");
+  await page.goto(`/app/agents/${agentId}?section=configuration`);
+  const row = page.getByRole("region", { name: "Connected channels" }).locator(".agent-channel-row").filter({ hasText: "Messenger" });
+  await row.getByRole("link", { name: "Connect", exact: true }).click();
+  await expect(page).toHaveURL(`/app/agents/${agentId}?section=channels`);
+  await expect(page.getByRole("heading", { name: "Channels", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Connect Facebook Page", exact: true })).toBeVisible();
+});
 
 test("configuration without an explicit model selection renders while policy loads", async ({ page }) => {
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));

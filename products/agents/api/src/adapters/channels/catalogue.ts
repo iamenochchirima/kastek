@@ -23,7 +23,7 @@ export function parseChannelCatalogue(raw: unknown, installedHandlers: ReadonlyS
   for (const definition of parsed) {
     if (seen.has(definition.kind) || !installedHandlers.has(definition.handler)) throw new Error("Invalid or uninstalled channel handler");
     seen.add(definition.kind);
-    const expected = definition.kind === "website" ? ["website"] : definition.kind === "telegram" ? ["bot"] : definition.kind === "whatsapp" ? ["cloud_api"] : definition.kind === "facebook" ? ["meta"] : ["meta", "instagram_login"];
+    const expected = definition.kind === "website" ? ["website"] : definition.kind === "telegram" ? ["bot"] : definition.kind === "whatsapp" ? ["cloud_api", "growth_managed"] : definition.kind === "facebook" ? ["meta", "growth_managed"] : ["meta", "instagram_login", "growth_managed"];
     if (definition.modes.some(mode => !expected.includes(mode))) throw new Error("Unsupported channel connection mode");
   }
   function freeze(value: unknown): void { if (value && typeof value === "object") { for (const child of Object.values(value)) freeze(child); Object.freeze(value); } }

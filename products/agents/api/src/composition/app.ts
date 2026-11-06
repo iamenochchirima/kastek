@@ -242,7 +242,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     reply.header("cache-control", "no-store");
     reply.header("x-content-type-options", "nosniff");
     if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
-        request.url.split("?")[0] !== "/internal/v1/products/growth/commands" && request.url.split("?")[0] !== "/internal/v1/products/growth/provision" &&
+        request.url.split("?")[0] !== "/internal/v1/products/growth/commands" && request.url.split("?")[0] !== "/internal/v1/products/growth/provision" && request.url.split("?")[0] !== "/internal/agents/channel-events" &&
         ![AGENCY_AGENT_COMMAND_PATH, AGENCY_AGENT_MODEL_PATH].includes(request.url.split("?")[0]!) &&
         !["/mcp","/oauth/token","/oauth/register","/oauth/revoke"].includes(request.url.split("?")[0]!) && !request.url.startsWith("/api/website/") && !request.url.startsWith("/api/automation-events/") && !request.url.startsWith("/api/channel-webhooks/") && request.url.split("?")[0] !== "/api/auth/backchannel-logout" && request.headers.origin !== origin) {
       throw new PlatformError("ORIGIN_DENIED", 403, "Request origin is not allowed");
@@ -315,11 +315,13 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.post(`${assistantBase}/member-channels/:linkId/confirm`,async request=>{z.strictObject({}).parse(request.body??{});return memberChannels.confirm(await resolveScope(request),uuid.parse(parameters(request).linkId));});
   app.delete(`${assistantBase}/member-channels/:linkId`,async request=>memberChannels.revoke(await resolveScope(request),uuid.parse(parameters(request).linkId)));
   app.get(`${assistantBase}/agents/:agentId/specialists`,async request=>specialistCatalogue(pool,await resolveScope(request),uuid.parse(parameters(request).agentId)));
-  registerChannelRoutes(app,{store:channelServices.channels,telegram:channelServices.telegram,meta:channelServices.meta,resolveScope,
+  registerChannelRoutes(app,{store:channelServices.channels,telegram:channelServices.telegram,meta:channelServices.meta,growthLinks:channelServices.growthLinks,resolveScope,
+    resolveActor:async request=>{const user=await account(request);return {issuer:user.issuer,subject:user.subject};},
     resolveSessionId:async request=>{await account(request);return hash(request.cookies[sessionCookie]!);}});
   registerWebsiteAppearanceRoutes(app,{pool,resolveScope});
   registerChannelSupportRoutes(app,{inbox,delivery:channelServices.delivery,attachments:channelServices.attachments,templates:channelServices.templates,media:channelServices.media,resolveScope});
-  await registerChannelWebhooks(app,{channels:channelServices.channels,delivery:channelServices.delivery,profiles:channelServices.profiles});
+  await registerChannelWebhooks(app,{channels:channelServices.channels,delivery:channelServices.delivery,profiles:channelServices.profiles,
+    growthTrust:growthServiceTrustFromEnvironment()});
   const modelVault = connectionVaultFromEnvironment();
   const modelProviders = new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined, undefined, options.testModelProviderOptions);
   const initializeDefaultModel=managedModelDefaultFromEnvironment(pool,modelVault?new ModelCredentialVault(modelVault):undefined,process.env,{discoveryFetch:options.testModelProviderOptions?.discoveryFetch});

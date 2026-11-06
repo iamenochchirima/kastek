@@ -58,6 +58,26 @@ export type ExternalConnectionPermission = Prisma.ExternalConnectionPermissionMo
  */
 export type ExternalConnectionAuthorizationAttempt = Prisma.ExternalConnectionAuthorizationAttemptModel
 /**
+ * Model GrowthAgentChannelGrant
+ * 
+ */
+export type GrowthAgentChannelGrant = Prisma.GrowthAgentChannelGrantModel
+/**
+ * Model GrowthAgentChannelLinkIntent
+ * 
+ */
+export type GrowthAgentChannelLinkIntent = Prisma.GrowthAgentChannelLinkIntentModel
+/**
+ * Model GrowthAgentChannelSend
+ * 
+ */
+export type GrowthAgentChannelSend = Prisma.GrowthAgentChannelSendModel
+/**
+ * Model GrowthAgentChannelEvent
+ * 
+ */
+export type GrowthAgentChannelEvent = Prisma.GrowthAgentChannelEventModel
+/**
  * Model ExternalConnectionConsumer
  * 
  */

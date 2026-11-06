@@ -13,6 +13,8 @@ model Organization {
   agentSetup GrowthAgentSetup?
   growthAgentReviews GrowthAgentReview[] @relation("GrowthAgentReviewOrganization")
   growthAgentSourceHandles GrowthAgentSourceHandle[] @relation("GrowthAgentSourceOrganization")
+  agentChannelGrants GrowthAgentChannelGrant[]
+  agentChannelLinkIntents GrowthAgentChannelLinkIntent[]
   id      String  @id @default(cuid())
   name    String
   slug    String  @unique
@@ -173,6 +175,8 @@ model ExternalConnection {
   permissions   ExternalConnectionPermission[]
   authorizationAttempts ExternalConnectionAuthorizationAttempt[]
   consumers     ExternalConnectionConsumer[]
+  agentChannelGrants GrowthAgentChannelGrant[]
+  agentChannelLinkIntents GrowthAgentChannelLinkIntent[]
   conversations Conversation[]
   calls         CommunicationCall[]
 
@@ -243,6 +247,108 @@ model ExternalConnectionAuthorizationAttempt {
 
   @@index([connectionId, status])
   @@index([orgId, expiresAt])
+}
+
+model GrowthAgentChannelGrant {
+  id String @id @db.Uuid
+  orgId String
+  connectionId String
+  provider String
+  providerAssetId String
+  agentsWorkspaceId String @db.Uuid
+  agentsAgentId String @db.Uuid
+  agentsConnectionId String @db.Uuid
+  intentId String @db.Uuid
+  actorId String
+  capabilities Json
+  permissionRevision String
+  expiresAt DateTime? @default(dbgenerated("now() + interval '15 minutes'")) @db.Timestamptz
+  state String
+  routeOwner String
+  requestId String @db.Uuid
+  requestDigest String
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @default(now()) @db.Timestamptz
+  revokedAt DateTime? @db.Timestamptz
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  connection ExternalConnection @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  actor User @relation("GrowthAgentChannelGrantActor", fields: [actorId], references: [id], onDelete: Restrict)
+  sends GrowthAgentChannelSend[]
+  events GrowthAgentChannelEvent[]
+
+  @@unique([agentsWorkspaceId, agentsConnectionId])
+  @@unique([agentsWorkspaceId, requestId])
+  @@unique([agentsWorkspaceId, intentId])
+  @@index([agentsWorkspaceId, agentsAgentId, state])
+}
+
+model GrowthAgentChannelLinkIntent {
+  id String @id @db.Uuid
+  actorId String
+  orgId String
+  provider String
+  loginMode String?
+  agentsWorkspaceId String @db.Uuid
+  agentsAgentId String @db.Uuid
+  agentsConnectionId String? @db.Uuid
+  requestId String @db.Uuid
+  requestDigest String
+  returnRoute String
+  connectionId String?
+  providerAssetId String?
+  permissionRevision String?
+  oauthStateHash String?
+  oauthStateExpiresAt DateTime? @db.Timestamptz
+  authorizedAt DateTime? @db.Timestamptz
+  codeHash String?
+  codeExpiresAt DateTime? @db.Timestamptz
+  completedAt DateTime? @db.Timestamptz
+  expiresAt DateTime @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  actor User @relation("GrowthAgentChannelLinkIntentActor", fields: [actorId], references: [id], onDelete: Cascade)
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  connection ExternalConnection? @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+
+  @@unique([agentsWorkspaceId, requestId])
+  @@index([expiresAt])
+  @@index([codeHash, codeExpiresAt])
+}
+
+model GrowthAgentChannelSend {
+  deliveryId String @id @db.Uuid
+  grantId String @db.Uuid
+  requestDigest String
+  state String
+  providerMessageId String?
+  code String?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @db.Timestamptz(6)
+  grant GrowthAgentChannelGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
+
+  @@index([grantId, createdAt])
+}
+
+model GrowthAgentChannelEvent {
+  id String @id @db.Uuid
+  grantId String @db.Uuid
+  eventId String
+  digest String
+  payload Json
+  state String @default("pending")
+  attempts Int @default(0)
+  availableAt DateTime @default(now()) @db.Timestamptz(6)
+  leaseUntil DateTime? @db.Timestamptz(6)
+  claimId String? @db.Uuid
+  reason String?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  deliveredAt DateTime? @db.Timestamptz(6)
+  grant GrowthAgentChannelGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
+
+  @@unique([grantId, eventId])
+  @@index([state, availableAt, createdAt])
 }
 
 model ExternalConnectionConsumer {
@@ -892,6 +998,8 @@ model User {
   orgMemberships     OrganizationMember[]
   sentInvitations    OrganizationInvitation[] @relation("SentInvitations")
   createdDeveloperApiKeys DeveloperApiKey[]   @relation("DeveloperApiKeysCreated")
+  createdAgentChannelGrants GrowthAgentChannelGrant[] @relation("GrowthAgentChannelGrantActor")
+  createdAgentChannelLinkIntents GrowthAgentChannelLinkIntent[] @relation("GrowthAgentChannelLinkIntentActor")
 
   businessProfile                BusinessProfile?
   conversations                  OnboardingConversation[]

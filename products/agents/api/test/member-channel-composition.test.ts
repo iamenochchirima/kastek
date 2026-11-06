@@ -21,6 +21,18 @@ describe('private member transport composition',()=>{
     const unavailable=composeChannels({} as never,{} as never,'https://agents.fixture.test');
     await expect(unavailable.delivery.ports.assertPolicy(connection,message,request)).rejects.toMatchObject({code:'CHANNEL_PROVIDER_UNAVAILABLE'});
   });
+  it('applies reply-window policy to Growth-managed messages without requiring a native provider profile',async()=>{
+    process.env.AGENTS_META_CHANNEL_PROFILES='[]';
+    const latestCustomerAt=new Date(Date.now()-60_000);
+    const pool={query:async()=>({rows:[{occurred_at:latestCustomerAt}]})};
+    const services=composeChannels(pool as never,{} as never,'https://agents.fixture.test');
+    const connection={kind:'facebook',mode:'growth_managed',organization_id:'org-1',id:'connection-1',metadata:{growthLink:{providerMode:'meta'}}};
+    const message={conversation_id:'conversation-1',ownership_generation:1,author_account_id:'account-1',author_kind:'human'};
+    const request={assetId:'page-1',recipientId:'customer-1',text:'Reply'};
+    await expect(services.delivery.ports.assertPolicy(connection,message,request)).resolves.toMatchObject({allowed:true,reason:'standard'});
+    await expect(services.delivery.ports.assertPolicy({...connection,metadata:{}},message,request))
+      .rejects.toMatchObject({code:'GROWTH_CHANNEL_AUTHORITY_CHANGED'});
+  });
   it('parses one whitespace-tolerant rollout policy for every authority boundary',()=>{
     const env={AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS:' org-a, , org-b '};
     expect(memberAssistantPolicy(env)).toEqual({all:false,organizationIds:['org-a','org-b']});

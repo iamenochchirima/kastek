@@ -209,6 +209,8 @@ export type OrganizationWhereInput = {
   agentSetup?: Prisma.XOR<Prisma.GrowthAgentSetupNullableScalarRelationFilter, Prisma.GrowthAgentSetupWhereInput> | null
   growthAgentReviews?: Prisma.GrowthAgentReviewListRelationFilter
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleListRelationFilter
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantListRelationFilter
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentListRelationFilter
   owner?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   members?: Prisma.OrganizationMemberListRelationFilter
   invitations?: Prisma.OrganizationInvitationListRelationFilter
@@ -274,6 +276,8 @@ export type OrganizationOrderByWithRelationInput = {
   agentSetup?: Prisma.GrowthAgentSetupOrderByWithRelationInput
   growthAgentReviews?: Prisma.GrowthAgentReviewOrderByRelationAggregateInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleOrderByRelationAggregateInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantOrderByRelationAggregateInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentOrderByRelationAggregateInput
   owner?: Prisma.UserOrderByWithRelationInput
   members?: Prisma.OrganizationMemberOrderByRelationAggregateInput
   invitations?: Prisma.OrganizationInvitationOrderByRelationAggregateInput
@@ -342,6 +346,8 @@ export type OrganizationWhereUniqueInput = Prisma.AtLeast<{
   agentSetup?: Prisma.XOR<Prisma.GrowthAgentSetupNullableScalarRelationFilter, Prisma.GrowthAgentSetupWhereInput> | null
   growthAgentReviews?: Prisma.GrowthAgentReviewListRelationFilter
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleListRelationFilter
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantListRelationFilter
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentListRelationFilter
   owner?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   members?: Prisma.OrganizationMemberListRelationFilter
   invitations?: Prisma.OrganizationInvitationListRelationFilter
@@ -434,6 +440,8 @@ export type OrganizationCreateInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -499,6 +507,8 @@ export type OrganizationUncheckedCreateInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -562,6 +572,8 @@ export type OrganizationUpdateInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -627,6 +639,8 @@ export type OrganizationUncheckedUpdateInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -830,6 +844,34 @@ export type OrganizationUpdateOneRequiredWithoutExternalConnectionsNestedInput =
   upsert?: Prisma.OrganizationUpsertWithoutExternalConnectionsInput
   connect?: Prisma.OrganizationWhereUniqueInput
   update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutExternalConnectionsInput, Prisma.OrganizationUpdateWithoutExternalConnectionsInput>, Prisma.OrganizationUncheckedUpdateWithoutExternalConnectionsInput>
+}
+
+export type OrganizationCreateNestedOneWithoutAgentChannelGrantsInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutAgentChannelGrantsInput, Prisma.OrganizationUncheckedCreateWithoutAgentChannelGrantsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutAgentChannelGrantsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+}
+
+export type OrganizationUpdateOneRequiredWithoutAgentChannelGrantsNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutAgentChannelGrantsInput, Prisma.OrganizationUncheckedCreateWithoutAgentChannelGrantsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutAgentChannelGrantsInput
+  upsert?: Prisma.OrganizationUpsertWithoutAgentChannelGrantsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutAgentChannelGrantsInput, Prisma.OrganizationUpdateWithoutAgentChannelGrantsInput>, Prisma.OrganizationUncheckedUpdateWithoutAgentChannelGrantsInput>
+}
+
+export type OrganizationCreateNestedOneWithoutAgentChannelLinkIntentsInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutAgentChannelLinkIntentsInput, Prisma.OrganizationUncheckedCreateWithoutAgentChannelLinkIntentsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutAgentChannelLinkIntentsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+}
+
+export type OrganizationUpdateOneRequiredWithoutAgentChannelLinkIntentsNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutAgentChannelLinkIntentsInput, Prisma.OrganizationUncheckedCreateWithoutAgentChannelLinkIntentsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutAgentChannelLinkIntentsInput
+  upsert?: Prisma.OrganizationUpsertWithoutAgentChannelLinkIntentsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutAgentChannelLinkIntentsInput, Prisma.OrganizationUpdateWithoutAgentChannelLinkIntentsInput>, Prisma.OrganizationUncheckedUpdateWithoutAgentChannelLinkIntentsInput>
 }
 
 export type OrganizationCreateNestedOneWithoutEmailConnectionsInput = {
@@ -1597,6 +1639,8 @@ export type OrganizationCreateWithoutMembersInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
@@ -1661,6 +1705,8 @@ export type OrganizationUncheckedCreateWithoutMembersInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -1739,6 +1785,8 @@ export type OrganizationUpdateWithoutMembersInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
@@ -1803,6 +1851,8 @@ export type OrganizationUncheckedUpdateWithoutMembersInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -1865,6 +1915,8 @@ export type OrganizationCreateWithoutOnboardingProfileInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -1929,6 +1981,8 @@ export type OrganizationUncheckedCreateWithoutOnboardingProfileInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -2007,6 +2061,8 @@ export type OrganizationUpdateWithoutOnboardingProfileInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -2071,6 +2127,8 @@ export type OrganizationUncheckedUpdateWithoutOnboardingProfileInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -2133,6 +2191,8 @@ export type OrganizationCreateWithoutInvitationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
@@ -2197,6 +2257,8 @@ export type OrganizationUncheckedCreateWithoutInvitationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -2275,6 +2337,8 @@ export type OrganizationUpdateWithoutInvitationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
@@ -2339,6 +2403,8 @@ export type OrganizationUncheckedUpdateWithoutInvitationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -2401,6 +2467,8 @@ export type OrganizationCreateWithoutExternalConnectionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -2465,6 +2533,8 @@ export type OrganizationUncheckedCreateWithoutExternalConnectionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -2543,6 +2613,8 @@ export type OrganizationUpdateWithoutExternalConnectionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -2607,6 +2679,8 @@ export type OrganizationUncheckedUpdateWithoutExternalConnectionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -2658,6 +2732,558 @@ export type OrganizationUncheckedUpdateWithoutExternalConnectionsInput = {
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
 }
 
+export type OrganizationCreateWithoutAgentChannelGrantsInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
+  owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
+  members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionCreateNestedOneWithoutRefereeInput
+  customerReplayCommands?: Prisma.AdminWebhookReplayCommandCreateNestedManyWithoutCustomerInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationUncheckedCreateWithoutAgentChannelGrantsInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  ownerId: string
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
+  members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerUncheckedCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventUncheckedCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountUncheckedCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantUncheckedCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationUncheckedCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedCreateNestedOneWithoutRefereeInput
+  customerReplayCommands?: Prisma.AdminWebhookReplayCommandUncheckedCreateNestedManyWithoutCustomerInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationCreateOrConnectWithoutAgentChannelGrantsInput = {
+  where: Prisma.OrganizationWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutAgentChannelGrantsInput, Prisma.OrganizationUncheckedCreateWithoutAgentChannelGrantsInput>
+}
+
+export type OrganizationUpsertWithoutAgentChannelGrantsInput = {
+  update: Prisma.XOR<Prisma.OrganizationUpdateWithoutAgentChannelGrantsInput, Prisma.OrganizationUncheckedUpdateWithoutAgentChannelGrantsInput>
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutAgentChannelGrantsInput, Prisma.OrganizationUncheckedCreateWithoutAgentChannelGrantsInput>
+  where?: Prisma.OrganizationWhereInput
+}
+
+export type OrganizationUpdateToOneWithWhereWithoutAgentChannelGrantsInput = {
+  where?: Prisma.OrganizationWhereInput
+  data: Prisma.XOR<Prisma.OrganizationUpdateWithoutAgentChannelGrantsInput, Prisma.OrganizationUncheckedUpdateWithoutAgentChannelGrantsInput>
+}
+
+export type OrganizationUpdateWithoutAgentChannelGrantsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
+  owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
+  members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUpdateOneWithoutRefereeNestedInput
+  customerReplayCommands?: Prisma.AdminWebhookReplayCommandUpdateManyWithoutCustomerNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationUncheckedUpdateWithoutAgentChannelGrantsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerId?: Prisma.StringFieldUpdateOperationsInput | string
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
+  members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUncheckedUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUncheckedUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUncheckedUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUncheckedUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUncheckedUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedUpdateOneWithoutRefereeNestedInput
+  customerReplayCommands?: Prisma.AdminWebhookReplayCommandUncheckedUpdateManyWithoutCustomerNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationCreateWithoutAgentChannelLinkIntentsInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
+  members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionCreateNestedOneWithoutRefereeInput
+  customerReplayCommands?: Prisma.AdminWebhookReplayCommandCreateNestedManyWithoutCustomerInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationUncheckedCreateWithoutAgentChannelLinkIntentsInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  ownerId: string
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerUncheckedCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventUncheckedCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountUncheckedCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantUncheckedCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationUncheckedCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedCreateNestedOneWithoutRefereeInput
+  customerReplayCommands?: Prisma.AdminWebhookReplayCommandUncheckedCreateNestedManyWithoutCustomerInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationCreateOrConnectWithoutAgentChannelLinkIntentsInput = {
+  where: Prisma.OrganizationWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutAgentChannelLinkIntentsInput, Prisma.OrganizationUncheckedCreateWithoutAgentChannelLinkIntentsInput>
+}
+
+export type OrganizationUpsertWithoutAgentChannelLinkIntentsInput = {
+  update: Prisma.XOR<Prisma.OrganizationUpdateWithoutAgentChannelLinkIntentsInput, Prisma.OrganizationUncheckedUpdateWithoutAgentChannelLinkIntentsInput>
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutAgentChannelLinkIntentsInput, Prisma.OrganizationUncheckedCreateWithoutAgentChannelLinkIntentsInput>
+  where?: Prisma.OrganizationWhereInput
+}
+
+export type OrganizationUpdateToOneWithWhereWithoutAgentChannelLinkIntentsInput = {
+  where?: Prisma.OrganizationWhereInput
+  data: Prisma.XOR<Prisma.OrganizationUpdateWithoutAgentChannelLinkIntentsInput, Prisma.OrganizationUncheckedUpdateWithoutAgentChannelLinkIntentsInput>
+}
+
+export type OrganizationUpdateWithoutAgentChannelLinkIntentsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
+  members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUpdateOneWithoutRefereeNestedInput
+  customerReplayCommands?: Prisma.AdminWebhookReplayCommandUpdateManyWithoutCustomerNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationUncheckedUpdateWithoutAgentChannelLinkIntentsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerId?: Prisma.StringFieldUpdateOperationsInput | string
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUncheckedUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUncheckedUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUncheckedUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUncheckedUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUncheckedUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedUpdateOneWithoutRefereeNestedInput
+  customerReplayCommands?: Prisma.AdminWebhookReplayCommandUncheckedUpdateManyWithoutCustomerNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+}
+
 export type OrganizationCreateWithoutEmailConnectionsInput = {
   id?: string
   name: string
@@ -2669,6 +3295,8 @@ export type OrganizationCreateWithoutEmailConnectionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -2733,6 +3361,8 @@ export type OrganizationUncheckedCreateWithoutEmailConnectionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -2811,6 +3441,8 @@ export type OrganizationUpdateWithoutEmailConnectionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -2875,6 +3507,8 @@ export type OrganizationUncheckedUpdateWithoutEmailConnectionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -2937,6 +3571,8 @@ export type OrganizationCreateWithoutEmailInboxBindingsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -3001,6 +3637,8 @@ export type OrganizationUncheckedCreateWithoutEmailInboxBindingsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -3079,6 +3717,8 @@ export type OrganizationUpdateWithoutEmailInboxBindingsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -3143,6 +3783,8 @@ export type OrganizationUncheckedUpdateWithoutEmailInboxBindingsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -3205,6 +3847,8 @@ export type OrganizationCreateWithoutEmailOAuthStatesInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -3269,6 +3913,8 @@ export type OrganizationUncheckedCreateWithoutEmailOAuthStatesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -3347,6 +3993,8 @@ export type OrganizationUpdateWithoutEmailOAuthStatesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -3411,6 +4059,8 @@ export type OrganizationUncheckedUpdateWithoutEmailOAuthStatesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -3473,6 +4123,8 @@ export type OrganizationCreateWithoutProductToursInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -3537,6 +4189,8 @@ export type OrganizationUncheckedCreateWithoutProductToursInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -3615,6 +4269,8 @@ export type OrganizationUpdateWithoutProductToursInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -3679,6 +4335,8 @@ export type OrganizationUncheckedUpdateWithoutProductToursInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -3741,6 +4399,8 @@ export type OrganizationCreateWithoutSubscriptionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -3805,6 +4465,8 @@ export type OrganizationUncheckedCreateWithoutSubscriptionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -3883,6 +4545,8 @@ export type OrganizationUpdateWithoutSubscriptionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -3947,6 +4611,8 @@ export type OrganizationUncheckedUpdateWithoutSubscriptionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -4009,6 +4675,8 @@ export type OrganizationCreateWithoutEntitlementGrantsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -4073,6 +4741,8 @@ export type OrganizationUncheckedCreateWithoutEntitlementGrantsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -4151,6 +4821,8 @@ export type OrganizationUpdateWithoutEntitlementGrantsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -4215,6 +4887,8 @@ export type OrganizationUncheckedUpdateWithoutEntitlementGrantsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -4277,6 +4951,8 @@ export type OrganizationCreateWithoutUsageEventsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -4341,6 +5017,8 @@ export type OrganizationUncheckedCreateWithoutUsageEventsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -4419,6 +5097,8 @@ export type OrganizationUpdateWithoutUsageEventsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -4483,6 +5163,8 @@ export type OrganizationUncheckedUpdateWithoutUsageEventsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -4545,6 +5227,8 @@ export type OrganizationCreateWithoutReferralCodesInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -4609,6 +5293,8 @@ export type OrganizationUncheckedCreateWithoutReferralCodesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -4687,6 +5373,8 @@ export type OrganizationUpdateWithoutReferralCodesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -4751,6 +5439,8 @@ export type OrganizationUncheckedUpdateWithoutReferralCodesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -4813,6 +5503,8 @@ export type OrganizationCreateWithoutReferralsSentInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -4877,6 +5569,8 @@ export type OrganizationUncheckedCreateWithoutReferralsSentInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -4944,6 +5638,8 @@ export type OrganizationCreateWithoutReferralReceivedInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -5008,6 +5704,8 @@ export type OrganizationUncheckedCreateWithoutReferralReceivedInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -5086,6 +5784,8 @@ export type OrganizationUpdateWithoutReferralsSentInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -5150,6 +5850,8 @@ export type OrganizationUncheckedUpdateWithoutReferralsSentInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -5223,6 +5925,8 @@ export type OrganizationUpdateWithoutReferralReceivedInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -5287,6 +5991,8 @@ export type OrganizationUncheckedUpdateWithoutReferralReceivedInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -5349,6 +6055,8 @@ export type OrganizationCreateWithoutCreditAccountInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -5413,6 +6121,8 @@ export type OrganizationUncheckedCreateWithoutCreditAccountInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -5491,6 +6201,8 @@ export type OrganizationUpdateWithoutCreditAccountInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -5555,6 +6267,8 @@ export type OrganizationUncheckedUpdateWithoutCreditAccountInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -5617,6 +6331,8 @@ export type OrganizationCreateWithoutCreditGrantsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -5681,6 +6397,8 @@ export type OrganizationUncheckedCreateWithoutCreditGrantsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -5759,6 +6477,8 @@ export type OrganizationUpdateWithoutCreditGrantsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -5823,6 +6543,8 @@ export type OrganizationUncheckedUpdateWithoutCreditGrantsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -5885,6 +6607,8 @@ export type OrganizationCreateWithoutCreditLedgerEntriesInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -5949,6 +6673,8 @@ export type OrganizationUncheckedCreateWithoutCreditLedgerEntriesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -6027,6 +6753,8 @@ export type OrganizationUpdateWithoutCreditLedgerEntriesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -6091,6 +6819,8 @@ export type OrganizationUncheckedUpdateWithoutCreditLedgerEntriesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -6153,6 +6883,8 @@ export type OrganizationCreateWithoutCreditReservationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -6217,6 +6949,8 @@ export type OrganizationUncheckedCreateWithoutCreditReservationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -6295,6 +7029,8 @@ export type OrganizationUpdateWithoutCreditReservationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -6359,6 +7095,8 @@ export type OrganizationUncheckedUpdateWithoutCreditReservationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -6421,6 +7159,8 @@ export type OrganizationCreateWithoutCreditUsageEventsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -6485,6 +7225,8 @@ export type OrganizationUncheckedCreateWithoutCreditUsageEventsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -6563,6 +7305,8 @@ export type OrganizationUpdateWithoutCreditUsageEventsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -6627,6 +7371,8 @@ export type OrganizationUncheckedUpdateWithoutCreditUsageEventsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -6689,6 +7435,8 @@ export type OrganizationCreateWithoutCreditAdminOperationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -6753,6 +7501,8 @@ export type OrganizationUncheckedCreateWithoutCreditAdminOperationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -6831,6 +7581,8 @@ export type OrganizationUpdateWithoutCreditAdminOperationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -6895,6 +7647,8 @@ export type OrganizationUncheckedUpdateWithoutCreditAdminOperationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -6957,6 +7711,8 @@ export type OrganizationCreateWithoutPublicApiRequestsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -7021,6 +7777,8 @@ export type OrganizationUncheckedCreateWithoutPublicApiRequestsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -7099,6 +7857,8 @@ export type OrganizationUpdateWithoutPublicApiRequestsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -7163,6 +7923,8 @@ export type OrganizationUncheckedUpdateWithoutPublicApiRequestsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -7225,6 +7987,8 @@ export type OrganizationCreateWithoutDeveloperApiKeysInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -7289,6 +8053,8 @@ export type OrganizationUncheckedCreateWithoutDeveloperApiKeysInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -7367,6 +8133,8 @@ export type OrganizationUpdateWithoutDeveloperApiKeysInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -7431,6 +8199,8 @@ export type OrganizationUncheckedUpdateWithoutDeveloperApiKeysInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -7493,6 +8263,8 @@ export type OrganizationCreateWithoutPublicApiWebhookSubscriptionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -7557,6 +8329,8 @@ export type OrganizationUncheckedCreateWithoutPublicApiWebhookSubscriptionsInput
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -7635,6 +8409,8 @@ export type OrganizationUpdateWithoutPublicApiWebhookSubscriptionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -7699,6 +8475,8 @@ export type OrganizationUncheckedUpdateWithoutPublicApiWebhookSubscriptionsInput
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -7761,6 +8539,8 @@ export type OrganizationCreateWithoutBillingCheckoutsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -7825,6 +8605,8 @@ export type OrganizationUncheckedCreateWithoutBillingCheckoutsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -7903,6 +8685,8 @@ export type OrganizationUpdateWithoutBillingCheckoutsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -7967,6 +8751,8 @@ export type OrganizationUncheckedUpdateWithoutBillingCheckoutsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -8029,6 +8815,8 @@ export type OrganizationCreateWithoutBillingInvoicesInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -8093,6 +8881,8 @@ export type OrganizationUncheckedCreateWithoutBillingInvoicesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -8171,6 +8961,8 @@ export type OrganizationUpdateWithoutBillingInvoicesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -8235,6 +9027,8 @@ export type OrganizationUncheckedUpdateWithoutBillingInvoicesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -8297,6 +9091,8 @@ export type OrganizationCreateWithoutBillingIssuesInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -8361,6 +9157,8 @@ export type OrganizationUncheckedCreateWithoutBillingIssuesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -8439,6 +9237,8 @@ export type OrganizationUpdateWithoutBillingIssuesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -8503,6 +9303,8 @@ export type OrganizationUncheckedUpdateWithoutBillingIssuesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -8565,6 +9367,8 @@ export type OrganizationCreateWithoutOwnerInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
@@ -8628,6 +9432,8 @@ export type OrganizationUncheckedCreateWithoutOwnerInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -8731,6 +9537,8 @@ export type OrganizationCreateWithoutSupportAccessGrantsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -8795,6 +9603,8 @@ export type OrganizationUncheckedCreateWithoutSupportAccessGrantsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -8873,6 +9683,8 @@ export type OrganizationUpdateWithoutSupportAccessGrantsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -8937,6 +9749,8 @@ export type OrganizationUncheckedUpdateWithoutSupportAccessGrantsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -8999,6 +9813,8 @@ export type OrganizationCreateWithoutCustomerReplayCommandsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -9063,6 +9879,8 @@ export type OrganizationUncheckedCreateWithoutCustomerReplayCommandsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -9141,6 +9959,8 @@ export type OrganizationUpdateWithoutCustomerReplayCommandsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -9205,6 +10025,8 @@ export type OrganizationUncheckedUpdateWithoutCustomerReplayCommandsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -9267,6 +10089,8 @@ export type OrganizationCreateWithoutCustomersInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -9331,6 +10155,8 @@ export type OrganizationUncheckedCreateWithoutCustomersInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -9409,6 +10235,8 @@ export type OrganizationUpdateWithoutCustomersInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -9473,6 +10301,8 @@ export type OrganizationUncheckedUpdateWithoutCustomersInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -9535,6 +10365,8 @@ export type OrganizationCreateWithoutCustomerIdentitiesInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -9599,6 +10431,8 @@ export type OrganizationUncheckedCreateWithoutCustomerIdentitiesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -9677,6 +10511,8 @@ export type OrganizationUpdateWithoutCustomerIdentitiesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -9741,6 +10577,8 @@ export type OrganizationUncheckedUpdateWithoutCustomerIdentitiesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -9803,6 +10641,8 @@ export type OrganizationCreateWithoutBookingServicesInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -9867,6 +10707,8 @@ export type OrganizationUncheckedCreateWithoutBookingServicesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -9945,6 +10787,8 @@ export type OrganizationUpdateWithoutBookingServicesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -10009,6 +10853,8 @@ export type OrganizationUncheckedUpdateWithoutBookingServicesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -10071,6 +10917,8 @@ export type OrganizationCreateWithoutBookingsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -10135,6 +10983,8 @@ export type OrganizationUncheckedCreateWithoutBookingsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -10213,6 +11063,8 @@ export type OrganizationUpdateWithoutBookingsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -10277,6 +11129,8 @@ export type OrganizationUncheckedUpdateWithoutBookingsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -10339,6 +11193,8 @@ export type OrganizationCreateWithoutConversationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -10403,6 +11259,8 @@ export type OrganizationUncheckedCreateWithoutConversationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -10481,6 +11339,8 @@ export type OrganizationUpdateWithoutConversationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -10545,6 +11405,8 @@ export type OrganizationUncheckedUpdateWithoutConversationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -10607,6 +11469,8 @@ export type OrganizationCreateWithoutCallsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -10671,6 +11535,8 @@ export type OrganizationUncheckedCreateWithoutCallsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -10749,6 +11615,8 @@ export type OrganizationUpdateWithoutCallsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -10813,6 +11681,8 @@ export type OrganizationUncheckedUpdateWithoutCallsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -10875,6 +11745,8 @@ export type OrganizationCreateWithoutWhatsappConnectionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -10939,6 +11811,8 @@ export type OrganizationUncheckedCreateWithoutWhatsappConnectionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -11017,6 +11891,8 @@ export type OrganizationUpdateWithoutWhatsappConnectionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -11081,6 +11957,8 @@ export type OrganizationUncheckedUpdateWithoutWhatsappConnectionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -11143,6 +12021,8 @@ export type OrganizationCreateWithoutWhatsappCallSessionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -11207,6 +12087,8 @@ export type OrganizationUncheckedCreateWithoutWhatsappCallSessionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -11285,6 +12167,8 @@ export type OrganizationUpdateWithoutWhatsappCallSessionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -11349,6 +12233,8 @@ export type OrganizationUncheckedUpdateWithoutWhatsappCallSessionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -11411,6 +12297,8 @@ export type OrganizationCreateWithoutSocialChannelConnectionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -11475,6 +12363,8 @@ export type OrganizationUncheckedCreateWithoutSocialChannelConnectionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -11553,6 +12443,8 @@ export type OrganizationUpdateWithoutSocialChannelConnectionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -11617,6 +12509,8 @@ export type OrganizationUncheckedUpdateWithoutSocialChannelConnectionsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -11679,6 +12573,8 @@ export type OrganizationCreateWithoutSocialPostsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -11743,6 +12639,8 @@ export type OrganizationUncheckedCreateWithoutSocialPostsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -11821,6 +12719,8 @@ export type OrganizationUpdateWithoutSocialPostsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -11885,6 +12785,8 @@ export type OrganizationUncheckedUpdateWithoutSocialPostsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -11947,6 +12849,8 @@ export type OrganizationCreateWithoutSocialPublishJobsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -12011,6 +12915,8 @@ export type OrganizationUncheckedCreateWithoutSocialPublishJobsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -12089,6 +12995,8 @@ export type OrganizationUpdateWithoutSocialPublishJobsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -12153,6 +13061,8 @@ export type OrganizationUncheckedUpdateWithoutSocialPublishJobsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -12215,6 +13125,8 @@ export type OrganizationCreateWithoutSocialPublishBatchesInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -12279,6 +13191,8 @@ export type OrganizationUncheckedCreateWithoutSocialPublishBatchesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -12357,6 +13271,8 @@ export type OrganizationUpdateWithoutSocialPublishBatchesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -12421,6 +13337,8 @@ export type OrganizationUncheckedUpdateWithoutSocialPublishBatchesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -12483,6 +13401,8 @@ export type OrganizationCreateWithoutSocialPostInsightObservationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -12547,6 +13467,8 @@ export type OrganizationUncheckedCreateWithoutSocialPostInsightObservationsInput
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -12625,6 +13547,8 @@ export type OrganizationUpdateWithoutSocialPostInsightObservationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -12689,6 +13613,8 @@ export type OrganizationUncheckedUpdateWithoutSocialPostInsightObservationsInput
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -12751,6 +13677,8 @@ export type OrganizationCreateWithoutSocialPostInsightSyncStatesInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -12815,6 +13743,8 @@ export type OrganizationUncheckedCreateWithoutSocialPostInsightSyncStatesInput =
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -12893,6 +13823,8 @@ export type OrganizationUpdateWithoutSocialPostInsightSyncStatesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -12957,6 +13889,8 @@ export type OrganizationUncheckedUpdateWithoutSocialPostInsightSyncStatesInput =
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -13019,6 +13953,8 @@ export type OrganizationCreateWithoutContentTemplatesInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -13083,6 +14019,8 @@ export type OrganizationUncheckedCreateWithoutContentTemplatesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -13161,6 +14099,8 @@ export type OrganizationUpdateWithoutContentTemplatesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -13225,6 +14165,8 @@ export type OrganizationUncheckedUpdateWithoutContentTemplatesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -13287,6 +14229,8 @@ export type OrganizationCreateWithoutContentTemplateMutationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -13351,6 +14295,8 @@ export type OrganizationUncheckedCreateWithoutContentTemplateMutationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -13429,6 +14375,8 @@ export type OrganizationUpdateWithoutContentTemplateMutationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -13493,6 +14441,8 @@ export type OrganizationUncheckedUpdateWithoutContentTemplateMutationsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -13555,6 +14505,8 @@ export type OrganizationCreateWithoutContentMediaAssetsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -13619,6 +14571,8 @@ export type OrganizationUncheckedCreateWithoutContentMediaAssetsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -13697,6 +14651,8 @@ export type OrganizationUpdateWithoutContentMediaAssetsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -13761,6 +14717,8 @@ export type OrganizationUncheckedUpdateWithoutContentMediaAssetsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -13823,6 +14781,8 @@ export type OrganizationCreateWithoutWhatsappContactsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -13887,6 +14847,8 @@ export type OrganizationUncheckedCreateWithoutWhatsappContactsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -13965,6 +14927,8 @@ export type OrganizationUpdateWithoutWhatsappContactsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -14029,6 +14993,8 @@ export type OrganizationUncheckedUpdateWithoutWhatsappContactsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -14091,6 +15057,8 @@ export type OrganizationCreateWithoutWhatsappContactListMembershipsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -14155,6 +15123,8 @@ export type OrganizationUncheckedCreateWithoutWhatsappContactListMembershipsInpu
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -14233,6 +15203,8 @@ export type OrganizationUpdateWithoutWhatsappContactListMembershipsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -14297,6 +15269,8 @@ export type OrganizationUncheckedUpdateWithoutWhatsappContactListMembershipsInpu
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -14359,6 +15333,8 @@ export type OrganizationCreateWithoutWhatsappTemplatesInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -14423,6 +15399,8 @@ export type OrganizationUncheckedCreateWithoutWhatsappTemplatesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -14501,6 +15479,8 @@ export type OrganizationUpdateWithoutWhatsappTemplatesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -14565,6 +15545,8 @@ export type OrganizationUncheckedUpdateWithoutWhatsappTemplatesInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -14627,6 +15609,8 @@ export type OrganizationCreateWithoutWhatsappCampaignsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -14691,6 +15675,8 @@ export type OrganizationUncheckedCreateWithoutWhatsappCampaignsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -14769,6 +15755,8 @@ export type OrganizationUpdateWithoutWhatsappCampaignsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -14833,6 +15821,8 @@ export type OrganizationUncheckedUpdateWithoutWhatsappCampaignsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -14895,6 +15885,8 @@ export type OrganizationCreateWithoutWhatsappSendEventsInput = {
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -14959,6 +15951,8 @@ export type OrganizationUncheckedCreateWithoutWhatsappSendEventsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -15037,6 +16031,8 @@ export type OrganizationUpdateWithoutWhatsappSendEventsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -15101,6 +16097,8 @@ export type OrganizationUncheckedUpdateWithoutWhatsappSendEventsInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -15162,6 +16160,8 @@ export type OrganizationCreateWithoutGrowthAgentReviewsInput = {
   updatedAt?: Date | string
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -15226,6 +16226,8 @@ export type OrganizationUncheckedCreateWithoutGrowthAgentReviewsInput = {
   updatedAt?: Date | string
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -15304,6 +16306,8 @@ export type OrganizationUpdateWithoutGrowthAgentReviewsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -15368,6 +16372,8 @@ export type OrganizationUncheckedUpdateWithoutGrowthAgentReviewsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -15430,6 +16436,8 @@ export type OrganizationCreateWithoutAgentSetupInput = {
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -15494,6 +16502,8 @@ export type OrganizationUncheckedCreateWithoutAgentSetupInput = {
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -15572,6 +16582,8 @@ export type OrganizationUpdateWithoutAgentSetupInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -15636,6 +16648,8 @@ export type OrganizationUncheckedUpdateWithoutAgentSetupInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -15698,6 +16712,8 @@ export type OrganizationCreateWithoutGrowthAgentSourceHandlesInput = {
   updatedAt?: Date | string
   agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
@@ -15762,6 +16778,8 @@ export type OrganizationUncheckedCreateWithoutGrowthAgentSourceHandlesInput = {
   updatedAt?: Date | string
   agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutOrgInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -15840,6 +16858,8 @@ export type OrganizationUpdateWithoutGrowthAgentSourceHandlesInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
@@ -15904,6 +16924,8 @@ export type OrganizationUncheckedUpdateWithoutGrowthAgentSourceHandlesInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -15977,6 +16999,8 @@ export type OrganizationUpdateWithoutOwnerInput = {
   agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
@@ -16040,6 +17064,8 @@ export type OrganizationUncheckedUpdateWithoutOwnerInput = {
   agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutOrgNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -16110,6 +17136,8 @@ export type OrganizationUncheckedUpdateManyWithoutOwnerInput = {
 export type OrganizationCountOutputType = {
   growthAgentReviews: number
   growthAgentSourceHandles: number
+  agentChannelGrants: number
+  agentChannelLinkIntents: number
   members: number
   invitations: number
   socialChannelConnections: number
@@ -16162,6 +17190,8 @@ export type OrganizationCountOutputType = {
 export type OrganizationCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   growthAgentReviews?: boolean | OrganizationCountOutputTypeCountGrowthAgentReviewsArgs
   growthAgentSourceHandles?: boolean | OrganizationCountOutputTypeCountGrowthAgentSourceHandlesArgs
+  agentChannelGrants?: boolean | OrganizationCountOutputTypeCountAgentChannelGrantsArgs
+  agentChannelLinkIntents?: boolean | OrganizationCountOutputTypeCountAgentChannelLinkIntentsArgs
   members?: boolean | OrganizationCountOutputTypeCountMembersArgs
   invitations?: boolean | OrganizationCountOutputTypeCountInvitationsArgs
   socialChannelConnections?: boolean | OrganizationCountOutputTypeCountSocialChannelConnectionsArgs
@@ -16233,6 +17263,20 @@ export type OrganizationCountOutputTypeCountGrowthAgentReviewsArgs<ExtArgs exten
  */
 export type OrganizationCountOutputTypeCountGrowthAgentSourceHandlesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.GrowthAgentSourceHandleWhereInput
+}
+
+/**
+ * OrganizationCountOutputType without action
+ */
+export type OrganizationCountOutputTypeCountAgentChannelGrantsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.GrowthAgentChannelGrantWhereInput
+}
+
+/**
+ * OrganizationCountOutputType without action
+ */
+export type OrganizationCountOutputTypeCountAgentChannelLinkIntentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.GrowthAgentChannelLinkIntentWhereInput
 }
 
 /**
@@ -16577,6 +17621,8 @@ export type OrganizationSelect<ExtArgs extends runtime.Types.Extensions.Internal
   agentSetup?: boolean | Prisma.Organization$agentSetupArgs<ExtArgs>
   growthAgentReviews?: boolean | Prisma.Organization$growthAgentReviewsArgs<ExtArgs>
   growthAgentSourceHandles?: boolean | Prisma.Organization$growthAgentSourceHandlesArgs<ExtArgs>
+  agentChannelGrants?: boolean | Prisma.Organization$agentChannelGrantsArgs<ExtArgs>
+  agentChannelLinkIntents?: boolean | Prisma.Organization$agentChannelLinkIntentsArgs<ExtArgs>
   owner?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   members?: boolean | Prisma.Organization$membersArgs<ExtArgs>
   invitations?: boolean | Prisma.Organization$invitationsArgs<ExtArgs>
@@ -16671,6 +17717,8 @@ export type OrganizationInclude<ExtArgs extends runtime.Types.Extensions.Interna
   agentSetup?: boolean | Prisma.Organization$agentSetupArgs<ExtArgs>
   growthAgentReviews?: boolean | Prisma.Organization$growthAgentReviewsArgs<ExtArgs>
   growthAgentSourceHandles?: boolean | Prisma.Organization$growthAgentSourceHandlesArgs<ExtArgs>
+  agentChannelGrants?: boolean | Prisma.Organization$agentChannelGrantsArgs<ExtArgs>
+  agentChannelLinkIntents?: boolean | Prisma.Organization$agentChannelLinkIntentsArgs<ExtArgs>
   owner?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   members?: boolean | Prisma.Organization$membersArgs<ExtArgs>
   invitations?: boolean | Prisma.Organization$invitationsArgs<ExtArgs>
@@ -16737,6 +17785,8 @@ export type $OrganizationPayload<ExtArgs extends runtime.Types.Extensions.Intern
     agentSetup: Prisma.$GrowthAgentSetupPayload<ExtArgs> | null
     growthAgentReviews: Prisma.$GrowthAgentReviewPayload<ExtArgs>[]
     growthAgentSourceHandles: Prisma.$GrowthAgentSourceHandlePayload<ExtArgs>[]
+    agentChannelGrants: Prisma.$GrowthAgentChannelGrantPayload<ExtArgs>[]
+    agentChannelLinkIntents: Prisma.$GrowthAgentChannelLinkIntentPayload<ExtArgs>[]
     owner: Prisma.$UserPayload<ExtArgs>
     members: Prisma.$OrganizationMemberPayload<ExtArgs>[]
     invitations: Prisma.$OrganizationInvitationPayload<ExtArgs>[]
@@ -17195,6 +18245,8 @@ export interface Prisma__OrganizationClient<T, Null = never, ExtArgs extends run
   agentSetup<T extends Prisma.Organization$agentSetupArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$agentSetupArgs<ExtArgs>>): Prisma.Prisma__GrowthAgentSetupClient<runtime.Types.Result.GetResult<Prisma.$GrowthAgentSetupPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   growthAgentReviews<T extends Prisma.Organization$growthAgentReviewsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$growthAgentReviewsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$GrowthAgentReviewPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   growthAgentSourceHandles<T extends Prisma.Organization$growthAgentSourceHandlesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$growthAgentSourceHandlesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$GrowthAgentSourceHandlePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  agentChannelGrants<T extends Prisma.Organization$agentChannelGrantsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$agentChannelGrantsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$GrowthAgentChannelGrantPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  agentChannelLinkIntents<T extends Prisma.Organization$agentChannelLinkIntentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$agentChannelLinkIntentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$GrowthAgentChannelLinkIntentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   owner<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   members<T extends Prisma.Organization$membersArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$membersArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OrganizationMemberPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   invitations<T extends Prisma.Organization$invitationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$invitationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OrganizationInvitationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -17743,6 +18795,54 @@ export type Organization$growthAgentSourceHandlesArgs<ExtArgs extends runtime.Ty
   take?: number
   skip?: number
   distinct?: Prisma.GrowthAgentSourceHandleScalarFieldEnum | Prisma.GrowthAgentSourceHandleScalarFieldEnum[]
+}
+
+/**
+ * Organization.agentChannelGrants
+ */
+export type Organization$agentChannelGrantsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the GrowthAgentChannelGrant
+   */
+  select?: Prisma.GrowthAgentChannelGrantSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the GrowthAgentChannelGrant
+   */
+  omit?: Prisma.GrowthAgentChannelGrantOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.GrowthAgentChannelGrantInclude<ExtArgs> | null
+  where?: Prisma.GrowthAgentChannelGrantWhereInput
+  orderBy?: Prisma.GrowthAgentChannelGrantOrderByWithRelationInput | Prisma.GrowthAgentChannelGrantOrderByWithRelationInput[]
+  cursor?: Prisma.GrowthAgentChannelGrantWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.GrowthAgentChannelGrantScalarFieldEnum | Prisma.GrowthAgentChannelGrantScalarFieldEnum[]
+}
+
+/**
+ * Organization.agentChannelLinkIntents
+ */
+export type Organization$agentChannelLinkIntentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the GrowthAgentChannelLinkIntent
+   */
+  select?: Prisma.GrowthAgentChannelLinkIntentSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the GrowthAgentChannelLinkIntent
+   */
+  omit?: Prisma.GrowthAgentChannelLinkIntentOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.GrowthAgentChannelLinkIntentInclude<ExtArgs> | null
+  where?: Prisma.GrowthAgentChannelLinkIntentWhereInput
+  orderBy?: Prisma.GrowthAgentChannelLinkIntentOrderByWithRelationInput | Prisma.GrowthAgentChannelLinkIntentOrderByWithRelationInput[]
+  cursor?: Prisma.GrowthAgentChannelLinkIntentWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.GrowthAgentChannelLinkIntentScalarFieldEnum | Prisma.GrowthAgentChannelLinkIntentScalarFieldEnum[]
 }
 
 /**

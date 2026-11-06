@@ -521,14 +521,6 @@ export type UserProductTourUncheckedUpdateManyWithoutOrgNestedInput = {
   deleteMany?: Prisma.UserProductTourScalarWhereInput | Prisma.UserProductTourScalarWhereInput[]
 }
 
-export type IntFieldUpdateOperationsInput = {
-  set?: number
-  increment?: number
-  decrement?: number
-  multiply?: number
-  divide?: number
-}
-
 export type UserProductTourCreateNestedManyWithoutUserInput = {
   create?: Prisma.XOR<Prisma.UserProductTourCreateWithoutUserInput, Prisma.UserProductTourUncheckedCreateWithoutUserInput> | Prisma.UserProductTourCreateWithoutUserInput[] | Prisma.UserProductTourUncheckedCreateWithoutUserInput[]
   connectOrCreate?: Prisma.UserProductTourCreateOrConnectWithoutUserInput | Prisma.UserProductTourCreateOrConnectWithoutUserInput[]

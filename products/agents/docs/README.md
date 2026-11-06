@@ -41,11 +41,12 @@ An opt-in Agents MCP server lets authorized external assistants create and confi
 website knowledge, preview privately, customize a widget, and request signed-in review before
 activation. It uses Agents organization grants; Growth's operation catalogue and permissions remain
 separate.
-Connections now includes setup and agent binding for WhatsApp, Telegram, Messenger and Instagram,
-alongside website appearance/install controls. All share Inbox ownership and durable messaging
-receipts. Meta setup requires a configured provider app and reachable webhook; Telegram requires
-an owner-created bot and reachable webhook. Installed adapters and controlled checks do not
-establish live account acceptance. The separate Booking creation offering remains unavailable.
+Configure → Channels on an Agent starts and manages that Agent's channel connection. The global
+Connections page reflects connected provider accounts. Website setup is also managed on the Agent.
+All customer channels share Inbox ownership and durable messaging receipts. Meta setup requires a
+configured provider app and reachable webhook; Telegram requires an owner-created bot and reachable
+webhook. Installed adapters and controlled checks do not establish live account acceptance. The
+separate Booking creation offering remains unavailable.
 A live Google OAuth application has not been accepted.
 
 The current business harness supports contextual conversations, reviewed personal

@@ -15,6 +15,7 @@ import {
 } from "../services/connections.js";
 import { ApiError } from "../error.js";
 import { typedQuery } from "../typed-query.js";
+import { completeGrowthAgentChannelOAuth } from "../agents/growth-agent-channel-oauth.js";
 interface StartQuery {
   connectionId?: string;
   capabilities?: string;
@@ -81,6 +82,10 @@ function registerBrowserCallback(
     const query = typedQuery<CallbackQuery>(request.query, [
       "code", "state", "error", "error_description", "iss",
     ]);
+    if (provider === "meta" || provider === "instagram") {
+      const agentReturn = await completeGrowthAgentChannelOAuth(core, provider, query, request);
+      if (agentReturn) return redirect(reply, agentReturn);
+    }
     if (new URL(core.config.frontendUrl).origin !== new URL(core.config.publicApiUrl).origin) {
       // Provider callbacks land on the API host; browser session/state cookies belong to the app host.
       const destination = new URL(`/api/social/oauth/${provider}/complete`, core.config.frontendUrl);

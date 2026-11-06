@@ -72,8 +72,8 @@ export async function registerWhatsappWebhookRoutes(
             "Invalid WhatsApp webhook payload",
           );
         }
-        await processWebhookPayload(core.pool, core.config, payload, options);
-        return { success: true, queued: false };
+        const queued = await processWebhookPayload(core.pool, core.config, payload, { ...options, logger: request.log });
+        return { success: true, queued: queued > 0 };
       },
     );
   });

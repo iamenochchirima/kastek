@@ -6,6 +6,13 @@ import { ApiError } from "../error.js";
 
 export const growthAgentDigest = (value: unknown): string => createHash("sha256").update(growthAgentCanonicalJson(value)).digest("hex");
 const pem = (value: string) => value.replace(/\\n/g, "\n");
+export function growthAgentChannelLinksEnabled(config: CoreConfig): boolean {
+  const setting = config.env?.GROWTH_AGENT_CHANNEL_LINKS_ENABLED;
+  if (setting === "true") return true;
+  if (setting === "false") return false;
+  const environment = config.environment?.toLowerCase?.() ?? "development";
+  return ["development", "dev", "local", "test"].includes(environment);
+}
 export function growthAgentIdentityIssuer(config: CoreConfig): string {
   return config.env.GROWTH_IDENTITY_ISSUER ?? `${(config.env.GROWTH_AGENTS_ISSUER ?? "https://growth.kasitek.co.za").replace(/\/$/, "")}/identity`;
 }
@@ -39,6 +46,9 @@ export async function signGrowthAgentCommand(config: CoreConfig, body: unknown):
 }
 export async function verifyGrowthAgentAction(config: CoreConfig, authorization: string | undefined, body: unknown): Promise<void> {
   return verifyGrowthAgentService(config, authorization, body, "growth-agent-actions", "agents-worker");
+}
+export async function verifyGrowthAgentChannelLink(config: CoreConfig, authorization: string | undefined, body: unknown): Promise<void> {
+  return verifyGrowthAgentService(config, authorization, body, "growth-agent-channel-links", "agents-worker");
 }
 export async function verifyGrowthAgentProvisioningCheck(config: CoreConfig, authorization: string | undefined, body: unknown): Promise<void> {
   return verifyGrowthAgentService(config, authorization, body, "growth-agent-provisioning-lifecycle", "agents-provisioner");

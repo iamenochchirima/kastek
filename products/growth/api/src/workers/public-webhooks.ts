@@ -3,11 +3,12 @@ import { setTimeout as sleep } from "node:timers/promises";
 import type { Pool } from "pg";
 import type { CoreConfig } from "../config.js";
 import { processDueDeliveries } from "../services/public-webhooks.js";
+import { processGrowthAgentChannelEvents } from "../agents/channel-events.js";
 export async function runPublicWebhooks(
   pool: Pool,
   config: CoreConfig,
   signal: AbortSignal,
-  logger: Pick<Console, "info" | "error"> = console,
+  logger: Pick<Console, "info" | "warn" | "error"> = console,
 ): Promise<void> {
   const raw = config.env.PUBLIC_WEBHOOK_POLL_INTERVAL_MS,
     interval =
@@ -15,17 +16,30 @@ export async function runPublicWebhooks(
         ? Number(raw)
         : 1000,
     batch = Number(config.env.PUBLIC_WEBHOOK_BATCH_SIZE ?? 25);
+  let reportedMissingAgentsUrl = false;
   logger.info({ event: "worker.started", worker: "public_webhooks" });
   while (!signal.aborted) {
     try {
-      const processed = await workerSpan("public_webhooks.process_batch", () =>
-        processDueDeliveries(
+      if (!reportedMissingAgentsUrl && !config.env.AGENTS_PRODUCT_API_URL && !config.env.AGENTS_API_URL) {
+        logger.warn({ event: "growth.agent_channel.delivery.disabled", worker: "public_webhooks",
+          error_code: "agents_api_url_unconfigured" });
+        reportedMissingAgentsUrl = true;
+      }
+      const processed = await workerSpan("public_webhooks.process_batch", async () => {
+        const publicWebhooks = await processDueDeliveries(
           pool,
           config,
           Number.isSafeInteger(batch) ? batch : 25,
           signal,
-        ),
-      );
+        );
+        const agentChannels = await processGrowthAgentChannelEvents(
+          { pool, config },
+          Number.isSafeInteger(batch) ? batch : 25,
+          signal,
+          logger,
+        );
+        return publicWebhooks + agentChannels;
+      });
       if (processed)
         logger.info({
           event: "queue.item.completed",

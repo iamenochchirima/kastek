@@ -48,13 +48,13 @@ opaque HTTP-only product session, never a service or model credential.
 - `/login`: provider sign-in.
 - `/app/overview`: customer conversation activity, current handoffs, enquiries and channel totals for the selected workspace.
 - `/app/agents`: searchable agent directory with configuration filters, selected-agent details, chat and configuration links, and guided customer-service setup.
-- `/app/agents/:agentId`: chat, activity and configuration, including tools, skills and website setup.
+- `/app/agents/:agentId`: chat, activity and configuration, including tools, skills and per-agent channel connections.
 - In an agent's General configuration, Delete agent stops its deployments and automations and retains conversation history and customer records. Deletion waits for active tasks and message delivery to finish.
 - `/app/agents/:agentId/conversations/:conversationId`: authorized conversation history and chat.
 - `/app/inbox`: customer conversations, assignment, human replies and handoff.
 - `/app/customers`: enquiry and contact records, follow-up and activity.
 - `/app/knowledge`: private imports, candidate review, revision approval and withdrawal.
-- `/app/connections`: customer channels, provider accounts and selected API/MCP tools.
+- `/app/connections`: connected provider accounts and selected API/MCP tools. Start or manage an agent's customer-channel connection in that agent's Configure → Channels section.
 - `/app/automations`: pinned UTC/event occurrences and report reviewer controls.
 - `/app/tasks`: authorized tasks, filters and conversation or review links.
 - `/app/tasks/:taskId`: operation activity, citations, child/resource state and exact report review.

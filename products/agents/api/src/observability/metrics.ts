@@ -57,8 +57,9 @@ export async function collectNativeMetrics(pool:Pool,role:string):Promise<Metric
       UNION ALL SELECT 'agents.model.unknown_cost_operations',coalesce(sum(unknown_operations),0)::text,'{}'::jsonb FROM agents_platform.root_model_accounts
       UNION ALL SELECT 'agents.inbox.commands',count(*)::text,jsonb_build_object('action',action) FROM agents_platform.customer_commands WHERE created_at>now()-interval '24 hours' GROUP BY action
       UNION ALL SELECT 'agents.inbox.deliveries',count(*)::text,jsonb_build_object('state',state) FROM agents_platform.customer_deliveries WHERE created_at>now()-interval '24 hours' GROUP BY state
-      UNION ALL SELECT 'agents.channels.connections',count(*)::text,jsonb_build_object('channel',kind,'state',state)
-        FROM agents_platform.channel_connections GROUP BY kind,state
+      UNION ALL SELECT 'agents.channels.connections',count(*)::text,jsonb_build_object('channel',kind,'state',state,
+          'provider_health',CASE WHEN mode='growth_managed' THEN COALESCE(metadata#>>'{growthChannelHealth,state}','ready') ELSE 'native' END)
+        FROM agents_platform.channel_connections GROUP BY kind,state,mode,metadata#>>'{growthChannelHealth,state}'
       UNION ALL SELECT 'agents.channels.ingress',count(*)::text,jsonb_build_object('channel',c.kind,'state',i.state)
         FROM agents_platform.channel_ingress i JOIN agents_platform.channel_connections c ON c.id=i.connection_id
         WHERE i.state IN ('pending','processing','quarantined') OR i.created_at>now()-interval '24 hours' GROUP BY c.kind,i.state
