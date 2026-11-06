@@ -147,7 +147,7 @@ test("live platform: authenticated knowledge, private reply, task recovery and p
   const suffix = Date.now().toString(36);
   await page.getByRole("textbox", { name: "Workspace name" }).fill(`Browser verification ${suffix}`);
   await page.getByRole("dialog").getByRole("button", { name: "Create workspace", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Agents", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your agents", exact: true })).toBeVisible();
   const agentName = `FAQ ${suffix}`;
   await createAgent(page, agentName);
   const editorUrl = page.url();
