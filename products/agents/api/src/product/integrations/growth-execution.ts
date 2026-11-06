@@ -28,7 +28,7 @@ import { requestTreeCancellation } from "../../execution/lifecycle/execution";
 import { privateStoreFromEnvironment } from "../../infrastructure/object-store";
 import { TaskArtifactStore } from "../../execution/artifacts/task-artifacts";
 import { growthDelegationPolicy,growthFeatureConfiguration,growthFeatureProvisionOrder,validateGrowthPublication,assertGrowthOptionalAuthority,assertGrowthConfigurationPreservingConnections } from "./growth-features";
-import { randomAgentAvatar } from "../agents/avatars";
+import { agentAvatars, randomAgentAvatar } from "../agents/avatars";
 import { assertModelCredentialAvailable } from "../../execution/models/credential-readiness";
 import { productAuthorityBindings } from "../../capabilities/products/product-capabilities";
 import { MemoryStore, type ProductMemoryManagementScope } from "../../execution/memory/memory";
@@ -164,7 +164,9 @@ export class GrowthExecutionService {
           continue;
         }
         const agentId=randomUUID(),versionId=randomUUID(),config=growthDefaultCommissions(growthFeatureConfiguration(publication,feature.id,org,command.tenantId,options.model,specialists),specialistConfigurations);
-        await db.query("INSERT INTO agents_platform.agents(id,organization_id,name,avatar,draft,created_by_service) VALUES($1,$2,$3,$4,$5,$6)",[agentId,org,feature.name,randomAgentAvatar(),config,provenance]);
+        const used=(await db.query("SELECT a.avatar FROM agents_platform.product_execution_features f JOIN agents_platform.agents a ON a.id=f.agent_id WHERE f.product='growth' AND f.tenant_id=$1",[command.tenantId])).rows.map((row:{avatar:string})=>row.avatar);
+        const available=agentAvatars.filter(avatar=>!used.includes(avatar)),avatar=available.length?available[Math.floor(Math.random()*available.length)]!:randomAgentAvatar();
+        await db.query("INSERT INTO agents_platform.agents(id,organization_id,name,avatar,draft,created_by_service) VALUES($1,$2,$3,$4,$5,$6)",[agentId,org,feature.name,avatar,config,provenance]);
         await db.query("INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition) VALUES($1,$2,$3,1,1,'business',$4,$5,$6,$7)",[versionId,org,agentId,config,provenance,JSON.stringify(publishedToolBindings(config)),compilePublishedComposition(config,[])]);
         await pinProductCompositionSources(db,{product:"growth",tenantId:command.tenantId,organizationId:org},versionId,config);
         await db.query("INSERT INTO agents_platform.product_execution_features(product,tenant_id,feature_id,organization_id,agent_id,version_id,managed_defaults_revision,managed_configuration_digest,artifact_rollout_revision) VALUES('growth',$1,$2,$3,$4,$5,$6,$7,1)",[command.tenantId,feature.id,org,agentId,versionId,publication.manifest.revision,requestDigest(config)]);
