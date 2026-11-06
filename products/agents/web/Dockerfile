@@ -4,6 +4,8 @@ WORKDIR /workspace
 RUN corepack enable && corepack prepare pnpm@10.30.1 --activate
 COPY . .
 RUN pnpm --filter @kasitek/workspace --filter @kasitek/agent-platform... install --frozen-lockfile
+ARG VITE_GROWTH_APP_URL
+ARG VITE_AGENCY_APP_URL
 RUN pnpm --filter @kasitek/agent-platform build
 
 FROM nginx:stable-alpine AS runtime

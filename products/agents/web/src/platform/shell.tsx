@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiError, message, type Session } from "./api";
+import { AppSwitcher, buildKasitekAppLinks } from "@kasitek-labs/ui/app-switcher";
 import { InboxAlertsButton, InboxAlertsDialog, useInboxAlerts } from "./inbox-alerts";
 
 type Workspace = { organizationId: string; session: Session; createWorkspace: () => void; selectWorkspace: (id: string) => void; logout: () => Promise<void> };
@@ -54,8 +55,16 @@ export function WorkspaceShell() {
   function toggleSidebar() { setSidebarCollapsed(current => { const next = !current; try { localStorage.setItem("agents.sidebar.collapsed", String(next)); } catch { /* The sidebar still works when storage is unavailable. */ } return next; }); }
   function selectWorkspace(id: string) { if (!session?.organizations.some(org => org.id === id)) return; setOrganizationId(id); sessionStorage.setItem("agents.organization", id); navigate("/app/agents"); }
   if (signedOut) return <Navigate to={`/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`} replace />;
+  const appLinks = buildKasitekAppLinks({
+    current: "agents",
+    growthUrl: import.meta.env.VITE_GROWTH_APP_URL ?? (import.meta.env.DEV ? "http://localhost:3000/workspace" : undefined),
+    agencyUrl: import.meta.env.VITE_AGENCY_APP_URL ?? (import.meta.env.DEV ? "http://localhost:3010/" : undefined),
+  });
   const navigation = <>
-    <Link to="/app/overview" className="workspace-brand" aria-label="Agents overview"><span className="brand-symbol"><HugeiconsIcon icon={Robot01Icon} size={19} /></span><span className="workspace-brand-label">Agents</span></Link>
+    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      <Link to="/app/overview" className="workspace-brand" aria-label="Agents overview" style={{ flex: 1, minWidth: 0 }}><span className="brand-symbol"><HugeiconsIcon icon={Robot01Icon} size={19} /></span><span className="workspace-brand-label">Agents</span></Link>
+      <AppSwitcher current="agents" apps={appLinks} />
+    </div>
     {session?.organizations.length ? <select aria-label="Workspace" className="workspace-select" value={organizationId} onChange={event => event.target.value === "new" ? setWorkspaceOpen(true) : selectWorkspace(event.target.value)}>{session.organizations.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}<option value="new">Create workspace</option></select> : null}
     <nav aria-label="Main navigation" className="workspace-navigation">{([
       ["/app/overview", "Overview", DashboardSquare01Icon], ["/app/assistant", "Assistant", Robot01Icon], ["/app/agents", "Agents", Robot01Icon], ["/app/inbox", "Inbox", InboxIcon], ["/app/customers", "Customers", UserGroupIcon], ["/app/tasks", "Tasks", Task01Icon], ["/app/knowledge", "Knowledge", BookOpen01Icon], ["/app/connections", "Connections", Plug01Icon], ["/app/automations", "Automations", CalendarClockIcon], ["/app/settings", "Settings", Settings01Icon],
@@ -66,7 +75,7 @@ export function WorkspaceShell() {
   return <div className={`dashboard-theme workspace-shell bg-background text-foreground ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
     <a href="#workspace-content" className="skip-link">Skip to content</a>
     <aside className="workspace-sidebar"><Button className="workspace-sidebar-toggle" variant="ghost" size="icon" aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!sidebarCollapsed} title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={toggleSidebar}><HugeiconsIcon icon={SidebarLeft01Icon} size={18} /></Button>{navigation}</aside>
-    <header className="workspace-mobile-header"><Button ref={navigationTrigger} aria-label="Open navigation" size="icon" variant="ghost" onClick={() => setNavigationOpen(true)}><HugeiconsIcon icon={Menu01Icon} size={20} /></Button><Link to="/app/overview" className="font-semibold">Agents</Link><span className="ml-auto truncate text-xs text-muted-foreground">{session?.organizations.find(org => org.id === organizationId)?.name}</span>{organizationId ? <InboxAlertsButton unread={alerts.data?.unread ?? 0} onClick={openAlerts} mobile /> : null}</header>
+    <header className="workspace-mobile-header"><Button ref={navigationTrigger} aria-label="Open navigation" size="icon" variant="ghost" onClick={() => setNavigationOpen(true)}><HugeiconsIcon icon={Menu01Icon} size={20} /></Button><Link to="/app/overview" className="font-semibold">Agents</Link><AppSwitcher current="agents" apps={appLinks} /><span className="ml-auto truncate text-xs text-muted-foreground">{session?.organizations.find(org => org.id === organizationId)?.name}</span>{organizationId ? <InboxAlertsButton unread={alerts.data?.unread ?? 0} onClick={openAlerts} mobile /> : null}</header>
     <Dialog open={navigationOpen} onOpenChange={setNavigationOpen}><DialogContent className="workspace-navigation-drawer" onCloseAutoFocus={event => { event.preventDefault(); navigationTrigger.current?.focus(); }}><DialogHeader><DialogTitle>Workspace navigation</DialogTitle><DialogDescription className="sr-only">Select a workspace page.</DialogDescription></DialogHeader>{navigation}<Button variant="ghost" onClick={() => setNavigationOpen(false)}><HugeiconsIcon icon={SidebarLeft01Icon} size={16} />Close navigation</Button></DialogContent></Dialog>
     <main id="workspace-content" tabIndex={-1} className={`workspace-main ${location.pathname.startsWith("/app/agents") ? "workspace-main-agents" : ""}`}>
       {error ? <div className="workspace-page space-y-3"><ErrorMessage value={error} /><Button variant="outline" onClick={() => void load()}>Try again</Button></div> : !session ? <div className="workspace-page"><Loading /></div> : !organizationId ? <section className="workspace-page space-y-4"><h1 className="text-2xl font-semibold">No workspace access</h1><Button variant="outline" onClick={() => void load()}>Try again</Button></section> : <WorkspaceContext.Provider value={{ organizationId, session, createWorkspace: () => setWorkspaceOpen(true), selectWorkspace, logout }}><div className="workspace-outlet" key={`${session.account.id}.${organizationId}`}><Outlet /></div></WorkspaceContext.Provider>}
