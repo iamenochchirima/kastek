@@ -11,6 +11,7 @@ import type { AcceptedModelRoute } from "../../contracts/model-bindings";
 import type { ModelRole } from "../../contracts/model-providers";
 import type { PrivateNativeState, ProviderTransportResponse } from "../../adapters/models/pi-transport";
 import { transaction } from "../../infrastructure/database";
+import { assertMcpTaskAuthority } from "../../infrastructure/mcp-job-authority";
 import { assertCurrentAuthority,assertCurrentEvidence,taskEvidenceManifest } from "../context/evidence-policy";
 import { assertProductInformationForModel } from "../products/product-information";
 import { loadExecution } from "../lifecycle/state";
@@ -110,6 +111,7 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
   const messages = structuredClone(input.messages), tools = structuredClone(input.tools);
   try {
     const prepared = await transaction(input.pool, async db => {
+      await assertMcpTaskAuthority(db,taskId);
       const routes = await loadTaskModelRoutes(db, taskId, organizationId), route = routes[input.role];
       if (!messages.length || messages.length > route.policy.maxMessages || (tools?.length ?? 0) > route.policy.maxTools) {
         throw new ModelOperationError("MODEL_REQUEST_LIMIT", "rejected", 400);
@@ -143,6 +145,7 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
       beforeDispatch: async () => {
         try { await transaction(input.pool, async db => {
           await (dependencies.assertAuthority ?? currentAuthority)(db, input.execution);
+          await assertMcpTaskAuthority(db,taskId);
           if(prepared.contextManifest)await assertPreparedContext(db,await loadExecution(db,taskId),prepared.contextManifest,true);
           if(prepared.legacyProductFence){await assertCurrentEvidence(db,taskId,prepared.legacyProductFence);await assertProductInformationForModel(db,taskId,prepared.legacyProductFence,input.role);}
           const operation = (await db.query(`SELECT state FROM agents_platform.operations WHERE id=$1 AND task_id=$2`, [input.operationId, taskId])).rows[0];
@@ -182,6 +185,7 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
           try{
             const current=await loadExecution(db,taskId);
             await (dependencies.assertAuthority??currentAuthority)(db,current);
+            await assertMcpTaskAuthority(db,taskId);
             if(prepared.contextManifest)await assertPreparedContext(db,current,prepared.contextManifest,false);
             if(prepared.legacyProductFence){await assertCurrentEvidence(db,taskId,prepared.legacyProductFence);await assertProductInformationForModel(db,taskId,prepared.legacyProductFence,input.role);}
             await input.providerStore.resolveCredential(db,prepared.route.binding,prepared.route.consumer);

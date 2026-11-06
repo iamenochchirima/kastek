@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import { requestDigest } from "../../contracts/contracts";
+import { projectRecipientText, taskRecipientTextScope } from "../../execution/context/recipient-text";
 
 export interface StatusNoticeBinding {
   taskId: string;
@@ -76,6 +77,7 @@ export async function publishSupportStatus(db: PoolClient, binding: StatusNotice
   const existing=(await db.query("SELECT message_id,body_digest FROM agents_platform.support_status_notices WHERE task_id=$1",[binding.taskId])).rows[0];
   if(existing) return existing.body_digest===requestDigest(body) && await assertSupportStatusNotice(db,binding,existing.message_id,body,verify) ? existing.message_id : null;
   if (!await authorized(db,binding,body,verify)) return null;
+  if(projectRecipientText(body,await taskRecipientTextScope(db,binding.taskId,[body]),{normalizeLegacyMarker:true})!==body)return null;
   const messageId=await append(db,binding,body);
   const canonical=(await db.query(`SELECT 1 FROM agents_platform.customer_messages WHERE id=$1 AND conversation_id=$2
     AND author_kind='assistant' AND body=$3 AND ownership_generation=$4 AND request_key='support-status:'||$5::text`,
@@ -104,5 +106,6 @@ async function assertNotice(db: PoolClient, binding: StatusNoticeBinding, messag
       AND n.ownership_generation=$5 AND n.body_digest=$6 AND m.body=$7 AND m.author_kind='assistant'
       AND m.ownership_generation=n.ownership_generation AND m.request_key='support-status:'||n.task_id::text`,
     [binding.taskId,messageId,binding.conversationId,binding.organizationId,binding.ownershipGeneration,requestDigest(body),body])).rowCount;
-  return Boolean(receipt) && await authorized(db,binding,body,verify,historical);
+  if(!receipt || !await authorized(db,binding,body,verify,historical))return false;
+  return historical || projectRecipientText(body,await taskRecipientTextScope(db,binding.taskId,[body]),{normalizeLegacyMarker:true})===body;
 }

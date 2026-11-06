@@ -308,6 +308,38 @@ new analytics event or log/export pipeline. Deploy compatible API and rebuilt co
 older consumers ignore the fields. Rollback restores prior presentation while retaining accepted
 operations and their authorization checks.
 
+## Credential reflection and retained receipts
+
+Model dispatch checks prepared requests and completed responses for the active model credential.
+It buffers text until the check finishes, including for older runtime releases. Connected-tool
+execution checks its active authorization before storing a provider response. These checks cover
+the exact value and common JSON-escaped, URL-encoded, Base64, and Base64URL forms; unknown
+credentials, other secrets, and arbitrary transformations remain outside this check. A failed
+progress observer cannot change a completed model call into a retry.
+
+Ordinary replies, task progress and activity, authorized history, and supported text/JSON artifacts
+use one recipient projection. It checks task, version, grant, operation and tool-result identifier
+values from the authorized task lineage, plus scoped product references. A known reference is
+replaced by its trusted display label where available; otherwise its value and adjacent empty ID
+label are removed. Link targets containing a known internal value are removed while readable link
+text remains. User-provided text and approved business references remain intact. Growth public
+platform account identifiers remain hidden in ordinary output unless the current user explicitly
+asks for them; internal control values stay hidden even then. This is exact known-value protection,
+not semantic secret detection. Legacy partial records and binary artifacts have limited coverage,
+and authenticated technical exports retain their separate native contract.
+
+Product adapters can declare selector fields in their installed contract. The shared runtime issues
+opaque references scoped to the conversation, principal, product tenant and resource type, then
+resolves them only at the declared input fields. Destination adapters still enforce current access
+for every call; a reference grants no permission. Native operation inputs and receipts retain the
+product's own identifiers for review and recovery. Schema132 stores these references in the Agents
+database; it does not change product records or public APIs.
+
+Model history reads use the connected or built-in tool's current model-facing view while retaining
+the native operation receipt. The digest and offsets describe that view. When a view differs from
+an older receipt, history returns a notice so a task can restart at offset zero; already transmitted
+or displayed content cannot be recalled.
+
 
 ## Capability exposure and assignment upgrades
 
@@ -317,6 +349,11 @@ descendant business tasks. See [product capabilities](../product-capabilities.md
 for limits, trusted metadata and retained version1/2 behavior. An oversized tools_load request
 returns TOOL_SCHEMA_LIMIT before a successful load receipt; reduce the selection or use replace.
 Accepted context snapshots and earlier protocol schemas remain immutable.
+
+Growth command and provisioning publications share a 256KiB UTF-8 content limit. The
+provisioning HTTP route allows that publication plus a 16KiB request envelope. Structural
+validation, signed service authority and operation permissions still apply. These transport
+limits do not change model context or execution allowances.
 
 Apply schema115 before enabling [Growth capability updates](growth-capability-upgrades.md).
 It records a capability baseline for three-way previews, independently of custom instructions/model

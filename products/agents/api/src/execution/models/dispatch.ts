@@ -13,6 +13,7 @@ import { createModelFetch, type ModelFetch, type ModelNetworkPolicy } from "../.
 import type { PreparedInputCount } from "../../adapters/models/input-count";
 import { googleModelRequestUrl } from "../../adapters/models/google-transport";
 import type { ModelFailureDiagnostics } from "../../contracts/model-transport";
+import { payloadContainsModelCredential, responseContainsModelCredential } from "./credential-admission";
 
 export interface AcceptedModelDispatch {
   binding: ResolvedModelBinding;
@@ -110,14 +111,17 @@ export async function dispatchBoundModel(
         if (current !== apiKey) throw rejected("MODEL_CONNECTION_CHANGED", 409);
       },
     });
-    return await modelProviderAdapter.invoke({ provider: binding.providerId, protocol: binding.protocol, model: binding.modelId,
+    const chunks: string[] = [];
+    const response = await modelProviderAdapter.invoke({ provider: binding.providerId, protocol: binding.protocol, model: binding.modelId,
       baseUrl: binding.endpoint, credentialRevision: String(binding.credentialRevision), contextWindowTokens: policy.contextTokens,
       maxOutputTokens: policy.maxOutputTokens, messages, tools, nativeHistory, maxRequestBytes,
       reasoningCapable: model.capabilities.reasoning.value === true, reasoning: generationSdkOptions(model, binding.endpoint, accepted.generation ?? {}),
       maxResponseBytes: policy.maxResponseBytes }, { apiKey, signal: input.signal, fetch,
-      onText: input.onText, onProgress: fetch.markProgress, preparePayload: payload => applyGeneration(model, policy, binding.endpoint, accepted.generation, payload), beforePayloadDispatch: async payload => {
+      onText: delta => { chunks.push(delta); }, onProgress: fetch.markProgress, preparePayload: payload => applyGeneration(model, policy, binding.endpoint, accepted.generation, payload), beforePayloadDispatch: async payload => {
         let count: PreparedInputCount;
         try {
+          // Counting may itself call the provider. Check before either physical request.
+          if (payloadContainsModelCredential(payload, apiKey)) throw new ProviderTransportError("MODEL_CREDENTIAL_IN_CONTEXT", "rejected", 400);
           const counter = modelProviderAdapter.prepareInputCount(accepted, payload);
           const counterFetch = counter ? networkFactory({ authorizeUrl: url => url.href === counter.url.href,
             headers, maxRequestBytes, maxResponseBytes: Math.min(policy.maxResponseBytes, 65536), deadlineAt, signal: input.signal,
@@ -132,6 +136,10 @@ export async function dispatchBoundModel(
         } catch (error) { if (error instanceof ProviderTransportError) counterFailure = error; throw error; }
         await input.beforePayloadDispatch?.(payload, count);
       } });
+    if (responseContainsModelCredential(response, chunks, apiKey)) throw new ProviderTransportError("MODEL_CREDENTIAL_REFLECTION", "uncertain", 502);
+    // A progress observer cannot change the outcome of an already completed provider call.
+    for (const chunk of chunks) { try { input.onText?.(chunk); } catch { /* Continue with the completed response. */ } }
+    return response;
   } catch (error) {
     if (counterFailure) throw new BoundModelDispatchError(counterFailure.code, counterFailure.outcome, counterFailure.status,counterFailure.diagnostics);
     if (error instanceof BoundModelDispatchError) throw error;

@@ -1,0 +1,13 @@
+.agent-edit-dialog { display: grid; gap: 20px; }
+.agent-edit-identity { display: flex; align-items: center; gap: 14px; }
+.agent-edit-identity p { color: var(--muted-foreground); font-size: 13px; }
+.agent-edit-field { display: grid; gap: 7px; font-size: 13px; font-weight: 500; }
+.agent-edit-field small { color: var(--muted-foreground); font-size: 12px; font-weight: 400; }
+.agent-edit-role { padding: 10px 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--muted); color: var(--muted-foreground); font-weight: 400; }
+.agent-edit-avatar-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; font-weight: 500; }
+.agent-edit-avatar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 8px; margin-top: 9px; }
+.agent-edit-avatar-option { display: grid; place-items: center; padding: 5px; border: 1px solid transparent; border-radius: 11px; }
+.agent-edit-avatar-option:hover { background: var(--muted); }
+.agent-edit-avatar-option[aria-pressed="true"] { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, var(--card)); }
+.agent-edit-avatar-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.agent-edit-hint { color: var(--muted-foreground); font-size: 12px; }

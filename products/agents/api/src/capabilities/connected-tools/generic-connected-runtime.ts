@@ -23,7 +23,7 @@ export function genericToolReviewDigest(binding: CapabilityBinding, args: unknow
 }
 export function remoteMcpAdapterManifest(): AdapterManifest {
   const extension = extname(__filename), hash = createHash("sha256");
-  const files = ["./generic-connected-runtime", "./connected-executor", "./connected-tool-schema", "./connected-catalog-store",
+  const files = ["./generic-connected-runtime", "./connected-executor", "./connected-tool-schema", "./connected-catalog-store", "./credential-reflection", "./retained-security-overlays",
     "../../adapters/providers/remote-mcp", "../../adapters/providers/native-api", "../../adapters/providers/openapi", "../../adapters/providers/native-response-policy",
     "../../contracts/capability-catalog", "../../contracts/connections", "../../infrastructure/connected-network"];
   for (const path of files) hash.update(path).update(readFileSync(join(__dirname, path + extension)));
@@ -48,7 +48,7 @@ export function createRemoteMcpCapabilityCatalog(inventory: RemoteMcpInventory, 
 }
 export function nativeApiAdapterManifest():AdapterManifest {
   const extension=extname(__filename),hash=createHash("sha256");
-  for(const path of ["./generic-connected-runtime","./connected-executor","./connected-tool-schema","./connected-catalog-store",
+  for(const path of ["./generic-connected-runtime","./connected-executor","./connected-tool-schema","./connected-catalog-store","./credential-reflection","./retained-security-overlays",
     "../../adapters/providers/native-api","../../adapters/providers/openapi","../../adapters/providers/native-response-policy","../../contracts/capability-catalog","../../contracts/connections","../../infrastructure/connected-network"])
     hash.update(path).update(readFileSync(join(__dirname,path+extension)));
   return {schemaVersion:1,id:"native-api",release:NATIVE_API_RELEASE,executableDigest:hash.digest("hex"),transports:["native_http"],protocolVersions:[],boundedSchemaValidation:true};

@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { generateKeyPair,exportPKCS8,exportSPKI,SignJWT,decodeJwt } from "jose";
 import pg from "pg";
 import Fastify from "fastify";
+import { GROWTH_AGENT_PUBLICATION_MAX_BYTES } from "@kasitek-labs/contracts";
 import { readConfig } from "../src/config.js";
 import { ApiError,installErrorHandler } from "../src/error.js";
 import { enqueueGrowthAgentSetup,ensureGrowthAgentSetup,currentGrowthAgentSetup,backfillGrowthAgentSetup,retryGrowthAgentSetup,readGrowthAgentSetup,readGrowthAgentSetupMetrics,upgradeGrowthAgentDefaults } from "../src/agents/setup.js";
@@ -32,6 +33,26 @@ test("provisioning uses a separate service identity and rejects mismatched resul
  await assert.rejects(provisionGrowthAgents(config,target,{fetch:async()=>new Response("private provider response",{status:401})}),{code:"AGENT_SETUP_AUTHORITY_DENIED"});
  await assert.rejects(provisionGrowthAgents(readConfig({DATABASE_URL:"postgres://unused",AGENTS_PRODUCT_API_URL:"http://localhost:4100",GROWTH_AGENTS_SIGNING_PRIVATE_KEY:privateKey}),target),{code:"AGENT_SETUP_CONFIGURATION_MISSING"});
  assert.ok(growthAgentSetupRetryDelay(99,1)<=375000);
+});
+
+test("provisioning lifecycle accepts the current published setup within the shared payload bound",async()=>{
+ const keys=await generateKeyPair("RS256",{extractable:true});
+ const publicKey=await exportSPKI(keys.publicKey);
+ const config=readConfig({DATABASE_URL:"postgres://unused",AGENTS_PRODUCT_ACTION_PUBLIC_KEY:publicKey});
+ const core={config,pool:{query:async()=>({rowCount:1})}} as unknown as Parameters<typeof registerGrowthAgentProvisioningRoutes>[1];
+ const request={version:"1" as const,requestId:randomUUID(),tenantId:"test-growth-tenant",defaultsRevision:growthAgentPublication.manifest.revision,
+  modelProfileId:"growth-default",modelProfileRevision:"1",publication:growthAgentPublication,upgradeDefaults:true};
+ const requestBytes=Buffer.byteLength(JSON.stringify(request));
+ assert.ok(requestBytes>131072,`fixture should cover the former 128 KB limit (${requestBytes} bytes)`);
+ assert.ok(requestBytes<=GROWTH_AGENT_PUBLICATION_MAX_BYTES+16384);
+ const token=await new SignJWT({requestDigest:growthAgentDigest(request)}).setProtectedHeader({alg:"RS256",kid:"agents-v1"})
+  .setIssuer("https://agents.kasitek.co.za").setSubject("agents-provisioner").setAudience("growth-agent-provisioning-lifecycle")
+  .setIssuedAt().setExpirationTime("60s").setJti(randomUUID()).sign(keys.privateKey);
+ const app=Fastify();installErrorHandler(app);registerGrowthAgentProvisioningRoutes(app,core);
+ try {
+  const response=await app.inject({method:"POST",url:"/internal/agents/provisioning-check",headers:{authorization:`Bearer ${token}`},payload:request});
+  assert.equal(response.statusCode,200,response.body);assert.deepEqual(response.json(),{active:true});
+ } finally {await app.close();}
 });
 
 test("PostgreSQL setup queue: concurrent claims, expired fencing, retries, cancellation, deletion, backfill and lifecycle authority",{skip:!process.env.CORE_ORGS_TEST_DATABASE_URL},async()=>{

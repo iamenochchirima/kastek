@@ -14,6 +14,7 @@ terminalTaskStates
 import { transaction } from "../../infrastructure/database";
 import { recordEvent } from "../../observability/event-store";
 import { channelPorts } from "../../infrastructure/channel-ports";
+import { projectRecipientText, taskRecipientTextScope } from "../context/recipient-text";
 export { HARNESS_RELEASE,WORKFLOW_NAME,type Execution,type MemoryFence,type OperationRecord,type OperationRequest,type TaskOutcome } from "../../contracts/execution";
 export { transaction } from "../../infrastructure/database";
 export { assertCurrentAuthority } from "../context/evidence-policy";
@@ -63,6 +64,7 @@ async function beginOperationForPurpose(pool: Pool, taskId: string, input: Opera
     const budget = (await db.query("SELECT * FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE", [preliminary.root_task_id])).rows[0];
     if (!budget || budget.settled_at) throw new PlatformError("TASK_SETTLED",409,"Root execution has settled");
     const execution = await loadExecution(db, taskId, true), task = execution.task;
+    if (task.execution_purpose === "private_preview_v1") (await import("./preview-policy")).assertPrivatePreviewOperation(input,handoffFeedback);
     if (task.execution_purpose === "support_status_v1" &&
       (input.id !== `support-status:${task.id}` || input.kind !== "model" || input.name !== "model.support_status" || input.retrySafe || input.reconcile)) {
       throw new PlatformError("SUPPORT_STATUS_DENIED",403,"Support status is unavailable");
@@ -348,8 +350,11 @@ export async function settleTask(pool: Pool, taskId: string, requested: TaskOutc
     assertTaskTransition(task.state, outcome.state);
     await db.query("UPDATE agents_platform.tasks SET state=$2,output=$3,error_code=$4,pending_outcome=NULL,disposition='settled',updated_at=now() WHERE id=$1",
       [taskId, outcome.state, outcome.output ?? null, outcome.errorCode ?? null]);
-    if(task.channel_binding && !task.parent_task_id && task.execution_purpose!=="support_status_v1") await channelPorts(db).publishAutomated(db,
-      {taskId,binding:task.channel_binding,output:outcome.output??""});
+    if(task.channel_binding && !task.parent_task_id && task.execution_purpose!=="support_status_v1") {
+      const output=outcome.output??"";
+      const published=output?projectRecipientText(output,await taskRecipientTextScope(db,taskId,[output]),{normalizeLegacyMarker:true}):output;
+      await channelPorts(db).publishAutomated(db,{taskId,binding:task.channel_binding,output:published});
+    }
     await event(db, taskId, `terminal:${taskId}`, outcome.state);
     if(adaptive && !task.parent_task_id) {
       const terminal=(await db.query("SELECT created_at FROM agents_platform.task_events WHERE task_id=$1 AND event_key=$2",[taskId,`terminal:${taskId}`])).rows[0];

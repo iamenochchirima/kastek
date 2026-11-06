@@ -10,6 +10,7 @@ import { StringDecoder } from "node:string_decoder";
 import { preflightToolSchema,remoteTargetSchema,type RemoteMcpTarget } from "../../contracts/capability-catalog";
 import { requestDigest } from "../../contracts/contracts";
 import { publicAddress, type NetworkAttempt } from "../../infrastructure/connected-network";
+import { credentialReflectionVariants } from "../../capabilities/connected-tools/credential-reflection";
 
 export const REMOTE_MCP_RELEASE = "remote-mcp-v1-sdk2.3.1-content1";
 export const REMOTE_MCP_LIMITS = Object.freeze({ tools: 500, inventoryEntries: 500, catalogBytes: 2_097_152,
@@ -277,7 +278,7 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
     trustedHeaders[key.toLowerCase()] = value;
   }
   if (authorization !== undefined) trustedHeaders.authorization = authorization;
-  const secrets = Object.values(trustedHeaders).flatMap(value => [value, value.replace(/^Bearer\s+/i, "")]).filter(value => value.length > 0);
+  const secrets = Object.values(trustedHeaders).flatMap(value => [value, value.replace(/^Bearer\s+/i, "")]).flatMap(credentialReflectionVariants);
   const maxRequests = job.endpoint.maxRequests ?? REMOTE_MCP_LIMITS.requests;
   if (!Number.isInteger(maxRequests) || maxRequests < 1 || maxRequests > REMOTE_MCP_LIMITS.requests) fail("MCP_ATTEMPT_LIMIT");
   let negotiatedModern=false,toolsFreshUntil=Infinity,selectedCacheExpiresAt:number|undefined,scopeChallenge:RemoteMcpScopeChallenge|undefined;

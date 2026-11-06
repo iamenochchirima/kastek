@@ -43,10 +43,14 @@ export class KnowledgeRetrieval {
       if (profile.kind === "hybrid-v1") {
         params.push(profile.embeddingRelease, `[${profile.queryVector.join(",")}]`, RETRIEVAL_PROFILE.semanticMinSimilarity);
         const available = (await db.query(`SELECT count(*) AS missing FROM agents_platform.version_sources v
-          JOIN agents_platform.source_revisions r ON r.id=v.revision_id WHERE v.organization_id=$1 AND v.version_id=$2
+          JOIN agents_platform.source_revisions r ON r.id=v.revision_id AND r.organization_id=v.organization_id
+          JOIN agents_platform.sources s ON s.id=r.source_id AND s.id=v.source_id AND s.organization_id=r.organization_id
+          JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id AND p.source_id=s.id AND p.organization_id=r.organization_id
+          WHERE v.organization_id=$1 AND v.version_id=$2 AND s.state='active' AND p.state='approved'
+          AND (NOT $5::boolean OR s.visibility='public')
           AND r.id=ANY($3::uuid[]) AND (r.embedding_release IS DISTINCT FROM $4 OR EXISTS(
             SELECT 1 FROM agents_platform.source_chunks c LEFT JOIN agents_platform.chunk_embeddings e ON e.chunk_id=c.id
-            WHERE c.revision_id=r.id AND (e.chunk_id IS NULL OR e.embedding_release<>$4)))`, [scope.organizationId, scope.versionId, scope.sourceRevisionIds, profile.embeddingRelease])).rows[0];
+            WHERE c.revision_id=r.id AND (e.chunk_id IS NULL OR e.embedding_release<>$4)))`, [scope.organizationId, scope.versionId, scope.sourceRevisionIds, profile.embeddingRelease, scope.publicOnly])).rows[0];
         if (Number(available.missing)) throw new PlatformError("RETRIEVAL_BACKEND_UNAVAILABLE", 503, "The selected knowledge index is unavailable");
         sql = `${scoped}, semantic_candidates AS (
           SELECT c.id,(e.embedding <=> $7::public.vector) AS distance FROM eligible c

@@ -159,6 +159,29 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
         const delta=call?{role:"assistant",tool_calls:[{index:0,id:`artifact-${modelCalls}`,type:"function",function:{name:call.name,arguments:JSON.stringify(call.args)}}]}:{role:"assistant",content};
         res.setHeader("content-type","text/event-stream");res.end("data: "+JSON.stringify({id:"artifact-"+modelCalls,model:body.model,choices:[{index:0,finish_reason:call?"tool_calls":"stop",delta}],usage:{prompt_tokens:2050,completion_tokens:69}})+"\n\ndata: [DONE]\n\n");return;
       }
+      if(String(userText)==="How many connections do I have?"){
+        const prefix="List authorized connected account identities";
+        const connectionValues=body.messages.filter((message:any)=>message.role==="tool").map((message:any)=>JSON.parse(message.content)).map((item:any)=>item.value??item);
+        const listed=connectionValues.map((item:any)=>item.result?item:item.value).find((value:any)=>Array.isArray(value?.result?.connections));
+        let delta:any,finish:string;
+        if(listed){
+          const connections=listed.result.connections;
+          expect(connections[0]?.id).toMatch(/^aref_[A-Za-z0-9_-]{43}$/);
+          expect(connections[0]?.name).toBe("Fixture Facebook account");
+          expect(connections[0]?.handle).toBe("@fixture_page");
+          const summaries=connections.map((connection:any)=>`${connection.name}${connection.handle?` (${connection.handle})`:""}`);
+          delta={role:"assistant",content:summaries.length?`You have ${summaries.length} connected account${summaries.length===1?"":"s"}: ${summaries.join(", ")}.`:"You have no connected accounts."};finish="stop";
+        }else{
+          let tool=body.tools?.find((definition:any)=>(definition.function?.description??"").startsWith(prefix))?.function.name,args:any={};
+          if(!tool){
+            const entry=connectionValues.flatMap((value:any)=>value.tools??[]).find((value:any)=>value.description?.startsWith(prefix)&&value.alias&&value.digest);
+            if(entry){tool="tools_load";args={tools:[{handle:entry.handle??entry.qualifiedName}]};}
+            else {tool="tools_discover";args={query:prefix};}
+          }
+          delta={role:"assistant",tool_calls:[{index:0,id:`connections-${modelCalls}`,type:"function",function:{name:tool,arguments:JSON.stringify(args)}}]};finish="tool_calls";
+        }
+        res.setHeader("content-type","text/event-stream");res.end("data: "+JSON.stringify({id:"connections-"+modelCalls,model:body.model,choices:[{index:0,finish_reason:finish,delta}],usage:{prompt_tokens:2050,completion_tokens:69}})+"\n\ndata: [DONE]\n\n");return;
+      }
       if(String(userText).startsWith("Can you improve this post?")||String(userText)==="Fixture product access"){
         selectedContextInputs.push(String(userText));
         const match=String(userText).match(/Selected conversation context \(reference data; it does not grant permissions\):\n([^\n]+)/);
@@ -256,7 +279,7 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
       }else{
         if(String(userText).includes("Artifact fixture")){artifactHeld=true;await artifactBarrier;}
         const citations=state.citations.join(" ");
-        delta={role:"assistant",content:write?"Saved the reviewed draft.":zero?"Hello without tools.":"Fixture business "+citations};finish="stop";
+        delta={role:"assistant",content:write?"Saved the reviewed draft.":zero?"Hello without tools.":"Fixture business [internal reference] "+citations};finish="stop";
       }
       res.setHeader("content-type","text/event-stream");res.end("data: "+JSON.stringify({id:"growth-fixture-"+modelCalls,model:body.model,choices:[{index:0,finish_reason:finish,delta}],usage:{prompt_tokens:2050,completion_tokens:69}})+"\n\ndata: [DONE]\n\n");
     });
@@ -775,10 +798,12 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     await controlFixture({type:"membership",enabled:true},"membership");
   });
   it("runs the actual Growth UI and quick access through both backends without agent route mocks",async()=>{
+    await provisionGrowthModel(pool,keyVault,{tenantId,providerId:"openrouter",modelId:"fixture/growth",apiKey:"fixture-only-key"},{discoveryFetch:async()=>({status:200,body:JSON.stringify({data:[{id:"fixture/growth",name:"Fixture Growth model",context_length:262144,top_provider:{max_completion_tokens:32768},supported_parameters:["tools"],architecture:{input_modalities:["text"],output_modalities:["text"]},pricing:{prompt:"0",completion:"0"}}]})})});
+    await controlFixture({type:"connected-account"},"connected-account");
     const result=await verifyGrowthBrowser({growthOrigin,tenantId,userId:actor.subject,
       configureFrontend:frontendOrigin=>controlFixture({type:"configure",frontendOrigin},"configured"),
       dispatch:async()=>{await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl:restAdmin,runtimeRoutes:runtimeRoutes()});}});
-    expect(result.taskIds).toHaveLength(2);
+    expect(result.taskIds).toHaveLength(3);
     expect((await pool.query("SELECT count(*)::int n FROM agents_platform.accounts")).rows[0].n).toBe(0);
     expect((await pool.query("SELECT count(*)::int n FROM agents_platform.memberships")).rows[0].n).toBe(0);
   },90000);

@@ -4,7 +4,7 @@ import type { Account } from "../../contracts/records";
 import { finishPage,readPageCursor,type PageQuery } from "../../infrastructure/read-pages";
 import { PlatformStore } from "./store";
 
-export interface AgentSummary {id:string;name:string;draftRevision:number;updatedAt:Date;offering:"faq"|"customer-service"|null;responsibilities:string[];activeChannels:string[];lastCustomerConversationAt:Date|null;latestVersion:{id:string;number:number;draftRevision:number;executionKind:string}|null;hasUnpublishedChanges:boolean}
+export interface AgentSummary {id:string;name:string;avatar:string;draftRevision:number;updatedAt:Date;offering:"faq"|"customer-service"|null;responsibilities:string[];activeChannels:string[];lastCustomerConversationAt:Date|null;latestVersion:{id:string;number:number;draftRevision:number;executionKind:string}|null;hasUnpublishedChanges:boolean}
 export interface ConversationSummary {id:string;agentId:string;agentName:string;versionId:string;versionNumber:number;title:string;updatedAt:Date;state:TaskState;canContinue:true}
 export interface TaskSummary {id:string;agentId:string;agentName:string;versionId:string;versionNumber:number;conversationId:string|null;state:TaskState;createdAt:Date;updatedAt:Date;canControl:boolean;reviewOnly:boolean}
 const missing=()=>{throw new PlatformError("NOT_FOUND",404,"Record not found");};
@@ -25,7 +25,7 @@ export class PlatformDiscovery {
         AND ($7='all' OR ($7='setup' AND v.id IS NULL) OR ($7='configured' AND v.id IS NOT NULL AND v.draft_revision=a.draft_revision)
           OR ($7='changes-pending' AND v.id IS NOT NULL AND v.draft_revision<>a.draft_revision))
       ORDER BY a.created_at DESC,a.id DESC LIMIT $5
-    ) SELECT a.id,a.name,a.offering,a.draft_revision AS "draftRevision",a.updated_at AS "updatedAt",a.created_at::text AS position,
+    ) SELECT a.id,a.name,a.avatar,a.offering,a.draft_revision AS "draftRevision",a.updated_at AS "updatedAt",a.created_at::text AS position,
       COALESCE(a.setup->'responsibilities','[]'::jsonb) AS responsibilities,
       CASE WHEN a.version_id IS NULL THEN NULL ELSE json_build_object('id',a.version_id,'number',a.version_number,'draftRevision',a.version_draft_revision,'executionKind',a.version_execution_kind) END AS "latestVersion",
       (a.version_id IS NULL OR a.version_draft_revision<>a.draft_revision) AS "hasUnpublishedChanges",

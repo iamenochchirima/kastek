@@ -30,6 +30,30 @@ test("bounded observations reconstruct exact Unicode results and reject changed 
 });
 
 const database = process.env.CORE_OPERATIONS_TEST_DATABASE_URL;
+test("inbox review identifies the recipient and preserves an existing approved snapshot", { skip: !database }, async () => {
+  installPgTimestampParsers();
+  const fixture=await isolatedDatabase(database!,"recipient_review",["User","Organization","OrganizationMember","Conversation"]),{pool}=fixture;
+  try {
+    await pool.query(await readFile(new URL("../../database/prisma/migrations/20260829180000_add_core_analytics_outbox/migration.sql",import.meta.url),"utf8"));
+    await pool.query(await readFile(new URL("../sql/20261101140000_growth_operation_reviews.sql",import.meta.url),"utf8"));
+    await pool.query(`INSERT INTO "User"(id,email,"createdAt","updatedAt") VALUES('owner','owner@example.test',now(),now());
+      INSERT INTO "Organization"(id,name,slug,"ownerId","createdAt","updatedAt") VALUES('org','Business','recipient-fixture','owner',now(),now());
+      INSERT INTO "OrganizationMember"(id,"orgId","userId",role,"updatedAt") VALUES('member','org','owner','OWNER',now());
+      INSERT INTO "Conversation"(id,"orgId",channel,"customerIdentifier","customerName","updatedAt") VALUES('conversation','org','email','recipient@example.test',' Maria ',now())`);
+    const context:RequestContext={principal:{kind:"direct_user",id:"owner",subjectUserId:"owner"},userId:"owner",organizationId:"org",clientId:null,apiScopes:null,effectiveGrants:new Set(),correlationId:null,causationId:null,idempotencyKey:"recipient-review"};
+    const core={pool,config:readConfig({DATABASE_URL:database!})},audit={id:"fixture",action:null,rateLimit:100,rateRemaining:99,rateResetSeconds:60,correlationId:null};
+    const call={operation:"inbox.messages.send",input:{conversationId:"conversation",text:"Exact message"},requestId:"recipient-review",requestAudit:audit};
+    const prepared=await executeGrowthOperation(core,context,call) as {review:{id:string;payloadDigest:string;preview:{targetLabel:string}}};
+    assert.equal(prepared.review.preview.targetLabel," Maria  · recipient@example.test · email");
+    await decideOperationReview(core,context,prepared.review.id,"approve",prepared.review.payloadDigest);
+    const old=(await pool.query('SELECT snapshot FROM "GrowthOperationReview" WHERE id=$1',[prepared.review.id])).rows[0].snapshot;
+    assert.equal(JSON.parse(old.preview).targetLabel,prepared.review.preview.targetLabel);
+    const replay=await executeGrowthOperation(core,context,{...call,reviewId:prepared.review.id,prepareOnly:true}) as {review:{state:string}};
+    assert.equal(replay.review.state,"approved");
+    await pool.query('UPDATE "Conversation" SET "customerName"=NULL,"customerIdentifier"=\'\' WHERE id=$1',["conversation"]);
+    await assert.rejects(executeGrowthOperation(core,context,{...call,reviewId:prepared.review.id}),{code:"operation_review_recipient_unavailable"});
+  } finally { await fixture.close(); }
+});
 test("reviewed Inbox and connection changes reject a concurrently changed resource before effects", { skip: !database }, async () => {
   installPgTimestampParsers();
   const fixture = await isolatedDatabase(database!, "operation_resources", ["User", "Organization", "OrganizationMember", "Conversation", "ExternalConnection"]);

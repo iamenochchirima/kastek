@@ -109,6 +109,12 @@ Register that exact callback, origin and `/login` logout return on the local Key
 Growth client. Preserve other product registrations and existing local callbacks.
 The Meta callback remains `https://dev-client.kasitek.co.za/api/social/oauth/meta/callback`.
 
+Use the App ID and app secret from the same development Meta app. Updating only the
+secret leaves authorization requests pointed at the previous app and its callback allowlist.
+After changing the pair, restart Core and check the App ID in the new Facebook authorization
+request. Privately saved process profiles can override `.env`; refresh both values in the
+profile before restarting. Keep production credentials separate.
+
 Start Growth sign-in and Facebook Connect from the public tunnel origin. A login or
 connection started on localhost has different cookies and cannot finish on the tunnel
 origin. After changing origins, restart Growth API and web with their other settings
@@ -251,6 +257,6 @@ argument feedback for malformed model calls. Chat-only drafting does not prepare
 review. Publishing, scheduling, external web research, personal memory and sandbox execution remain
 unavailable through these Growth defaults.
 
-Completed specialist work can be inspected from its conversation turn. Growth authenticates the root task export and returns only a direct child's terminal state and output, in pages of 4,096 Unicode code points. Redacted output stays unavailable. The raw execution capture is not exposed by this result route. Task progress and failure messages remain attached to the corresponding turn; model interruption does not imply an uncertain external action or enable terminal-task continuation. Draft decisions require the scoped task review endpoint; the unscoped legacy decision route rejects before changing a review. Failed new-conversation creation retries the same creation identity instead of reopening the saved conversation.
+Completed specialist work can be inspected from its conversation turn. Growth authenticates the root and observes a direct child's terminal state and recipient-projected output in pages of 4,096 Unicode code points. Redacted output stays unavailable. The raw execution capture is not exposed by this result route. Task progress and failure messages remain attached to the corresponding turn; model interruption does not imply an uncertain external action or enable terminal-task continuation. Draft decisions require the scoped task review endpoint; the unscoped legacy decision route rejects before changing a review. Failed new-conversation creation retries the same creation identity instead of reopening the saved conversation.
 
 Conversation refreshes adopt the server title after the first prompt while preserving unsent drafts. The floating assistant launcher is hidden on full conversation routes so it cannot cover the composer.

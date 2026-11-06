@@ -1,11 +1,11 @@
 import type { FastifyInstance } from "fastify";
-import { GROWTH_AGENT_PROVISION_CHECK_PATH, parseGrowthAgentProvisionRequest } from "@kasitek-labs/contracts";
+import { GROWTH_AGENT_PROVISION_CHECK_PATH, GROWTH_AGENT_PUBLICATION_MAX_BYTES, parseGrowthAgentProvisionRequest } from "@kasitek-labs/contracts";
 import type { CoreContext } from "../context.js";
 import { ApiError } from "../error.js";
 import { verifyGrowthAgentProvisioningCheck } from "./security.js";
 import { currentGrowthAgentSetup } from "./setup.js";
 export function registerGrowthAgentProvisioningRoutes(app: FastifyInstance, core: CoreContext): void {
-  app.post(GROWTH_AGENT_PROVISION_CHECK_PATH, { bodyLimit: 131072 }, async request => {
+  app.post(GROWTH_AGENT_PROVISION_CHECK_PATH, { bodyLimit: GROWTH_AGENT_PUBLICATION_MAX_BYTES + 16384 }, async request => {
     await verifyGrowthAgentProvisioningCheck(core.config, request.headers.authorization, request.body);
     let target;
     try { target = parseGrowthAgentProvisionRequest(request.body); }

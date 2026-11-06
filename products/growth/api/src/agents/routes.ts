@@ -231,12 +231,10 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     const offset = query.offset === undefined ? 0 : Number(query.offset);
     if (!Number.isSafeInteger(offset) || offset < 0 || offset > 2097152) throw new ApiError(400, "agent_request_invalid", "Check the result offset");
     const taskId = id(request, "taskId"), childTaskId = id(request, "childTaskId");
-    const result = await invoke(request, "tasks.export", { taskId });
-    const capture = result.capture as { schemaVersion?: unknown; rootTaskId?: unknown; tasks?: unknown } | null;
-    if (!capture || capture.schemaVersion !== "execution-export.v1" || capture.rootTaskId !== taskId || !Array.isArray(capture.tasks) || capture.tasks.length > 1024)
-      throw new ApiError(502, "agent_result_invalid", "Specialist result is unavailable");
-    const child = capture.tasks.find((task: unknown) => task && typeof task === "object" && (task as Record<string, unknown>).id === childTaskId && (task as Record<string, unknown>).parentTaskId === taskId) as { state?: unknown; output?: unknown } | undefined;
-    if (!child) throw new ApiError(404, "agent_result_missing", "Specialist result is unavailable");
+    const result = await invoke(request, "tasks.observe", { taskId, childTaskId });
+    if (result.rootTaskId !== taskId || result.parentTaskId !== taskId || result.task?.id !== childTaskId)
+      throw new ApiError(404, "agent_result_missing", "Specialist result is unavailable");
+    const child = result.task;
     if (typeof child.state !== "string" || !["completed", "incomplete", "failed", "cancelled", "uncertain", "refused"].includes(child.state)) throw new ApiError(409, "agent_result_pending", "Specialist work is still running");
     if (child.output === null) return { taskId: childTaskId, state: child.state, available: false, output: null, nextOffset: null };
     if (typeof child.output !== "string") throw new ApiError(502, "agent_result_invalid", "Specialist result is unavailable");

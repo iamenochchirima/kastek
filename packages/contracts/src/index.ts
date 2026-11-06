@@ -1,5 +1,6 @@
 // Wire names follow the existing Rust contracts. Large integer fields use bigint or exact decimal strings internally.
 export * from "./analytics-registry.js";
+export * from "./growth-product-references.js";
 
 export interface JsonFloat {
   readonly __serde_float: true;

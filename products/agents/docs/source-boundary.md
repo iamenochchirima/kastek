@@ -1,6 +1,6 @@
 # Implementation boundary
 
-Owner: Agents engineering. Last reviewed: 2026-10-27.
+Owner: Agents engineering. Last reviewed: 2026-11-05.
 
 Agents is a fresh standalone product. Its API and business worker use the dedicated
 `agents_platform` PostgreSQL schema. Setup loads the ordered SQL files in
@@ -2471,3 +2471,30 @@ manifest digest); a persisted manifest cannot install an executor. Hosted releas
 release 6 remains executable only at its exact frozen digest, alongside hosted
 release 6. New publication 12 selects projection-aware release 9. Runtime adoption
 does not add or replace product operation assignments.
+
+Growth publication 13 uses release 10 for structured connection and account reads.
+Eligible existing agents receive derived versions that preserve their selected tools,
+specialist ceilings and accepted task versions. Schema 116 records runtime-version
+lineage without consuming the author's draft revision. Unsupported source lineages
+are deferred; installation alone does not prove every feature was upgraded.
+
+Ordinary replies, activity, authorized history and supported text/JSON artifacts use
+the shared recipient projection across agent types. It removes known runtime and
+tool-result IDs, issued product references and unsafe link targets while retaining
+user text, display names, public handles and approved business references. Product
+adapters can declare native selector fields; the runtime issues conversation-,
+principal-, tenant- and resource-scoped opaque references and resolves them only at
+those fields. The destination product still checks current access; a reference grants
+no authority. Explicit authenticated technical exports retain their native capture
+contract. Checks protect exact known values, not unknown secrets or arbitrary
+transformations; legacy partial records and binary artifacts have limited coverage.
+
+The standalone Agents API includes an opt-in inbound MCP endpoint. When enabled, it provides
+organization-scoped OAuth connections and creation, configuration, knowledge, private-preview,
+and reviewed website-activation operations. Private preview permits knowledge and discovery;
+it does not exercise connected actions or delegation. Connection and review views are available
+in the standalone client. A focused database test uses an MCP SDK client through the actual API
+composition for OAuth, tool discovery, agent creation/configuration, private-preview admission and
+website review. Restate preview completion is conditional on the test binary; live hosted-client
+compatibility and serving rollout require separate evidence.
+See [integration boundaries](mcp-integration.md#standalone-agents-mcp-server).

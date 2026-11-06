@@ -146,49 +146,79 @@ Provisioning validates that each saved model route still has its matching active
 revoked or missing credential blocks repair instead of being silently replaced.
 
 The approved Growth publication is owned by `src/agents/manifest.ts` in Growth API.
-Defaults revision `11` includes its four presets, operation manifest, optional-capability policy and
-the per-preset delegation graph. Agents persists this publication and validates it against the
-installed adapter. The Assistant can use Research, Content and Campaigns; Content and Campaigns can
-commission Research for focused evidence work. Research is a leaf. An operator can run
+Defaults revision `14` includes its four presets, current callable operation manifest,
+optional-capability policy and per-preset delegation graph. Agents persists this publication and
+validates it against the installed adapter. The Assistant can use Research, Content and Campaigns;
+Content and Campaigns can commission Research for focused evidence work. Research is a leaf. An operator can run
 `upgrade-defaults` to queue the new managed revision. Repair preserves customised
 configurations, disabled features, model selections and revoked tenants; accepted turns retain
 their old configuration. An unsupported optional capability remains denied even if requested in
 configuration. See [Product capabilities](product-capabilities.md) for the shared contract.
 
-### Growth defaults and content projection release record
+### Growth defaults and content projection
 
-Growth defaults revision `11` uses installed adapter release `6`; revisions `2`–`10` retain their
-registered publication and adapter identities. This internal versioned publication adds a trusted
-delegation policy and preserves the trusted model-only view for selected content reads. The policy
-removes default depth, task-count and per-child token/time ceilings; current grants, ancestor limits,
-the two-child concurrency setting, and each preset's product/tool authority still apply. It does not
-change public HTTP schemas, product database schema, effect handling, or `AgentsBusinessRunV25` /
-adapter release `6`. No Growth Analytics event or new structured log, metric, dashboard, or alert
+Growth defaults revision `14` uses installed adapter release `11`; revisions `2`–`13` retain their
+registered publication and adapter identities. Revision `14` publishes the current Growth operation
+catalogue and adds the shared reference contract. Each preset keeps its own permitted operation set.
+It carries forward the delegation policy introduced in revision `12`; that policy removes default
+depth, task-count and per-child token/time ceilings, while current grants, ancestor limits, the
+two-child concurrency setting and each preset's product/tool authority still apply. It does not
+change public HTTP schemas, the Growth product database schema, effect handling, or
+`AgentsBusinessRunV25`. No Growth Analytics event or new structured log, metric, dashboard, or alert
 is added; those release concerns are not applicable.
 The shared model-result boundary applies the same safe view to retained revision `6`–`9` bindings
-that already expose the canonical post read operations, despite their pinned adapter releases `3`–`5`.
+that already expose the canonical post read operations. Revisions `6`–`8` pin adapter releases
+`3`–`5`; revision `9` pins release `6`.
 Older accepted work keeps its permission and native receipt; only private fields in the model-facing
 read result are removed.
 
-Local verification covers the V10-to-V11 managed upgrade, recursive child configuration, publication
-identity and content-read projection. No live model prompt was replayed. Hosted rollout is not
-included. Deploy matching Agents and Growth APIs/workers together, then use the existing
-managed-default upgrade for eligible organizations. For rollback, stop V11 upgrades, publish retained
-revision `10` again, and run the managed-default upgrade for organizations already moved to V11.
-Keep code that can read accepted V11 task configurations available until those tasks settle. No data
-migration is required. Do not roll the Growth context reader or Agents model-result boundary
-back to code that forwards selected-account or publish-job fields. If a code rollback removes those
-projections, pause affected Growth agent admissions and canonical post-read tools until projection-aware
-code is restored; preserve the product's ordinary post APIs and existing receipts.
+### Internal references and recipient output boundary
 
-Release record: risk is standard; Growth API/worker, Agents API and the four managed Growth feature
-versions are affected. Publication revision changes from `10` to `11`; adapter release remains `6`,
-and the Agents runtime release remains V25. No feature flag, analytics event, schema migration,
-structured log, metric, dashboard or alert change applies. Rollout is the existing explicit
-`upgrade-defaults` operation. Rollback uses retained publication `10` and the same managed upgrade;
-accepted V11 task versions stay readable until terminal. Documentation is updated here and in the
-Agents/Growth architecture and feature map. Focused test evidence is recorded with the implementation;
-hosted rollout and post-release review are not performed in this local change.
+Growth's internal shared-agent endpoint builds bounded `connections.list` and `content.accounts.list`
+views before transport. It keeps names, public social handles, platform, status, permitted
+capabilities and continuation while omitting unrelated provider metadata. Public platform account IDs
+remain available in the typed model view for an explicit Page ID request.
+
+The Agents product adapter changes the native connection/account selector into a random opaque
+reference before the result enters model context. References are scoped to the Agents conversation,
+human principal, Growth tenant and resource type. Draft channel selections and connection status
+updates resolve only their declared selector fields on the server. Growth still receives the native
+ID and checks current operation authorization, organization and record state; the reference grants
+no authority. Native Growth reviews, access custody, digests and receipts continue to use native IDs.
+This applies to retained as well as current Growth operation bindings. The current adapter release
+11 also declares post, media, template, connection and account selector fields for model-facing
+results and authorized follow-up inputs. Compatible active Growth bindings from retained
+publication revisions `2`–`13` are cloned onto the new adapter during normal tenant setup; custom
+drafts, permissions, accepted tasks, native receipts and review payloads remain unchanged. An
+unsupported or changed binding is deferred rather than widened. There is no Growth database
+migration or change to its direct REST contract. Replayed operation history uses the same model view
+and scopes references to the original task lineage.
+
+Ordinary assistant replies, activity, subagent output, history and supported text/JSON artifacts use
+the shared Agents recipient projection. It removes known runtime and tool-result IDs, scoped handles,
+redaction markers and unsafe link targets while preserving user text, public handles and legitimate
+business references. It uses a trusted display name for an issued product reference where available.
+An explicit request for a platform ID permits only the provider ID, never a colliding internal value.
+
+Release impact: Growth API/worker publication revision 14 and Agents API/worker adapter release 11;
+Agents schema132 stores scoped references. No Growth database migration, public HTTP schema change,
+analytics event, new structured log/metric, dashboard or alert applies. No platform release ID is
+assigned in this local change. Validation uses focused handle, projection, publication, binding
+rollout, typecheck/build checks, and one local normal prompt if the owned fixture is available.
+Production rollout is outside this scope. Keep the additive schema on rollback; retain the
+projection-aware runtime until any accepted task containing these references settles. Never route a
+handle to a product as if it were a native identifier.
+
+#### Managed defaults revision 14 release record
+
+Release record: risk is standard; Growth API/worker, Agents API/worker and managed Growth feature
+versions are affected. Publication revision changes from `13` to `14`; adapter release changes from
+`10` to `11`. Compatible published bindings upgrade during normal tenant setup; managed-default
+changes remain an explicit owner action. No feature flag, analytics event, Growth schema migration,
+structured log, metric, dashboard or alert change applies. Rollback retains publication `13` and
+prior adapter registrations; accepted tasks and native receipts remain readable. Documentation is
+updated here and in the feature map. Focused evidence is recorded with the implementation; hosted
+rollout and post-release review are not performed in this local change.
 
 Revision5 changes the product-owned working instructions and specialist descriptions. The assistant
 owns clarification, relevant evidence gathering, useful specialist assignments and final synthesis.
@@ -437,6 +467,11 @@ composition/product bindings, model-route pins, operations and evidence coverage
 optional expected composition, manifest and model-route digests and converts supported native
 records to ATIF without inventing missing calls or results. Oversized, withheld or unsupported
 capture remains explicit.
+
+This endpoint is an explicit technical export, not the ordinary agent transcript. It includes
+model inputs and tool observations, including internal references. The product checks the current
+actor, task and evidence access, but it does not guarantee that arbitrary historical input or
+tool text contains no credentials. There is no link to this export in the ordinary Growth agent UI.
 
 Growth still has no server-native evaluation-trial reservation/revocation contract. Configure and
 discard the isolated environment through owner-run setup. Each preset or custom composition can

@@ -30,13 +30,17 @@ passed with MiniMax M3.1 Flash on21 October2026. Other provider accounts were no
 account compatibility. See [implementation boundaries](source-boundary.md) for
 operator limits, verification scope, and remaining work.
 
-Owner: Agents engineering. Last reviewed: 2026-11-02.
+Owner: Agents engineering. Last reviewed: 2026-11-04.
 
 The standalone product offers a customer-service agent with selectable question answering, support,
 booking and enquiry responsibilities across customer channels, with a shared inbox for staff
 support. Research and campaign experiences belong in Growth or Agencies. The [product boundary and inbox contract](architecture/agent-platform-architecture.md#standalone-agents-product)
 define that scope. Website Inbox, assignment, human replies, takeover and explicit return to automation
 are implemented. Google Calendar booking is implemented through explicit owner policy and exact customer confirmation.
+An opt-in Agents MCP server lets authorized external assistants create and configure agents, add
+website knowledge, preview privately, customize a widget, and request signed-in review before
+activation. It uses Agents organization grants; Growth's operation catalogue and permissions remain
+separate.
 Connections now includes setup and agent binding for WhatsApp, Telegram, Messenger and Instagram,
 alongside website appearance/install controls. All share Inbox ownership and durable messaging
 receipts. Meta setup requires a configured provider app and reachable webhook; Telegram requires

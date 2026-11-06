@@ -8,7 +8,7 @@ import { createBinding, ExecutableAdapterRegistry } from "../src/contracts/capab
 import { requestDigest } from "../src/contracts/contracts";
 
 const servers: Server[] = [];
-async function fixture(options: { status?: number; binary?: boolean; reflect?: boolean; oversized?: boolean; redirect?: boolean; invalidJson?: boolean; deepJson?: boolean; invalidUtf8?: boolean; escapedReflection?:boolean } = {}) {
+async function fixture(options: { status?: number; binary?: boolean; reflect?: boolean; oversized?: boolean; redirect?: boolean; invalidJson?: boolean; deepJson?: boolean; invalidUtf8?: boolean; escapedReflection?:boolean; encodedReflection?:boolean } = {}) {
   const received: { method?: string; url?: string; authorization?: string; body: string }[] = [];
   const server = createServer(async (request, response) => {
     let body = ""; for await (const chunk of request) body += chunk;
@@ -17,6 +17,7 @@ async function fixture(options: { status?: number; binary?: boolean; reflect?: b
     response.statusCode = options.status ?? 200; response.setHeader("content-type", options.binary ? "image/png" : "application/json"); response.setHeader("etag", '"fixture-1"');
     if (options.binary) { response.end(Buffer.from([0, 255, 1, 127])); return; }
     if (options.escapedReflection) { response.end('{"echo":"\\u0063ontrolled-native-token"}'); return; }
+    if (options.encodedReflection) { response.end(JSON.stringify({ echo: Buffer.from("controlled-native-token").toString("base64") })); return; }
     if (options.invalidUtf8) { response.end(Buffer.from([0xff,0xfe,0x00])); return; }
     if (options.invalidJson) { response.end("not JSON"); return; }
     if (options.deepJson) { response.end("[".repeat(30) + "0" + "]".repeat(30)); return; }
@@ -69,6 +70,10 @@ describe("bounded native API operation adapter", () => {
   it("rejects escaped credential reflection in plain JSON before private capture",async()=>{
     const f=await fixture({escapedReflection:true});let captured=0;
     await expect(executeNativeApiOperation(f.operation,args,{...f.runtimeOptions,onResponse:async()=>{captured++;}})).rejects.toMatchObject({code:"API_CREDENTIAL_REFLECTION"});expect(captured).toBe(0);expect(f.received).toHaveLength(1);
+  });
+  it("rejects base64 credential reflection before private capture",async()=>{
+    const f=await fixture({encodedReflection:true});let captured=0;
+    await expect(executeNativeApiOperation(f.operation,args,{...f.runtimeOptions,onResponse:async()=>{captured++;}})).rejects.toMatchObject({code:"API_CREDENTIAL_REFLECTION"});expect(captured).toBe(0);
   });
   it("retains invalid UTF-8 as exact private bytes before rejecting the response",async()=>{
     const f=await fixture({invalidUtf8:true});const captured:unknown[]=[];

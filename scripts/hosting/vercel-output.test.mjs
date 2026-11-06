@@ -51,4 +51,5 @@ test('configuration rejects unsafe origins and keeps production HTML private', (
   assert.equal(config.routes[0].headers['cache-control'], 'no-store');
   assert.equal(config.routes[0].headers['x-robots-tag'], undefined);
   assert.equal(route(config, '/app/agents').dest, '/index.html');
+  for (const [path, method] of [['/mcp', 'POST'], ['/oauth/token', 'POST'], ['/.well-known/oauth-authorization-server', 'GET'], ['/.well-known/oauth-protected-resource/mcp', 'GET']]) assert.equal(route(config, path, method).dest, 'https://backend.example$1', path);
 });

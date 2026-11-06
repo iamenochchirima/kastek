@@ -4,10 +4,11 @@ import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { FirecrawlClient, FirecrawlError, type FirecrawlConfig } from "../../adapters/providers/firecrawl/client";
 import { KnowledgeStore, requireKnowledgeMember, type KnowledgeScope } from "../../capabilities/knowledge/knowledge";
-import { SOURCE_LIMITS } from "../../contracts/source-contracts";
 import { PlatformError, requestDigest } from "../../contracts/contracts";
+import { SOURCE_LIMITS } from "../../contracts/source-contracts";
 import { publicAddress } from "../../infrastructure/connected-network";
 import { transaction } from "../../infrastructure/database";
+import { assertMcpJobAuthority } from "../../infrastructure/mcp-job-authority";
 
 export const websiteCrawlInput = z.strictObject({ operationId: z.string().min(1).max(128), url: z.string().trim().min(1).max(2048), limit: z.number().int().min(1).max(100).default(20), maxDiscoveryDepth: z.number().int().min(0).max(10).default(2) });
 export const websiteCrawlImportInput = z.strictObject({ operationId: z.string().min(1).max(128), pageIds: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(100) });
@@ -49,15 +50,17 @@ export class WebsiteCrawlStore {
     const input=websiteCrawlInput.parse(raw),url=websiteCrawlUrl(input.url),digest=requestDigest({...input,url,agentId});
     return transaction(this.pool,async db=>{
       await this.authorize(db,scope,agentId);
+      const connectionId=(scope as KnowledgeScope & {connectionId?:string}).connectionId??null;
+      await assertMcpJobAuthority(db,{mcp_connection_id:connectionId,organization_id:scope.organizationId,account_id:scope.accountId});
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[scope.organizationId]);
       const previous=(await db.query("SELECT * FROM agents_platform.website_crawls WHERE organization_id=$1 AND account_id=$2 AND operation_id=$3",[scope.organizationId,scope.accountId,input.operationId])).rows[0];
-      if(previous){if(previous.request_digest!==digest)throw new PlatformError("IDEMPOTENCY_CONFLICT",409,"Request identity conflict");return dto(previous);}
+      if(previous){if(previous.request_digest!==digest||previous.mcp_connection_id!==connectionId)throw new PlatformError("IDEMPOTENCY_CONFLICT",409,"Request identity conflict");return dto(previous);}
       if(!this.config)throw new PlatformError("WEBSITE_CRAWL_UNAVAILABLE",503,"Website import is unavailable");
       await publicTarget(url);
       const active=await db.query("SELECT 1 FROM agents_platform.website_crawls WHERE organization_id=$1 AND state IN ('queued','submitting','scraping') LIMIT 2",[scope.organizationId]);
       if(active.rowCount!>=2)throw new PlatformError("WEBSITE_CRAWL_BUSY",429,"Two website imports are already running");
-      return dto((await db.query(`INSERT INTO agents_platform.website_crawls(id,organization_id,agent_id,account_id,operation_id,request_digest,url,provider_origin,state,page_limit,discovery_depth)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,'queued',$9,$10) RETURNING *`,[randomUUID(),scope.organizationId,agentId,scope.accountId,input.operationId,digest,url,this.config.url,input.limit,input.maxDiscoveryDepth])).rows[0]);
+      return dto((await db.query(`INSERT INTO agents_platform.website_crawls(id,organization_id,agent_id,account_id,operation_id,request_digest,url,provider_origin,state,page_limit,discovery_depth,mcp_connection_id)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,'queued',$9,$10,$11) RETURNING *`,[randomUUID(),scope.organizationId,agentId,scope.accountId,input.operationId,digest,url,this.config.url,input.limit,input.maxDiscoveryDepth,connectionId])).rows[0]);
     });
   }
   async get(scope:KnowledgeScope,agentId:string,id:string){return transaction(this.pool,async db=>dto(await this.row(db,scope,agentId,id)));}
@@ -65,25 +68,46 @@ export class WebsiteCrawlStore {
   async cancel(scope:KnowledgeScope,agentId:string,id:string) {
     const row=await transaction(this.pool,async db=>{
       const row=await this.row(db,scope,agentId,id,true);
-      if(row.import_job_id)throw new PlatformError("WEBSITE_CRAWL_IMPORTED",409,"Manage this import in Knowledge");
+      if(row.import_job_id || row.import_digest)throw new PlatformError("WEBSITE_CRAWL_IMPORTED",409,"Manage this import in Knowledge");
       await db.query("UPDATE agents_platform.website_crawls SET state='cancelled',updated_at=now() WHERE id=$1",[id]);return row;
     });
     if(row.provider_id && row.provider_origin===this.config?.url)await this.client?.cancel(row.provider_id).catch(()=>undefined);
     return this.get(scope,agentId,id);
   }
-  async import(scope:KnowledgeScope,agentId:string,id:string,raw:unknown,profileRelease:string) {
+  async import(scope:KnowledgeScope,agentId:string,id:string,raw:unknown,profileRelease?:string) {
     const input=websiteCrawlImportInput.parse(raw),ids=[...new Set(input.pageIds)].sort(),digest=requestDigest(ids);
-    return transaction(this.pool,async db=>{
+    // Reserve the exact selection before any object writes. A retry resumes this reservation.
+    const reserved=await transaction(this.pool,async db=>{
       const row=await this.row(db,scope,agentId,id,true);
+      await assertMcpJobAuthority(db,row);
       if(row.state!=="completed")throw new PlatformError("WEBSITE_CRAWL_NOT_READY",409,"Wait for the website import to finish");
-      if(row.import_job_id){if(row.import_digest!==digest)throw new PlatformError("IDEMPOTENCY_CONFLICT",409,"This crawl was imported with a different selection");return{crawl:dto(row),job:await this.knowledge.getJob(scope,row.import_job_id)};}
+      if(row.import_digest && row.import_digest!==digest)throw new PlatformError("IDEMPOTENCY_CONFLICT",409,"This crawl was imported with a different selection");
+      if(row.import_job_id)return {kind:"existing" as const,existingJobId:row.import_job_id as string,crawl:dto(row)};
       const pages=(row.pages as CrawlPage[]).filter(page=>ids.includes(page.id));
       if(pages.length!==ids.length)throw new PlatformError("INVALID_INPUT",400,"Choose pages from this website import");
-      const content=Buffer.from(pages.map(page=>`# ${page.title}\n\nSource: ${page.url}\n\n${page.markdown}`).join("\n\n---\n\n"));
-      if(content.byteLength>SOURCE_LIMITS.textBytes)throw new PlatformError("SOURCE_SIZE_INVALID",413,"Select fewer pages for this knowledge source");
-      const job=await this.knowledge.admitUpload(scope,{operationId:`website-crawl:${id}`,title:new URL(row.url).hostname,contentType:"text/markdown",content,parserRelease:profileRelease,embeddingRelease:profileRelease});
-      const saved=(await db.query("UPDATE agents_platform.website_crawls SET import_job_id=$2,import_digest=$3,updated_at=now() WHERE id=$1 RETURNING *",[id,job.id,digest])).rows[0];return{crawl:dto(saved),job};
+      const content=pages.map(page=>`# ${page.title}\n\nSource: ${page.url}\n\n${page.markdown}`).join("\n\n---\n\n");
+      // Existing reservations must keep their original parser even if runtime availability changes.
+      const selectedProfile=row.import_digest ? row.import_profile_release as string|null : profileRelease ?? null;
+      if (!selectedProfile) {
+        const agent=(await db.query<{kind:string|null}>("SELECT draft->'retrievalProfile'->>'kind' AS kind FROM agents_platform.agents WHERE organization_id=$1 AND id=$2",[scope.organizationId,agentId])).rows[0];
+        if(agent?.kind==="hybrid-v1")throw new PlatformError("DOCUMENT_RUNTIME_UNAVAILABLE",503,"This agent requires semantic indexing, which is unavailable");
+      }
+      if(Buffer.byteLength(content,"utf8")>(selectedProfile?SOURCE_LIMITS.textBytes:262144))throw new PlatformError("SOURCE_SIZE_INVALID",413,"Select fewer pages for this knowledge source");
+      if(!row.import_digest)await db.query("UPDATE agents_platform.website_crawls SET import_digest=$2,import_profile_release=$3,updated_at=now() WHERE id=$1",[id,digest,selectedProfile]);
+      return {kind:"new" as const,content,title:new URL(row.url).hostname,connectionId:row.mcp_connection_id as string|null,profileRelease:selectedProfile};
     });
+    if (reserved.kind==="existing") return {crawl:reserved.crawl,job:await this.knowledge.getJob(scope,reserved.existingJobId)};
+    const importScope={...scope,...(reserved.connectionId?{connectionId:reserved.connectionId}:{})};
+    const job=reserved.profileRelease
+      ? await this.knowledge.admitUpload(importScope,{operationId:`website-crawl:${id}`,title:reserved.title,contentType:"text/markdown",content:Buffer.from(reserved.content,"utf8"),parserRelease:reserved.profileRelease,embeddingRelease:reserved.profileRelease})
+      : await this.knowledge.admitText(importScope,{operationId:`website-crawl:${id}`,title:reserved.title,contentType:"text/markdown",text:reserved.content});
+    const crawl=await transaction(this.pool,async db=>{
+      const row=await this.row(db,scope,agentId,id,true);
+      await assertMcpJobAuthority(db,row);
+      if(row.state!=="completed"||row.import_digest!==digest||(row.import_job_id&&row.import_job_id!==job.id))throw new PlatformError("INGESTION_INVALIDATED",409,"The source import changed before completion");
+      return dto((await db.query("UPDATE agents_platform.website_crawls SET import_job_id=$2,updated_at=now() WHERE id=$1 RETURNING *",[id,job.id])).rows[0]);
+    });
+    return {crawl,job};
   }
   /** Leases serialize dispatchers; uncertain POST submissions are never automatically repeated. */
   async tick() {
@@ -95,7 +119,7 @@ export class WebsiteCrawlStore {
     if(!row)return;
     let remoteId=row.provider_id as string|undefined;
     try {
-      await transaction(this.pool,db=>this.authorize(db,{organizationId:row.organization_id,accountId:row.account_id},row.agent_id));
+      await transaction(this.pool,async db=>{await this.authorize(db,{organizationId:row.organization_id,accountId:row.account_id},row.agent_id);await assertMcpJobAuthority(db,row);});
       if(new Date(row.deadline).getTime()<Date.now())throw new FirecrawlError("WEBSITE_CRAWL_DEADLINE");
       if(!this.client || row.provider_origin!==this.config?.url)throw new FirecrawlError("WEBSITE_CRAWL_CONFIGURATION_CHANGED");
       if(row.state==="submitting")throw new FirecrawlError("WEBSITE_CRAWL_SUBMISSION_UNCERTAIN");
@@ -107,7 +131,7 @@ export class WebsiteCrawlStore {
         return;
       }
       const result=await this.client.status(remoteId!);
-      await transaction(this.pool,db=>this.authorize(db,{organizationId:row.organization_id,accountId:row.account_id},row.agent_id));
+      await transaction(this.pool,async db=>{await this.authorize(db,{organizationId:row.organization_id,accountId:row.account_id},row.agent_id);await assertMcpJobAuthority(db,row);});
       // Firecrawl returns a polling cursor even before any pages are available.
       // Poll our pinned job path; never follow a credential-bearing provider URL.
       if(result.next && result.status==="completed")throw new FirecrawlError("WEBSITE_CRAWL_RESULT_LIMIT");

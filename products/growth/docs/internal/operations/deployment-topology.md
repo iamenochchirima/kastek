@@ -1,7 +1,7 @@
 ---
 title: Service deployment ownership
 owner: platform-ops
-last_reviewed: 2026-11-02
+last_reviewed: 2026-11-06
 ---
 
 # Service deployment ownership
@@ -41,6 +41,28 @@ Growth, Agents, Agency and Operations API issuer settings reference
 issuer change to discard cached discovery. Product command-signing issuers are independent.
 Vercel frontends proxy authentication through their own backend and need no Identity issuer
 variable. See `infra/identity/HOSTED.md` for realm configuration and hostname migration limits.
+
+## Production region placement
+
+Agents stateless services must stay in the same Railway region as `agents-db`. On 2026-11-06
+`agents-api` and `agents-worker` were still in `europe-west4-drams3a` while `agents-db`,
+`growth-api` and `identity` were in `asia-southeast1-eqsg3a`; each database round trip took
+about 175 ms from the worker, and a single reply accumulated 34–64 s of context-assembly gaps.
+Both Agents services were moved to `asia-southeast1-eqsg3a`, dropping worker-to-database round
+trips to under 1 ms and a representative three-model/two-tool reply from about 162 s of active
+work to about 9 s.
+
+`restate` was subsequently moved to the same region. Its `/restate-data` volume is region-bound,
+so it was detached (retained for rollback), the service was rescaled into
+`asia-southeast1-eqsg3a`, a fresh volume was attached, and the worker deployment was
+re-registered against the new Restate admin. Before detaching, suspended `AgentsSupportWaitingV1`
+handoff invocations were confirmed drained and their conversations resolved, so no live durable
+work was discarded; completed task state lives in `agents-db`, not in the Restate volume.
+Worker-to-Restate round trips dropped from about 192 ms to about 3 ms, and the same
+three-model/two-tool reply fell from about 9 s to about 6.5 s of active work, with operation
+gaps of 0.1–1.0 s. A fresh Restate volume starts with no registered deployments: after any
+future volume replacement, re-run the worker deployment registration and confirm all required
+workflow services are listed.
 
 ## Shared production settings
 

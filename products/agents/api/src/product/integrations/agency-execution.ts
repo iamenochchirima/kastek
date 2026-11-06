@@ -19,10 +19,12 @@ import { finishPage, pageQuery, readPageCursor } from "../../infrastructure/read
 import { readGrowthRuntime } from "./growth-runtime-reporting";
 import { observeProductTask, readProductChildren } from "./growth-observation";
 import { readPublicAgentUpdates } from "./public-agent-activity";
+import { projectRecipientText, taskRecipientTextScope } from "../../execution/context/recipient-text";
 import { MemoryStore, type ProductMemoryManagementScope } from "../../execution/memory/memory";
 import { builtinProviderRegistry } from "../../adapters/models/registry";
 import { TaskArtifactStore } from "../../execution/artifacts/task-artifacts";
 import { privateStoreFromEnvironment } from "../../infrastructure/object-store";
+import { randomAgentAvatar } from "../agents/avatars";
 
 type Db=Pool|PoolClient;
 const missing=()=>new PlatformError("NOT_FOUND",404,"Agent conversation or task not found");
@@ -137,7 +139,7 @@ export class AgencyExecutionService {
       configuration.productBindings=createProductBindings(manifest,tenant.organization_id,{originProduct:"agencies",originTenantId:command.tenantId,
         tenantId:command.tenantId,clientId:command.clientId,originClientId:command.clientId,mappingRef:command.input.mappingRef,policyRevision:"client-metadata-1"},["agency.workspace_agents.read"]);
       const agentId=randomUUID(),versionId=randomUUID(),service={product:"agencies",clientId:"agency-api",issuer:this.issuer};
-      await db.query("INSERT INTO agents_platform.agents(id,organization_id,name,draft,created_by_service) VALUES($1,$2,'Assistant',$3,$4)",[agentId,tenant.organization_id,configuration,service]);
+      await db.query("INSERT INTO agents_platform.agents(id,organization_id,name,avatar,draft,created_by_service) VALUES($1,$2,'Assistant',$3,$4,$5)",[agentId,tenant.organization_id,randomAgentAvatar(),configuration,service]);
       await db.query(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition)
         VALUES($1,$2,$3,1,1,'business',$4,$5,$6,$7)`,[versionId,tenant.organization_id,agentId,configuration,service,JSON.stringify(publishedToolBindings(configuration)),compilePublishedComposition(configuration,[])]);
       await db.query("INSERT INTO agents_platform.product_execution_features(product,tenant_id,feature_id,organization_id,agent_id,version_id,artifact_rollout_revision) VALUES('agencies',$1,$2,$3,$4,$5,1)",[command.tenantId,agencyFeatureId(command),tenant.organization_id,agentId,versionId]);
@@ -194,6 +196,7 @@ export class AgencyExecutionService {
         artifacts=await new TaskArtifactStore(this.pool,privateStoreFromEnvironment()).listForRoot(row.id);
     }
     catch(error){if(!(error instanceof PlatformError)||![403,404,409,503].includes(error.statusCode))throw error;return {...dto,output:null,errorCode:"EVIDENCE_UNAVAILABLE",sources:[],children:[],updates:[]};}
+    if(typeof dto.output==="string")dto.output=projectRecipientText(dto.output,await taskRecipientTextScope(this.pool,row.id,[dto.output]),{normalizeLegacyMarker:true});
     return {...dto,...await readPublicAgentUpdates(this.pool,row.id),children:await readProductChildren(this.pool,row as never,"agencies"),runtime:await readGrowthRuntime(this.pool,row as never,"agencies"),
       results:artifacts.map(artifact=>({id:artifact.id,kind:"artifact" as const,title:artifact.name,artifactId:artifact.id}))};
   }

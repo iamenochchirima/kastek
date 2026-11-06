@@ -98,3 +98,18 @@ export function assertGrowthOptionalAuthority(config:AgentConfiguration,publicat
   if(Object.entries(requested).some(([kind,enabled])=>enabled&&!publication.policy.optionalCapabilities[kind as keyof typeof requested])||config.capabilities.businessActions.enabled||config.capabilities.enquiries?.enabled)
     throw new PlatformError("PRODUCT_CAPABILITY_UNAVAILABLE",409,"The selected capability has no product authority");
 }
+
+/** Existing customized connected selections can be retained without granting new tools. */
+export function assertGrowthConfigurationPreservingConnections(config:AgentConfiguration, previous:AgentConfiguration, publication:GrowthAgentPublication):void {
+  if(publication.policy.optionalCapabilities.connections)return assertGrowthOptionalAuthority(config,publication);
+  const direct=new Set(previous.connectedToolBindingIds);
+  if(config.connectedToolBindingIds.some(id=>!direct.has(id)))throw new PlatformError("PRODUCT_CAPABILITY_UNAVAILABLE",409,"The selected connection is unavailable");
+  if(config.capabilities.delegation.enabled){
+    const roles=previous.capabilities.delegation.enabled?previous.capabilities.delegation.bindings:[];
+    for(const role of config.capabilities.delegation.bindings){
+      const prior=roles.find(item=>item.id===role.id),allowed=new Set(prior?.connectedToolBindingIds??[]);
+      if(role.connectedToolBindingIds.some(id=>!allowed.has(id)))throw new PlatformError("PRODUCT_CAPABILITY_UNAVAILABLE",409,"The selected connection is unavailable");
+    }
+  }
+  assertGrowthOptionalAuthority({...config,connectedToolBindingIds:[]},publication);
+}

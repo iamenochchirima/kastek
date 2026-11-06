@@ -5,6 +5,8 @@ import { agentConfigurationSchema, requestDigest, sourceAuthorityIds } from "../
 import { pinProductCompositionSources } from "../../capabilities/products/native-selection";
 import { publishedToolBindings } from "../../capabilities/tool-definitions";
 import { compilePublishedComposition } from "../../execution/programs/publication";
+import { growthConnectedPins,pinGrowthConnectedTools } from "./growth-connected-pins";
+import { PlatformError } from "../../contracts/contracts";
 
 /** Only a coordinator whose configuration remains product-managed follows the product's selected specialist versions. */
 export async function refreshGrowthManagedRoster(db: PoolClient, tenantId: string, provenance: Record<string, unknown>) {
@@ -25,11 +27,13 @@ export async function refreshGrowthManagedRoster(db: PoolClient, tenantId: strin
   });
   growthDefaultCommissions(configuration,new Map(children.map(child=>[child.version_id,agentConfigurationSchema.parse(child.configuration)])));
   if (requestDigest(configuration) === requestDigest(parent.configuration)) return;
+  const connected=await growthConnectedPins(db,parent.organization_id,parent.version_id,configuration);
   const versionId = randomUUID(), number = parent.revision + 1;
-  await db.query("UPDATE agents_platform.agents SET draft=$2,draft_revision=$3,updated_at=now() WHERE id=$1", [parent.agent_id, configuration, number]);
+  const updated=await db.query("UPDATE agents_platform.agents SET draft=$2,draft_revision=$3,updated_at=now() WHERE id=$1 AND draft=$4::jsonb", [parent.agent_id, configuration, number,parent.configuration]);
+  if(!updated.rowCount)throw new PlatformError("CONFIGURATION_CHANGED",409,"Agent settings changed. Refresh and try again.");
   await db.query(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition)
-    VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)`, [versionId, parent.organization_id, parent.agent_id, number, configuration, provenance, JSON.stringify(publishedToolBindings(configuration)), compilePublishedComposition(configuration, [])]);
+    VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)`, [versionId, parent.organization_id, parent.agent_id, number, configuration, provenance, JSON.stringify(publishedToolBindings(configuration)), compilePublishedComposition(configuration, connected.direct)]);
   await pinProductCompositionSources(db, { product: "growth", tenantId, organizationId: parent.organization_id }, versionId, configuration);
-  await db.query("INSERT INTO agents_platform.version_connected_tools(organization_id,version_id,binding_id) SELECT organization_id,$2,binding_id FROM agents_platform.version_connected_tools WHERE version_id=$1", [parent.version_id, versionId]);
+  await pinGrowthConnectedTools(db,parent.organization_id,versionId,connected.ids);
   await db.query("UPDATE agents_platform.product_execution_features SET version_id=$2,revision=$3,managed_configuration_digest=$4,managed_capability_baseline=$5,updated_at=now() WHERE product='growth' AND tenant_id=$1 AND feature_id='assistant'", [tenantId, versionId, number, requestDigest(configuration),growthCapabilityBaseline(configuration)]);
 }

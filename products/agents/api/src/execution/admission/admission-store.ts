@@ -28,6 +28,7 @@ import { initializeRootModelAccount } from "../models/accounting";
 import { loadExecution } from "../lifecycle/state";
 import { assertPendingSupportStatusAuthority } from "../lifecycle/authority";
 import { assertPlatformRootAdmissionOpen } from "./platform-gate";
+import { assertCustomerChannelRecipient } from "../context/recipient-boundary";
 
 import type { AdmitTaskInput,TaskEvent,TaskRecord } from "../../contracts/records";
 import { AuthorityStore } from "./authority-store";
@@ -58,12 +59,17 @@ export class AdmissionStore extends AuthorityStore {
   async admitTaskInTransaction(db:PoolClient,input:AdmitTaskInput):Promise<{task:TaskRecord;replayed:boolean}> {
     return this.admitForPurpose(db,input);
   }
+  async admitPrivatePreviewInTransaction(db:PoolClient,input:AdmitTaskInput):Promise<{task:TaskRecord;replayed:boolean}> {
+    if (input.authority.product!=="agents" || input.authority.principal.kind!=="human" || input.channelBinding || input.evaluationTrialId || input.conversationId || input.continuationOf) denied();
+    return this.admitForPurpose(db,input,undefined,true);
+  }
   async admitPendingSupportStatusInTransaction(db:PoolClient,input:AdmitTaskInput & {episodeCommandId:string}):Promise<{task:TaskRecord;replayed:boolean}> {
     if (!input.channelBinding || (!input.conversationId && input.authority.principal.kind!=="channel_customer") || input.evaluationTrialId || input.authority.product!=="agents" ||
         !["visitor","channel_customer"].includes(input.authority.principal.kind)) denied();
     return this.admitForPurpose(db,input,input.episodeCommandId);
   }
-  private async admitForPurpose(db:PoolClient,input:AdmitTaskInput,episodeCommandId?:string):Promise<{task:TaskRecord;replayed:boolean}> {
+  private async admitForPurpose(db:PoolClient,input:AdmitTaskInput,episodeCommandId?:string,privatePreview=false):Promise<{task:TaskRecord;replayed:boolean}> {
+    assertCustomerChannelRecipient(input.authority.product, input.authority.principal, input.channelBinding);
     const policy=schedulingPolicyFromEnvironment();
     const requestKey = text(input.requestKey, 128);
     if (!input.input.trim()) throw new PlatformError("INVALID_INPUT", 400, "Enter a message");
@@ -95,7 +101,7 @@ export class AdmissionStore extends AuthorityStore {
     const digest = requestDigest({ authority: input.authority, versionId: input.versionId, input: input.input, conversationId: input.conversationId ?? null,
       evaluationTrialId: input.evaluationTrialId ?? null, channelBinding: input.channelBinding ?? null,
       ...(input.continuationOf?{continuationOf:input.continuationOf}:{}),
-      ...(episodeCommandId?{purpose:"support_status_v1",episodeCommandId}:{}) });
+      ...(episodeCommandId?{purpose:"support_status_v1",episodeCommandId}:privatePreview?{purpose:"private_preview_v1"}:{}) });
     const existing = (await db.query<TaskRecord>(`SELECT * FROM agents_platform.tasks WHERE product=$1 AND organization_id=$2
       AND caller_client_id=$3 AND resource_id=$4 AND request_key=$5`, [input.authority.product, input.authority.organizationId, input.authority.callerClientId, input.authority.resourceId, requestKey])).rows[0];
     if (existing) {
@@ -141,9 +147,9 @@ export class AdmissionStore extends AuthorityStore {
     if (priorVersion && priorVersion.version_id !== input.versionId && input.configurationMode !== "current") throw new PlatformError("CONVERSATION_VERSION_CONFLICT",409,"Start a new conversation for this version");
     const sequence = (await db.query("UPDATE agents_platform.conversations SET next_sequence=next_sequence+1 WHERE id=$1 RETURNING next_sequence-1 AS sequence", [conversationId])).rows[0].sequence;
     const task = (await db.query<TaskRecord>(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,
-      principal,version_id,grant_id,conversation_id,request_key,request_digest,input,turn_sequence,root_token_limit,effective_composition,evaluation_trial_id,channel_binding,harness_release,prior_task_id${episodeCommandId?",execution_purpose":""}) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19${episodeCommandId?",$20":""}) RETURNING *`,
+      principal,version_id,grant_id,conversation_id,request_key,request_digest,input,turn_sequence,root_token_limit,effective_composition,evaluation_trial_id,channel_binding,harness_release,prior_task_id${episodeCommandId||privatePreview?",execution_purpose":""}) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19${episodeCommandId||privatePreview?",$20":""}) RETURNING *`,
     [input.taskId ?? randomUUID(), input.authority.product, input.authority.organizationId, input.authority.resourceId, input.authority.callerClientId, input.authority.principal,
-      input.versionId, grant.id, conversationId, requestKey, digest, input.input, sequence, models.primary.policy.maxRootTokens, composition, input.evaluationTrialId ?? null,input.channelBinding??null,composition.runtime.release,input.continuationOf??null,...(episodeCommandId?["support_status_v1"]:[])])).rows[0]!;
+      input.versionId, grant.id, conversationId, requestKey, digest, input.input, sequence, models.primary.policy.maxRootTokens, composition, input.evaluationTrialId ?? null,input.channelBinding??null,composition.runtime.release,input.continuationOf??null,...(episodeCommandId?["support_status_v1"]:privatePreview?["private_preview_v1"]:[])])).rows[0]!;
     const policyVersion=models.primary.policy.revision==="model-execution-policy-v1"?1:2;
     const admitted=(await db.query(`UPDATE agents_platform.tasks SET execution_policy_version=$2,
       deadline_at=CASE WHEN $2=1 THEN deadline_at WHEN $3::double precision IS NULL THEN NULL

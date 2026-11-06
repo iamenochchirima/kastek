@@ -62,6 +62,15 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   const hits=await runtime.retrieval.search({organizationId:hybrid.scope.organizationId,versionId:hybrid.version.id,sourceRevisionIds:[hybrid.job.revisionId],publicOnly:false},"Could you explain how the zircon samples should be refrigerated?",{kind:"hybrid-v1",embeddingRelease:"document-processing-v1@"+"a".repeat(64),queryVector:Array.from({length:384},(_,index)=>index===0?1:0)},async db=>assertCurrentAuthority(db,await loadExecution(db,hybrid.task.id)));
   expect(hits[0]!.text).toContain("Zircon refrigeration");expect(hits.length).toBeLessThanOrEqual(5);
  });
+ it("does not let an unavailable private index block customer-visible knowledge",async()=>{
+  const f=await fixture(true),release="document-processing-v1@"+"b".repeat(64);
+  await pool.query("UPDATE agents_platform.sources SET visibility='private' WHERE id=$1",[f.job.sourceId]);
+  const scope={organizationId:f.scope.organizationId,versionId:f.version.id,sourceRevisionIds:[f.job.revisionId],publicOnly:true};
+  const profile={kind:"hybrid-v1" as const,embeddingRelease:release,queryVector:Array.from({length:384},(_,index)=>index===0?1:0)};
+  const authorize=async(db:import("pg").PoolClient)=>assertCurrentAuthority(db,await loadExecution(db,f.task.id));
+  expect(await runtime.retrieval.search(scope,"zircon",profile,authorize)).toEqual([]);
+  await expect(runtime.retrieval.search({...scope,publicOnly:false},"zircon",profile,authorize)).rejects.toMatchObject({code:"RETRIEVAL_BACKEND_UNAVAILABLE"});
+ });
  it("denies cross-root handles and rechecks source withdrawal before new searches and reads",async()=>{
   const first=await fixture(),other=await fixture(),id=await operation(first.task.id),found=await runtime.search(first.task.id,id,"zircon"),reference=found.passages[0]!;
   const otherRead=await operation(other.task.id,"knowledge.read",{evidenceId:reference.evidenceId});await expect(runtime.read(other.task.id,otherRead,reference.evidenceId)).rejects.toMatchObject({code:"EVIDENCE_SCOPE_DENIED"});

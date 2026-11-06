@@ -5,6 +5,7 @@ import { GROWTH_RESOURCE_FIELDS, isGrowthResourceOperation, validGrowthResourceI
 export const GROWTH_AGENT_CONTRACT_VERSION = "1" as const;
 export const GROWTH_AGENT_COMMAND_PATH = "/internal/v1/products/growth/commands";
 export const GROWTH_AGENT_ACTION_PATH = "/internal/agents/actions";
+export const GROWTH_AGENT_PUBLICATION_MAX_BYTES = 262_144;
 export const GROWTH_AGENT_FEATURE_IDS = ["assistant", "research", "content", "campaigns"] as const;
 export type GrowthAgentFeatureId = typeof GROWTH_AGENT_FEATURE_IDS[number];
 export type GrowthAgentContext = {
@@ -343,7 +344,7 @@ export function parseGrowthAgentCommand(value: unknown): GrowthAgentCommand {
   if (input.context !== undefined && input.context !== null) parseGrowthAgentContext(input.context);
   if(input.publication!==undefined){
     const publication=growthObject(input.publication,["manifest","presets","policy"]);
-    if(!publication.manifest||!publication.policy||!Array.isArray(publication.presets)||publication.presets.length!==4||JSON.stringify(publication).length>131072)return invalidGrowthContract();
+    if(!publication.manifest||!publication.policy||!Array.isArray(publication.presets)||publication.presets.length!==4||new TextEncoder().encode(JSON.stringify(publication)).byteLength>GROWTH_AGENT_PUBLICATION_MAX_BYTES)return invalidGrowthContract();
   }
   if (input.featureId !== undefined && !GROWTH_AGENT_FEATURE_IDS.includes(input.featureId as GrowthAgentFeatureId)) return invalidGrowthContract();
   if (["conversations.create", "features.configure"].includes(String(item.operation)) && input.featureId === undefined) return invalidGrowthContract();

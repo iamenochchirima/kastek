@@ -1,4 +1,4 @@
-import { GrowthAgentContractError } from "./growth-agents.js";
+import { GROWTH_AGENT_PUBLICATION_MAX_BYTES, GrowthAgentContractError } from "./growth-agents.js";
 
 export const GROWTH_AGENT_PROVISION_PATH = "/internal/v1/products/growth/provision";
 export const GROWTH_AGENT_PROVISION_CHECK_PATH = "/internal/agents/provisioning-check";
@@ -55,7 +55,7 @@ export function parseGrowthAgentProvisionRequest(value: unknown): GrowthAgentPro
   if (row.upgradeDefaults !== undefined && typeof row.upgradeDefaults !== "boolean") throw new GrowthAgentContractError("Invalid upgrade mode");
   if (row.publication !== undefined) {
     const publication=object(row.publication,["manifest","presets","policy"]);
-    if(!publication.manifest||!publication.policy||!Array.isArray(publication.presets)||publication.presets.length!==4||JSON.stringify(publication).length>131072)throw new GrowthAgentContractError("Invalid publication");
+    if(!publication.manifest||!publication.policy||!Array.isArray(publication.presets)||publication.presets.length!==4||new TextEncoder().encode(JSON.stringify(publication)).byteLength>GROWTH_AGENT_PUBLICATION_MAX_BYTES)throw new GrowthAgentContractError("Invalid publication");
   }
   return {version: "1", requestId: row.requestId, tenantId: token(row.tenantId, 256), defaultsRevision: token(row.defaultsRevision,128), modelProfileId: token(row.modelProfileId, 128), modelProfileRevision: token(row.modelProfileRevision, 128),
     ...(row.publication===undefined?{}:{publication:row.publication as GrowthAgentPublication}),...(row.upgradeDefaults===undefined?{}:{upgradeDefaults:row.upgradeDefaults as boolean})};

@@ -301,7 +301,7 @@ export const LIST_CONNECTIONS_0 = `SELECT connection.id, connection.provider,
         WHERE connection."orgId" = $1
         ORDER BY
             CASE connection.status WHEN 'NEEDS_ATTENTION' THEN 0 WHEN 'CONNECTED' THEN 1 ELSE 2 END,
-            connection.provider, connection."displayName"`;
+            connection.provider, connection."displayName", connection.id`;
 
 export const UPDATE_STATUS_0 = `SELECT status::text,"updatedAt","agentReviewRevision"::text AS "agentReviewRevision" FROM "ExternalConnection" WHERE id = $1 AND "orgId" = $2 FOR UPDATE`;
 

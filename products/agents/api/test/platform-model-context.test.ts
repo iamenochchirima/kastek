@@ -103,6 +103,15 @@ describe("recordable context planning", () => {
     expect(sharedProtocolInstructions({ ...options, delegatedTask: true })).toContain("Claims added by the coordinator");
     expect(sharedProtocolInstructions({ ...options, delegatedTask: false })).not.toContain("Claims added by the coordinator");
   });
+  it("gives every agent recipient guidance for usable business references and internal handles", () => {
+    for (const delegatedTask of [false, true]) {
+      const instructions = sharedProtocolInstructions({ delegationEnabled: false, toolCalling: false, discoveryAvailable: false,
+        historyAvailable: false, memoryEnabled: false, delegatedTask });
+      expect(instructions).toContain("Omit internal runtime IDs, tool handles and redaction placeholders.");
+      expect(instructions).toContain("Include authorized business references such as order numbers or booking references when useful");
+      expect(instructions).toContain("give a public platform ID only when explicitly requested and authorized");
+    }
+  });
   it("treats specialist reports and progress as unverified unless current evidence confirms them", () => {
     const instructions = sharedProtocolInstructions({ delegationEnabled: true, toolCalling: true, discoveryAvailable: true,
       historyAvailable: false, memoryEnabled: false, delegatedTask: false });

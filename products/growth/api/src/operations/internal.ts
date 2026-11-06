@@ -7,12 +7,18 @@ import { boundedGrowthOperationResult, executeGrowthOperation, getOperationRevie
 import { growthToolArguments, requireGrowthAgentAccess } from "./transport.js";
 import { getGrowthOperation } from "./catalog.js";
 import { assertGrowthReadAccess, growthReadResources, issueGrowthEffectAccess, issueGrowthReadAccess, type GrowthReadAccess } from "./read-access.js";
+import { projectAgentConnectionRead, projectAgentMediaPreview } from "./agent-read-projection.js";
 
 export function internalOperationContext(command: Pick<ProductCapabilityInvocation, "actor" | "authority" | "operationId" | "requestId">): RequestContext {
   return { principal: { kind: "trusted_internal_service", id: command.actor.subject, subjectUserId: command.actor.subject, clientId: "growth-execution" },
     organizationId: command.authority.tenantId, userId: command.actor.subject, clientId: "growth-execution",
     effectiveGrants: new Set(), apiScopes: new Set(["growth:read", "growth:draft", "growth:publish", "growth:manage"]),
     correlationId: command.requestId, causationId: null, idempotencyKey: command.operationId };
+}
+export function usesConnectionProjection(authority: ProductCapabilityInvocation["authority"]): boolean {
+  // The projection is a recipient-safe view of the read result, not a new permission.
+  // Apply it to every Growth-backed agent publication, including versions already in use.
+  return authority.destinationProduct === "growth";
 }
 function reference(row: OperationReviewRow): ProductReviewReference {
   const current = operationReviewState(row);
@@ -56,10 +62,13 @@ export async function invokeInternalGrowthOperation(core: CoreContext, command: 
   let access:GrowthReadAccess|undefined;
   const value = await executeGrowthOperation(core, context, { operation: command.operation, ...args, requestId: args.requestId ?? command.operationId,
     taskId: command.taskId, conversationId: command.conversationId, operationId: command.operationId, prepareOnly: command.control === "prepare",
-    ...(observation==="access-v1"?{captureRead:async (raw,details)=>{
+    ...(command.control === "invoke" && command.operation === "content.media.preview" ? {projectRead: projectAgentMediaPreview} :
+      command.control === "invoke" && usesConnectionProjection(command.authority) && ["connections.list", "content.accounts.list"].includes(command.operation) ? {projectRead: (result: Record<string, unknown>) => projectAgentConnectionRead(command.operation,result)} : {}),
+    ...(observation==="access-v1"?{captureRead:async (raw,details,native)=>{
       if(raw.state!=="succeeded")throw new ApiError(409,"agent_read_access_unavailable","The read result cannot be retained safely");
       if(command.operation==="operations.reviews.get")await authorizeGrowthOperation(core,context,String((details.review as {operation?:unknown})?.operation),{discovery:true});
-      const prepared=growthReadResources(command.operation,args.input,raw.result,details);
+      const evidence=command.operation==="content.media.preview"?native:raw;
+      const prepared=growthReadResources(command.operation,args.input,evidence.result,details);
       if(command.operation==="workspace.read" && (raw.result as {workspace?:{id?:unknown}})?.workspace?.id!==command.authority.tenantId)
         throw new ApiError(403,"agent_read_access_unavailable","The read result is outside the workspace");
       return async bounded=>{access=await issueGrowthReadAccess(core,command,prepared,bounded);};

@@ -216,6 +216,12 @@ describe("isolated general remote MCP", () => {
     const privateInventory = await discoverRemoteMcp(endpoint);
     await expect(executeRemoteMcpTool(endpoint, privateInventory.tools[0]!, { name: "value" })).rejects.toMatchObject({ code: "MCP_CREDENTIAL_REFLECTION" });
   }, 20_000);
+  it("blocks base64-encoded credential reflection", async () => {
+    const service = await fixture({ resultText: Buffer.from("controlled-secret").toString("base64") });
+    const endpoint = { ...service.endpoint, authorization: "Bearer controlled-secret" };
+    const inventory = await discoverRemoteMcp(endpoint);
+    await expect(executeRemoteMcpTool(endpoint, inventory.tools[0]!, { name: "value" })).rejects.toMatchObject({ code: "MCP_CREDENTIAL_REFLECTION" });
+  }, 20_000);
   it.each([{sse:false,kind:"value"},{sse:true,kind:"value"},{sse:false,kind:"key"},{sse:true,kind:"key"}] as const)("rejects decoded credential reflection through HTTP/SSE values and keys %j",async({sse,kind})=>{
     const service=await fixture({sse,escapedReflect:kind,reflect:kind==="value"});
     const endpoint={...service.endpoint,...(sse?{transport:"legacy_sse" as const}:{}),authorization:"Bearer controlled-secret"};

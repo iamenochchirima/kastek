@@ -1,3 +1,4 @@
+import { compactDirectoryFallback, compactDirectoryText } from "../context/compact-directory-fallback";
 import { measureCompactionProgress, compactionDidNotProgress, compactionForecast, type CompactionProgress } from "../context/compaction-progress";
 import { executionReservationPressure } from "../lifecycle/reservation-pressure";
 import { executionAllowanceObservation } from "../lifecycle/work-policy";
@@ -337,7 +338,20 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     tools: modelTools, model: execution.models.primary.binding.modelId, modelPolicy: contextModelPolicy(execution, "primary", await nativeContextCosts(pool, execution), packingOverhead), maxInputTokens: execution.models.primary.policy.maxInputTokens, maxOutputTokens: execution.models.primary.policy.maxOutputTokens };
   let built;
   try { built = buildContext(input); }
-  catch (error) {
+  catch (initialError) {
+    const allCallable = catalog && catalog.entries.every(entry => modelTools.some(tool => tool.function.name === entry.alias));
+    if (initialError instanceof ModelOperationError && initialError.code === "CONTEXT_LIMIT" && summary && directory && allCallable &&
+        loadedSkills.catalog.length === 0 && specialists.length === 0 && config.productBindings.length === availableProductBindings.length) {
+      const fallback = compactDirectoryFallback(input, directory.text);
+      if (fallback) {
+        input.instructions = fallback.instructions;
+        built = fallback.built;
+        Object.assign(directory, { text: compactDirectoryText, complete: false, omittedTools: catalog!.entries.length,
+          directoryFootprint: Buffer.byteLength(compactDirectoryText, "utf8") });
+      }
+    }
+    if (!built) {
+    const error = initialError;
     if(sharedProtocol&&error instanceof ModelOperationError&&error.code==="CONTEXT_LIMIT"){
       try{buildContext({...input,history:[],summary:undefined,sources:[],continuation:undefined,workingGroups:active.filter(group=>group.id.startsWith("instruction:"))});}
       catch(requiredError){
@@ -349,6 +363,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       return { history, working: active, memoryFence, invalidated, needsCompaction: true };
     }
     throw error;
+    }
   }
   const totalGroups = history.length + active.length;
   if (built.status === "compaction_required" || (!sharedProtocol && built.estimatedTokens >= execution.models.primary.policy.compactAtTokens && totalGroups > 2)) {
@@ -1073,8 +1088,8 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               ...builtinArgumentFeedback(name,call.function.arguments,result.code,acceptedToolVersion),
               ...(snapshot.catalog&&name==="tools.load"?toolSchemaFailureFeedback(snapshot.catalog,result.code):undefined),
             }:undefined;
-            const modelValue=result.ok&&productBinding?productModelResult(productBinding,result.value,taskId,id):result.ok?result.value:undefined;
-            let content=JSON.stringify(result.ok ? binding ? connectedModelView(result.value as ConnectedObservation) : productBinding ? modelValue : builtinObservationView(name,call.function.arguments,result.value) : { error: result.code,...argumentFeedback });
+            const modelValue=result.ok&&productBinding?await (options.product!.projectForModel?.(taskId,id,productBinding,result.value)??Promise.resolve(productModelResult(productBinding,result.value,taskId,id))):result.ok&&binding?connectedModelView(result.value as ConnectedObservation):result.ok?builtinObservationView(name,call.function.arguments,result.value):undefined;
+            let content=JSON.stringify(result.ok ? modelValue : { error: result.code,...argumentFeedback });
             let previewed=false;
             if(sharedProtocol&&result.ok&&options.evidence&&Buffer.byteLength(content)>4096){
               const estimated=await guardedRun(ctx,`result-context-cost:${step}:${callIndex}`,async()=>

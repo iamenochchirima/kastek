@@ -6,6 +6,7 @@ import { assertIngestionPublication,SOURCE_LIMITS,sourceChunkSchema,textDigest,t
 import { transaction } from "../../infrastructure/database";
 import { PrivateObjectStore } from "../../infrastructure/object-store";
 import { writeSourceObject } from "./source-objects";
+import { assertMcpJobAuthority } from "../../infrastructure/mcp-job-authority";
 import { isProductResourceScope, requireProductResourceAccess, resourceAccountId, resourceService, resourceOwnership, resourceMatchesScope,
   knowledgeJobScope, type PersonalResourceScope, type ProductResourceScope } from "../products/resource-scope";
 import { fitUtf8 } from "../../infrastructure/utf8";
@@ -65,13 +66,16 @@ export class KnowledgeStore {
     await writeSourceObject(this.pool, this.objects, { jobId: admitted.id, key: admitted.raw_key, bytes, contentType: input.contentType, kind: "raw" });
     await transaction(this.pool, async db => {
       await requireKnowledgeMember(db, scope, isProductResourceScope(scope));
-      const changed = await db.query("UPDATE agents_platform.ingestion_jobs SET raw_state='available',state='extracting',updated_at=now() WHERE id=$1 AND state IN ('queued','extracting')", [admitted.id]);
+      await assertMcpJobAuthority(db,{mcp_connection_id:admitted.mcp_connection_id,organization_id:admitted.organization_id,importer_account_id:admitted.importer_account_id});
+      const changed = await db.query("UPDATE agents_platform.ingestion_jobs SET raw_state='available',state=CASE WHEN state='ready' THEN state ELSE 'extracting' END,updated_at=now() WHERE id=$1 AND state IN ('queued','extracting','ready')", [admitted.id]);
       if (!changed.rowCount) throw new PlatformError("INGESTION_INVALIDATED", 409, "The source import changed before sealing");
     });
     const chunks: SourceChunk[] = []; let offset = 0;
     while (offset < input.text.length) {
       const content = fitUtf8(input.text.slice(offset), 384), end = offset + content.length;
-      chunks.push({ id: randomUUID(), revisionId: admitted.revision_id, ordinal: chunks.length, start: offset, end,
+      const chunkDigest=requestDigest({revisionId:admitted.revision_id,ordinal:chunks.length,release:"source-chunk-v1"});
+      const chunkId=`${chunkDigest.slice(0,8)}-${chunkDigest.slice(8,12)}-5${chunkDigest.slice(13,16)}-a${chunkDigest.slice(17,20)}-${chunkDigest.slice(20,32)}`;
+      chunks.push({ id: chunkId, revisionId: admitted.revision_id, ordinal: chunks.length, start: offset, end,
         page: 1, section: null, text: content, digest: textDigest(content), tokens: Buffer.byteLength(content, "utf8") });
       offset = end;
     }
@@ -107,9 +111,11 @@ export class KnowledgeStore {
     return transaction(this.pool, async db => {
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [scope.organizationId]);
       await requireKnowledgeMember(db, scope, isProductResourceScope(scope));
+      const connectionId=(scope as KnowledgeScope & {connectionId?:string}).connectionId??null;
+      await assertMcpJobAuthority(db,{mcp_connection_id:connectionId,organization_id:scope.organizationId,importer_account_id:resourceAccountId(scope)});
       const existing = (await db.query("SELECT * FROM agents_platform.ingestion_jobs WHERE organization_id=$1 AND importer_account_id IS NOT DISTINCT FROM $2::uuid AND operation_id=$3 AND importer_service IS NOT DISTINCT FROM $4::jsonb", [scope.organizationId, resourceAccountId(scope), input.operationId, resourceService(scope)])).rows[0];
       if (existing) {
-        if (existing.request_digest !== digest) throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "Request identity conflict");
+        if (existing.request_digest !== digest || existing.mcp_connection_id!==connectionId) throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "Request identity conflict");
         return existing;
       }
       const active = Number((await db.query("SELECT count(*) FROM agents_platform.ingestion_jobs WHERE organization_id=$1 AND state NOT IN ('ready','failed','cancelled')", [scope.organizationId])).rows[0].count);
@@ -128,10 +134,10 @@ export class KnowledgeStore {
       const jobId = randomUUID(), revisionId = randomUUID();
       const revision = Number((await db.query("SELECT coalesce(max(revision),0)+1 AS next FROM agents_platform.ingestion_jobs WHERE source_id=$1", [source.id])).rows[0].next);
       const row = (await db.query(`INSERT INTO agents_platform.ingestion_jobs(id,organization_id,source_id,importer_account_id,operation_id,request_digest,revision_id,revision,accepted_generation,
-        content_type,raw_key,raw_digest,raw_bytes,parser_release,embedding_release,deadline,authorized_url,importer_service) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
+        content_type,raw_key,raw_digest,raw_bytes,parser_release,embedding_release,deadline,authorized_url,importer_service,mcp_connection_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
       [jobId, scope.organizationId, source.id, resourceAccountId(scope), input.operationId, digest, revisionId, revision, source.generation,
         input.contentType, `knowledge/${scope.organizationId}/${source.id}/${revisionId}/raw`, input.rawDigest, input.rawBytes,
-        input.parserRelease, input.embeddingRelease ?? null, new Date(Date.now() + SOURCE_LIMITS.importWallMs), input.authorizedUrl ?? null, resourceService(scope)])).rows[0];
+        input.parserRelease, input.embeddingRelease ?? null, new Date(Date.now() + SOURCE_LIMITS.importWallMs), input.authorizedUrl ?? null, resourceService(scope),connectionId])).rows[0];
       if (enqueue) await db.query("INSERT INTO agents_platform.ingestion_outbox(job_id) VALUES($1)", [jobId]);
       return row;
     });
@@ -207,11 +213,13 @@ export class KnowledgeStore {
   }
 
   async setPolicy(scope: KnowledgeScope, sourceId: string, raw: { operationId: string; expectedGeneration: number; action: "approve" | "withdraw" | "visibility"; revisionId?: string; visibility?: "private" | "public" }): Promise<Source> {
+    return transaction(this.pool, db => this.setPolicyInTransaction(db,scope,sourceId,raw));
+  }
+  async setPolicyInTransaction(db: PoolClient, scope: KnowledgeScope, sourceId: string, raw: { operationId: string; expectedGeneration: number; action: "approve" | "withdraw" | "visibility"; revisionId?: string; visibility?: "private" | "public" }): Promise<Source> {
     z.uuid().parse(sourceId);
     const input = z.strictObject({ operationId: z.string().min(1).max(128), expectedGeneration: z.number().int().positive(),
       action: z.enum(["approve", "withdraw", "visibility"]), revisionId: z.uuid().optional(), visibility: z.enum(["private", "public"]).optional() }).parse(raw);
     if (input.action === "approve" && !input.revisionId || input.action === "visibility" && !input.visibility) throw new PlatformError("INVALID_INPUT", 400, "Select a revision or visibility");
-    return transaction(this.pool, async db => {
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [scope.organizationId]);
       await requireKnowledgeMember(db, scope, true);
       const digest = requestDigest({ sourceId, ...input });
@@ -237,7 +245,7 @@ export class KnowledgeStore {
       const result = sourceDTO((await db.query("SELECT * FROM agents_platform.sources WHERE id=$1", [sourceId])).rows[0]);
       await db.query("INSERT INTO agents_platform.source_mutations(organization_id,account_id,operation_id,request_digest,result,actor_service) VALUES($1,$2,$3,$4,$5,$6)", [scope.organizationId, resourceAccountId(scope), input.operationId, digest, JSON.stringify(result), resourceService(scope)]);
       return result;
-    });
+
   }
 
   async publishExtraction(jobId: string, output: { text: string; chunks: SourceChunk[]; normalizerRelease: string; acquiredAt: string; embeddings?: number[][] }): Promise<void> {
@@ -258,6 +266,7 @@ export class KnowledgeStore {
     await transaction(this.pool, async db => {
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [before.organization_id]);
       await requireKnowledgeMember(db, knowledgeJobScope(before));
+      await assertMcpJobAuthority(db,before);
       const source = (await db.query("SELECT * FROM agents_platform.sources WHERE id=$1 FOR UPDATE", [before.source_id])).rows[0];
       const job = (await db.query("SELECT * FROM agents_platform.ingestion_jobs WHERE id=$1 FOR UPDATE", [jobId])).rows[0];
       if (job.state === "ready") {

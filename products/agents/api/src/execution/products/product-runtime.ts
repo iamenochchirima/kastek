@@ -13,6 +13,8 @@ import { EvidenceStore } from "../context/evidence";
 import { narrowProductInformation } from "../../contracts/product-information";
 import { assertProductInformationAudience, currentProductInformation, executionProductInformation } from "./product-information";
 import { assertProductReadCustody } from "./product-read-custody";
+import { productModelResult } from "./product-result";
+import { projectProductReferences, resolveProductReferences } from "./product-references";
 const sourceSchema=z.strictObject({id:z.string().min(1).max(1024),revision:z.string().regex(/^[a-f0-9]{64}$/),title:z.string().min(1).max(512),text:z.string().min(1).max(8192),acquiredAt:z.iso.datetime({offset:true}),continuation:z.string().max(2048).nullable(),route:z.string().max(2048).refine(value=>value.startsWith("/")&&!value.startsWith("//")&&!/[\x00-\x20\x7f]/.test(value)).optional()});
 const accessSchema=z.strictObject({version:z.literal("1"),reference:z.string().min(1).max(1024),scopeReference:z.string().min(1).max(1024),resultDigest:z.string().regex(/^[a-f0-9]{64}$/)});
 const reviewSchema=z.strictObject({id:z.string().min(1).max(256),product:z.string().min(1).max(128),taskId:z.uuid(),operationId:z.string().min(1).max(256),payloadDigest:z.string().regex(/^[a-f0-9]{64}$/),state:z.enum(["proposed","approved","saved","rejected","expired","uncertain"]),expiresAt:z.iso.datetime({offset:true})});
@@ -27,6 +29,7 @@ export interface ProductRuntimePort {
   prepare(taskId:string,operationId:string,binding:CapabilityBinding,args:unknown):Promise<ProductCapabilityResult>;
   review(taskId:string,operationId:string,binding:CapabilityBinding,review:ProductReviewReference):Promise<ProductCapabilityResult>;
   commit(taskId:string,operationId:string,binding:CapabilityBinding,review:ProductReviewReference,signal?:AbortSignal,statusOnly?:boolean):Promise<ProductCapabilityResult>;
+  projectForModel?(taskId:string,operationId:string,binding:CapabilityBinding,output:unknown):Promise<unknown>;
 }
 export class ProductRuntime implements ProductRuntimePort {
   async prepareExecution(taskId:string):Promise<void>{
@@ -152,18 +155,23 @@ export class ProductRuntime implements ProductRuntimePort {
     catch(error){if(!(error instanceof PlatformError)||![403,404].includes(error.statusCode))throw error;}
     return available;
   }
+  async projectForModel(taskId:string,operationId:string,binding:CapabilityBinding,output:unknown):Promise<unknown>{
+    const projected=productModelResult(binding,output,taskId,operationId);
+    return projectProductReferences(this.pool,taskId,operationId,binding,projected);
+  }
   async invoke(taskId:string,operationId:string,binding:CapabilityBinding,args:unknown,signal?:AbortSignal,statusOnly=false):Promise<ProductCapabilityResult>{
     await validateProductArguments(binding,args);
+    const resolvedArgs=await resolveProductReferences(this.pool,taskId,binding,args);
     const direct=["draft_write","authorized_write"].includes(binding.policy.effect);
     if(statusOnly&&!direct)throw new PlatformError("PRODUCT_CONTROL_DENIED",403,"Status-only write recovery requires direct product write authority");
     let result:ProductCapabilityResult;
-    try { result=await this.dispatch(this.pool,taskId,operationId,binding,direct&&statusOnly?"review":"invoke",args,undefined,signal); }
+    try { result=await this.dispatch(this.pool,taskId,operationId,binding,direct&&statusOnly?"review":"invoke",resolvedArgs,undefined,signal); }
     catch(error) {
       if(!direct||statusOnly||!(error instanceof PlatformError)||error.statusCode<500)throw error;
-      result=await this.dispatch(this.pool,taskId,operationId,binding,"review",args);
+      result=await this.dispatch(this.pool,taskId,operationId,binding,"review",resolvedArgs);
     }
     if(direct){
-      const input=args&&typeof args==="object"&&!Array.isArray(args)?Object.fromEntries(Object.entries(args).filter(([key])=>!["_requestId","_reviewId","_previewId","_continuation"].includes(key))):args;
+      const input=resolvedArgs&&typeof resolvedArgs==="object"&&!Array.isArray(resolvedArgs)?Object.fromEntries(Object.entries(resolvedArgs).filter(([key])=>!["_requestId","_reviewId","_previewId","_continuation"].includes(key))):resolvedArgs;
       const expected=requestDigest({operation:binding.definition.providerOperation,version:binding.definition.product!.revision,input});
       if(!result.receipt||typeof result.receipt.id!=="string"||!result.receipt.id||result.receipt.id.length>256||result.receipt.state!=="saved"||result.receipt.operationId!==operationId||result.receipt.payloadDigest!==expected)
         throw new PlatformError("PRODUCT_EFFECT_UNCERTAIN",409,"The product write has no matching saved receipt");
@@ -171,7 +179,7 @@ export class ProductRuntime implements ProductRuntimePort {
     if(binding.definition.outputSchema){const {AjvJsonSchemaValidator}=await import("@modelcontextprotocol/client/validators/ajv");if(!new AjvJsonSchemaValidator().getValidator(binding.definition.outputSchema as Record<string,unknown>)(result.value).valid)throw new PlatformError("PRODUCT_RESULT_INVALID",502,"The product result does not match the published schema");}
     return this.observe(taskId,operationId,binding,result);
   }
-  async prepare(taskId:string,operationId:string,binding:CapabilityBinding,args:unknown){await validateProductArguments(binding,args);const result=await this.dispatch(this.pool,taskId,operationId,binding,"prepare",args);if(!result.review)throw denied();await this.project(result.review,taskId);return modelResult(result);}
+  async prepare(taskId:string,operationId:string,binding:CapabilityBinding,args:unknown){await validateProductArguments(binding,args);const resolvedArgs=await resolveProductReferences(this.pool,taskId,binding,args);const result=await this.dispatch(this.pool,taskId,operationId,binding,"prepare",resolvedArgs);if(!result.review)throw denied();await this.project(result.review,taskId);return modelResult(result);}
   async review(taskId:string,operationId:string,binding:CapabilityBinding,review:ProductReviewReference){const result=await this.dispatch(this.pool,taskId,operationId,binding,"review",{},review);if(!result.review||result.review.id!==review.id||result.review.payloadDigest!==review.payloadDigest)throw denied();await this.project(result.review,taskId);return modelResult(result);}
   async commit(taskId:string,operationId:string,binding:CapabilityBinding,review:ProductReviewReference,signal?:AbortSignal,statusOnly=false){
     const projection=productEffectProjection(binding);

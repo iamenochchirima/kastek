@@ -1,6 +1,6 @@
 # Integration boundaries
 
-Owner: Agents engineering. Last reviewed: 2026-10-20.
+Owner: Agents engineering. Last reviewed: 2026-11-04.
 
 The shared execution service uses two technical execution kinds: `business` and `workspace`. Connections do not
 create another agent category. Business execution uses Restate; the Lina workspace
@@ -9,6 +9,7 @@ adapter remains unavailable.
 | Connection | Contract | Current boundary |
 | --- | --- | --- |
 | External agents to Growth or Agencies | Product-owned MCP with OAuth or scoped API keys. | Separate product work; no Agents gateway. |
+| External assistants to standalone Agents | Agents-owned MCP with OAuth and organization-scoped grants. | Opt-in server; availability depends on the serving deployment configuration. |
 | Product backends to Agents execution | Authenticated service with initiating identity and bounded authority. | Signed delegated-identity contract fixtures exist; production product integration and richer private resource contracts remain unavailable. |
 | Customer channels to Agents | Verified channel binding, customer event identity, conversation ownership, and authorized automated or human replies. | Website/widget execution and shared Inbox controls are implemented. WhatsApp, Facebook and Instagram remain unavailable. |
 | Business agents to external tools | Immutable selected native HTTP or MCP bindings, current connection/resource authority and durable receipts. | Restricted repository/Stash profiles, general remote MCP and imported native API operations implemented for operator runs. Customer service authority remains separate. |
@@ -18,6 +19,55 @@ Customer channels are separate from external-agent MCP access and outbound tool 
 The standalone client targets support, FAQ, booking, and intake. Research and campaign experiences
 belong in Growth or Agencies. The read/report adapters below are shared runtime capabilities;
 they do not define the Agents client catalogue. General MCP onboarding supports anonymous servers, bearer or named keys and browser OAuth. The older restricted profiles retain their separate read contracts. Native API import supports static credentials; provider OAuth requires an implemented provider connector.
+
+## Standalone Agents MCP server
+
+Growth's existing MCP is the in-repository reference for the transport and authorization shape.
+[`catalog.ts`](../../growth/api/src/operations/catalog.ts) reads operation definitions from the
+shared Growth contracts catalogue. [`policy.ts`](../../growth/api/src/operations/policy.ts) filters
+discovery and rechecks current scope, membership and entitlements. [`mcp.ts`](../../growth/api/src/operations/mcp.ts)
+uses Streamable HTTP and invokes operations through that same policy; it records bounded
+operation/outcome/duration metadata. [`routes.ts`](../../growth/api/src/operations/routes.ts) uses
+the same operation executor for the authenticated HTTP interface. Agents follows those proven
+patterns but keeps an Agents-owned operation list, identity, storage and customer-service
+permissions. Growth's campaign/content permissions are not reused or proxied.
+The Agents MCP transport is in [`server.ts`](../api/src/product/mcp/server.ts);
+[`app.ts`](../api/src/composition/app.ts) composes its operation handlers from the product services. Agent create, read and save operations
+share [`creation-operations.ts`](../api/src/product/agents/creation-operations.ts), which is also
+used by the management API.
+Agents adds revision-pinned signed-in reviews for setup changes, knowledge approval, and website
+activation. The boundary follows the shared product architecture in
+[`agent-platform-architecture.md`](./architecture/agent-platform-architecture.md).
+
+When `AGENTS_MCP_ENABLED=true`, the standalone API exposes `/mcp` and OAuth discovery at
+`/.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server`. OAuth uses
+authorization code with PKCE, account consent, an organization selection and revocable scoped
+connections. Users can remove their own connections in Settings. MCP requests recheck membership;
+long-running imports also retain their originating connection and recheck it before further work.
+An external request already sent to a provider cannot be recalled on revocation.
+
+The server exposes agent setup, knowledge, supported capabilities, model selection, private preview,
+widget appearance and website activation through the same product services as the app. It requests
+signed-in review for permission expansion, source policy and website activation. A review is tied to
+the proposed revision and a stale proposal cannot be approved. Private preview permits knowledge and
+discovery only; connected actions, delegation and other effectful tools are unavailable there.
+OAuth consent shows the client ID and callback host; the client-provided display name is unverified.
+Authorization is rate-limited per socket peer and registered client, forwarded IP headers are not
+trusted, CIMD client metadata is cached for ten minutes, and expired OAuth rows are removed in
+bounded batches.
+
+Set `AGENTS_MCP_ALLOWED_HOSTS` only to trusted upstream Host values when a frontend proxy rewrites
+the Host header. `AGENTS_MCP_ALLOWED_ORIGINS` controls browser-origin MCP requests. Public URLs
+must use HTTPS in production. The frontend proxy must route `/mcp`, `/oauth/*` and OAuth discovery
+paths to the API, while `/app/mcp/*` remains a frontend route. Deploy schema migrations before
+enabling the server. To roll back, disable MCP admission first and retain grants, review records,
+and accepted tasks for recovery. A hosted deployment and real client compatibility must be verified
+independently of the isolated API tests.
+
+Focused integration coverage uses an MCP SDK client through the actual API composition for OAuth,
+tool discovery, agent creation/configuration, private-preview admission and website activation review.
+Restate preview completion is conditional on `AGENTS_TEST_RESTATE_BINARY`; hosted client compatibility
+and serving rollout remain separate acceptance gates.
 
 ## Catalogues and custom connections
 

@@ -153,6 +153,9 @@ try {
         VALUES('selected-post',$1,$2,'Selected fixture post','A real selected post.',ARRAY['FACEBOOK']::"SocialPlatform"[],'DRAFT',now(),now()),
           ('other-post','other-user','other-org','Other post','Private other post.',ARRAY['FACEBOOK']::"SocialPlatform"[],'DRAFT',now(),now()) ON CONFLICT DO NOTHING`,[scope.actor.subject,scope.tenantId]);
       emit({type:"selected-post"});
+    } else if (message.type === "connected-account" && Object.keys(message).length === 1) {
+      await core.pool.query('UPDATE "SocialChannelConnection" SET handle=$1 WHERE id=$2 AND "orgId"=$3', ["@fixture_page", "fixture-account", scope.tenantId]);
+      emit({type:"connected-account"});
     } else if (message.type === "content-entitlement" && typeof message.enabled === "boolean" && Object.keys(message).every(key => ["type", "enabled"].includes(key))) {
       await core.pool.query('UPDATE "OrganizationEntitlementGrant" SET value=$2::jsonb WHERE "orgId"=$1 AND key=\'feature.content.manage\'', [scope.tenantId,JSON.stringify(message.enabled)]);
       emit({type:"content-entitlement",enabled:message.enabled});

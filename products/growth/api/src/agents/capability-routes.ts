@@ -8,13 +8,14 @@ import { reportingDependencies } from "../services/analytics-reporting.js";
 import { requireCapability } from "../services/billing.js";
 import { authorizeGrowthAgentScope } from "./scope.js";
 import { growthAgentDigest, verifyGrowthProductCapability } from "./security.js";
-import { growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublicationV10 } from "./manifest.js";
+import { growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublicationV10, growthAgentPublicationV11, growthAgentPublicationV11Local, growthAgentPublicationV12, growthAgentPublicationV13, growthAgentPublicationV14 } from "./manifest.js";
 import { internalOperationContext, invokeInternalGrowthOperation } from "../operations/internal.js";
 import { assertGrowthReadAccess, issueGrowthEffectAccess } from "../operations/read-access.js";
 import { discoverGrowthRecords, readGrowthRecord, growthSourceHandle, resolveGrowthSourceHandle } from "./tools.js";
 import { GrowthAgentReviewStore, type GrowthDraftPorts } from "./reviews.js";
 const ajv=new Ajv({strict:false,allErrors:false});addFormats.default(ajv);
-const publications = new Map([growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublicationV10, growthAgentPublication].map(publication => [publication.policy.revision, publication]));
+const publicationIdentity = (revision:string,digest:string) => `${revision}:${digest}`;
+const publications = new Map([growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublicationV10, growthAgentPublicationV11, growthAgentPublicationV11Local, growthAgentPublicationV12, growthAgentPublicationV13, growthAgentPublicationV14, growthAgentPublication].map(publication => [publicationIdentity(publication.policy.revision,publication.manifest.digest), publication]));
 const validators = new Map([...publications.values()].map(publication => [publication.manifest.digest, new Map(publication.manifest.operations.map(operation => [operation.operation, ajv.compile(operation.inputSchema)]))]));
 function reviewReference(review:GrowthDraftReview,operationId:string):ProductReviewReference {
   return {id:review.id,product:"growth",taskId:review.taskId,operationId,payloadDigest:review.payloadDigest,
@@ -29,7 +30,7 @@ export function registerGrowthCapabilityRoutes(app:FastifyInstance,core:CoreCont
       typeof command.taskId!=="string"||typeof command.conversationId!=="string"||!command.actor||!command.authority||
       typeof command.bindingId!=="string"||!/^[a-f0-9]{64}$/.test(command.bindingDigest)||
       !["invoke","authorize","prepare","review","commit","evidence"].includes(command.control))throw new ApiError(400,"agent_capability_invalid","Check the capability request");
-    const authority=command.authority, publication=publications.get(authority.policyRevision), manifest=publication?.manifest, descriptor=manifest?.operations.find(o=>o.operation===command.operation);
+    const authority=command.authority, publication=publications.get(publicationIdentity(authority.policyRevision,authority.manifestDigest)), manifest=publication?.manifest, descriptor=manifest?.operations.find(o=>o.operation===command.operation);
     if(!descriptor||authority.kind!=="product"||authority.originProduct!=="growth"||authority.destinationProduct!=="growth"||
       authority.originTenantId!==authority.tenantId||authority.mappingRef!==`growth:${authority.tenantId}`||!publication||
       authority.manifestDigest!==manifest!.digest||authority.descriptorDigest!==growthAgentDigest(descriptor)||authority.handlerRef!==descriptor.handlerRef)

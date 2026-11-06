@@ -124,13 +124,12 @@ test("Growth specialist inspection bounds output and requires current root scope
   const core = { config: readConfig({ DATABASE_URL: "postgres://unused", LOG_LEVEL: "silent", FRONTEND_URL: origin, AGENTS_PRODUCT_API_URL: "https://agents.example.test", GROWTH_AGENTS_SIGNING_PRIVATE_KEY: privateKey }), pool: { query, connect: async () => ({ query, release() {} }) } } as unknown as CoreContext;
   const roots: string[] = [];
   const app = await buildApp(core, [(app, core) => registerGrowthAgentRoutes(app, core, { resolveScope: async () => ({ tenantId: "business", actor }), fetch: async (_url, init) => {
-    const command = JSON.parse(String(init?.body)); assert.equal(command.operation, "tasks.export"); roots.push(command.input.taskId);
+    const command = JSON.parse(String(init?.body)); assert.equal(command.operation, "tasks.observe"); roots.push(command.input.taskId);
     if (command.input.taskId !== "root") return Response.json({ error: "Task unavailable", code: "TASK_MISSING" }, { status: 404 });
-    return Response.json({ capture: { schemaVersion: "execution-export.v1", rootTaskId: invalidRoot ? "other" : "root", secret: "never project", tasks: [
-      { id: "child", parentTaskId: "root", state: "completed", output: redacted ? null : "😀".repeat(4100), input: "private prompt", modelCalls: ["private receipt"] },
-      { id: "foreign", parentTaskId: "another-root", state: "completed", output: "foreign" },
-      { id: "nested", parentTaskId: "child", state: "completed", output: "nested" },
-    ] } });
+    const child=command.input.childTaskId;
+    if(child==="missing")return Response.json({ error: "Task unavailable", code: "TASK_MISSING" }, { status: 404 });
+    return Response.json({ rootTaskId: invalidRoot ? "other" : "root", parentTaskId:child==="foreign"?"another-root":child==="nested"?"child":"root",
+      task:{id:child,state:"completed",output:redacted?null:"😀".repeat(4100),input:"private prompt"} });
   } })]);
   try {
     const first = await app.inject("/api/agents/tasks/root/specialists/child/result"); assert.equal(first.statusCode, 200, first.body);
@@ -142,7 +141,7 @@ test("Growth specialist inspection bounds output and requires current root scope
     assert.equal((await app.inject("/api/agents/tasks/another-root/specialists/child/result")).statusCode, 404);
     assert.equal((await app.inject("/api/agents/tasks/root/specialists/child/result?offset=-1")).statusCode, 400);
     redacted = true; assert.equal((await app.inject("/api/agents/tasks/root/specialists/child/result")).json().available, false);
-    invalidRoot = true; assert.equal((await app.inject("/api/agents/tasks/root/specialists/child/result")).statusCode, 502);
+    invalidRoot = true; assert.equal((await app.inject("/api/agents/tasks/root/specialists/child/result")).statusCode, 404);
     member = false; const count = roots.length; assert.equal((await app.inject("/api/agents/tasks/root/specialists/child/result")).statusCode, 403); assert.equal(roots.length, count);
   } finally { await app.close(); }
 });

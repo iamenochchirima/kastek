@@ -13,7 +13,7 @@ pnpm install --frozen-lockfile
 pnpm --filter labs dev
 ```
 
-The homepage runs at `http://localhost:3007/`. Run checks from the root:
+The homepage runs at `http://localhost:3012/`. Run checks from the root:
 
 ```sh
 pnpm --filter labs lint
@@ -47,6 +47,11 @@ Company and project enquiries stay on Labs routes. Chat uses an explicitly confi
 
 - The homepage loads the owner-approved Agents publication
   `2a25e036-7985-4c67-816a-8d05389d61aa` from `https://agents.kasitek.co.za`.
+  This default applies to production. Local development shows the contact fallback until a
+  local Agents API URL and local website deployment ID are configured; it never defaults to the
+  production widget. For the local Labs site at `http://localhost:3012`, allow that exact origin
+  in the local agent's website deployment and supply its ID with
+  `NEXT_PUBLIC_AGENTS_PUBLIC_URL=http://localhost:4100`.
   `NEXT_PUBLIC_AGENTS_PUBLIC_URL` and `NEXT_PUBLIC_AGENTS_WIDGET_DEPLOYMENT_ID` override that
   publication as a pair. When either override is present, both must be valid; an empty deployment
   ID disables chat and shows the contact fallback. The publication must allow the site's origin.

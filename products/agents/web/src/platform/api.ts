@@ -43,7 +43,7 @@ export type CustomerSetup = {
  supportHours?: SupportHours;
  behaviour: { agentName: string; language: string; tone: "friendly" | "professional" | "concise"; handoffInstructions: string };
 };
-export type Agent = { setup?: CustomerSetup | null; setupStep?: string | null; offering?: "faq" | "customer-service" | "booking" | null; id: string; name: string; draft: Configuration; draftRevision: number; updatedAt: string };
+export type Agent = { setup?: CustomerSetup | null; setupStep?: string | null; offering?: "faq" | "customer-service" | "booking" | null; id: string; name: string; avatar: string; draft: Configuration; draftRevision: number; updatedAt: string };
 export type Version = { id: string; number: number; configuration: Configuration; createdAt?: string };
 export type Deployment = { id: string; versionId: string; allowedOrigins: string[] };
 export type Organization = { id: string; name: string; role: string };
@@ -119,7 +119,7 @@ export function readStored<T>(key: string): T | null { try { return JSON.parse(s
 export function writeStored(key: string, value: unknown) { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* Recovery remains available through the task ID shown in the interface. */ } }
 
 export type Page<K extends string, T> = { [P in K]: T[] } & { nextCursor: string | null };
-export type AgentSummary = { id: string; name: string; offering: "faq" | "customer-service" | null; responsibilities: CustomerSetup["responsibilities"]; activeChannels: CustomerSetup["channels"]; lastCustomerConversationAt: string | null; draftRevision: number; updatedAt: string; latestVersion: { id: string; number: number; draftRevision: number; executionKind: string } | null; hasUnpublishedChanges: boolean };
+export type AgentSummary = { id: string; name: string; avatar: string; offering: "faq" | "customer-service" | null; responsibilities: CustomerSetup["responsibilities"]; activeChannels: CustomerSetup["channels"]; lastCustomerConversationAt: string | null; draftRevision: number; updatedAt: string; latestVersion: { id: string; number: number; draftRevision: number; executionKind: string } | null; hasUnpublishedChanges: boolean };
 export type ConversationSummary = { id: string; agentId: string; agentName: string; versionId: string; versionNumber: number; title: string; updatedAt: string; state: string; canContinue: boolean };
 export type TaskSummary = { id: string; agentId: string; agentName: string; versionId: string; versionNumber: number; conversationId: string | null; state: string; createdAt: string; updatedAt: string; canControl: boolean; reviewOnly: boolean };
 

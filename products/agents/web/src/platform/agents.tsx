@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useSearchParams, useBlocker } from "react-router-dom";
 import { toast } from "sonner";
 import { flushSync } from "react-dom";
-import { PiPulse as Activity, PiRobot as Bot, PiChatCircle as MessageSquare, PiPlus as Plus, PiSlidersHorizontal as Settings2, PiUploadSimple as Upload } from "react-icons/pi";
+import { PiPulse as Activity, PiChatCircle as MessageSquare, PiPlus as Plus, PiSlidersHorizontal as Settings2, PiUploadSimple as Upload } from "react-icons/pi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,6 +26,7 @@ import { AgentModel, ChatModelPicker } from "./agent-model";
 import { WebsiteChannelSettings } from "./website-channel-settings";
 import { WebsiteKnowledgeImport } from "./website-knowledge-import";
 import { AgentMemory } from "./agent-memory";
+import { AgentAvatar } from "./agent-avatar";
 
 export function AgentEditor() {
   const { organizationId, session } = useWorkspace();
@@ -134,7 +135,7 @@ export function AgentEditor() {
     finally { setDeleteBusy(false); }
   }
   if (!agent || !configuration) return <><ErrorMessage value={error} />{!error ? <Loading /> : null}</>;
-  return <div className={`agent-editor agent-view-${view}`}><header className="agent-editor-header"><div className="flex min-w-0 items-center gap-3"><span className="agent-avatar"><Bot size={20} /></span><h1 className="truncate text-lg font-semibold">{agent.name}</h1></div><div className="flex shrink-0 items-center gap-2"><AgentMemory agentId={agent.id} enabled={agent.draft.memory?.enabled ?? false} />{section === "configuration" ? <Button type="submit" form="agent-general-form" disabled={!needsApply || busy}>{busy ? "Saving…" : "Save changes"}</Button> : <Button size="sm" variant="outline" onClick={newChat}><Plus size={15} />New chat</Button>}</div></header>
+  return <div className={`agent-editor agent-view-${view}`}><header className="agent-editor-header"><div className="flex min-w-0 items-center gap-3"><AgentAvatar id={agent.avatar} size={34} /><h1 className="truncate text-lg font-semibold">{agent.name}</h1></div><div className="flex shrink-0 items-center gap-2"><AgentMemory agentId={agent.id} enabled={agent.draft.memory?.enabled ?? false} />{section === "configuration" ? <Button type="submit" form="agent-general-form" disabled={!needsApply || busy}>{busy ? "Saving…" : "Save changes"}</Button> : <Button size="sm" variant="outline" onClick={newChat}><Plus size={15} />New chat</Button>}</div></header>
     <nav className="agent-tabs" aria-label="Agent sections">{([["chat", "Chat", MessageSquare], ["activity", "Activity", Activity], ["configuration", "Configure", Settings2]] as const).map(([id, label, Icon]) => <button type="button" key={id} onClick={() => setSection(id)} aria-current={(id === "configuration" ? view === "configure" : view === id) ? "page" : undefined} className={(id === "configuration" ? view === "configure" : view === id) ? "is-active" : ""}><Icon size={16} />{label}</button>)}</nav>
     <div className="agent-editor-body"><ErrorMessage value={error} />{view === "configure" && pendingSetup ? <p role="status" className="mb-4 text-sm text-muted-foreground">Save changes to apply the updated setup.</p> : null}
     {view !== "configure" ? <Chat endpoint={`${organizationPath(organizationId)}/tasks`} key={`${agent.id}.${conversationId ?? "new"}.${chatGeneration}`} storageKey={`agents.chat.${session.account.id}.${organizationId}.${agent.id}.${conversationId ?? "new"}`} agentId={agent.id} initialConversationId={conversationId} expectedAgentId={agent.id} onConversationReady={id => { refresh(); if (!conversationId) navigate(`/app/agents/${agent.id}/conversations/${id}`, { replace: true }); }} view={view} composerAccessory={view === "chat" ? <ChatModelPicker organizationId={organizationId} agentId={agent.id} configuration={agent.draft} dirty={dirty} saving={busy} onSelect={changeChatModel} /> : undefined} cancellable /> : <>

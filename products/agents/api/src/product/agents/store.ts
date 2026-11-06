@@ -30,8 +30,10 @@ export class PlatformStore {
   deleteAgent=(...args:Parameters<AgentStore["deleteAgent"]>)=>this.agentStore.deleteAgent(...args);
   createAgent=(...args:Parameters<AgentStore["createAgent"]>)=>this.agentStore.createAgent(...args);
   saveConfiguration=(...args:Parameters<AgentStore["saveConfiguration"]>)=>this.agentStore.saveConfiguration(...args);
+  saveConfigurationInTransaction=(...args:Parameters<AgentStore["saveConfigurationInTransaction"]>)=>this.agentStore.saveConfigurationInTransaction(...args);
   createConfiguredAgent=(...args:Parameters<AgentStore["createConfiguredAgent"]>)=>this.agentStore.createConfiguredAgent(...args);
   updateDraft=(...args:Parameters<AgentStore["updateDraft"]>)=>this.agentStore.updateDraft(...args);
+  updateAgentProfile=(...args:Parameters<AgentStore["updateAgentProfile"]>)=>this.agentStore.updateAgentProfile(...args);
   createVersion=(...args:Parameters<AgentStore["createVersion"]>)=>this.agentStore.createVersion(...args);
   listVersions=(...args:Parameters<AgentStore["listVersions"]>)=>this.agentStore.listVersions(...args);
   getVersion=(...args:Parameters<AgentStore["getVersion"]>)=>this.agentStore.getVersion(...args);
@@ -49,6 +51,7 @@ export class PlatformStore {
   createPendingSupportStatusGrantInTransaction=(...args:Parameters<DeploymentStore["createPendingSupportStatusGrantInTransaction"]>)=>this.deploymentStore.createPendingSupportStatusGrantInTransaction(...args);
   admitTask=(...args:Parameters<AdmissionStore["admitTask"]>)=>this.admissionStore.admitTask(...args);
   admitTaskInTransaction=(...args:Parameters<AdmissionStore["admitTaskInTransaction"]>)=>this.admissionStore.admitTaskInTransaction(...args);
+  admitPrivatePreviewInTransaction=(...args:Parameters<AdmissionStore["admitPrivatePreviewInTransaction"]>)=>this.admissionStore.admitPrivatePreviewInTransaction(...args);
   admitPendingSupportStatusInTransaction=(...args:Parameters<AdmissionStore["admitPendingSupportStatusInTransaction"]>)=>this.admissionStore.admitPendingSupportStatusInTransaction(...args);
   getTask=(...args:Parameters<AdmissionStore["getTask"]>)=>this.admissionStore.getTask(...args);
   getConversation=(...args:Parameters<AdmissionStore["getConversation"]>)=>this.admissionStore.getConversation(...args);

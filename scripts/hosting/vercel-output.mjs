@@ -18,7 +18,7 @@ export function createVercelRoutes(product, { apiOrigin, frontendOrigin, growthR
   const api = origin(apiOrigin, 'API origin');
   const frontend = origin(frontendOrigin, 'FRONTEND_URL');
   const routes = [{ src: '/.*', headers: { 'x-content-type-options': 'nosniff', 'referrer-policy': 'strict-origin-when-cross-origin', 'cache-control': 'no-store', ...(preview ? { 'x-robots-tag': 'noindex, nofollow' } : {}) }, continue: true }];
-  const source = product === 'agency' ? '/api/tenant(?:/(.*))?' : product === 'growth' ? '(/api(?:/.*)?|/v1(?:/.*)?|/mcp|/oauth/(?:authorize|register|token|revoke))' : '(/api(?:/.*)?)';
+  const source = product === 'agency' ? '/api/tenant(?:/(.*))?' : product === 'growth' ? '(/api(?:/.*)?|/v1(?:/.*)?|/mcp|/oauth/(?:authorize|register|token|revoke))' : '(/api(?:/.*)?|/mcp|/oauth/(?:authorize|register|token|revoke)|/\\.well-known/oauth-(?:authorization-server|protected-resource)(?:/mcp)?)';
   const transforms = [header('forwarded'), header('x-kasitek-tenant-host')];
   if (product === 'agency' && agencyWildcardDomain) {
     if (agencyWildcardDomain !== `*.${frontend.hostname}` || frontend.port) throw Error('AGENCY_VERIFIED_WILDCARD_DOMAIN must match the configured frontend host');

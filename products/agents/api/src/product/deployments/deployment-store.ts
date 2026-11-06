@@ -16,6 +16,7 @@ import { assertCustomerNativeBindings } from "../../capabilities/connected-tools
 import { delegatedConfiguration } from "../../execution/delegation/scope";
 import { loadBookingPolicy } from "../../workflows/booking/policy";
 import { AuthorityStore } from "../../execution/admission/authority-store";
+import { defaultWebsiteAppearance, websiteAppearanceSchema } from "../../adapters/channels/website/appearance";
 
 type Db=Pool|PoolClient;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -55,7 +56,7 @@ export class DeploymentStore extends AuthorityStore {
       return this.publishWebsiteInTransaction(db,{...input,versionId:latest.id});
     });
   }
-  private async publishWebsiteInTransaction(db:PoolClient,input:{accountId:string;organizationId:string;agentId:string;versionId:string;allowedOrigins:string[]}):Promise<WebsiteDeployment> {
+  async publishWebsiteInTransaction(db:PoolClient,input:{accountId:string;organizationId:string;agentId:string;versionId:string;allowedOrigins:string[]}):Promise<WebsiteDeployment> {
     const origins = [...new Set(input.allowedOrigins.map(normalizeWebsiteDomain))];
     if (origins.length < 1 || origins.length > 10) throw new PlatformError("INVALID_ORIGIN", 400, "Select 1 to 10 website origins");
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
@@ -63,8 +64,11 @@ export class DeploymentStore extends AuthorityStore {
       const version = await this.version(db, input.organizationId, input.versionId);
       if (version.agent_id !== input.agentId) denied();
       await this.assertWebsiteConfigurationInTransaction(db,{organizationId:input.organizationId,agentId:input.agentId,version});
-      return (await db.query<WebsiteDeployment>(`INSERT INTO agents_platform.website_deployments(id,organization_id,agent_id,version_id,allowed_origins,published_by)
-        VALUES($1,$2,$3,$4,$5,$6) RETURNING *`, [randomUUID(), input.organizationId, input.agentId, version.id, JSON.stringify(origins), input.accountId])).rows[0]!;
+      await db.query("SELECT id FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 FOR SHARE", [input.organizationId, input.agentId]);
+      const draft = (await db.query("SELECT appearance FROM agents_platform.website_appearance_drafts WHERE organization_id=$1 AND agent_id=$2 FOR SHARE", [input.organizationId, input.agentId])).rows[0];
+      const appearance = websiteAppearanceSchema.parse(draft?.appearance ?? defaultWebsiteAppearance);
+      return (await db.query<WebsiteDeployment>(`INSERT INTO agents_platform.website_deployments(id,organization_id,agent_id,version_id,allowed_origins,published_by,appearance)
+        VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`, [randomUUID(), input.organizationId, input.agentId, version.id, JSON.stringify(origins), input.accountId, appearance])).rows[0]!;
   }
   async assertWebsiteConfigurationInTransaction(db:PoolClient,input:{organizationId:string;agentId:string;version:VersionRecord}):Promise<void> {
       const {version}=input;

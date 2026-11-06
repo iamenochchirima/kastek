@@ -9,6 +9,7 @@ import { message } from "./api";
 import "./management.css";
 import "./workspace-surfaces.css";
 import { ModelProvidersSettings } from "./model-providers";
+import { McpAccess } from "./mcp-access";
 
 export function SettingsPage() {
   const { session, organizationId, createWorkspace, selectWorkspace, logout } = useWorkspace();
@@ -48,6 +49,7 @@ export function SettingsPage() {
       </div>
     </section>
     <ModelProvidersSettings key={organizationId} organizationId={organizationId} owner={workspace?.role === "owner"} />
+    <McpAccess key={organizationId} organizationId={organizationId} />
     <section className="settings-group" aria-labelledby="settings-appearance">
       <h2 id="settings-appearance" className="settings-heading"><Palette size={16} strokeWidth={1.7} aria-hidden="true" />Appearance</h2>
       <fieldset className="space-y-3"><legend className="mb-3 text-sm">Theme</legend><div className="flex flex-wrap gap-2">{([{value:"light",label:"Light",Icon:Sun},{value:"dark",label:"Dark",Icon:Moon},{value:"system",label:"System",Icon:Monitor}] as const).map(({value,label,Icon}) => <Button key={value} size="sm" variant={theme === value ? "secondary" : "outline"} aria-pressed={theme === value} onClick={() => changeTheme(value)}><Icon className="size-4" />{label}</Button>)}</div></fieldset>
