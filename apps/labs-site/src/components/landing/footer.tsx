@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { productUrls } from "@/lib/site-config";
 import { LandingImage } from "./landing-image";
 
 export function Footer() {
@@ -19,13 +18,13 @@ export function Footer() {
           {"Good ideas. Real working tools."}
         </p>
         <nav aria-label="Footer products">
-          <a href={productUrls.agents}>
+          <a href="/waitlist">
             {"Agents"}
           </a>
-          <a href={productUrls.growth}>
+          <a href="/waitlist">
             {"Growth"}
           </a>
-          <a href={productUrls.agency}>
+          <a href="/waitlist">
             {"Agency"}
           </a>
         </nav>

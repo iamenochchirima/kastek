@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import { appUrl, productUrls } from "@/lib/site-config";
 
 type LabsHeaderProps = {
   home?: boolean;
@@ -33,9 +32,9 @@ export function LabsHeader({ home = false, tone = "dark" }: LabsHeaderProps) {
       </Link>
 
       <nav className="desktop-nav" aria-label="Main navigation">
-        <a href={productUrls.growth}>Growth</a>
+        <Link href="/waitlist">Growth</Link>
         <a href={`${sectionPrefix}#studio`}>Services</a>
-        <a href={productUrls.agency}>Agency</a>
+        <Link href="/waitlist">Agency</Link>
         <Link href="/pricing">Pricing</Link>
         <Link href="/get-quote">Get a quote</Link>
       </nav>
@@ -50,9 +49,9 @@ export function LabsHeader({ home = false, tone = "dark" }: LabsHeaderProps) {
       <details className="mobile-nav">
         <summary>Menu</summary>
         <div className="mobile-nav-panel">
-          <a href={productUrls.growth}>Growth</a>
+          <Link href="/waitlist">Growth</Link>
           <a href={`${sectionPrefix}#studio`}>Services</a>
-          <a href={productUrls.agency}>Agency</a>
+          <Link href="/waitlist">Agency</Link>
           <Link href="/pricing">Pricing</Link>
           <Link href="/early-access">Early access</Link>
           <Link href="/get-quote">Get a quote</Link>
@@ -94,18 +93,16 @@ export function LabsFooter() {
         <nav className="footer-nav" aria-label="Footer navigation">
           <div className="footer-column">
             <p>Work with us</p>
-            <a href={productUrls.growth}>Growth</a>
+            <Link href="/waitlist">Growth</Link>
             <Link href="/#studio">Services</Link>
-            <a href={productUrls.agency}>Agency</a>
+            <Link href="/waitlist">Agency</Link>
             <Link href="/get-quote">Request a quote</Link>
           </div>
           <div className="footer-column">
             <p>Platform</p>
-            <a href={productUrls.agents}>Agents</a>
+            <Link href="/waitlist">Agents</Link>
             <Link href="/pricing">Pricing</Link>
-            <a href={appUrl} target="_blank" rel="noreferrer">
-              Open Kasitek app ↗
-            </a>
+            <Link href="/waitlist">Request product access</Link>
           </div>
           <div className="footer-column">
             <p>Company</p>
