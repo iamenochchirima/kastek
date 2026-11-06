@@ -55,7 +55,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   });
   it("updates only the agent profile without a configuration revision",async()=>{
     const f=await fixture();
-    const request=async(method:string,path:string,body:unknown)=>{const response=await fetch(endpoint+path,{method,headers:{cookie:f.cookie,"content-type":"application/json"},body:JSON.stringify(body)});return {status:response.status,body:await response.json() as any};};
+    const request=async(method:string,path:string,body:unknown)=>{const response=await fetch(endpoint+path,{method,headers:{cookie:f.cookie,"content-type":"application/json",origin},body:JSON.stringify(body)});return {status:response.status,body:await response.json() as any};};
     const before=(await get(`${f.base}/agents/${f.agent}`,f.cookie)).body.agent;
     const renamed=await request("PATCH",`${f.base}/agents/${f.agent}`,{name:"Desk",avatar:"orbit"});
     expect(renamed.status).toBe(200);expect(renamed.body.agent).toMatchObject({id:f.agent,name:"Desk",avatar:"orbit",draft_revision:before.draft_revision});

@@ -16,7 +16,7 @@ export class PlatformDiscovery {
     const status=query.status??"all";
     const scope={kind:"agents",user:user.id,org,q,status},cursor=readPageCursor(query.cursor,scope);
     const rows=(await this.pool.query(`WITH page AS MATERIALIZED (
-      SELECT a.id,a.organization_id,a.name,a.offering,a.setup,a.draft_revision,a.updated_at,a.created_at,
+      SELECT a.id,a.organization_id,a.name,a.avatar,a.offering,a.setup,a.draft_revision,a.updated_at,a.created_at,
         v.id AS version_id,v.number AS version_number,v.draft_revision AS version_draft_revision,v.execution_kind AS version_execution_kind
       FROM agents_platform.agents a
       LEFT JOIN LATERAL (SELECT id,number,draft_revision,execution_kind FROM agents_platform.agent_versions WHERE agent_id=a.id ORDER BY number DESC LIMIT 1) v ON true
