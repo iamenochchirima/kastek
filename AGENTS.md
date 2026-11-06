@@ -8,12 +8,22 @@ For a multi-PR program that needs one shared execution sequence,
 [`products/growth/docs/plans/templates/PROJECT_PLAN.md`](products/growth/docs/plans/templates/PROJECT_PLAN.md) is an optional
 starting point. It contains no active product decisions.
 
+## Branching and commits
+
+Work directly on `main`. Do not create a feature branch or pull request unless the owner asks for
+one, or the change is high-risk (a destructive schema migration, a cross-product contract change,
+or a security boundary). Until a CI pipeline exists, local verification replaces the pull-request
+gate: run the relevant typecheck, build, lint and focused tests before pushing.
+
+Commit in small coherent steps on `main`, push frequently, and tag deployable states. Never
+force-push or rewrite shared history.
+
 ## Documentation and Release Impact
 
 For feature, API, data, integration, observability, deployment, or user-workflow changes:
 
 - Read [`products/growth/docs/internal/operations/release-process.md`](products/growth/docs/internal/operations/release-process.md)
-  and include its release-record decisions in the plan or pull request.
+  and include its release-record decisions in the plan or release record.
 - Update current technical documentation in `products/growth/docs/internal/` or supported user/API documentation
   in `products/growth/docs/public/docs/` in the same change when behavior or contracts change.
 - Do not create routine task plans in `products/growth/docs/plans/active/`. Former plans are preserved in
@@ -31,8 +41,8 @@ file merely because a change spans files or layers.
 
 Use a settled Linear spec document for substantial requirements, then split multi-session work
 into independently verifiable Linear issues. Each issue should be understandable to a fresh agent.
-Keep its acceptance criteria in the issue, its code and verification evidence in the pull request,
-and current shipped behavior in the feature map.
+Keep its acceptance criteria in the issue, its code and verification evidence in the commit or
+release record, and current shipped behavior in the feature map.
 
 A separate program plan is warranted only when several dependent changes need one shared
 sequence, ownership boundary, and verification rule. Link it to the tracker items and agree its
@@ -394,7 +404,7 @@ Linear implementation issue when one exists, linked Linear Project status when a
 feature-map entry, and relevant technical docs. If they disagree, identify the discrepancy before
 proceeding; do not copy an unverified claim forward.
 
-Update affected records in the same pull request:
+Update affected records in the same change:
 
 - Keep requirements, acceptance criteria, dependencies, and blockers on the Linear issue.
 - Keep approval, assignee, and work status on the Linear issue. Use a linked Linear Project when
@@ -407,18 +417,19 @@ Update affected records in the same pull request:
   [documentation maintenance](products/growth/docs/internal/operations/documentation-maintenance.md).
 - Record a new ADR only for a qualifying architecture decision, not every implementation choice.
 
-Before requesting review, state in the pull request which records changed, link the changes,
+When a pull request is used, state in it which records changed, link the changes,
 and explain which records were unaffected. Include evidence for claims about the running product.
 Do not mark an issue `Done` until its change is merged and verified. After merge, confirm the
 issue and linked Project status, when present, agree with what landed.
 
-If a record cannot be verified or updated, report the gap in the pull request. Do not silently
+If a record cannot be verified or updated, report the gap in the change or pull request. Do not silently
 declare the work complete.
 
 ## SPECS AND ISSUES
 
 Store settled specifications as Linear documents and implementation tasks or bugs as Linear issues
-in the KasiTek (`KAS`) team. Pull requests hold code changes and review evidence. Search Linear for
+in the KasiTek (`KAS`) team. Commits on `main` hold code changes; pull requests, when used, hold
+review evidence. Search Linear for
 an existing specification or issue before creating one. Keep exploratory research in Stash and
 current technical behavior in repository documentation. Do not copy Linear issue contents into
 repository docs.
@@ -449,8 +460,9 @@ merging, or deploying.
 
 ## PULL REQUESTS
 
-For substantial, multi-phase, or unattended work that will lead to a pull request, use the
-project-installed `show-me-your-work` skill. Keep its local decision trail at
+Pull requests are optional. Use one when the owner asks, or for a high-risk change that benefits
+from review. When a pull request is used, use the project-installed `show-me-your-work` skill.
+Keep its local decision trail at
 `.audit/<task-slug>.tsv`; `.audit/` is ignored by git. A pull request must say why and what changed,
 what was actually verified, and any known risk or unfinished work. Link a committed decision
 trail only when the reviewer needs it. Never claim a check passed without evidence.
