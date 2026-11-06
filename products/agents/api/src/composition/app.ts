@@ -26,6 +26,7 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import { websiteWidgetScript } from "../adapters/channels/website/widget";
 import { agentCreationOperations } from "../product/agents/creation-operations";
+import { agentAvatarSchema } from "../product/agents/avatars";
 import { websiteAppearanceSchema } from "../adapters/channels/website/appearance";
 import { registerWebsiteAppearanceRoutes } from "../product/deployments/appearance-routes";
 import { ConnectedExecutor } from "../capabilities/connected-tools/connected-executor";
@@ -467,10 +468,16 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.get(`${base}/agents/:agentId/setup-readiness`, async request => ({ readiness: await creationOperations.readiness({ accountId: (await account(request)).id, organizationId: organizationId(request) }, uuid.parse(parameters(request).agentId)) }));
   app.put(`${base}/agents/:agentId`, async (request) => {
-    const input = z.strictObject({ name: z.string().min(1).max(120).optional(), configuration: agentConfigurationSchema,
-      expectedRevision: z.number().int().positive() }).parse(request.body);
+    const input = z.strictObject({ name: z.string().min(1).max(120).optional(), avatar: agentAvatarSchema.optional(),
+      configuration: agentConfigurationSchema, expectedRevision: z.number().int().positive() }).parse(request.body);
     return { agent: dto(await store.updateDraft({ ...input, accountId: (await account(request)).id,
       organizationId: organizationId(request), agentId: uuid.parse(parameters(request).agentId) })) };
+  });
+  app.patch(`${base}/agents/:agentId`, async (request) => {
+    const input = z.strictObject({ name: z.string().min(1).max(120).optional(), avatar: agentAvatarSchema.optional() })
+      .refine(value => value.name !== undefined || value.avatar !== undefined, { message: "Nothing to update" }).parse(request.body);
+    return { agent: dto(await creationOperations.profile({ accountId: (await account(request)).id,
+      organizationId: organizationId(request) }, uuid.parse(parameters(request).agentId), input)) };
   });
   app.post(`${base}/agents/:agentId/configuration`, async request => {
     const result = await creationOperations.save({ accountId: (await account(request)).id,

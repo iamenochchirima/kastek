@@ -15,6 +15,7 @@ type AgentConfiguration,type ExecutionGrant
 import { assertSkillRequirements } from "../../capabilities/skills/requirement-authority";
 import { loadBookingPolicy } from "../../workflows/booking/policy";
 import { customerSetupSchema, customerConfigurationForSetup, applyCustomerSetup, type CustomerSetup } from "../offerings/customer-setup";
+import { randomAgentAvatar } from "./avatars";
 import { customerConfiguration } from "../offerings/offerings";
 import { compilePublishedComposition } from "../../execution/programs/publication";
 import { assertComposition, assertInspectableComposition } from "../../execution/programs/composition";
@@ -100,20 +101,28 @@ export class AgentStore extends AuthorityStore {
   async createAgent(input: { accountId: string; organizationId: string; name: string; offering?: "faq" | "customer-service"; configuration?: AgentConfiguration }): Promise<AgentRecord> {
     const config = agentConfigurationSchema.parse(input.configuration ?? customerConfiguration(input.offering));
     return this.transaction(async (db) => { await this.membership(db, input.accountId, input.organizationId);
-      return (await db.query<AgentRecord>(`INSERT INTO agents_platform.agents(id,organization_id,name,draft,created_by,offering)
-        VALUES($1,$2,$3,$4,$5,$6) RETURNING *`, [randomUUID(), input.organizationId, text(input.name, 120), config, input.accountId, input.offering??(input.configuration?null:"faq")])).rows[0]!; });
+      return (await db.query<AgentRecord>(`INSERT INTO agents_platform.agents(id,organization_id,name,avatar,draft,created_by,offering)
+        VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`, [randomUUID(), input.organizationId, text(input.name, 120), randomAgentAvatar(), config, input.accountId, input.offering??(input.configuration?null:"faq")])).rows[0]!; });
   }
-  async updateDraft(input: { accountId: string; organizationId: string; agentId: string; name?: string;
+  async updateDraft(input: { accountId: string; organizationId: string; agentId: string; name?: string; avatar?: string;
     configuration: AgentConfiguration; expectedRevision: number }): Promise<AgentRecord> {
     const config = agentConfigurationSchema.parse(input.configuration);
     return this.transaction(async (db) => { await this.membership(db, input.accountId, input.organizationId);
       const current=(await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL AND draft_revision=$3 FOR UPDATE",[input.organizationId,input.agentId,input.expectedRevision])).rows[0];
       if(!current)throw new PlatformError("DRAFT_CONFLICT",409,"Agent settings changed. Refresh and try again.");
       const setup=updatedSupportHoursSetup(current,config);
-      const row = (await db.query<AgentRecord>(`UPDATE agents_platform.agents SET draft=$4,name=coalesce($5,name),setup=coalesce($6,setup),
+      const row = (await db.query<AgentRecord>(`UPDATE agents_platform.agents SET draft=$4,name=coalesce($5,name),avatar=coalesce($6,avatar),setup=coalesce($7,setup),
         draft_revision=draft_revision+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL AND draft_revision=$3 RETURNING *`,
-      [input.organizationId, input.agentId, input.expectedRevision, config, input.name === undefined ? null : text(input.name, 120),setup??null])).rows[0];
+      [input.organizationId, input.agentId, input.expectedRevision, config, input.name === undefined ? null : text(input.name, 120),input.avatar??null,setup??null])).rows[0];
       if (!row) throw new PlatformError("DRAFT_CONFLICT", 409, "Agent settings changed. Refresh and try again.");
+      return row; });
+  }
+  async updateAgentProfile(input: { accountId: string; organizationId: string; agentId: string; name?: string; avatar?: string }): Promise<AgentRecord> {
+    if(input.name===undefined&&input.avatar===undefined)return this.getAgent(input.accountId,input.organizationId,input.agentId);
+    return this.transaction(async (db) => { await this.membership(db, input.accountId, input.organizationId);
+      const row=(await db.query<AgentRecord>(`UPDATE agents_platform.agents SET name=coalesce($3,name),avatar=coalesce($4,avatar),updated_at=now()
+        WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL RETURNING *`,[input.organizationId,input.agentId,
+        input.name===undefined?null:text(input.name,120),input.avatar??null])).rows[0]??absent();
       return row; });
   }
   async createConfiguredAgent(input: {accountId:string;organizationId:string;name:string;offering?:"faq"|"customer-service";configuration?:AgentConfiguration;setup?:CustomerSetup;operationId?:string}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
@@ -131,16 +140,16 @@ export class AgentStore extends AuthorityStore {
           return {agent:existing,snapshot,deployments:[]};
         }
       }
-      const agent=(await db.query<AgentRecord>(`INSERT INTO agents_platform.agents(id,organization_id,name,draft,created_by,offering,setup,setup_step,setup_operation_id,setup_request_digest)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,[randomUUID(),input.organizationId,text(input.name,120),config,input.accountId,setup?"customer-service":input.offering??(input.configuration?null:"faq"),setup,setup?"Responsibilities":null,input.operationId??null,input.operationId?digest:null])).rows[0]!;
+      const agent=(await db.query<AgentRecord>(`INSERT INTO agents_platform.agents(id,organization_id,name,avatar,draft,created_by,offering,setup,setup_step,setup_operation_id,setup_request_digest)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,[randomUUID(),input.organizationId,text(input.name,120),randomAgentAvatar(),config,input.accountId,setup?"customer-service":input.offering??(input.configuration?null:"faq"),setup,setup?"Responsibilities":null,input.operationId??null,input.operationId?digest:null])).rows[0]!;
       const snapshot=await this.createVersionInTransaction(db,{...input,agentId:agent.id},agent);
       return {agent,snapshot,deployments:[]};
     });
   }
-  async saveConfiguration(input:{accountId:string;organizationId:string;agentId:string;name?:string;configuration:AgentConfiguration;expectedRevision:number;confirmImpact?:boolean;setup?:CustomerSetup;setupStep?:string}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
+  async saveConfiguration(input:{accountId:string;organizationId:string;agentId:string;name?:string;avatar?:string;configuration:AgentConfiguration;expectedRevision:number;confirmImpact?:boolean;setup?:CustomerSetup;setupStep?:string}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
     return this.transaction(db=>this.saveConfigurationInTransaction(db,input));
   }
-  async saveConfigurationInTransaction(db:PoolClient,input:{accountId:string;organizationId:string;agentId:string;name?:string;configuration:AgentConfiguration;expectedRevision:number;confirmImpact?:boolean;setup?:CustomerSetup;setupStep?:string}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
+  async saveConfigurationInTransaction(db:PoolClient,input:{accountId:string;organizationId:string;agentId:string;name?:string;avatar?:string;configuration:AgentConfiguration;expectedRevision:number;confirmImpact?:boolean;setup?:CustomerSetup;setupStep?:string}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
     let setup=input.setup===undefined?undefined:customerSetupSchema.parse(input.setup);
     let config=agentConfigurationSchema.parse(input.configuration);
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
@@ -159,6 +168,7 @@ export class AgentStore extends AuthorityStore {
       let deployments=(await db.query<WebsiteDeployment>("SELECT * FROM agents_platform.website_deployments WHERE organization_id=$1 AND agent_id=$2 AND revoked_at IS NULL AND NOT EXISTS (SELECT 1 FROM agents_platform.evaluation_trial_channels e WHERE e.deployment_id=website_deployments.id) ORDER BY id FOR UPDATE",[input.organizationId,input.agentId])).rows;
       const channelDeployments = (await db.query("SELECT id,agent_id FROM agents_platform.channel_deployments WHERE organization_id=$1 AND agent_id=$2 AND state='active' ORDER BY id FOR UPDATE", [input.organizationId,input.agentId])).rows;
       const name=input.name===undefined?agent.name:text(input.name,120);
+      const avatar=input.avatar??agent.avatar;
       const setupChanged=(setup!==undefined&&!isDeepStrictEqual(agent.setup,setup))||(input.setupStep!==undefined&&agent.setup_step!==input.setupStep);
       const changed=!isDeepStrictEqual(agentConfigurationSchema.parse(agent.draft),config)||setupChanged;
       let refreshRelease = false;
@@ -174,14 +184,14 @@ export class AgentStore extends AuthorityStore {
           refreshRelease = true;
         }
       }
-      if(!changed&&!refreshRelease&&latest&&latest.draft_revision===agent.draft_revision&&name===agent.name)return {agent,snapshot:latest,deployments};
+      if(!changed&&!refreshRelease&&latest&&latest.draft_revision===agent.draft_revision&&name===agent.name&&avatar===agent.avatar)return {agent,snapshot:latest,deployments};
       if(!changed&&!refreshRelease&&latest&&latest.draft_revision===agent.draft_revision){
-        agent=(await db.query<AgentRecord>("UPDATE agents_platform.agents SET name=$3,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *",[input.organizationId,input.agentId,name])).rows[0]!;
+        agent=(await db.query<AgentRecord>("UPDATE agents_platform.agents SET name=$3,avatar=$4,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *",[input.organizationId,input.agentId,name,avatar])).rows[0]!;
         return {agent,snapshot:latest,deployments};
       }
       if(input.confirmImpact!==true&&(((previous?canonical(previous)!==canonical(config):changed)&&(deployments.length>0||channelDeployments.length>0))||authority.expanded))throw new PlatformError("CONFIGURATION_CONFIRMATION_REQUIRED",409,"Confirm changes to agent permissions or connected customer channels.");
-      agent=(await db.query<AgentRecord>(`UPDATE agents_platform.agents SET draft=$3,name=$4,setup=coalesce($5,setup),setup_step=coalesce($6,setup_step),draft_revision=draft_revision+1,updated_at=now()
-        WHERE organization_id=$1 AND id=$2 RETURNING *`,[input.organizationId,input.agentId,config,name,setup??null,input.setupStep??null])).rows[0]!;
+      agent=(await db.query<AgentRecord>(`UPDATE agents_platform.agents SET draft=$3,name=$4,avatar=$7,setup=coalesce($5,setup),setup_step=coalesce($6,setup_step),draft_revision=draft_revision+1,updated_at=now()
+        WHERE organization_id=$1 AND id=$2 RETURNING *`,[input.organizationId,input.agentId,config,name,setup??null,input.setupStep??null,avatar])).rows[0]!;
       const snapshot=await this.createVersionInTransaction(db,input,agent);
       const deploymentStore=new DeploymentStore(this.pool);
       for(const deployment of deployments)await deploymentStore.assertWebsiteConfigurationInTransaction(db,{organizationId:input.organizationId,agentId:deployment.agent_id,version:snapshot});

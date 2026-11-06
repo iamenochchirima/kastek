@@ -50,7 +50,20 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     expect(new Set([...first.body.agents,...second.body.agents].map(x=>x.id)).size).toBe(4);
     const all=await get(`${f.base}/agents/summaries`,f.cookie);expect(all.body.agents.find(x=>x.id===f.agent)).toMatchObject({latestVersion:{id:f.version,number:1},hasUnpublishedChanges:false});
     expect(JSON.stringify(all.body)).not.toMatch(/instructions|configuration|position/);
+    expect(all.body.agents.every(x=>typeof x.avatar==="string"&&x.avatar.length>0)).toBe(true);
     expect((await get(`${f.base}/agents/summaries?limit=101`,f.cookie)).status).toBe(400);
+  });
+  it("updates only the agent profile without a configuration revision",async()=>{
+    const f=await fixture();
+    const request=async(method:string,path:string,body:unknown)=>{const response=await fetch(endpoint+path,{method,headers:{cookie:f.cookie,"content-type":"application/json",origin},body:JSON.stringify(body)});return {status:response.status,body:await response.json() as any};};
+    const before=(await get(`${f.base}/agents/${f.agent}`,f.cookie)).body.agent;
+    const renamed=await request("PATCH",`${f.base}/agents/${f.agent}`,{name:"Desk",avatar:"orbit"});
+    expect(renamed.status).toBe(200);expect(renamed.body.agent).toMatchObject({id:f.agent,name:"Desk",avatar:"orbit",draftRevision:before.draftRevision});
+    const avatarOnly=await request("PATCH",`${f.base}/agents/${f.agent}`,{avatar:"moss"});
+    expect(avatarOnly.status).toBe(200);expect(avatarOnly.body.agent).toMatchObject({name:"Desk",avatar:"moss"});
+    expect((await request("PATCH",`${f.base}/agents/${f.agent}`,{})).status).toBe(400);
+    expect((await request("PATCH",`${f.base}/agents/${f.agent}`,{avatar:"not an avatar"})).status).toBe(400);
+    expect((await request("PATCH",`${f.base}/agents/${f.agent}`,{name:"  "})).status).toBe(400);
   });
   it("filters agent configuration status before pagination and binds the cursor",async()=>{
     const f=await fixture();

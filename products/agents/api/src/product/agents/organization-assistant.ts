@@ -4,6 +4,7 @@ import type { PoolClient } from "pg";
 import { defaultBusinessConfiguration, PlatformError } from "../../contracts/contracts";
 import type { AgentRecord, VersionRecord } from "../../contracts/records";
 import { AuthorityStore } from "../../execution/admission/authority-store";
+import { randomAgentAvatar } from "./avatars";
 
 export type OrganizationAssistant = {
   state: "absent" | "draft" | "configured" | "deleted";
@@ -43,8 +44,8 @@ export async function ensureOrganizationAssistantInTransaction(
   configuration.tools = ["tasks.inspect", "tasks.cancel"];
   configuration.instructions = "Help the signed-in organization member with their request. Use only configured knowledge, tools and specialists. Ask for missing details when needed. Report actions and results only when confirmed. Return private drafts to the requesting member.";
   const agentId = randomUUID();
-  await db.query(`INSERT INTO agents_platform.agents(id,organization_id,name,draft,created_by)
-    VALUES($1,$2,'Assistant',$3,$4)`, [agentId, input.organizationId, configuration, input.accountId]);
+  await db.query(`INSERT INTO agents_platform.agents(id,organization_id,name,avatar,draft,created_by)
+    VALUES($1,$2,'Assistant',$3,$4,$5)`, [agentId, input.organizationId, randomAgentAvatar(), configuration, input.accountId]);
   await db.query("INSERT INTO agents_platform.organization_assistants(organization_id,agent_id) VALUES($1,$2)", [input.organizationId, agentId]);
   await recordAssistantLifecycle(db,{organizationId:input.organizationId,key:agentId,action:"provisioned",channel:"app"});
   return readAssistant(db, input.organizationId);

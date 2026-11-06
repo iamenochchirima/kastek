@@ -71,7 +71,7 @@ test("live harness: scoped memory, tool rounds, contextual follow-up and new con
   const suffix = Date.now().toString(36);
   await page.getByRole("textbox", { name: "Workspace name" }).fill(`Harness verification ${suffix}`);
   await page.getByRole("dialog").getByRole("button", { name: "Create workspace", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Agents", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your agents", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Create agent", exact: true }).click();
   await page.getByRole("textbox", { name: "Name", exact: true }).fill(`Assistant ${suffix}`);
   await page.getByRole("dialog").getByRole("button", { name: "Create agent", exact: true }).click();

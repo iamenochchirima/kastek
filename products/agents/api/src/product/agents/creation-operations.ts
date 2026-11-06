@@ -4,13 +4,17 @@ import { agentConfigurationSchema, type AgentConfiguration } from "../../contrac
 import { customerSetupSchema } from "../offerings/customer-setup";
 import type { PlatformStore } from "./store";
 import { customerSetupReadiness } from "./setup-readiness";
+import { agentAvatarSchema } from "./avatars";
 type CreationScope = { accountId: string; organizationId: string };
 
-const createSchema = z.strictObject({ name: z.string().min(1).max(120), offering: z.literal("customer-service").optional(),
+const nameSchema = z.string().trim().min(1).max(120);
+const createSchema = z.strictObject({ name: nameSchema, offering: z.literal("customer-service").optional(),
  configuration: agentConfigurationSchema.optional(), setup: customerSetupSchema.optional(), operationId: z.uuid().optional() });
-const saveSchema = z.strictObject({ name: z.string().min(1).max(120).optional(), configuration: agentConfigurationSchema,
+const saveSchema = z.strictObject({ name: nameSchema.optional(), avatar: agentAvatarSchema.optional(), configuration: agentConfigurationSchema,
  expectedRevision: z.number().int().positive(), confirmImpact: z.boolean().optional(), setup: customerSetupSchema.optional(),
  setupStep: z.enum(["Business", "Responsibilities", "Knowledge", "Channels", "Preferences", "Bookings", "Review", "complete"]).optional() });
+const profileSchema = z.strictObject({ name: nameSchema.optional(), avatar: agentAvatarSchema.optional() })
+ .refine(input => input.name !== undefined || input.avatar !== undefined, { message: "Nothing to update" });
 
 /** Product operations use the same authorization and validation for every caller. */
 export function agentCreationOperations(options: { store: PlatformStore; pool: Pool; assertBindings(configuration: AgentConfiguration): Promise<void> }) {
@@ -28,6 +32,10 @@ export function agentCreationOperations(options: { store: PlatformStore; pool: P
    const input = saveSchema.parse(raw);
    await options.assertBindings(input.configuration);
    return store.saveConfiguration({ ...input, ...scope, agentId: z.uuid().parse(agentId) });
+  },
+  profile: (scope: CreationScope, agentId: string, raw: unknown) => {
+   const input = profileSchema.parse(raw);
+   return store.updateAgentProfile({ ...scope, agentId: z.uuid().parse(agentId), ...input });
   },
  };
 }

@@ -33,6 +33,7 @@ export class PlatformStore {
   saveConfigurationInTransaction=(...args:Parameters<AgentStore["saveConfigurationInTransaction"]>)=>this.agentStore.saveConfigurationInTransaction(...args);
   createConfiguredAgent=(...args:Parameters<AgentStore["createConfiguredAgent"]>)=>this.agentStore.createConfiguredAgent(...args);
   updateDraft=(...args:Parameters<AgentStore["updateDraft"]>)=>this.agentStore.updateDraft(...args);
+  updateAgentProfile=(...args:Parameters<AgentStore["updateAgentProfile"]>)=>this.agentStore.updateAgentProfile(...args);
   createVersion=(...args:Parameters<AgentStore["createVersion"]>)=>this.agentStore.createVersion(...args);
   listVersions=(...args:Parameters<AgentStore["listVersions"]>)=>this.agentStore.listVersions(...args);
   getVersion=(...args:Parameters<AgentStore["getVersion"]>)=>this.agentStore.getVersion(...args);
