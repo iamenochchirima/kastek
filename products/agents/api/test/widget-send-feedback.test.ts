@@ -4,11 +4,12 @@ import { websiteWidgetScript } from "../src/adapters/channels/website/widget";
 
 const { chromium, expect: browserExpect } = createRequire(__filename)("../../web/node_modules/@playwright/test");
 
-async function fixture(initialFailure?: { status: number; code: string; message: string }, deferredReply = false) {
+async function fixture(initialFailure?: { status: number; code: string; message: string }, deferredReply = false, holdSend = false) {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
-  const messages: { authorKind: string; body: string }[] = [], submitted: { requestKey: string; body: string }[] = [];
+  const messages: { id: string; authorKind: string; body: string }[] = [], submitted: { requestKey: string; body: string }[] = [];
   let failure = initialFailure, reads = 0, failNextRead = false, responseStatus: string | null = null;
+  let releaseSend!: () => void; const sendGate = new Promise<void>(resolve => { releaseSend = resolve; });
   await page.clock.install();
   await page.route("http://localhost/**", async (route: any) => {
     const request = route.request(), path = new URL(request.url()).pathname;
@@ -20,11 +21,12 @@ async function fixture(initialFailure?: { status: number; code: string; message:
     if (path.endsWith("/messages")) {
       if (request.method() === "POST") {
         submitted.push(request.postDataJSON());
+        if (holdSend) await sendGate;
         if (failure) return route.fulfill({ status: failure.status, json: { error: { code: failure.code, message: failure.message } } });
-        messages.push({ authorKind: "visitor", body: request.postDataJSON().body });
+        messages.push({ id: "visitor-1", authorKind: "visitor", body: request.postDataJSON().body });
         if (deferredReply) responseStatus = "working";
-        else messages.push({ authorKind: "assistant", body: "Hello!" });
-        return route.fulfill({ json: {} });
+        else messages.push({ id: "assistant-1", authorKind: "assistant", body: "Hello!" });
+        return route.fulfill({ json: { message: { id: "visitor-1" } } });
       }
       reads++;
       if (failNextRead) { failNextRead = false; return route.fulfill({ status: 503, json: { error: { message: "History temporarily unavailable" } } }); }
@@ -40,17 +42,30 @@ async function fixture(initialFailure?: { status: number; code: string; message:
   }
   await page.goto("http://localhost/");
   await open();
-  return { browser, page, submitted, open, reads: () => reads, recover: () => { failure = undefined; }, rejectNextRead: () => { failNextRead = true; }, response: (status: string | null) => { responseStatus = status; } };
+  return { browser, page, submitted, open, releaseSend, reads: () => reads, recover: () => { failure = undefined; }, rejectNextRead: () => { failNextRead = true; }, response: (status: string | null) => { responseStatus = status; } };
 }
 
 describe("website widget send feedback", () => {
+  it("shows a message immediately and replaces it with the accepted message", async () => {
+    const { browser, page, releaseSend } = await fixture(undefined, false, true);
+    try {
+      const input = page.getByRole("textbox", { name: "Message", exact: true });
+      await input.fill("Hi");
+      await input.press("Enter");
+      await browserExpect(page.getByRole("log")).toContainText("Hi");
+      await browserExpect(input).toHaveValue("");
+      releaseSend();
+      await browserExpect(page.getByRole("log")).toContainText("Hello!");
+      await browserExpect(page.locator('article[data-author="visitor"]')).toHaveCount(1);
+    } finally { releaseSend(); await browser.close(); }
+  }, 20_000);
   it("shows asynchronous reply failure across polling and reload without resending an accepted message", async () => {
     const context = await fixture(undefined, true);
     const { browser, page } = context;
     try {
       await page.getByRole("textbox", { name: "Message", exact: true }).fill("What can you help with?");
       await page.getByRole("button", { name: "Send", exact: true }).click();
-      await browserExpect(page.getByRole("status")).toHaveText("Replying...");
+      await browserExpect(page.getByRole("status", { name: "Assistant is responding" })).toBeVisible();
       context.response("incomplete");
       await page.clock.runFor(1_500);
       await browserExpect(page.getByRole("status")).toHaveText("Could not finish the reply. Please try again.");
@@ -168,7 +183,7 @@ describe("website widget send feedback", () => {
       await browserExpect(page.getByRole("alert")).toHaveText("Service unavailable");
       await page.reload();
       await context.open(true);
-      await browserExpect(input).toHaveValue("Hello once");
+      await browserExpect(page.getByRole("log")).toContainText("Hello once");
       await browserExpect(page.getByRole("alert")).toHaveText("Service unavailable");
       context.recover();
       await page.getByRole("button", { name: "Retry message", exact: true }).click();
