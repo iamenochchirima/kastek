@@ -4,7 +4,7 @@ import { EarlyAccessForm } from "@/components/early-access-form";
 
 export const metadata: Metadata = {
   title: "Early Access | Kasitek",
-  description: "Apply to test the KasiTek workspace with your team.",
+  description: "Request early access to KasiTek Growth, Agency, Agents, or the full product suite.",
 };
 
 export default function WaitlistPage() {

@@ -11,6 +11,21 @@ import { Textarea } from "@/components/ui/textarea";
 
 const PACKAGE_KEY = "beta-2026-01";
 const STATUSES = ["new", "approved", "invited", "active", "rejected", "expired", "revoked"];
+const PRODUCT_LABELS: Record<string, string> = {
+  kasitek_growth: "KasiTek Growth",
+  kasitek_agency: "KasiTek Agency",
+  kasitek_agents: "KasiTek Agents",
+  kasitek_suite: "Full KasiTek suite",
+  kasitek_product_basic: "Core workspace (legacy)",
+  kasitek_product_growth: "Growth workflows (legacy)",
+  kasitek_product_scale: "Automation (legacy)",
+  feature_agents: "Agents feature (legacy)",
+  feature_campaigns: "Campaigns feature (legacy)",
+  feature_content: "Content feature (legacy)",
+  kasiagents: "KasiAgents (legacy)",
+  kasireach: "KasiReach (legacy)",
+  kasisocial: "KasiSocial (legacy)",
+};
 
 export type EarlyAccessApplication = {
   id: string;
@@ -32,6 +47,15 @@ export type EarlyAccessApplication = {
   earlyAccessEndsAt: string | null;
   createdAt: string;
 };
+const GROWTH_ACCESS_PRODUCTS = new Set([
+  "kasitek_growth",
+  "kasitek_suite",
+  "kasitek_product_basic",
+  "kasitek_product_growth",
+  "kasireach",
+]);
+const canProvisionGrowth = (application: EarlyAccessApplication) =>
+  application.products.some((product) => GROWTH_ACCESS_PRODUCTS.has(product));
 
 type BatchApproveResponse = {
   approved?: number;
@@ -57,7 +81,7 @@ export function EarlyAccessManager({
   const [reason, setReason] = useState("");
 
   const selectable = useMemo(
-    () => applications.filter((item) => item.status === "new").map((item) => item.id),
+    () => applications.filter((item) => item.status === "new" && canProvisionGrowth(item)).map((item) => item.id),
     [applications],
   );
   const allSelected = selectable.length > 0 && selectable.every((id) => selected.includes(id));
@@ -336,7 +360,12 @@ export function EarlyAccessManager({
                   ) : null}
                   {item.products.length ? (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {item.products.join(" · ")}
+                      {item.products.map((product) => PRODUCT_LABELS[product] ?? product).join(" · ")}
+                    </p>
+                  ) : null}
+                  {item.status === "new" && !canProvisionGrowth(item) ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      This request is for Agency or Agents. The approval action provisions Growth access only, so follow up with the applicant directly.
                     </p>
                   ) : null}
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -350,8 +379,8 @@ export function EarlyAccessManager({
                 <div className="flex flex-wrap gap-2">
                   {item.status === "new" ? (
                     <>
-                      <Button size="sm" disabled={busy} onClick={() => setConfirmIds([item.id])}>
-                        Approve
+                      <Button size="sm" disabled={busy || !canProvisionGrowth(item)} onClick={() => setConfirmIds([item.id])}>
+                        {canProvisionGrowth(item) ? "Approve Growth access" : "Manual follow-up"}
                       </Button>
                       <Button
                         size="sm"
