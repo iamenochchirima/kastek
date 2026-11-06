@@ -81,6 +81,8 @@ record selectors are projected to opaque, conversation-scoped references before 
 authorized tool inputs resolve those references before Growth rechecks the current actor and
 resource access. Retained task history uses the same projection. The additive Agents schema132
 stores the scoped references and should be applied before starting the updated API and worker.
+On the next Growth request, the shared runtime upgrades existing Growth bindings to the current
+reference publication while preserving custom settings, permissions and accepted in-flight work.
 
 ## Growth-managed customer channels
 

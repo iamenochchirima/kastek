@@ -10,12 +10,12 @@ import { registerProductManifest } from "../../capabilities/products/product-cap
 import { planGrowthRuntimeBindingClones, type BindingPlanVersion } from "./growth-runtime-binding-plan";
 import { growthCapabilityBaseline } from "./growth-capability-upgrade";
 
-// This digest pins the exact descriptor set and adapter behavior reviewed for this rollout.
-const targetDigest = "7cc062cbb44e4d1a2b9aba149706c4c3ab0e13b6c9c425581d5ad44e7ba28d8d";
+// This digest pins the current Growth reference publication for automatic runtime rollout.
+const targetDigest = "34605c9b4c143cbaedc336c74290863a136fce6d52bf8ef398cea2db26803fb9";
 
 /** Called under ensureTenant's transaction and tenant advisory lock. */
 export async function rolloutGrowthConnectionBindings(db: PoolClient, tenantId: string, organizationId: string, publication: GrowthAgentPublication): Promise<number> {
-  if (publication.manifest.digest !== targetDigest || publication.policy.revision !== "13") return 0;
+  if (publication.manifest.digest !== targetDigest || publication.policy.revision !== "15") return 0;
   return rolloutGrowthConnectionBindingsForTarget(db,tenantId,organizationId,publication);
 }
 
@@ -30,10 +30,10 @@ export async function rolloutGrowthConnectionBindingsForTarget(db: PoolClient, t
   const rows = (await db.query(`SELECT v.id,v.organization_id,v.agent_id,v.number,v.draft_revision,v.execution_kind,v.configuration,v.created_by,v.created_by_service
     FROM agents_platform.agent_versions v WHERE v.organization_id=$1 AND v.agent_id=ANY($2::uuid[]) ORDER BY v.agent_id,v.number FOR SHARE`,
     [organizationId, targets.map(row => row.agent_id)])).rows;
-  const rawPublications = (await db.query("SELECT publication FROM agents_platform.growth_capability_publications WHERE tenant_id=$1 AND revision=ANY($2::text[])", [tenantId, ["11", "12"]])).rows;
+  const rawPublications = (await db.query("SELECT publication FROM agents_platform.growth_capability_publications WHERE tenant_id=$1 AND revision=ANY($2::text[])", [tenantId, ["11", "12", "13", "14"]])).rows;
   const previous = rawPublications.flatMap(row => {
     try {
-      const value=z.object({manifest:z.unknown(),policy:z.object({revision:z.enum(["11","12"])})}).parse(row.publication);
+      const value=z.object({manifest:z.unknown(),policy:z.object({revision:z.enum(["11","12","13","14"])})}).parse(row.publication);
       const manifest=registerProductManifest(value.manifest as GrowthAgentPublication["manifest"]);
       if(manifest.revision!==value.policy.revision||manifest.product!=="growth")throw new PlatformError("PRODUCT_MANIFEST_INVALID",409,"The retained publication is unavailable");
       return [{manifest,policyRevision:value.policy.revision}];
