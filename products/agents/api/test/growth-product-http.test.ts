@@ -348,6 +348,22 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     expect((await pool.query("SELECT count(*)::int n FROM agents_platform.memberships")).rows[0].n).toBe(0);
     const foreign=await send(command("conversations.get",{conversationId:conversation.id},{actor:{...actor,subject:randomUUID()}}));expect(foreign.status).toBe(404);
   },40000);
+  it("persists scoped agent profiles and reauthorizes edits",async()=>{
+    const profile=command("features.profile",{featureId:"content",name:"Muse",avatar:"muse"});
+    const before=await ok(command("features.list",{}));
+    const original=before.features.find((feature:any)=>feature.id==="content");
+    try {
+      expect(await ok(profile)).toMatchObject({name:"Muse",avatar:"muse"});
+      expect(await ok(profile)).toMatchObject({name:"Muse",avatar:"muse"});
+      const listed=await ok(command("features.list",{}));
+      expect(listed.features.find((feature:any)=>feature.id==="content")).toMatchObject({name:"Muse",avatar:"muse"});
+      expect((await send(command("features.profile",{featureId:"content",name:"Invalid",avatar:"invalid"}))).status).toBe(400);
+      expect((await send(command("features.profile",{featureId:"content",name:"Other",avatar:"muse"},{tenantId:randomUUID()}))).status).toBeGreaterThanOrEqual(400);
+      await controlFixture({type:"membership",enabled:false},"membership");
+      try { expect((await send(command("features.profile",{featureId:"content",name:"Denied",avatar:"muse"}))).status).toBeGreaterThanOrEqual(400); }
+      finally { await controlFixture({type:"membership",enabled:true},"membership"); }
+    } finally { await ok(command("features.profile",{featureId:"content",name:original.name,avatar:original.avatar})); }
+  });
   it("loads task list projections concurrently while preserving page order",async()=>{
     await provisionGrowthModel(pool,keyVault,{tenantId,providerId:"openrouter",modelId:"fixture/growth",apiKey:"fixture-only-key"},{discoveryFetch:async()=>({status:200,body:JSON.stringify({data:[{id:"fixture/growth",name:"Fixture Growth model",context_length:262144,top_provider:{max_completion_tokens:32768},supported_parameters:["tools"],architecture:{input_modalities:["text"],output_modalities:["text"]},pricing:{prompt:"0",completion:"0"}}]})})});
     expect((await browserOk("/api/agents/bootstrap")).features.every((feature:any)=>feature.ready)).toBe(true);

@@ -272,6 +272,24 @@ configurations, disabled features, model selections and revoked tenants; accepte
 their old configuration. An unsupported optional capability remains denied even if requested in
 configuration. See [Product capabilities](product-capabilities.md) for the shared contract.
 
+### Growth agent profiles
+
+The managed agent record owns its display name and avatar. Provisioning selects an avatar from the
+existing catalogue once when creating an agent. The Growth feature response returns the saved name
+and avatar alongside the preset role and readiness. An owner or administrator can update both with
+`PATCH /api/agents/features/:featureId/profile`. Growth checks manage access and forwards the signed
+command; Agents rechecks current product authority and resolves the agent through the tenant's
+managed feature mapping. The update changes profile fields only. It does not publish a configuration
+version, change a role or permission, or replace accepted work.
+
+Release decisions: standard risk; Growth web and API, the shared contract and Agents API are
+affected. No database migration or feature flag is required. Existing request and command logging
+applies; new analytics events, metrics, dashboards and alerts are not applicable. The Growth feature
+map and this integration guide document the change. Release identity, focused validation and hosted
+rollout evidence must be recorded with the deployment. Deploy compatible services together and verify
+profile updates and existing agent execution. Rollback restores the previous web and API artifacts;
+saved profile fields remain in the existing agent record. Post-release review remains pending.
+
 ### Growth defaults and content projection release record
 
 Growth defaults revision `11` uses installed adapter release `6`; revisions `2`–`10` retain their

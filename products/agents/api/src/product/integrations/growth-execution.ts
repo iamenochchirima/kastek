@@ -176,7 +176,7 @@ export class GrowthExecutionService {
     });
   }
   async feature(db:Db,command:GrowthAgentCommand,id:GrowthAgentFeatureId) {
-    const row=(await db.query("SELECT f.*,v.configuration,a.deleted_at AS agent_deleted_at FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id JOIN agents_platform.agents a ON a.id=v.agent_id AND a.organization_id=v.organization_id WHERE f.product='growth' AND f.tenant_id=$1 AND f.feature_id=$2",[command.tenantId,id])).rows[0];
+    const row=(await db.query("SELECT f.*,v.configuration,a.name AS agent_name,a.avatar AS agent_avatar,a.deleted_at AS agent_deleted_at FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id JOIN agents_platform.agents a ON a.id=v.agent_id AND a.organization_id=v.organization_id WHERE f.product='growth' AND f.tenant_id=$1 AND f.feature_id=$2",[command.tenantId,id])).rows[0];
     if(!row)absent();return row;
   }
   private async selectedSpecialists(db:Db,tenantId:string,organizationId:string,config:ReturnType<typeof agentConfigurationSchema.parse>):Promise<GrowthAgentSpecialist[]|undefined> {
@@ -214,7 +214,7 @@ export class GrowthExecutionService {
           model={label:route.primary.model.name,provider:route.primary.definition.name,modelId:route.primary.binding.modelId};
         }catch(error){if(error instanceof PlatformError)reasons.push({code:error.code,message:modelReadinessMessage(error.code)});else throw error;}
         const specialists=await this.selectedSpecialists(db,command.tenantId,tenant.organization_id,config);
-        features.push({id:def.id,name:def.name,description:def.description,ready:reasons.length===0,reasons,model,revision:row.revision,memory:{enabled:config.memory.enabled},...(specialists?{specialists}:{})});
+        features.push({id:def.id,name:row.agent_name??def.name,avatar:row.agent_avatar,description:def.description,ready:reasons.length===0,reasons,model,revision:row.revision,memory:{enabled:config.memory.enabled},...(specialists?{specialists}:{})});
       }
       const model=features.find(f=>f.id==="assistant")?.model;
       return {features,model:model?{label:model.label,ready:true}:null};
@@ -408,6 +408,13 @@ export class GrowthExecutionService {
     }
     switch(command.operation) {
       case "features.list":return this.features(command);
+      case "features.profile":return this.withReceipt(command,async db=>{
+        const feature=await this.feature(db,command,command.input.featureId);
+        if(!this.runtime)throw new PlatformError("PRODUCT_ACTIONS_UNAVAILABLE",503,"Growth agent services are unavailable");
+        await this.runtime.client.call({version:"1",requestId:randomUUID(),operationId:"profile:"+command.requestId,tenantId:command.tenantId,actor:command.actor,taskId:command.requestId,conversationId:command.requestId,featureId:command.input.featureId,context:null,operation:"authorization.check",input:{context:null,manage:true}});
+        const row=(await db.query("UPDATE agents_platform.agents SET name=$3,avatar=$4,updated_at=now() WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL RETURNING name,avatar",[feature.organization_id,feature.agent_id,command.input.name.trim(),command.input.avatar])).rows[0];
+        return row??absent();
+      });
       case "features.configure":return this.withReceipt(command,async db=>{
         const tenant=await this.tenant(db,command);
         await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[tenant.organization_id]);

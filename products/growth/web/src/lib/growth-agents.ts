@@ -74,6 +74,8 @@ export const growthAgents = {
     request<GrowthAgentCommandOutputs["memory.mutate"]>(`/features/${id(featureId)}/memory/${id(memoryId)}`,json({expectedRevision:input.expectedRevision,action:input.action,...(input.content===undefined?{}:{content:input.content}),...(input.assertion===undefined?{}:{assertion:input.assertion}),requestId:input.requestKey})),
   configureMemory:(featureId:GrowthAgentFeatureId,enabled:boolean,expectedRevision:number,requestId:string)=>
     request<GrowthAgentCommandOutputs["memory.configure"]>(`/features/${id(featureId)}/memory/settings`,{...json({enabled,expectedRevision,requestId}),method:"PATCH"}),
+  updateProfile: (featureId: GrowthAgentFeatureId, input: { name: string; avatar: string }) =>
+    request<unknown>(`/features/${id(featureId)}/profile`, { ...json(input), method: "PATCH" }),
   bootstrap: (signal?: AbortSignal) => request<GrowthAgentBootstrap>("/bootstrap", { signal }),
   conversations: (options: { featureId?: GrowthAgentFeatureId; search?: string; cursor?: string; limit?: number } = {}, signal?: AbortSignal) =>
     request<GrowthAgentCommandOutputs["conversations.list"]>(`/conversations${query(options)}`, { signal }),

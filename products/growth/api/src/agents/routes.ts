@@ -120,6 +120,13 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     const auth=await scope(request);await requireAdmin(core.pool,auth.tenantId,auth.actor.subject);strict(body(request),[]);reply.header("Cache-Control","no-store");
     return invoke(request,"features.upgrade.preview",{featureId:id(request,"featureId") as GrowthAgentFeatureId,publication:growthAgentPublication});
   });
+  app.patch("/api/agents/features/:featureId/profile", async request => {
+    const auth=await scope(request);await requireAdmin(core.pool,auth.tenantId,auth.actor.subject);
+    const input=body(request);strict(input,["name","avatar"]);
+    const featureId=id(request,"featureId") as GrowthAgentFeatureId;
+    await authorizeGrowthAgentScope(core,auth,featureId);
+    return invoke(request,"features.profile",{featureId,name:string(input.name,"name",120),avatar:string(input.avatar,"avatar",32)});
+  });
   app.post("/api/agents/features/:featureId/upgrade/apply", async request => {
     const auth=await scope(request);await requireAdmin(core.pool,auth.tenantId,auth.actor.subject);const input=body(request);strict(input,["requestId","targetPublicationDigest","diffDigest","expectedRevisions","resolutions"]);
     return invoke(request,"features.upgrade.apply",{featureId:id(request,"featureId") as GrowthAgentFeatureId,publication:growthAgentPublication,

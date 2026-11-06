@@ -21,7 +21,7 @@ export interface GrowthAgentSpecialist {
 }
 export interface GrowthAgentFeature {
   revision?: number; memory?: { enabled: boolean };
-  id: GrowthAgentFeatureId; name: string; description: string;
+  id: GrowthAgentFeatureId; name: string; description: string; avatar?: string;
   ready: boolean; reasons: { code: string; message: string; route?: string }[];
   specialists?: GrowthAgentSpecialist[];
   model?: { label: string; provider: string; modelId: string } | null;
@@ -136,6 +136,7 @@ export interface GrowthAgentCommandInputs extends GrowthAgentResourceInputs {
   "features.upgrade.preview": { featureId: GrowthAgentFeatureId; publication: import("./growth-agent-provisioning.js").GrowthAgentPublication };
   "features.upgrade.apply": GrowthAgentCapabilityUpgradeApply & { featureId: GrowthAgentFeatureId; publication: import("./growth-agent-provisioning.js").GrowthAgentPublication };
   "features.configure": { featureId: GrowthAgentFeatureId; configuration: Record<string, unknown> };
+  "features.profile": { featureId: GrowthAgentFeatureId; name: string; avatar: string };
   "conversations.create": { featureId: GrowthAgentFeatureId; title?: string; context?: GrowthAgentContext | null };
   "conversations.list": { featureId?: GrowthAgentFeatureId; search?: string; cursor?: string; limit?: number };
   "conversations.get": { conversationId: string; cursor?: string; limit?: number };
@@ -168,6 +169,7 @@ export interface GrowthAgentCommandOutputs extends GrowthAgentResourceOutputs {
   "features.upgrade.preview": GrowthAgentCapabilityUpgradePreview;
   "features.upgrade.apply": { revisions: Partial<Record<GrowthAgentFeatureId, number>> };
   "features.configure": { feature: GrowthAgentFeature };
+  "features.profile": { name: string; avatar: string };
   "conversations.create": { conversation: GrowthAgentConversation };
   "conversations.list": { conversations: GrowthAgentConversation[]; nextCursor: string | null };
   "conversations.get": { conversation: GrowthAgentConversation; messages: GrowthAgentMessage[]; nextCursor: string | null };
@@ -293,7 +295,7 @@ export function parseGrowthAgentCommand(value: unknown): GrowthAgentCommand {
     "memory.mutate": ["featureId", "memoryId", "expectedRevision", "action", "content", "assertion"],
     "memory.configure": ["featureId", "expectedRevision", "enabled"],
     "features.upgrade.preview": ["featureId", "publication"], "features.upgrade.apply": ["featureId", "publication", "targetPublicationDigest", "diffDigest", "expectedRevisions", "resolutions"],
-    "features.list": ["publication"], "features.configure": ["featureId", "configuration"],
+    "features.list": ["publication"], "features.configure": ["featureId", "configuration"], "features.profile": ["featureId", "name", "avatar"],
     "conversations.create": ["featureId", "title", "context"], "conversations.list": ["featureId", "search", "cursor", "limit"],
     "conversations.get": ["conversationId", "cursor", "limit"], "conversations.context": ["conversationId", "context"],
     "turns.submit": ["conversationId", "text", "context"], "tasks.list": ["conversationId", "state", "search", "cursor", "limit"],
@@ -311,7 +313,7 @@ export function parseGrowthAgentCommand(value: unknown): GrowthAgentCommand {
     "models.list": ["featureId"], "models.select": ["featureId", "expectedRevision", "selection"],
     "memory.list": ["featureId"], "memory.mutate": ["featureId", "memoryId", "expectedRevision", "action"], "memory.configure": ["featureId", "expectedRevision", "enabled"],
     "features.upgrade.preview": ["featureId", "publication"], "features.upgrade.apply": ["featureId", "publication", "targetPublicationDigest", "diffDigest", "expectedRevisions", "resolutions"],
-    "features.configure": ["featureId", "configuration"], "conversations.create": ["featureId"],
+    "features.configure": ["featureId", "configuration"], "features.profile": ["featureId", "name", "avatar"], "conversations.create": ["featureId"],
     "conversations.get": ["conversationId"], "conversations.context": ["conversationId", "context"],
     "turns.submit": ["conversationId", "text"], "tasks.get": ["taskId"], "tasks.export": ["taskId"], "tasks.observe": ["taskId"], "tasks.events": ["taskId"],
     "tasks.cancel": ["taskId"], "tasks.instructions": ["taskId", "instruction"], "tasks.continue": ["taskId"], "reviews.list": ["taskId"],
@@ -319,6 +321,7 @@ export function parseGrowthAgentCommand(value: unknown): GrowthAgentCommand {
     "artifacts.list": ["taskId"], "artifacts.get": ["taskId", "artifactId"],
   };
   for (const key of required[item.operation as GrowthAgentCommandOperation] ?? []) if (input[key] === undefined) return invalidGrowthContract();
+  if (item.operation === "features.profile" && (typeof input.name !== "string" || !input.name.trim() || input.name.length > 120 || !["atlas", "scout", "muse", "orbit", "nova", "pixel", "echo", "ember", "bolt", "moss"].includes(String(input.avatar)))) return invalidGrowthContract();
   if (input.limit !== undefined && (!Number.isInteger(input.limit) || Number(input.limit) < 1 || Number(input.limit) > 100)) return invalidGrowthContract();
   if (input.offset !== undefined && (!Number.isSafeInteger(input.offset) || Number(input.offset) < 0)) return invalidGrowthContract();
   if (String(item.operation).startsWith("artifacts.") && input.childTaskId !== undefined && !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(String(input.childTaskId))) return invalidGrowthContract();

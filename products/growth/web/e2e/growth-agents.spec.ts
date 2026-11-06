@@ -894,3 +894,36 @@ test("root operation history pages once per cursor and withdraws retained conver
   await expect(chat.locator("[data-agent-context]")).toHaveCount(0);
   await expect(earlier).toHaveCount(0);
 });
+
+test("edits an agent name and avatar on desktop and mobile", async ({ page }) => {
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    let name = "Content", avatar = "muse";
+    await page.route("**/api/agents/bootstrap", async route => {
+      const response = await route.fetch(), bootstrap = await response.json();
+      bootstrap.scope.canConfigureAgents = true;
+      bootstrap.features = bootstrap.features.map((feature: { id: string }) => feature.id === "content" ? { ...feature, name, avatar } : feature);
+      await route.fulfill({ response, json: bootstrap });
+    });
+    await page.route("**/api/agents/features/content/profile", async route => {
+      expect(route.request().method()).toBe("PATCH");
+      ({ name, avatar } = route.request().postDataJSON());
+      await route.fulfill({ json: { name, avatar } });
+    });
+    await page.goto("/agents");
+    const card = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Content", exact: true }) });
+    await card.getByRole("button", { name: "Actions for Content" }).click();
+    await page.getByRole("menuitem", { name: "Edit agent" }).click();
+    const dialog = page.getByRole("dialog", { name: "Edit agent" });
+    await dialog.getByLabel("Name", { exact: true }).fill("Studio");
+    await dialog.getByRole("button", { name: "scout", exact: true }).click();
+    await expect(dialog.getByRole("button", { name: "scout", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await page.screenshot({ path: test.info().outputPath(`agent-profile-${width}.png`), animations: "disabled" });
+    await dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Studio", exact: true })).toBeVisible();
+    expect(avatar).toBe("scout");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.unrouteAll();
+  }
+});

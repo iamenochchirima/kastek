@@ -37,6 +37,14 @@ The table below groups those routes by feature; it is not the complete route lis
 | Developer surfaces | `/developers`, `/developers/api`, `/developers/cli`, `/developers/mcp`, `/oauth/consent` | `(dashboard)/developers/`, `(auth)/oauth/consent/` | MCP shows configured endpoint, requested OAuth scopes/workspace consent and independently revocable connections. OAuth, canonical REST and internal agents share the supported operation catalogue. Authorized content writes execute directly with durable receipts across MCP, REST and internal agents. Optional `content.actions.preview` exposes exact content, media, destinations and timing. Current permissions, snapshot validation and duplicate prevention remain enforced; no Growth approval card/form is required. Non-content review rules remain intact. [Agent access operations](../internal/operations/growth-agent-access.md) records isolated verification and deployment gates. |
 | Agent operation reviews | `/operations/reviews/<id>` | `(dashboard)/operations/reviews/[id]/page.tsx` | Authenticated users inspect the exact operation input and approve/reject its digest. Approval alone does not execute; the same agent resumes the approved request. Generic embedded reviews link here. Content draft reviews keep their existing dedicated editor. |
 
+## Agent profiles
+
+Growth agent cards display each agent's saved name and avatar alongside its role. Owners and
+administrators can edit the name and choose or shuffle an avatar from the card. New managed agents
+receive a random avatar when provisioned; the choice persists until changed. Profile edits do not
+change the agent's role, configuration, permissions, or published version. The cards retain their
+existing setup, chat, memory, resources, and update actions.
+
 ## Workspace appearance
 
 Growth uses the shared `@kasitek-labs/ui` Geist theme and controls, with white light

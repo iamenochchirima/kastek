@@ -1,5 +1,16 @@
 .growth-agents-workspace [data-slot="tabs-trigger"][data-state="active"] { color: var(--primary); background:transparent; border-color:transparent transparent var(--primary); box-shadow:none; }
-.growth-agents-feature { display:flex; min-width:0; min-height:180px; flex-direction:column; border:1px solid var(--border); border-radius:8px; padding:20px; background:var(--card); }
+.growth-agents-feature { display:flex; min-width:0; flex-direction:column; border:1px solid var(--border); border-radius:12px; padding:20px; background:var(--card); }
+.growth-agent-card-heading { display:flex; min-width:0; align-items:center; gap:18px; }
+.growth-agent-card-avatar { width:80px; height:80px; flex-shrink:0; font-size:32px; }
+.growth-agent-card-menu { align-self:flex-start; flex-shrink:0; }
+.growth-agent-card-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px; margin-top:20px; padding-top:14px; border-top:1px solid var(--border); }
+.growth-agent-card-status { display:flex; min-width:0; align-items:center; gap:9px; color:var(--muted-foreground); font-size:13px; }
+.growth-agent-status-dot { width:8px; height:8px; flex-shrink:0; border-radius:50%; background:#e6a522; }
+.growth-agent-status-dot-ready { background:#38a87a; }
+.growth-agent-card-action { display:inline-flex; flex-shrink:0; align-items:center; gap:4px; min-height:36px; color:var(--primary); font-size:13px; font-weight:500; text-decoration:none; }
+.growth-agent-card-action:hover { text-decoration:underline; }
+.growth-agent-edit-preview { display:flex; justify-content:center; align-items:center; gap:20px; padding:8px 0; }
+.growth-agent-edit-avatar { width:112px; height:112px; flex-shrink:0; font-size:44px; }
 .growth-agents-table-wrap { overflow:hidden; border:1px solid var(--border); border-radius:7px; }
 .growth-agents-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:13px; text-align:left; }
 .growth-agents-table th { padding:9px 14px; background:var(--secondary); color:var(--muted-foreground); font-size:12px; font-weight:500; }
@@ -19,7 +30,10 @@
 .growth-agent-context-compact { max-width:65%; }
 .growth-agent-context-compact [data-context-action] { min-height:32px; }
 @media (max-width:639px) {
- .growth-agents-feature { min-height:164px; padding:16px; }
+ .growth-agents-feature { padding:16px; }
+ .growth-agent-card-heading { gap:14px; }
+ .growth-agent-card-avatar { width:72px; height:72px; }
+ .growth-agent-card-footer { margin-top:16px; }
  .growth-agents-tabs { gap:20px; overflow-x:auto; }
  .growth-agents-table th,.growth-agents-table td { padding:10px; }
  .growth-agents-table th:nth-child(2),.growth-agents-table td:nth-child(2) { display:none; }
@@ -49,3 +63,4 @@
 .growth-agent-composer-controls>button { flex-shrink:0; }
 .growth-agents-workspace h1 { font-size:28px; line-height:1.2; }
 .growth-agents-workspace #recent-conversations,.growth-agents-workspace #ongoing-work { font-size:16px; }
+.growth-agent-avatar { display:inline-grid; place-items:center; border-radius:16px; line-height:1; }

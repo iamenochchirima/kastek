@@ -17,7 +17,7 @@ export class GrowthAgentClient {
       const result=await this.send(scope,operation,{...input,publication:growthAgentPublication} as GrowthAgentCommandInputs[K],requestId);
       this.publications.set(scope.tenantId,Promise.resolve());return result;
     }
-    if(operation==="turns.submit"||operation==="conversations.create"||operation==="features.configure"||operation.startsWith("models.")||operation.startsWith("memory.")||isGrowthResourceOperation(operation)){
+    if(operation==="turns.submit"||operation==="conversations.create"||operation==="features.configure"||operation==="features.profile"||operation.startsWith("models.")||operation.startsWith("memory.")||isGrowthResourceOperation(operation)){
       let published=this.publications.get(scope.tenantId);
       if(!published){published=this.send(scope,"features.list",{publication:growthAgentPublication},randomUUID()).then(()=>{});this.publications.set(scope.tenantId,published);}
       try{await published;}catch(error){if(this.publications.get(scope.tenantId)===published)this.publications.delete(scope.tenantId);throw error;}
