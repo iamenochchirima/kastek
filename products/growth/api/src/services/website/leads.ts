@@ -28,6 +28,10 @@ const SERVICES = [
   "managed_retainers",
 ];
 const PRODUCTS = [
+  "kasitek_growth",
+  "kasitek_agency",
+  "kasitek_agents",
+  "kasitek_suite",
   "kasitek_product_basic",
   "kasitek_product_growth",
   "kasitek_product_scale",

@@ -20,9 +20,10 @@ const businessTypes = [
 ] as const;
 
 const products = [
-  { value: "kasitek_product_basic", label: "Core workspace", detail: "Inbox, contacts and everyday operations" },
-  { value: "kasitek_product_growth", label: "Growth workflows", detail: "Campaigns, content and customer follow-up" },
-  { value: "kasitek_product_scale", label: "Automation", detail: "Agents and connected business workflows" },
+  { value: "kasitek_growth", label: "KasiTek Growth", detail: "Marketing, customer conversations and business growth" },
+  { value: "kasitek_agency", label: "KasiTek Agency", detail: "A white-label platform for agencies and their clients" },
+  { value: "kasitek_agents", label: "KasiTek Agents", detail: "Build, connect and manage AI agents" },
+  { value: "kasitek_suite", label: "I’m interested in the full KasiTek suite", detail: "Help me find the right combination of products" },
 ];
 
 export function EarlyAccessForm() {

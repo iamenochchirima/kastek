@@ -159,6 +159,17 @@ export async function approveApplication(core: CoreContext, applicationId: strin
   input: { packageKey?: string | null }): Promise<EarlyAccessApplication> {
   validPackageKey(input.packageKey);
   const { application } = await getApplication(core.pool, applicationId);
+  const requestedProducts = Array.isArray(application.products) ? application.products : [];
+  const growthAccessProducts = new Set([
+    'kasitek_growth',
+    'kasitek_suite',
+    'kasitek_product_basic',
+    'kasitek_product_growth',
+    'kasireach',
+  ]);
+  if (requestedProducts.length > 0 && !requestedProducts.some((product) => growthAccessProducts.has(String(product)))) {
+    throw new ApiError(409, 'conflict', 'This application requests Agency or Agents access, which cannot be provisioned by the Growth approval flow');
+  }
   if (['rejected', 'revoked', 'expired'].includes(application.status)) {
     throw new ApiError(409, 'conflict', `Cannot approve an application in ${application.status} state`);
   }
