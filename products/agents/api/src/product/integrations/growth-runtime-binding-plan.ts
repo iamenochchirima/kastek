@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { ProductCapabilityManifest } from "@kasitek-labs/contracts";
 import { capabilityBindingSchema, type CapabilityBinding } from "../../contracts/capability-catalog";
 import { agentConfigurationSchema, PlatformError, requestDigest, type AgentConfiguration } from "../../contracts/contracts";
+import { growthProductReferences } from "../../adapters/products/growth-capability-manifests";
 
 export interface BindingPlanVersion { id: string; organizationId: string; product: string; tenantId: string; configuration: unknown }
 export interface BindingPlanClone { sourceVersionId: string; versionId: string; configuration: AgentConfiguration }
@@ -36,11 +37,12 @@ export function planGrowthRuntimeBindingClones(input: { roots: string[]; version
   if (versions.size !== input.versions.length) throw denied();
   const mapped = new Map<string,string>(), visiting = new Set<string>(), clones: BindingPlanClone[] = [];
   const allBindings = (configuration: AgentConfiguration) => [...configuration.productBindings, ...configuration.commissionableProductBindings ?? []];
+  const referenceOperations=new Set(Object.keys(growthProductReferences).map(handler=>handler.replace(/^growth\./,"").replace(/^operation\./,"").replace(/@\d+$/,"")));
   const authorityDigest = (binding: CapabilityBinding) => { const { id: _id, alias: _alias, digest: _digest, ...authority } = binding; return requestDigest(authority); };
   const ceiling = (configuration: AgentConfiguration, ids: string[] | undefined) => ids === undefined ? configuration.productBindings : allBindings(configuration).filter(binding => ids.includes(binding.id));
   function upgrade(bindingInput: CapabilityBinding): CapabilityBinding {
     const binding = capabilityBindingSchema.parse(bindingInput), authority = binding.authority;
-    if (!authority || !["connections.list", "content.accounts.list"].includes(binding.definition.providerOperation)) return binding;
+    if (!authority || !referenceOperations.has(binding.definition.providerOperation)) return binding;
     if (authority.destinationProduct !== "growth" || authority.manifestDigest === next.digest) return binding;
     const old = input.previous.find(value => value.manifest.digest === authority.manifestDigest);
     if (!old) throw denied();

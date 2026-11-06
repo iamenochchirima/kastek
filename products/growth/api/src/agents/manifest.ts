@@ -1,4 +1,4 @@
-import type { ProductCapabilityDescriptor, ProductCapabilityManifest, GrowthAgentDelegationPolicy, GrowthAgentFeatureId } from "@kasitek-labs/contracts";
+import { growthAgentProductReferences, type ProductCapabilityDescriptor, type ProductCapabilityManifest, type GrowthAgentDelegationPolicy, type GrowthAgentFeatureId } from "@kasitek-labs/contracts";
 import { growthAgentDigest } from "./security.js";
 import { growthOperationDescriptors } from "../operations/manifest.js";
 const object=(properties:Record<string,unknown>,required:string[]=[])=>({type:"object",properties,required,additionalProperties:false});
@@ -121,7 +121,12 @@ export const growthAgentPublicationV13Consolidated = {...growthAgentPublicationV
 };
 
 const currentBodyV14={...consolidatedBody,revision:"14"};
-export const growthAgentPublication={...growthAgentPublicationV13Consolidated,manifest:{...currentBodyV14,digest:growthAgentDigest(currentBodyV14)},policy:{...growthAgentPublicationV13Consolidated.policy,revision:"14"}};
+export const growthAgentPublicationV14={...growthAgentPublicationV13Consolidated,manifest:{...currentBodyV14,digest:growthAgentDigest(currentBodyV14)},policy:{...growthAgentPublicationV13Consolidated.policy,revision:"14"}};
+const referenceAdapter={...growthAdapterManifest,release:"11",executableDigest:growthAgentDigest({release:"growth-operations-v2",
+  handlers:growthOperationDescriptors.map(operation=>operation.handlerRef),modelProjection:"growth-content-post-read-v1",
+  connectionProjection:"growth-connections-read-v1",referenceProjection:"growth-product-references-v1",references:growthAgentProductReferences})};
+const currentBodyV15={...currentBodyV14,revision:"15",adapter:{id:referenceAdapter.id,release:referenceAdapter.release,manifestDigest:growthAgentDigest(referenceAdapter)}};
+export const growthAgentPublication={...growthAgentPublicationV14,manifest:{...currentBodyV15,digest:growthAgentDigest(currentBodyV15)},policy:{...growthAgentPublicationV14.policy,revision:"15"}};
 
 export const growthCapabilityManifest = growthAgentPublication.manifest;
 export const growthAgentPresets = growthAgentPublication.presets;

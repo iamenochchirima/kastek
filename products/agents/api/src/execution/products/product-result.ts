@@ -14,6 +14,7 @@ const contentPost=z.object({
   variants:z.array(z.object({platform:z.string().max(64),content:z.string(),status:z.string().max(40)})),
   media:z.array(z.object({asset_id:z.string().min(1).max(256),kind:z.string().max(64),mime_type:z.string().max(128),alt_text:z.string().nullable(),sort_order:z.number().int()})),
 });
+const growthReadResult=z.object({value:z.object({state:z.literal("succeeded"),result:z.record(z.string(),z.unknown())})});
 const postRead=z.object({post:contentPost});
 const postList=z.object({posts:z.array(contentPost),pagination:z.object({limit:z.number().int().positive(),cursor:z.number().int().nonnegative(),nextCursor:z.number().int().nonnegative().nullable()})});
 const mediaPreviewAsset=z.object({id:z.string().min(1),kind:z.string().min(1),mimeType:z.string().min(1),fileName:z.string().nullable().optional(),
@@ -51,12 +52,13 @@ export function productModelResult(binding:CapabilityBinding,output:unknown,task
       descriptor.policy.effect==="read"&&descriptor.evidence==="none"&&["content.posts.get","content.posts.list"].includes(operation)&&
       descriptor.handlerRef===`growth.operation.${operation}@${descriptor.revision}`;
     if(!installedProjection&&!retainedGrowthRead)return output;
+    const envelope=growthReadResult.safeParse(output);if(!envelope.success)throw projectionUnavailable();
     if(operation==="content.posts.get"){
-      const parsed=postRead.safeParse(output);if(!parsed.success)throw projectionUnavailable();
+      const parsed=postRead.safeParse(envelope.data.value.result);if(!parsed.success)throw projectionUnavailable();
       return {post:modelPost(parsed.data.post)};
     }
     if(operation==="content.posts.list"){
-      const parsed=postList.safeParse(output);if(!parsed.success)throw projectionUnavailable();
+      const parsed=postList.safeParse(envelope.data.value.result);if(!parsed.success)throw projectionUnavailable();
       return {posts:parsed.data.posts.map(modelPost),pagination:parsed.data.pagination};
     }
     throw projectionUnavailable();

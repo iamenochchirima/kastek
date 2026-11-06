@@ -94,6 +94,7 @@ export async function verifyGrowthBrowser(options: GrowthBrowserOptions) {
         output = task.output ?? "";
         return task.state === "completed" && output.length > 0;
       }, "actual shared-worker completion");
+      assert.ok(!/\[internal reference\]/i.test(output), "Growth task response contains a legacy internal-reference marker");
       const visibleOutput = output.replace(/\[E[0-9a-f]{32}\]/gi, "").replace(/\s+/g, " ").trim();
       assert.ok(visibleOutput.length > 0);
       await expect.poll(async () => (await chat.locator("article").allTextContents()).some((text: string) =>
@@ -103,13 +104,19 @@ export async function verifyGrowthBrowser(options: GrowthBrowserOptions) {
     const first = "Review my business through the Growth assistant";
     await send(first);
     await send("What should I do next?");
-    assert.equal(new Set(taskIds).size, 2);
+    const accountAnswer=await send("How many connections do I have?");
+    assert.match(accountAnswer,/Fixture Facebook account/);
+    assert.match(accountAnswer,/@fixture_page/);
+    assert.doesNotMatch(accountAnswer,/fixture-account|aref_[A-Za-z0-9_-]{20,}|internal reference/i);
+    assert.equal(new Set(taskIds).size, 3);
     await chat.getByRole("link", { name: "Expand conversation", exact: true }).click();
     await expect(page).toHaveURL(origin + "/agents/conversations/" + conversationId);
     await page.reload();
     chat = page.getByRole("region", { name: "Agent conversation" });
     await expect(chat.locator("article").getByText(first, { exact: true })).toBeVisible();
     await expect(chat.locator("article").getByText("What should I do next?", { exact: true })).toBeVisible();
+    await expect(chat.locator("article").getByText(accountAnswer, { exact: true })).toBeVisible();
+    assert.ok((await chat.locator("article").allTextContents()).every((text: string) => !/\[internal reference\]/i.test(text)), "Reloaded Growth history contains a legacy internal-reference marker");
     await page.getByRole("link", { name: "Agents", exact: true }).last().click();
     await page.getByRole("tab", { name: "Conversations", exact: true }).click();
     await page.getByRole("textbox", { name: "Search conversations", exact: true }).fill(first);

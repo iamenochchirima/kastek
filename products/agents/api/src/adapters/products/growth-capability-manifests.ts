@@ -1,4 +1,4 @@
-import { growthOperations } from "@kasitek-labs/contracts";
+import { growthAgentProductReferences, growthOperations } from "@kasitek-labs/contracts";
 import { requestDigest } from "../../contracts/contracts";
 
 export const growthInstalledHandlers = ["workspace.read", "content.list", "content.read", "campaigns.list",
@@ -135,6 +135,15 @@ const readHandlers=growthOperations.filter(operation=>operation.effect==="read"|
 export const growthFullOperationAccessHandlers=readHandlers;
 export const growthOperationAccessHandlers=growthOperationHandlers.filter(value=>readHandlers.includes(value));
 export const growthFullOperationModelProjections=Object.fromEntries(growthOperations.filter(operation=>operation.review==="required").map(operation=>[handler(operation),"effect-status-v1" as const]));
+export const growthProductReferences=growthAgentProductReferences;
+const legacyReferenceHandlers=new Set([
+  "growth.operation.connections.list@1","growth.operation.connections.status.update@1",
+  "growth.operation.content.accounts.list@1","growth.operation.content.posts.draft.create@1",
+  "growth.operation.content.posts.draft.update@1","growth.operation.content.templates.instantiate@1",
+  "growth.draft.prepare@1",
+]);
+export function growthReferencesFor(handlers:readonly string[]){return Object.fromEntries(Object.entries(growthProductReferences).filter(([key])=>handlers.includes(key)));}
+export function growthLegacyReferencesFor(handlers:readonly string[]){return Object.fromEntries(Object.entries(growthProductReferences).filter(([key])=>handlers.includes(key)&&legacyReferenceHandlers.has(key)));}
 export const growthOperationModelProjections=Object.fromEntries(Object.entries(growthFullOperationModelProjections).filter(([value])=>growthOperationHandlers.includes(value)));
 export const growthContentReadModelProjections={...growthFullOperationModelProjections,
   "growth.operation.content.posts.get@1":"growth-content-post-read-v1",
@@ -207,6 +216,9 @@ export const growthCurrentContentReadAdapterManifest={...growthInstalledAdapterM
   executableDigest:requestDigest({release:"growth-operations-v2",handlers:growthFullOperationHandlers,modelProjection:"growth-content-post-read-v1"})};
 export const growthConnectionReadAdapterManifest={...growthInstalledAdapterManifest,release:"10",
   executableDigest:requestDigest({release:"growth-operations-v2",handlers:growthFullOperationHandlers,modelProjection:"growth-content-post-read-v1",connectionProjection:"growth-connections-read-v1"})};
+export const growthReferenceAdapterManifest={...growthInstalledAdapterManifest,release:"11",
+  executableDigest:requestDigest({release:"growth-operations-v2",handlers:growthFullOperationHandlers,modelProjection:"growth-content-post-read-v1",
+    connectionProjection:"growth-connections-read-v1",referenceProjection:"growth-product-references-v1",references:growthProductReferences})};
 export const growthRetainedOperationAdapters=[
   {manifest:growthOperationAdapterManifest,handlers:growthOperationHandlers},
   {manifest:growthOperationAdapterManifestV7,handlers:growthRetainedOperationHandlers},
