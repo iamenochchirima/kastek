@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { productUrls } from "@/lib/site-config";
 import { LandingImage } from "./landing-image";
 
 export function Hero() {
@@ -26,7 +25,7 @@ export function Hero() {
               </svg>
             </summary>
             <div>
-              <a href={productUrls.agents}>
+              <a href="/waitlist">
                 <b>
                   {"Agents"}
                 </b>
@@ -38,7 +37,7 @@ export function Hero() {
                   </path>
                 </svg>
               </a>
-              <a href={productUrls.growth}>
+              <a href="/waitlist">
                 <b>
                   {"Growth"}
                 </b>
@@ -50,7 +49,7 @@ export function Hero() {
                   </path>
                 </svg>
               </a>
-              <a href={productUrls.agency}>
+              <a href="/waitlist">
                 <b>
                   {"Agency"}
                 </b>

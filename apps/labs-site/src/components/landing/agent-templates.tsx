@@ -1,4 +1,3 @@
-import { productUrls } from "@/lib/site-config";
 import { LandingImage } from "./landing-image";
 
 export function AgentTemplates() {
@@ -26,7 +25,7 @@ export function AgentTemplates() {
         </div>
         <div className="operation-window">
           <header className="op-app-header">
-            <a className="op-brand" href={productUrls.agents}>
+            <a className="op-brand" href="/waitlist">
               <LandingImage src="/labs-landing/assets/logo.png" alt="" width="20" height="20" decoding="async" />
               {"KasiTek "}
               <small>
@@ -293,7 +292,7 @@ export function AgentTemplates() {
         </div>
         <div className="operation-window">
           <header className="op-app-header">
-            <a className="op-brand" href={productUrls.agents}>
+            <a className="op-brand" href="/waitlist">
               <LandingImage src="/labs-landing/assets/logo.png" alt="" width="20" height="20" decoding="async" />
               {"KasiTek "}
               <small>

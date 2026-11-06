@@ -1,9 +1,7 @@
-import { productUrls } from "@/lib/site-config";
-
 export function ProductDirectory() {
   return (
     <section className="productDirectory" id="product-directory" aria-label="Our products">
-      <a href={productUrls.agents} className="directoryItem">
+      <a href="/waitlist" className="directoryItem">
         <span className="productMark agentMark" aria-hidden="true">
         </span>
         <span>
@@ -21,7 +19,7 @@ export function ProductDirectory() {
           </path>
         </svg>
       </a>
-      <a href={productUrls.growth} className="directoryItem">
+      <a href="/waitlist" className="directoryItem">
         <span className="productMark growthMark" aria-hidden="true">
         </span>
         <span>
@@ -39,7 +37,7 @@ export function ProductDirectory() {
           </path>
         </svg>
       </a>
-      <a href={productUrls.agency} className="directoryItem">
+      <a href="/waitlist" className="directoryItem">
         <span className="productMark agencyMark" aria-hidden="true">
         </span>
         <span>

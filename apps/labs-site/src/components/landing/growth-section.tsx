@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react";
-import { productUrls } from "@/lib/site-config";
 import { LandingImage } from "./landing-image";
 
 export function GrowthSection() {
@@ -22,8 +21,8 @@ export function GrowthSection() {
           <p>
             {"Conversations, campaigns and the day's work, in one place."}
           </p>
-          <a className="button button-signal" href={productUrls.growth}>
-            {"Open Growth ↗"}
+          <a className="button button-signal" href="/waitlist">
+            {"Request Growth access ↗"}
           </a>
         </div>
       </div>

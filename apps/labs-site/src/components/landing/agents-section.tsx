@@ -1,4 +1,3 @@
-import { productUrls } from "@/lib/site-config";
 import { LandingImage } from "./landing-image";
 
 export function AgentsSection() {
@@ -21,8 +20,8 @@ export function AgentsSection() {
           <p>
             {"AI agents for customer support, business tasks and personal work. Each with the knowledge and tools for its job."}
           </p>
-          <a className="button button-signal" href={productUrls.agents}>
-            {"Open Agents "}
+          <a className="button button-signal" href="/waitlist">
+            {"Request Agents access "}
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
               <path d="M5 19 19 5M5 5h14v14">
               </path>
@@ -72,7 +71,7 @@ export function AgentsSection() {
             </div>
             <div className="operation-window">
               <header className="op-app-header">
-                <a className="op-brand" href={productUrls.agents}>
+                <a className="op-brand" href="/waitlist">
                   <LandingImage src="/labs-landing/assets/logo.png" alt="" width="20" height="20" decoding="async" />
                   {"KasiTek "}
                   <small>

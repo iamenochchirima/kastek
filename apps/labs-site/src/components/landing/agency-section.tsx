@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react";
-import { productUrls } from "@/lib/site-config";
 import { LandingImage } from "./landing-image";
 
 export function AgencySection() {
@@ -25,8 +24,8 @@ export function AgencySection() {
             <br />
             {"Keep the work and feedback together."}
           </p>
-          <a className="button button-signal" href={productUrls.agency}>
-            {"Open Agency "}
+          <a className="button button-signal" href="/waitlist">
+            {"Request Agency access "}
             <span aria-hidden="true">
               {"↗"}
             </span>
