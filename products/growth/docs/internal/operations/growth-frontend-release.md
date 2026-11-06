@@ -57,13 +57,17 @@ which current provider, DNS, CDN, or TLS configuration is live.
    URLs against their owning API configuration.
 7. If WhatsApp embedded signup is enabled, set public build-time `VITE_META_APP_ID` and
    `VITE_META_EMBEDDED_SIGNUP_CONFIG_ID`. Rebuild after changing them.
-8. If the environment supplies a CSP, set `GROWTH_CONTENT_SECURITY_POLICY` to the tested policy.
+8. Set public build-time `VITE_AGENTS_APP_URL` and `VITE_AGENCY_APP_URL` to the
+   absolute production origins (for example `https://agents.kasitek.co.za` and the
+   Agency origin). Siblings without a configured URL are omitted from the app
+   switcher. Rebuild after changing them.
+9. If the environment supplies a CSP, set `GROWTH_CONTENT_SECURITY_POLICY` to the tested policy.
    Verify provider SDKs, microphone/call flows, fonts, and inline framework scripts against it.
-9. Keep prior Vite assets in read-only release directories and set `GROWTH_PREVIOUS_ASSET_ROOTS`
+10. Keep prior Vite assets in read-only release directories and set `GROWTH_PREVIOUS_ASSET_ROOTS`
    to a JSON array of their absolute `build/client` paths. Only missing hashed `/assets/*` files
    can come from these directories. Current files take precedence; documents and APIs never
    fall back to an archived build.
-10. During the Next-to-Vite cutover, set `GROWTH_LEGACY_NEXT_STATIC_ROOT` to the absolute retained
+11. During the Next-to-Vite cutover, set `GROWTH_LEGACY_NEXT_STATIC_ROOT` to the absolute retained
     `.next/static` directory for open Next tabs. Only browser chunks, styles, media, and build
     manifests under `/_next/static/*` are served. Source maps, source files, server artifacts, and
     symlinks that escape the configured directory remain unavailable. Retain the previous full

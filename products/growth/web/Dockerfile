@@ -6,6 +6,8 @@ COPY . .
 RUN pnpm --filter client... install --frozen-lockfile
 ARG VITE_META_APP_ID
 ARG VITE_META_EMBEDDED_SIGNUP_CONFIG_ID
+ARG VITE_AGENTS_APP_URL
+ARG VITE_AGENCY_APP_URL
 RUN pnpm --filter @kasitek-labs/contracts build && pnpm --filter client build
 
 FROM node:24-bookworm-slim AS runtime

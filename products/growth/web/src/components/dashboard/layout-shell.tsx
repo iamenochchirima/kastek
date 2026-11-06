@@ -57,6 +57,7 @@ import { GrowthAgentProvider, useGrowthAgents } from "@/components/dashboard/age
 import { GrowthAssistantLauncher } from "@/components/dashboard/agents/assistant-launcher";
 import { GrowthAssistantDock } from "@/components/dashboard/agents/assistant-dock";
 import { CommandPalette } from "@/components/dashboard/command-palette";
+import { AppSwitcher, buildKasitekAppLinks } from "@kasitek-labs/ui/app-switcher";
 import {
   applyTheme,
   resolveStoredTheme,
@@ -79,6 +80,18 @@ type NavigationGroup = {
 };
 
 const SIDEBAR_COLLAPSE_KEY = "kasitek-sidebar-collapsed";
+
+function growthAppLinks() {
+  return buildKasitekAppLinks({
+    current: "growth",
+    agentsUrl:
+      import.meta.env.VITE_AGENTS_APP_URL ??
+      (import.meta.env.DEV ? "http://localhost:3100/app/overview" : undefined),
+    agencyUrl:
+      import.meta.env.VITE_AGENCY_APP_URL ??
+      (import.meta.env.DEV ? "http://localhost:3010/" : undefined),
+  });
+}
 
 function tourTarget(href: string) {
   return ({
@@ -200,6 +213,7 @@ function DesktopTopbar({
 
   return (
     <header className="sticky top-0 z-[var(--z-topbar)] hidden h-14 items-center gap-3 border-b border-line bg-surface px-4 [&_svg]:stroke-[1.5] md:flex lg:px-6">
+      <AppSwitcher current="growth" apps={growthAppLinks()} />
       <nav className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2" aria-label="Breadcrumb">
         <span title={organizationName}>Growth</span>
         <ChevronRight className="size-[13px] shrink-0 text-ink-3" />
@@ -291,6 +305,7 @@ function MobileTopbar({
           <p className="truncate text-[11px] text-muted-foreground">{sectionLabel}</p>
         </div>
       </Link>
+      <AppSwitcher current="growth" apps={growthAppLinks()} />
 
       <div className="flex-1" />
       <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={onOpenCommand} aria-label="Search">
@@ -463,6 +478,7 @@ function SidebarContent({
           <img src="/logo.png" alt="KasiTek" width={32} height={32} className="growth-brand-mark" />
           {!collapsed ? <span className="flex items-center gap-1.5 text-base font-semibold text-foreground">Growth</span> : null}
         </Link>
+        {!collapsed ? <AppSwitcher current="growth" apps={growthAppLinks()} /> : null}
 
       </div>
 
