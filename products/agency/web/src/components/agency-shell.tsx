@@ -28,6 +28,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { AppSwitcher, buildKasitekAppLinks } from "@kasitek-labs/ui/app-switcher";
 import { cn } from "@/lib/utils";
 import { setTheme, useAppearance, resolveTheme } from "@/lib/appearance";
 import { useAuth } from "@/lib/auth";
@@ -145,6 +146,15 @@ export function AgencyShell({
               ? location.pathname === item.path
               : location.pathname.startsWith(item.path),
           )?.name || (partner ? "Business settings" : "Workspace");
+  const appLinks = buildKasitekAppLinks({
+    current: "agency",
+    growthUrl:
+      import.meta.env.VITE_GROWTH_APP_URL ??
+      (import.meta.env.DEV ? "http://localhost:3000/workspace" : undefined),
+    agentsUrl:
+      import.meta.env.VITE_AGENTS_APP_URL ??
+      (import.meta.env.DEV ? "http://localhost:3100/app/overview" : undefined),
+  });
   const brand = partner ? "KasiTek Agency" : brandName;
   function toggleCollapsed() {
     const next = !collapsed;
@@ -336,6 +346,7 @@ export function AgencyShell({
             <span className="truncate text-sm font-medium">{title}</span>
           </div>
           <div className="flex items-center gap-2">
+            <AppSwitcher current="agency" apps={appLinks} />
             <Button
               variant="ghost"
               size="icon"
