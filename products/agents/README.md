@@ -507,7 +507,7 @@ Website settings provide install/share links, pause and **Customize widget**. Th
 appearance editor includes a live preview, custom colour, title/greeting/avatar, position, window
 and launcher dimensions, corner radius, screen offset, suggested messages and branding visibility.
 The same editor is available in Configure → Website. The embedded widget retains current Agents
-sessions, canonical Inbox messages and confirmed booking/intake flows. Visitors can start and
+sessions, canonical Inbox messages and confirmed booking/intake flows. A sent message appears immediately and is reconciled with the saved message; uncertain sends retain their retry key. Visitors can start and
 switch conversations in the same browser tab. Each conversation has its own visitor session and
 pending message; the list is stored in that tab's session storage. An expired session cannot be
 reopened without authorized return access. Pause
