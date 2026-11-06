@@ -40,9 +40,18 @@ const changed = () => new PlatformError("CHANNEL_CONNECTION_CHANGED", 409, "Chan
 const missing = () => new PlatformError("CHANNEL_CONNECTION_NOT_FOUND", 404, "Channel connection not found");
 type Row = Record<string, any>;
 function connectionDto(row: Row): ChannelConnection {
+  const visibleMetadata = { ...(row.metadata ?? {}) } as Record<string, unknown>;
+  let providerHealth: "ready" | "needs_attention" | undefined;
+  if (row.mode === "growth_managed") {
+    const health = visibleMetadata.growthChannelHealth as Record<string, unknown> | undefined;
+    providerHealth = health?.state === "needs_attention" ? "needs_attention" : "ready";
+    delete visibleMetadata.growthLink;
+    delete visibleMetadata.growthChannelHealth;
+  }
   return channelConnectionSchema.parse({ id: row.id, organizationId: row.organization_id, createdBy: row.created_by,
     kind: row.kind, name: row.name, assetId: row.asset_id, mode: row.mode, state: row.state, revision: row.revision,
-    credentialRevision: row.credential_revision, metadata: row.metadata, createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() });
+    ...(providerHealth ? { providerHealth } : {}), credentialRevision: row.credential_revision, metadata: visibleMetadata,
+    createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() });
 }
 function deploymentDto(row: Row): ChannelDeployment {
   return channelDeploymentSchema.parse({ id: row.id, organizationId: row.organization_id, connectionId: row.connection_id,
@@ -106,6 +115,188 @@ export class ChannelStore {
       return connectionDto(row);
     }); } catch (error) { return assetConflict(error); }
   }
+  async beginGrowthManaged(scope: ActionScope, raw: unknown): Promise<ChannelConnection> {
+    const input = z.strictObject({
+      kind: z.enum(["facebook", "instagram", "whatsapp"]), name: z.string().trim().min(1).max(256),
+      providerMode:z.enum(["meta","instagram_login"]),
+      assetId: externalId, growthOrganizationId: z.string().trim().min(1).max(128),
+      growthConnectionId: z.string().trim().min(1).max(128), permissionRevision: z.string().min(1).max(128),
+      agentId: z.uuid(), intentId: z.uuid(), requestId: z.uuid(), exchangeRequestId: z.uuid(),
+      actor: z.strictObject({issuer:z.url(),subject:z.string().trim().min(1).max(512)}),
+    }).parse(raw);
+    this.definition(input.kind, "growth_managed");
+    return transaction(this.pool, async db => {
+      await owner(db, scope);
+      if (!(await db.query(`SELECT 1 FROM agents_platform.agents a JOIN agents_platform.agent_versions v
+        ON v.organization_id=a.organization_id AND v.agent_id=a.id WHERE a.organization_id=$1 AND a.id=$2
+        AND a.deleted_at IS NULL AND a.offering IN ('faq','customer-service') AND v.configuration->>'executionKind'='business'
+        ORDER BY v.number DESC LIMIT 1 FOR SHARE OF a,v`, [scope.organizationId, input.agentId])).rowCount) {
+        throw new PlatformError("CHANNEL_AGENT_UNAVAILABLE", 409, "Select an existing saved customer agent");
+      }
+      const existing = (await db.query(`SELECT * FROM agents_platform.channel_connections WHERE organization_id=$1 AND kind=$2
+        AND mode='growth_managed' AND asset_id=$3 AND state NOT IN ('disconnected','removed') FOR UPDATE`,
+      [scope.organizationId, input.kind, input.assetId])).rows[0];
+      if (existing) {
+        const details = existing.metadata?.growthLink;
+        const binding=(await db.query("SELECT agent_id FROM agents_platform.channel_deployments WHERE organization_id=$1 AND connection_id=$2 AND state='active' FOR SHARE",[scope.organizationId,existing.id])).rows[0];
+        if (binding && binding.agent_id !== input.agentId) throw new PlatformError("CHANNEL_REASSIGNMENT_REQUIRED",409,"This channel is already assigned to another agent");
+        if (existing.state === "active" && details?.growthConnectionId === input.growthConnectionId && details?.agentId === input.agentId && details?.state === "active") return connectionDto(existing);
+        if (existing.state === "pending") {
+          if(details?.intentId===input.intentId&&details?.growthConnectionId===input.growthConnectionId&&details?.agentId===input.agentId)return connectionDto(existing);
+          const pendingMetadata = { growthLink: { growthOrganizationId: input.growthOrganizationId,
+            growthConnectionId: input.growthConnectionId, permissionRevision: input.permissionRevision,providerMode:input.providerMode,
+            intentId: input.intentId, requestId: input.requestId, exchangeRequestId: input.exchangeRequestId,
+            agentId: input.agentId, actor:input.actor, state: "pending" } };
+          const updated = (await db.query(`UPDATE agents_platform.channel_connections SET name=$3,metadata=$4,revision=revision+1,updated_at=now()
+            WHERE organization_id=$1 AND id=$2 RETURNING *`,[scope.organizationId,existing.id,input.name,pendingMetadata])).rows[0]!;
+          await this.recordAsset(db,updated,{providerAssetId:input.assetId,name:input.name,eligible:false,reasonCode:"growth_grant_pending",metadata:{permissionRevision:input.permissionRevision}});
+          return connectionDto(updated);
+        }
+        throw new PlatformError("CHANNEL_ASSET_CONFLICT", 409, "This channel asset is already connected");
+      }
+      const metadataValue = { growthLink: { growthOrganizationId: input.growthOrganizationId,
+        growthConnectionId: input.growthConnectionId, permissionRevision: input.permissionRevision,providerMode:input.providerMode,
+        intentId: input.intentId, requestId: input.requestId, exchangeRequestId: input.exchangeRequestId,
+        agentId: input.agentId, actor:input.actor, state: "pending" } };
+      const row = (await db.query(`INSERT INTO agents_platform.channel_connections(id,organization_id,created_by,kind,name,asset_id,mode,state,credential_revision,metadata)
+        VALUES($1,$2,$3,$4,$5,$6,'growth_managed','pending',0,$7) RETURNING *`,
+      [randomUUID(), scope.organizationId, scope.accountId, input.kind, input.name, input.assetId, metadataValue])).rows[0]!;
+      await this.recordAsset(db, row, { providerAssetId: input.assetId, name: input.name, eligible: false,
+        reasonCode: "growth_grant_pending", metadata: { permissionRevision: input.permissionRevision } });
+      return connectionDto(row);
+    });
+  }
+  async completeGrowthManaged(scope: ActionScope, connectionId: string, raw: unknown): Promise<ChannelConnection> {
+    const input = z.strictObject({ expectedRevision: revision, grantId: z.uuid(), growthActor:z.strictObject({issuer:z.url(),subject:z.string().min(1).max(512)}), permissionRevision: z.string().min(1).max(128) }).parse(raw);
+    return transaction(this.pool, async db => {
+      await owner(db, scope);
+      const row = await this.row(db, scope, connectionId, true);
+      if (row.mode !== "growth_managed" || row.revision !== input.expectedRevision) throw changed();
+      const parsedLink = z.strictObject({ growthOrganizationId:z.string().min(1), growthConnectionId:z.string().min(1),
+        permissionRevision:z.string().min(1),providerMode:z.enum(["meta","instagram_login"]), intentId:z.uuid(), requestId:z.uuid(), exchangeRequestId:z.uuid(),
+        agentId:z.uuid(), actor:z.strictObject({issuer:z.url(),subject:z.string().min(1)}), state:z.literal("pending") }).safeParse(row.metadata.growthLink);
+      if (!parsedLink.success || parsedLink.data.permissionRevision !== input.permissionRevision) throw changed();
+      const link = parsedLink.data;
+      const grant = (await db.query(`INSERT INTO agents_platform.growth_channel_grants(
+        id,organization_id,connection_id,agent_id,provider,growth_organization_id,growth_connection_id,provider_asset_id,permission_revision,state,created_by
+      ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10)
+      ON CONFLICT(organization_id,connection_id) DO UPDATE SET id=excluded.id,agent_id=excluded.agent_id,provider=excluded.provider,
+        growth_organization_id=excluded.growth_organization_id,growth_connection_id=excluded.growth_connection_id,
+        provider_asset_id=excluded.provider_asset_id,permission_revision=excluded.permission_revision,state='active',updated_at=now()
+      RETURNING id`, [input.grantId, scope.organizationId, connectionId, link.agentId, row.kind,
+        link.growthOrganizationId, link.growthConnectionId, row.asset_id, input.permissionRevision, scope.accountId])).rows[0];
+      if (!grant) throw changed();
+      const nextMetadata = { ...row.metadata, growthLink: { ...link, growthActor:input.growthActor, state: "active", grantId: input.grantId, permissionRevision: input.permissionRevision } };
+      const next = (await db.query(`UPDATE agents_platform.channel_connections SET state='active',metadata=$3,revision=revision+1,updated_at=now()
+        WHERE organization_id=$1 AND id=$2 RETURNING *`, [scope.organizationId, connectionId, nextMetadata])).rows[0]!;
+      await db.query(`UPDATE agents_platform.channel_assets SET eligible=true,reason_code=NULL,metadata=$4,observed_at=now()
+        WHERE organization_id=$1 AND connection_id=$2 AND provider_asset_id=$3`,
+      [scope.organizationId, connectionId, row.asset_id, { permissionRevision: input.permissionRevision }]);
+      return connectionDto(next);
+    });
+  }
+  async recordGrowthManagedActor(scope:ActionScope,connectionId:string,raw:unknown):Promise<ChannelConnection>{
+    const input=z.strictObject({expectedRevision:revision,grantId:z.uuid(),growthActor:z.strictObject({issuer:z.url(),subject:z.string().min(1).max(512)}),
+      permissionRevision:z.string().min(1).max(128)}).parse(raw);
+    return transaction(this.pool,async db=>{
+      await owner(db,scope);const row=await this.row(db,scope,connectionId,true);
+      if(row.mode!=="growth_managed"||row.state!=="active"||row.revision!==input.expectedRevision)throw changed();
+      const parsed=z.strictObject({growthOrganizationId:z.string().min(1),growthConnectionId:z.string().min(1),permissionRevision:z.string().min(1),
+        providerMode:z.enum(["meta","instagram_login"]),intentId:z.uuid(),requestId:z.uuid(),exchangeRequestId:z.uuid(),agentId:z.uuid(),
+        actor:z.strictObject({issuer:z.url(),subject:z.string().min(1)}),growthActor:z.strictObject({issuer:z.url(),subject:z.string().min(1).max(512)}).optional(),
+        state:z.literal("active"),grantId:z.uuid()}).safeParse(row.metadata?.growthLink);
+      if(!parsed.success||parsed.data.grantId!==input.grantId)throw changed();
+      if(parsed.data.growthActor){
+        if(parsed.data.growthActor.issuer!==input.growthActor.issuer||parsed.data.growthActor.subject!==input.growthActor.subject)throw changed();
+        if(parsed.data.permissionRevision===input.permissionRevision&&!row.metadata.growthChannelHealth)return connectionDto(row);
+      }
+      const nextMetadata={...row.metadata,growthLink:{...parsed.data,growthActor:input.growthActor,permissionRevision:input.permissionRevision}};
+      delete nextMetadata.growthChannelHealth;
+      const localGrant=await db.query(`UPDATE agents_platform.growth_channel_grants SET permission_revision=$4,updated_at=now()
+        WHERE organization_id=$1 AND connection_id=$2 AND id=$3 AND state='active'`,[scope.organizationId,connectionId,input.grantId,input.permissionRevision]);
+      if(!localGrant.rowCount)throw changed();
+      const next=(await db.query(`UPDATE agents_platform.channel_connections SET metadata=$3,revision=revision+1,updated_at=now()
+        WHERE organization_id=$1 AND id=$2 RETURNING *`,[scope.organizationId,connectionId,nextMetadata])).rows[0]!;
+      return connectionDto(next);
+    });
+  }
+  async growthLinkState(scope:ActionScope,id:string) {
+    return transaction(this.pool,async db=>{
+      const row=await this.row(db,scope,id);
+      if(row.mode!=="growth_managed")throw new PlatformError("CHANNEL_CONNECTION_CHANGED",409,"Growth channel connection changed");
+      return z.strictObject({growthOrganizationId:z.string().min(1),growthConnectionId:z.string().min(1),permissionRevision:z.string().min(1),
+        providerMode:z.enum(["meta","instagram_login"]),intentId:z.uuid(),requestId:z.uuid(),exchangeRequestId:z.uuid(),agentId:z.uuid(),actor:z.strictObject({issuer:z.url(),subject:z.string().min(1)}),
+        growthActor:z.strictObject({issuer:z.url(),subject:z.string().min(1).max(512)}).optional(),state:z.enum(["pending","active"]),grantId:z.uuid().optional()}).parse(row.metadata.growthLink);
+    });
+  }
+  /** Records remote Growth authorization failures without stopping the inbound route owned by Agents. */
+  async markGrowthManagedNeedsAttention(connectionId: string, reasonCode: string): Promise<void> {
+    const id = z.uuid().parse(connectionId);
+    const code = z.enum(["AGENT_CHANNEL_CONNECTION_NEEDS_ATTENTION", "AGENT_CHANNEL_PERMISSION_MISSING", "AGENT_CHANNEL_ACCESS_DENIED"]).parse(reasonCode);
+    await transaction(this.pool, async db => {
+      const row = (await db.query("SELECT * FROM agents_platform.channel_connections WHERE id=$1 FOR UPDATE", [id])).rows[0];
+      if (!row || row.mode !== "growth_managed" || row.state !== "active") return;
+      const existing = row.metadata?.growthChannelHealth;
+      if (existing?.state === "needs_attention" && existing?.code === code) return;
+      const metadata = { ...(row.metadata ?? {}), growthChannelHealth: { state: "needs_attention", code } };
+      await db.query(`UPDATE agents_platform.channel_connections SET metadata=$2,revision=revision+1,updated_at=now()
+        WHERE id=$1 AND mode='growth_managed' AND state='active'`, [id, metadata]);
+    });
+  }
+  async growthManagedDeliveryAuthority(input:{connectionId:string;deploymentId:string}) {
+    const row=(await this.pool.query(`SELECT c.*,d.agent_id AS bound_agent_id,g.id AS local_grant_id,g.state AS local_grant_state,
+      g.provider AS grant_provider,g.growth_organization_id,g.growth_connection_id,g.provider_asset_id,g.permission_revision
+      FROM agents_platform.channel_connections c
+      JOIN agents_platform.channel_deployments d ON d.organization_id=c.organization_id AND d.connection_id=c.id
+      JOIN agents_platform.growth_channel_grants g ON g.organization_id=c.organization_id AND g.connection_id=c.id AND g.agent_id=d.agent_id
+      WHERE c.id=$1 AND d.id=$2 AND c.mode='growth_managed' AND c.state='active' AND d.state='active' AND g.state='active'`,
+      [input.connectionId,input.deploymentId])).rows[0];
+    if(!row||row.asset_id!==row.provider_asset_id)throw new PlatformError("GROWTH_CHANNEL_AUTHORITY_CHANGED",403,"Channel authority is unavailable");
+    const link=z.strictObject({growthOrganizationId:z.string().min(1),growthConnectionId:z.string().min(1),permissionRevision:z.string().min(1),
+      providerMode:z.enum(["meta","instagram_login"]),intentId:z.uuid(),requestId:z.uuid(),exchangeRequestId:z.uuid(),agentId:z.uuid(),
+      actor:z.strictObject({issuer:z.url(),subject:z.string().min(1)}),growthActor:z.strictObject({issuer:z.url(),subject:z.string().min(1).max(512)}),
+      state:z.literal("active"),grantId:z.uuid()}).safeParse(row.metadata?.growthLink);
+    if(!link.success||link.data.agentId!==row.bound_agent_id||link.data.grantId!==row.local_grant_id||
+      link.data.growthOrganizationId!==row.growth_organization_id||link.data.growthConnectionId!==row.growth_connection_id||
+      link.data.permissionRevision!==row.permission_revision||link.data.providerMode!==row.metadata?.growthLink?.providerMode||
+      row.kind!==row.grant_provider)throw new PlatformError("GROWTH_CHANNEL_AUTHORITY_CHANGED",403,"Channel authority is unavailable");
+    if(row.metadata?.growthChannelHealth?.state==="needs_attention")
+      throw new PlatformError("GROWTH_CHANNEL_NEEDS_ATTENTION",409,"Reconnect this account in Growth Connections");
+    return {workspaceId:row.organization_id,agentId:row.bound_agent_id,connectionId:row.id,grantId:row.local_grant_id,
+      provider:row.grant_provider,providerAssetId:row.asset_id,actor:link.data.growthActor,providerMode:link.data.providerMode};
+  }
+  async assertGrowthManagedInboundAuthority(input:{workspaceId:string;agentId:string;connectionId:string;grantId:string;provider:string;providerAssetId:string;actor:{issuer:string;subject:string}}) {
+    const row=(await this.pool.query(`SELECT c.*,d.id AS deployment_id,d.agent_id AS bound_agent_id,g.id AS local_grant_id,g.state AS local_grant_state,
+      g.provider AS grant_provider,g.provider_asset_id,g.growth_organization_id,g.growth_connection_id,g.permission_revision
+      FROM agents_platform.channel_connections c
+      JOIN agents_platform.channel_deployments d ON d.organization_id=c.organization_id AND d.connection_id=c.id
+      JOIN agents_platform.growth_channel_grants g ON g.organization_id=c.organization_id AND g.connection_id=c.id AND g.agent_id=d.agent_id
+      WHERE c.organization_id=$1 AND c.id=$2 AND c.mode='growth_managed' AND c.state='active' AND d.state='active' AND g.state='active'`,
+      [input.workspaceId,input.connectionId])).rows[0];
+    if(!row||row.bound_agent_id!==input.agentId||row.local_grant_id!==input.grantId||row.grant_provider!==input.provider||
+      row.asset_id!==input.providerAssetId||row.provider_asset_id!==input.providerAssetId||row.kind!==input.provider)
+      throw new PlatformError("GROWTH_CHANNEL_AUTHORITY_CHANGED",403,"Channel authority is unavailable");
+    const link=z.strictObject({growthOrganizationId:z.string().min(1),growthConnectionId:z.string().min(1),permissionRevision:z.string().min(1),
+      providerMode:z.enum(["meta","instagram_login"]),intentId:z.uuid(),requestId:z.uuid(),exchangeRequestId:z.uuid(),agentId:z.uuid(),
+      actor:z.strictObject({issuer:z.url(),subject:z.string().min(1)}),growthActor:z.strictObject({issuer:z.url(),subject:z.string().min(1).max(512)}),
+      state:z.literal("active"),grantId:z.uuid()}).safeParse(row.metadata?.growthLink);
+    if(!link.success||link.data.agentId!==input.agentId||link.data.grantId!==input.grantId||
+      link.data.growthActor.issuer!==input.actor.issuer||link.data.growthActor.subject!==input.actor.subject||
+      link.data.growthOrganizationId!==row.growth_organization_id||link.data.growthConnectionId!==row.growth_connection_id||
+      link.data.permissionRevision!==row.permission_revision)throw new PlatformError("GROWTH_CHANNEL_AUTHORITY_CHANGED",403,"Channel authority is unavailable");
+    return {workspaceId:row.organization_id,connectionId:row.id,kind:row.kind,assetId:row.asset_id};
+  }
+  async assertGrowthManagedAgent(scope:ActionScope,agentId:string) {
+    z.uuid().parse(agentId);
+    return transaction(this.pool,async db=>{
+      await owner(db,scope);
+      const found=(await db.query(`SELECT 1 FROM agents_platform.agents a JOIN agents_platform.agent_versions v
+        ON v.organization_id=a.organization_id AND v.agent_id=a.id WHERE a.organization_id=$1 AND a.id=$2
+        AND a.deleted_at IS NULL AND a.offering IN ('faq','customer-service') AND v.configuration->>'executionKind'='business'
+        ORDER BY v.number DESC LIMIT 1 FOR SHARE OF a,v`,[scope.organizationId,agentId])).rowCount;
+      if(!found)throw new PlatformError("CHANNEL_AGENT_UNAVAILABLE",409,"Select an existing saved customer agent");
+    });
+  }
   async update(scope: ActionScope, id: string, raw: unknown): Promise<ChannelConnection> {
     const input = updateInput.parse(raw);
     try { return await transaction(this.pool, async db => { await owner(db, scope); const row = await this.row(db, scope, id, true);
@@ -136,6 +327,7 @@ export class ChannelStore {
     return transaction(this.pool, async db => { await owner(db, scope); const row = await this.row(db, scope, id, true);
       if (row.revision !== expectedRevision) throw changed();
       await db.query("UPDATE agents_platform.channel_credentials SET state='revoked',envelope=NULL,revoked_at=now() WHERE organization_id=$1 AND connection_id=$2 AND state='active'", [scope.organizationId, id]);
+      if (row.mode === "growth_managed") await db.query("UPDATE agents_platform.growth_channel_grants SET state='revoked',updated_at=now() WHERE organization_id=$1 AND connection_id=$2 AND state<>'revoked'", [scope.organizationId, id]);
       await db.query("UPDATE agents_platform.channel_deployments SET state='revoked',revision=revision+1,updated_at=now() WHERE organization_id=$1 AND connection_id=$2 AND state<>'revoked'", [scope.organizationId, id]);
       return connectionDto((await db.query("UPDATE agents_platform.channel_connections SET state=$3,revision=revision+1,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *", [scope.organizationId, id, remove ? "removed" : "disconnected"])).rows[0]!);
     });

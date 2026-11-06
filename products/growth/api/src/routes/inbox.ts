@@ -5,6 +5,7 @@ import { ApiError } from "../error.js";
 import { stringQueryMap } from "../typed-query.js";
 import { extractUser, resolveActiveOrgId } from "../identity/session.js";
 import * as inbox from "../services/inbox/index.js";
+import { routeGrowthManagedMetaPayload } from "../agents/channel-events.js";
 export function registerInboxRoutes(
   app: FastifyInstance,
   context: CoreContext,
@@ -149,7 +150,8 @@ export function registerInboxRoutes(
             "Invalid Meta webhook payload",
           );
         }
-        await inbox.processMetaWebhookPayload(context.pool, payload, options);
+        const routed = await routeGrowthManagedMetaPayload(context, payload, request.log);
+        await inbox.processMetaWebhookPayload(context.pool, routed, options);
         return { success: true };
       },
     );

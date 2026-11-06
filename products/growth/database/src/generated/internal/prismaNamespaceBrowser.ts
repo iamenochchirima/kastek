@@ -59,6 +59,10 @@ export const ModelName = {
   ExternalConnectionCapability: 'ExternalConnectionCapability',
   ExternalConnectionPermission: 'ExternalConnectionPermission',
   ExternalConnectionAuthorizationAttempt: 'ExternalConnectionAuthorizationAttempt',
+  GrowthAgentChannelGrant: 'GrowthAgentChannelGrant',
+  GrowthAgentChannelLinkIntent: 'GrowthAgentChannelLinkIntent',
+  GrowthAgentChannelSend: 'GrowthAgentChannelSend',
+  GrowthAgentChannelEvent: 'GrowthAgentChannelEvent',
   ExternalConnectionConsumer: 'ExternalConnectionConsumer',
   EmailConnection: 'EmailConnection',
   EmailInboxBinding: 'EmailInboxBinding',
@@ -329,6 +333,94 @@ export const ExternalConnectionAuthorizationAttemptScalarFieldEnum = {
 } as const
 
 export type ExternalConnectionAuthorizationAttemptScalarFieldEnum = (typeof ExternalConnectionAuthorizationAttemptScalarFieldEnum)[keyof typeof ExternalConnectionAuthorizationAttemptScalarFieldEnum]
+
+
+export const GrowthAgentChannelGrantScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  connectionId: 'connectionId',
+  provider: 'provider',
+  providerAssetId: 'providerAssetId',
+  agentsWorkspaceId: 'agentsWorkspaceId',
+  agentsAgentId: 'agentsAgentId',
+  agentsConnectionId: 'agentsConnectionId',
+  intentId: 'intentId',
+  actorId: 'actorId',
+  capabilities: 'capabilities',
+  permissionRevision: 'permissionRevision',
+  expiresAt: 'expiresAt',
+  state: 'state',
+  routeOwner: 'routeOwner',
+  requestId: 'requestId',
+  requestDigest: 'requestDigest',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  revokedAt: 'revokedAt'
+} as const
+
+export type GrowthAgentChannelGrantScalarFieldEnum = (typeof GrowthAgentChannelGrantScalarFieldEnum)[keyof typeof GrowthAgentChannelGrantScalarFieldEnum]
+
+
+export const GrowthAgentChannelLinkIntentScalarFieldEnum = {
+  id: 'id',
+  actorId: 'actorId',
+  orgId: 'orgId',
+  provider: 'provider',
+  loginMode: 'loginMode',
+  agentsWorkspaceId: 'agentsWorkspaceId',
+  agentsAgentId: 'agentsAgentId',
+  agentsConnectionId: 'agentsConnectionId',
+  requestId: 'requestId',
+  requestDigest: 'requestDigest',
+  returnRoute: 'returnRoute',
+  connectionId: 'connectionId',
+  providerAssetId: 'providerAssetId',
+  permissionRevision: 'permissionRevision',
+  oauthStateHash: 'oauthStateHash',
+  oauthStateExpiresAt: 'oauthStateExpiresAt',
+  authorizedAt: 'authorizedAt',
+  codeHash: 'codeHash',
+  codeExpiresAt: 'codeExpiresAt',
+  completedAt: 'completedAt',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type GrowthAgentChannelLinkIntentScalarFieldEnum = (typeof GrowthAgentChannelLinkIntentScalarFieldEnum)[keyof typeof GrowthAgentChannelLinkIntentScalarFieldEnum]
+
+
+export const GrowthAgentChannelSendScalarFieldEnum = {
+  deliveryId: 'deliveryId',
+  grantId: 'grantId',
+  requestDigest: 'requestDigest',
+  state: 'state',
+  providerMessageId: 'providerMessageId',
+  code: 'code',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type GrowthAgentChannelSendScalarFieldEnum = (typeof GrowthAgentChannelSendScalarFieldEnum)[keyof typeof GrowthAgentChannelSendScalarFieldEnum]
+
+
+export const GrowthAgentChannelEventScalarFieldEnum = {
+  id: 'id',
+  grantId: 'grantId',
+  eventId: 'eventId',
+  digest: 'digest',
+  payload: 'payload',
+  state: 'state',
+  attempts: 'attempts',
+  availableAt: 'availableAt',
+  leaseUntil: 'leaseUntil',
+  claimId: 'claimId',
+  reason: 'reason',
+  createdAt: 'createdAt',
+  deliveredAt: 'deliveredAt'
+} as const
+
+export type GrowthAgentChannelEventScalarFieldEnum = (typeof GrowthAgentChannelEventScalarFieldEnum)[keyof typeof GrowthAgentChannelEventScalarFieldEnum]
 
 
 export const ExternalConnectionConsumerScalarFieldEnum = {

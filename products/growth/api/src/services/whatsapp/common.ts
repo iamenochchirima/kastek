@@ -20,7 +20,7 @@ export interface ProviderOptions {
 }
 export interface MarketingOptions extends ProviderOptions {
   publishEvent(orgId: string, event: unknown): Promise<void>;
-  logger?: Pick<Console, "warn" | "error">;
+  logger?: Pick<Console, "info" | "warn" | "error">;
 }
 export const bad = (message: string) =>
     new ApiError(400, "bad_request", message),

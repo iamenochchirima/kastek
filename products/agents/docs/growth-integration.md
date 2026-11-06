@@ -76,6 +76,115 @@ lifecycle/review calls retain `POST /internal/agents/actions` with audience `gro
 The shared runtime checks originating Growth access separately from each destination operation.
 Production service URLs require HTTPS.
 
+## Growth-managed customer channels
+
+Facebook Page Messenger, Instagram messaging and WhatsApp use Growth as the only provider
+credential owner. Start linking from an Agent's **Channels** section. Growth authorizes the current
+Growth organization, runs its existing Meta OAuth or WhatsApp Embedded Signup, presents eligible
+accounts, and exchanges a short-lived one-use grant with Agents. The callback returns to the
+selected Agent route; it does not send the user to the global Connections page. Agents stores the
+selected asset ID, a revocable grant reference and the route binding. It never receives or stores
+the provider access token and does not read Growth's database.
+
+Growth signs the channel grant and relays signature-verified provider webhooks through its existing
+`public_webhooks` worker and an idempotent outbox. Agents persists the normalized event through its
+existing channel delivery path and Inbox. Agents creates the active deployment binding before
+Growth transfers webhook ownership, so the receiving Inbox is ready when the first event arrives.
+Growth keeps publishing and other Growth features when the Agent grant is revoked. One provider
+asset can have one active Inbox owner. A grant marked
+`needs_attention` continues to own inbound routing but cannot send; selecting the account again
+rechecks permissions and refreshes the grant. Unknown provider send outcomes are retained as
+unknown and are not retried automatically. Growth-managed replies use the same provider reply-window
+policy as native channels while Growth remains the sole provider credential and send owner.
+
+Configure the existing signed service connection in both directions. These values belong to the
+API and worker processes, not either browser application:
+
+| Service | Required values |
+| --- | --- |
+| Agents API and worker | `GROWTH_PRODUCT_API_URL`, `AGENTS_PRODUCT_ACTION_PRIVATE_KEY`, `AGENTS_PRODUCT_ACTION_ISSUER`, `AGENTS_PRODUCT_ACTION_KEY_ID`, and Growth verifier `GROWTH_AGENTS_PUBLIC_KEY`, `GROWTH_AGENTS_ISSUER`, `GROWTH_AGENTS_KEY_ID`, `GROWTH_IDENTITY_ISSUER`. |
+| Growth API | `AGENTS_PRODUCT_ACTION_PUBLIC_KEY`, `AGENTS_PRODUCT_ACTION_ISSUER`, `AGENTS_PRODUCT_ACTION_KEY_ID`, `AGENTS_PRODUCT_API_URL`, `GROWTH_AGENTS_SIGNING_PRIVATE_KEY`, `GROWTH_AGENTS_ISSUER`, `GROWTH_AGENTS_KEY_ID`, and `GROWTH_IDENTITY_ISSUER`; set `GROWTH_AGENT_CHANNEL_LINKS_ENABLED=true` outside development/test to enable new links. |
+| Growth worker | `AGENTS_PRODUCT_API_URL`, `GROWTH_AGENTS_SIGNING_PRIVATE_KEY`, `GROWTH_AGENTS_ISSUER`, `GROWTH_AGENTS_KEY_ID`, and `GROWTH_IDENTITY_ISSUER`. It uses the existing `public_webhooks` process; no separate channel service is added. |
+
+The Growth API's public origin is `KASITEK_CORE_PUBLIC_URL`. Register these exact callback URLs
+on the matching Meta app, using separate development and production apps:
+
+```text
+<Growth API origin>/api/social/oauth/meta/callback
+<Growth API origin>/api/social/oauth/instagram/callback
+```
+
+Set Growth `AGENTS_FRONTEND_URL` to the Agents frontend origin so Growth can return the browser to
+the chosen Agent. Growth API OAuth and Graph calls use `AUTH_META_APP_ID` and
+`AUTH_META_APP_SECRET`. WhatsApp also needs the existing Meta app ID and
+`WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID` (or `META_EMBEDDED_SIGNUP_CONFIG_ID`). Register the existing
+Growth webhook endpoints with Meta and WhatsApp; Growth verifies their signatures before routing:
+
+```text
+<Growth API origin>/api/webhooks/meta
+<Growth API origin>/api/webhooks/whatsapp
+```
+
+Growth webhook verification uses `AUTH_META_APP_SECRET`; WhatsApp's webhook challenge also uses
+`WHATSAPP_WEBHOOK_VERIFY_TOKEN`. Direct Instagram Login is a separate authorization mode and
+requires `AUTH_INSTAGRAM_APP_ID` and `AUTH_INSTAGRAM_APP_SECRET`; it uses the Instagram callback
+above. Page-linked Instagram uses the Meta app and Meta callback. Keep each development callback
+on the development app and each production callback on the production app.
+
+Set Growth API `GROWTH_AGENT_CHANNEL_LINKS_ENABLED=true` to allow new Agent channel links in a
+staging or production environment. It defaults on only for development/test and off for other
+environments. Setting it to `false` blocks new link intents, provider authorization, account
+selection and pending grant activation; existing grants continue to route and send until
+individually revoked. Use the Agent's Disconnect action to return a selected asset's route to
+Growth.
+
+### Release record
+
+Channel link and delivery monitoring uses bounded operational telemetry. Growth records
+`growth.agent_channel.command.count` and `growth.agent_channel.command.duration_ms` with the fixed
+operation, provider, outcome and grant/delivery state dimensions. Its
+`growth.agent_channel.webhook_event.count` counter records queued, duplicate, delivered,
+retry-scheduled and quarantined events by provider. Agents' existing
+`agents.channels.connections`, `agents.channels.ingress` and `agents.channels.delivery` snapshots
+cover grant health, Inbox admission and outbound state; connection snapshots now distinguish
+`provider_health=ready|needs_attention|native`. No new central Analytics event is emitted: its
+current connection-capability contract describes the Growth provider connection, not the separate
+revocable Agents grant. Reusing it for grant revocation would report a false change to Growth's
+provider permissions.
+
+Structured request and worker logs record channel command and authorization outcomes, validated
+webhook receipt and relay delivery, retries/quarantine, and Agents Inbox admission. They use
+provider, operation, correlation ID, opaque grant/event IDs, bounded state/error code and duration
+or attempt count.
+They exclude provider asset IDs, customer identities, tokens and message contents. The existing
+Growth OpenTelemetry SDK, OTLP environment and Collector profiles are reused. No Collector or
+exporter configuration changes are part of this branch. Collector source revision:
+`6de8838bce9710109dfab1c9d847a7bf24e1c8e1`; local signal export and hosted retention are not
+verified by this implementation.
+
+| Field | Decision |
+| --- | --- |
+| Change and owner | Growth-owned Facebook Page Messenger, Instagram messaging and WhatsApp connections in Agent Channels; Growth and Agents engineering. |
+| Risk | High: signed cross-product authorization, provider webhooks, outbound messages and additive database tables. |
+| Affected services and surfaces | Growth API and `public_webhooks` worker; Agents API, worker and Agent Channels UI; Inbox delivery. |
+| Release identity | Planned platform release `0.6.0` (`platform-v0.6.0`); merge commit, service deployment IDs and artifact identities will be recorded after rollout. |
+| API/schema changes | Versioned signed channel-link contract; Growth migration `20261105090000_growth_agent_channel_grants`; Agents schema `131_growth_managed_channels.sql`. |
+| Rollout | Owner-authorized production release after local Facebook/Messenger acceptance. Apply the Growth migration and Agents schema before deploying their API/worker runtimes; deploy the Agents UI through its existing Vercel project. No production provider messages will be sent as part of rollout. Keep `GROWTH_AGENT_CHANNEL_LINKS_ENABLED` off until the production service configuration is verified, then enable it for customer use. Turning it off blocks new links; revoking an Agents grant returns that asset's route to Growth. |
+| Analytics and success metrics | No central Analytics event is emitted because the registered Growth connection lifecycle contracts do not represent a separate Agents grant. Bounded OTel metrics include Growth `growth.agent_channel.command.count`, `growth.agent_channel.command.duration_ms` and `growth.agent_channel.webhook_event.count`; Agents `agents.connection.lifecycle.attempts`, `agents.connection.lifecycle.duration_ms` and snapshot gauges for `agents.channels.connections`, `agents.channels.ingress`, `agents.channels.delivery` and `agents.channels.oldest_pending_ms`. Success is an active grant with verified permission, one durable Inbox admission per provider event, and a factual provider send receipt; failures remain visible in bounded states. |
+| Logs, metrics, dashboards and alerts | Structured events: `growth.agent_channel.command`, `growth.agent_channel.oauth_callback`, `growth.agent_channel.oauth.blocked`, `growth.agent_channel.oauth_failed`, `growth.agent_channel.webhook.received`, `growth.agent_channel.webhook.delivered`, `growth.agent_channel.webhook.quarantined`, `growth.agent_channel.delivery.quarantined`, `growth.agent_channel.delivery.retry.scheduled`, `growth.agent_channel.delivery.disabled`, and `agents.growth_channel.inbox.admission`. Fields include service/request context, provider, outcome/state, correlation ID, opaque grant/event ID, duration/attempt and bounded error code. Message bodies, tokens, external asset IDs and customer identities are excluded. Existing SDK, OTLP endpoint environment and Collector profiles are reused; Collector config source revision is `6de8838bce9710109dfab1c9d847a7bf24e1c8e1`. No dashboards or alerts were added. Local signal export and hosted Collector routing/retention remain unverified or unavailable. `OTEL_SDK_DISABLED=true` disables export while stdout request/worker logs remain. |
+| Documentation | This integration guide, the Agents source boundary and the Growth feature map are updated. The Agent Channels UI identifies connection status and supported account actions; this release adds no separate public API surface. |
+| Validation | On Node 24: Growth channel tests (9), Agents channel tests (9), Growth API build/typecheck, Agents API typecheck, Agents UI focused lint/build, Prisma validation and `pnpm verify:boundaries` passed. The owner confirmed the local Facebook Page Messenger inbound/reply journey works. Instagram and WhatsApp provider journeys have not received real-provider end-to-end acceptance. Production health and deployment IDs will be added after rollout; no production messages are part of validation. |
+| Rollback | Revoke the selected Agents grant to return route ownership to Growth; stop the Growth relay and roll back compatible API/worker/UI artifacts together if needed. Keep additive tables while events or outbound receipts are pending. Growth provider connections, credentials and publishing remain active. Disable OTel export with `OTEL_SDK_DISABLED=true` or by removing the OTLP endpoint; structured stdout logs remain. |
+| Post-release review | 13 November 2026: check connection failures, relay backlog/quarantine, send outcomes, provider permissions and Growth publishing; keep Instagram/WhatsApp provider acceptance explicitly open until owner-run development journeys pass. |
+
+Apply the Growth channel-grants migration before the Growth API/worker and Agents API that use it.
+The change is additive. To roll back, set `GROWTH_AGENT_CHANNEL_LINKS_ENABLED=false`, revoke each
+Agents grant that should return to Growth, stop the Growth outbox relay if delivery must pause, and
+roll back matching API/worker artifacts together. Keep the additive tables and columns; do not
+remove grants while events or outbound receipts are pending. Growth-owned provider connections
+and publishing remain intact. Resume by deploying compatible Growth and Agents artifacts, then
+re-enable the existing public-webhook worker and the channel-link flag.
+
 To rotate verifier keys, use `GROWTH_AGENTS_PUBLIC_KEYS_JSON` or
 `AGENTS_PRODUCT_ACTION_PUBLIC_KEYS_JSON` with `kid` to public PEM entries. Keep an optional feature
 configuration control key in `GROWTH_AGENTS_CONTROL_PUBLIC_KEYS_JSON`; its separate private key

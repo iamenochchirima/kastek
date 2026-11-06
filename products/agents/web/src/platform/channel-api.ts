@@ -2,7 +2,7 @@ import { api, ApiError, organizationPath } from "./api";
 export type ChannelKind = "website" | "whatsapp" | "telegram" | "facebook" | "instagram";
 export const channelNames: Record<ChannelKind,string> = {website:"Website",whatsapp:"WhatsApp",telegram:"Telegram",facebook:"Messenger",instagram:"Instagram"};
 export type CustomerChannel = {kind:ChannelKind;name:string;setup:string;assetLabel:string;modes:{id:string;available:boolean;reason:string|null}[];capabilities:{inboundText:boolean;outboundText:boolean;inboundAttachments:string[];outboundAttachments:string[];receipts:string[]};restrictions:string[]};
-export type ChannelConnection = {id:string;kind:ChannelKind;name:string;assetId:string|null;mode:string;state:"pending"|"active"|"needs_attention"|"disconnected"|"removed";revision:number;credentialRevision:number;metadata:Record<string,unknown>};
+export type ChannelConnection = {id:string;kind:ChannelKind;name:string;assetId:string|null;mode:string;state:"pending"|"active"|"needs_attention"|"disconnected"|"removed";providerHealth?:"ready"|"needs_attention";revision:number;credentialRevision:number;metadata:Record<string,unknown>};
 export type ChannelDeployment = {id:string;connectionId:string;agentId:string;versionId:string;state:"active"|"paused"|"revoked";revision:number};
 export type ChannelList = {connections:ChannelConnection[];deployments:ChannelDeployment[];websites:{id:string;agentId:string;agentName:string;allowedOrigins:string[]}[];setupClaims?:{connectionId:string;state:string;expiresAt:string}[];ingressFailures?:{connectionId:string;count:number;reason:string|null}[]};
 export type ChannelAsset = {id:string;name:string;eligible:boolean;reasonCode:string|null;metadata:Record<string,unknown>};
@@ -16,6 +16,8 @@ export function channelError(error:unknown):string {
     CHANNEL_SETUP_EXPIRED_OR_CHANGED:"Setup expired or changed. Connect the account again.",
     CHANNEL_SETUP_CONFIGURATION_CHANGED:"Setup changed. Connect the account again.",
     CHANNEL_ASSET_CONFLICT:"This asset is already connected. Disconnect its current connection first.",
+    GROWTH_CHANNEL_REPAIR_REQUIRED:"Reconnect this account in Growth Connections, then try again.",
+    GROWTH_CHANNEL_NEEDS_ATTENTION:"Reconnect this account in Growth Connections, then try again.",
     CHANNEL_PERMISSION_DENIED:"Messaging permissions are missing. Reconnect and grant the required access.",
     CHANNEL_AUTHENTICATION_FAILED:"Account access expired or was rejected. Reconnect the account.",
     CHANNEL_CONNECTION_CHANGED:"Connection changed. Close and reopen setup.",

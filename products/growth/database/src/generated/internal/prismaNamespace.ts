@@ -392,6 +392,10 @@ export const ModelName = {
   ExternalConnectionCapability: 'ExternalConnectionCapability',
   ExternalConnectionPermission: 'ExternalConnectionPermission',
   ExternalConnectionAuthorizationAttempt: 'ExternalConnectionAuthorizationAttempt',
+  GrowthAgentChannelGrant: 'GrowthAgentChannelGrant',
+  GrowthAgentChannelLinkIntent: 'GrowthAgentChannelLinkIntent',
+  GrowthAgentChannelSend: 'GrowthAgentChannelSend',
+  GrowthAgentChannelEvent: 'GrowthAgentChannelEvent',
   ExternalConnectionConsumer: 'ExternalConnectionConsumer',
   EmailConnection: 'EmailConnection',
   EmailInboxBinding: 'EmailInboxBinding',
@@ -520,7 +524,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "organization" | "organizationMember" | "organizationOnboardingProfile" | "organizationInvitation" | "externalConnection" | "externalConnectionCapability" | "externalConnectionPermission" | "externalConnectionAuthorizationAttempt" | "externalConnectionConsumer" | "emailConnection" | "emailInboxBinding" | "emailOAuthState" | "product" | "productPlan" | "userProductTour" | "planEntitlement" | "organizationSubscription" | "organizationEntitlementGrant" | "usageEvent" | "referralCode" | "referralAttribution" | "creditAccount" | "creditGrant" | "creditLedgerEntry" | "creditReservation" | "creditUsageEvent" | "creditAdminOperation" | "publicApiRequest" | "developerApiKey" | "publicApiWebhookSubscription" | "publicApiWebhookDelivery" | "billingCheckout" | "billingInvoice" | "paystackWebhookEvent" | "billingReconciliationIssue" | "user" | "pushSubscription" | "account" | "session" | "externalIdentity" | "oidcTransaction" | "oidcLogoutReplay" | "verificationToken" | "adminUser" | "adminSavedReport" | "adminReportExportAuditEvent" | "adminSupportAccessGrant" | "adminSupportAccessAuditEvent" | "adminWebhookReplayCommand" | "adminCustomerReplayApproval" | "adminWebhookReplayAuditEvent" | "businessProfile" | "onboardingConversation" | "quoteRequest" | "productWaitlistEntry" | "earlyAccessInvitation" | "productWaitlistEvent" | "quotation" | "invoice" | "invoiceRun" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "customer" | "customerIdentity" | "bookingService" | "booking" | "conversation" | "communicationCall" | "communicationCallLeg" | "message" | "messageAttachment" | "messageReference" | "messageReaction" | "messageEvent" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "whatsappCallSession" | "whatsappCallEvent" | "socialChannelConnection" | "socialDataDeletionRequest" | "socialWebhookEvent" | "socialOAuthAuthorization" | "socialPost" | "socialPostVariant" | "socialPublishJob" | "socialPublishBatch" | "socialPublishBatchItem" | "socialPostInsightObservation" | "socialPostInsightSyncState" | "contentMediaLibraryMutation" | "contentTemplate" | "contentTemplateMedia" | "contentTemplateMutation" | "contentMediaAsset" | "contentMediaRendition" | "socialPostMedia" | "socialPostVariantMedia" | "whatsappContact" | "whatsappContactListMembership" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent" | "growthAgentReview" | "adminSession" | "adminCommercialAudit" | "adminOutreachSendAttempt" | "growthAgentSetup" | "growthAgentSourceHandle" | "growthOAuthClient" | "growthOAuthRequest" | "growthOAuthCode" | "growthOAuthConnection" | "growthOAuthRefresh" | "growthOperationReview" | "growthMediaTransfer"
+    modelProps: "organization" | "organizationMember" | "organizationOnboardingProfile" | "organizationInvitation" | "externalConnection" | "externalConnectionCapability" | "externalConnectionPermission" | "externalConnectionAuthorizationAttempt" | "growthAgentChannelGrant" | "growthAgentChannelLinkIntent" | "growthAgentChannelSend" | "growthAgentChannelEvent" | "externalConnectionConsumer" | "emailConnection" | "emailInboxBinding" | "emailOAuthState" | "product" | "productPlan" | "userProductTour" | "planEntitlement" | "organizationSubscription" | "organizationEntitlementGrant" | "usageEvent" | "referralCode" | "referralAttribution" | "creditAccount" | "creditGrant" | "creditLedgerEntry" | "creditReservation" | "creditUsageEvent" | "creditAdminOperation" | "publicApiRequest" | "developerApiKey" | "publicApiWebhookSubscription" | "publicApiWebhookDelivery" | "billingCheckout" | "billingInvoice" | "paystackWebhookEvent" | "billingReconciliationIssue" | "user" | "pushSubscription" | "account" | "session" | "externalIdentity" | "oidcTransaction" | "oidcLogoutReplay" | "verificationToken" | "adminUser" | "adminSavedReport" | "adminReportExportAuditEvent" | "adminSupportAccessGrant" | "adminSupportAccessAuditEvent" | "adminWebhookReplayCommand" | "adminCustomerReplayApproval" | "adminWebhookReplayAuditEvent" | "businessProfile" | "onboardingConversation" | "quoteRequest" | "productWaitlistEntry" | "earlyAccessInvitation" | "productWaitlistEvent" | "quotation" | "invoice" | "invoiceRun" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "customer" | "customerIdentity" | "bookingService" | "booking" | "conversation" | "communicationCall" | "communicationCallLeg" | "message" | "messageAttachment" | "messageReference" | "messageReaction" | "messageEvent" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "whatsappCallSession" | "whatsappCallEvent" | "socialChannelConnection" | "socialDataDeletionRequest" | "socialWebhookEvent" | "socialOAuthAuthorization" | "socialPost" | "socialPostVariant" | "socialPublishJob" | "socialPublishBatch" | "socialPublishBatchItem" | "socialPostInsightObservation" | "socialPostInsightSyncState" | "contentMediaLibraryMutation" | "contentTemplate" | "contentTemplateMedia" | "contentTemplateMutation" | "contentMediaAsset" | "contentMediaRendition" | "socialPostMedia" | "socialPostVariantMedia" | "whatsappContact" | "whatsappContactListMembership" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent" | "growthAgentReview" | "adminSession" | "adminCommercialAudit" | "adminOutreachSendAttempt" | "growthAgentSetup" | "growthAgentSourceHandle" | "growthOAuthClient" | "growthOAuthRequest" | "growthOAuthCode" | "growthOAuthConnection" | "growthOAuthRefresh" | "growthOperationReview" | "growthMediaTransfer"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1113,6 +1117,302 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.ExternalConnectionAuthorizationAttemptCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.ExternalConnectionAuthorizationAttemptCountAggregateOutputType> | number
+        }
+      }
+    }
+    GrowthAgentChannelGrant: {
+      payload: Prisma.$GrowthAgentChannelGrantPayload<ExtArgs>
+      fields: Prisma.GrowthAgentChannelGrantFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.GrowthAgentChannelGrantFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelGrantPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.GrowthAgentChannelGrantFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelGrantPayload>
+        }
+        findFirst: {
+          args: Prisma.GrowthAgentChannelGrantFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelGrantPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.GrowthAgentChannelGrantFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelGrantPayload>
+        }
+        findMany: {
+          args: Prisma.GrowthAgentChannelGrantFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelGrantPayload>[]
+        }
+        create: {
+          args: Prisma.GrowthAgentChannelGrantCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelGrantPayload>
+        }
+        createMany: {
+          args: Prisma.GrowthAgentChannelGrantCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.GrowthAgentChannelGrantCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelGrantPayload>[]
+        }
+        delete: {
+          args: Prisma.GrowthAgentChannelGrantDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelGrantPayload>
+        }
+        update: {
+          args: Prisma.GrowthAgentChannelGrantUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelGrantPayload>
+        }
+        deleteMany: {
+          args: Prisma.GrowthAgentChannelGrantDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.GrowthAgentChannelGrantUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.GrowthAgentChannelGrantUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelGrantPayload>[]
+        }
+        upsert: {
+          args: Prisma.GrowthAgentChannelGrantUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelGrantPayload>
+        }
+        aggregate: {
+          args: Prisma.GrowthAgentChannelGrantAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateGrowthAgentChannelGrant>
+        }
+        groupBy: {
+          args: Prisma.GrowthAgentChannelGrantGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.GrowthAgentChannelGrantGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.GrowthAgentChannelGrantCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.GrowthAgentChannelGrantCountAggregateOutputType> | number
+        }
+      }
+    }
+    GrowthAgentChannelLinkIntent: {
+      payload: Prisma.$GrowthAgentChannelLinkIntentPayload<ExtArgs>
+      fields: Prisma.GrowthAgentChannelLinkIntentFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.GrowthAgentChannelLinkIntentFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelLinkIntentPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.GrowthAgentChannelLinkIntentFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelLinkIntentPayload>
+        }
+        findFirst: {
+          args: Prisma.GrowthAgentChannelLinkIntentFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelLinkIntentPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.GrowthAgentChannelLinkIntentFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelLinkIntentPayload>
+        }
+        findMany: {
+          args: Prisma.GrowthAgentChannelLinkIntentFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelLinkIntentPayload>[]
+        }
+        create: {
+          args: Prisma.GrowthAgentChannelLinkIntentCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelLinkIntentPayload>
+        }
+        createMany: {
+          args: Prisma.GrowthAgentChannelLinkIntentCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.GrowthAgentChannelLinkIntentCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelLinkIntentPayload>[]
+        }
+        delete: {
+          args: Prisma.GrowthAgentChannelLinkIntentDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelLinkIntentPayload>
+        }
+        update: {
+          args: Prisma.GrowthAgentChannelLinkIntentUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelLinkIntentPayload>
+        }
+        deleteMany: {
+          args: Prisma.GrowthAgentChannelLinkIntentDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.GrowthAgentChannelLinkIntentUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.GrowthAgentChannelLinkIntentUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelLinkIntentPayload>[]
+        }
+        upsert: {
+          args: Prisma.GrowthAgentChannelLinkIntentUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelLinkIntentPayload>
+        }
+        aggregate: {
+          args: Prisma.GrowthAgentChannelLinkIntentAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateGrowthAgentChannelLinkIntent>
+        }
+        groupBy: {
+          args: Prisma.GrowthAgentChannelLinkIntentGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.GrowthAgentChannelLinkIntentGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.GrowthAgentChannelLinkIntentCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.GrowthAgentChannelLinkIntentCountAggregateOutputType> | number
+        }
+      }
+    }
+    GrowthAgentChannelSend: {
+      payload: Prisma.$GrowthAgentChannelSendPayload<ExtArgs>
+      fields: Prisma.GrowthAgentChannelSendFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.GrowthAgentChannelSendFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelSendPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.GrowthAgentChannelSendFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelSendPayload>
+        }
+        findFirst: {
+          args: Prisma.GrowthAgentChannelSendFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelSendPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.GrowthAgentChannelSendFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelSendPayload>
+        }
+        findMany: {
+          args: Prisma.GrowthAgentChannelSendFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelSendPayload>[]
+        }
+        create: {
+          args: Prisma.GrowthAgentChannelSendCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelSendPayload>
+        }
+        createMany: {
+          args: Prisma.GrowthAgentChannelSendCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.GrowthAgentChannelSendCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelSendPayload>[]
+        }
+        delete: {
+          args: Prisma.GrowthAgentChannelSendDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelSendPayload>
+        }
+        update: {
+          args: Prisma.GrowthAgentChannelSendUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelSendPayload>
+        }
+        deleteMany: {
+          args: Prisma.GrowthAgentChannelSendDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.GrowthAgentChannelSendUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.GrowthAgentChannelSendUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelSendPayload>[]
+        }
+        upsert: {
+          args: Prisma.GrowthAgentChannelSendUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelSendPayload>
+        }
+        aggregate: {
+          args: Prisma.GrowthAgentChannelSendAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateGrowthAgentChannelSend>
+        }
+        groupBy: {
+          args: Prisma.GrowthAgentChannelSendGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.GrowthAgentChannelSendGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.GrowthAgentChannelSendCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.GrowthAgentChannelSendCountAggregateOutputType> | number
+        }
+      }
+    }
+    GrowthAgentChannelEvent: {
+      payload: Prisma.$GrowthAgentChannelEventPayload<ExtArgs>
+      fields: Prisma.GrowthAgentChannelEventFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.GrowthAgentChannelEventFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelEventPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.GrowthAgentChannelEventFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelEventPayload>
+        }
+        findFirst: {
+          args: Prisma.GrowthAgentChannelEventFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelEventPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.GrowthAgentChannelEventFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelEventPayload>
+        }
+        findMany: {
+          args: Prisma.GrowthAgentChannelEventFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelEventPayload>[]
+        }
+        create: {
+          args: Prisma.GrowthAgentChannelEventCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelEventPayload>
+        }
+        createMany: {
+          args: Prisma.GrowthAgentChannelEventCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.GrowthAgentChannelEventCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelEventPayload>[]
+        }
+        delete: {
+          args: Prisma.GrowthAgentChannelEventDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelEventPayload>
+        }
+        update: {
+          args: Prisma.GrowthAgentChannelEventUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelEventPayload>
+        }
+        deleteMany: {
+          args: Prisma.GrowthAgentChannelEventDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.GrowthAgentChannelEventUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.GrowthAgentChannelEventUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelEventPayload>[]
+        }
+        upsert: {
+          args: Prisma.GrowthAgentChannelEventUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrowthAgentChannelEventPayload>
+        }
+        aggregate: {
+          args: Prisma.GrowthAgentChannelEventAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateGrowthAgentChannelEvent>
+        }
+        groupBy: {
+          args: Prisma.GrowthAgentChannelEventGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.GrowthAgentChannelEventGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.GrowthAgentChannelEventCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.GrowthAgentChannelEventCountAggregateOutputType> | number
         }
       }
     }
@@ -9658,6 +9958,94 @@ export const ExternalConnectionAuthorizationAttemptScalarFieldEnum = {
 export type ExternalConnectionAuthorizationAttemptScalarFieldEnum = (typeof ExternalConnectionAuthorizationAttemptScalarFieldEnum)[keyof typeof ExternalConnectionAuthorizationAttemptScalarFieldEnum]
 
 
+export const GrowthAgentChannelGrantScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  connectionId: 'connectionId',
+  provider: 'provider',
+  providerAssetId: 'providerAssetId',
+  agentsWorkspaceId: 'agentsWorkspaceId',
+  agentsAgentId: 'agentsAgentId',
+  agentsConnectionId: 'agentsConnectionId',
+  intentId: 'intentId',
+  actorId: 'actorId',
+  capabilities: 'capabilities',
+  permissionRevision: 'permissionRevision',
+  expiresAt: 'expiresAt',
+  state: 'state',
+  routeOwner: 'routeOwner',
+  requestId: 'requestId',
+  requestDigest: 'requestDigest',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  revokedAt: 'revokedAt'
+} as const
+
+export type GrowthAgentChannelGrantScalarFieldEnum = (typeof GrowthAgentChannelGrantScalarFieldEnum)[keyof typeof GrowthAgentChannelGrantScalarFieldEnum]
+
+
+export const GrowthAgentChannelLinkIntentScalarFieldEnum = {
+  id: 'id',
+  actorId: 'actorId',
+  orgId: 'orgId',
+  provider: 'provider',
+  loginMode: 'loginMode',
+  agentsWorkspaceId: 'agentsWorkspaceId',
+  agentsAgentId: 'agentsAgentId',
+  agentsConnectionId: 'agentsConnectionId',
+  requestId: 'requestId',
+  requestDigest: 'requestDigest',
+  returnRoute: 'returnRoute',
+  connectionId: 'connectionId',
+  providerAssetId: 'providerAssetId',
+  permissionRevision: 'permissionRevision',
+  oauthStateHash: 'oauthStateHash',
+  oauthStateExpiresAt: 'oauthStateExpiresAt',
+  authorizedAt: 'authorizedAt',
+  codeHash: 'codeHash',
+  codeExpiresAt: 'codeExpiresAt',
+  completedAt: 'completedAt',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type GrowthAgentChannelLinkIntentScalarFieldEnum = (typeof GrowthAgentChannelLinkIntentScalarFieldEnum)[keyof typeof GrowthAgentChannelLinkIntentScalarFieldEnum]
+
+
+export const GrowthAgentChannelSendScalarFieldEnum = {
+  deliveryId: 'deliveryId',
+  grantId: 'grantId',
+  requestDigest: 'requestDigest',
+  state: 'state',
+  providerMessageId: 'providerMessageId',
+  code: 'code',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type GrowthAgentChannelSendScalarFieldEnum = (typeof GrowthAgentChannelSendScalarFieldEnum)[keyof typeof GrowthAgentChannelSendScalarFieldEnum]
+
+
+export const GrowthAgentChannelEventScalarFieldEnum = {
+  id: 'id',
+  grantId: 'grantId',
+  eventId: 'eventId',
+  digest: 'digest',
+  payload: 'payload',
+  state: 'state',
+  attempts: 'attempts',
+  availableAt: 'availableAt',
+  leaseUntil: 'leaseUntil',
+  claimId: 'claimId',
+  reason: 'reason',
+  createdAt: 'createdAt',
+  deliveredAt: 'deliveredAt'
+} as const
+
+export type GrowthAgentChannelEventScalarFieldEnum = (typeof GrowthAgentChannelEventScalarFieldEnum)[keyof typeof GrowthAgentChannelEventScalarFieldEnum]
+
+
 export const ExternalConnectionConsumerScalarFieldEnum = {
   id: 'id',
   connectionId: 'connectionId',
@@ -11925,20 +12313,6 @@ export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel,
 
 
 /**
- * Reference to a field of type 'BillingInterval'
- */
-export type EnumBillingIntervalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BillingInterval'>
-    
-
-
-/**
- * Reference to a field of type 'BillingInterval[]'
- */
-export type ListEnumBillingIntervalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BillingInterval[]'>
-    
-
-
-/**
  * Reference to a field of type 'Int'
  */
 export type IntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Int'>
@@ -11949,6 +12323,20 @@ export type IntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'In
  * Reference to a field of type 'Int[]'
  */
 export type ListIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Int[]'>
+    
+
+
+/**
+ * Reference to a field of type 'BillingInterval'
+ */
+export type EnumBillingIntervalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BillingInterval'>
+    
+
+
+/**
+ * Reference to a field of type 'BillingInterval[]'
+ */
+export type ListEnumBillingIntervalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BillingInterval[]'>
     
 
 
@@ -12418,6 +12806,10 @@ export type GlobalOmitConfig = {
   externalConnectionCapability?: Prisma.ExternalConnectionCapabilityOmit
   externalConnectionPermission?: Prisma.ExternalConnectionPermissionOmit
   externalConnectionAuthorizationAttempt?: Prisma.ExternalConnectionAuthorizationAttemptOmit
+  growthAgentChannelGrant?: Prisma.GrowthAgentChannelGrantOmit
+  growthAgentChannelLinkIntent?: Prisma.GrowthAgentChannelLinkIntentOmit
+  growthAgentChannelSend?: Prisma.GrowthAgentChannelSendOmit
+  growthAgentChannelEvent?: Prisma.GrowthAgentChannelEventOmit
   externalConnectionConsumer?: Prisma.ExternalConnectionConsumerOmit
   emailConnection?: Prisma.EmailConnectionOmit
   emailInboxBinding?: Prisma.EmailInboxBindingOmit

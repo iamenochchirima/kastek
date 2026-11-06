@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { channelKindSchema } from "./channel-adapters";
 
-export const channelModeSchema = z.enum(["website", "bot", "cloud_api", "meta", "instagram_login"]);
+export const channelModeSchema = z.enum(["website", "bot", "cloud_api", "meta", "instagram_login", "growth_managed"]);
 export const channelConnectionStateSchema = z.enum(["pending", "active", "needs_attention", "disconnected", "removed"]);
 export const channelConnectionSchema = z.strictObject({
   id: z.uuid(), organizationId: z.uuid(), createdBy: z.uuid(), kind: channelKindSchema,
   name: z.string(), assetId: z.string().nullable(), mode: channelModeSchema, state: channelConnectionStateSchema,
+  providerHealth: z.enum(["ready", "needs_attention"]).optional(),
   revision: z.number().int().positive(), credentialRevision: z.number().int().nonnegative(),
   metadata: z.record(z.string(), z.unknown()), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(),
 });

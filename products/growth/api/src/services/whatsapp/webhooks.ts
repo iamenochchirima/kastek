@@ -23,6 +23,7 @@ import { handleStatus } from "./webhooks-status.js";
 import { WEBHOOK_SQL as sql } from "./webhooks-sql.js";
 import type { Row } from "./types.js";
 export interface WhatsappWebhookOptions extends MarketingOptions {
+  routeToAgents?: (value: unknown, logger?: Pick<Console, "info" | "warn">) => Promise<boolean>;
   ingestCalls: (
     pool: Pool,
     config: CoreConfig,
@@ -201,15 +202,19 @@ export async function processWebhookPayload(
   config: CoreConfig,
   payload: unknown,
   options: WhatsappWebhookOptions,
-): Promise<void> {
+): Promise<number> {
+  let routed = 0;
   for (const rawEntry of arr(obj(payload).entry))
     for (const rawChange of arr(obj(rawEntry).changes)) {
       const value = obj(rawChange).value;
+      const routedToAgents = options.routeToAgents ? await options.routeToAgents(value, options.logger) : false;
+      if (routedToAgents) routed++;
       for (const rawStatus of arr(obj(value).statuses)) {
         await handleStatus(pool, rawStatus, options);
 
       }
       await options.ingestCalls(pool, config, value);
-      await handleIncomingMessages(pool, config, value, options);
+      if (!routedToAgents) await handleIncomingMessages(pool, config, value, options);
     }
+  return routed;
 }

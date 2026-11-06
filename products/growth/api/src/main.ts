@@ -34,6 +34,7 @@ import { registerAdminOperationsRoutes } from "./routes/admin-operations.js";
 import { registerWhatsappInboxRoutes } from "./routes/whatsapp-inbox.js";
 import { registerWhatsappCallRoutes } from "./routes/whatsapp-calls.js";
 import { registerWhatsappWebhookRoutes } from "./routes/whatsapp-webhooks.js";
+import { routeGrowthManagedWhatsAppValue } from "./agents/channel-events.js";
 import { ingestWebhookCalls } from "./services/whatsapp/calls.js";
 import { registerCommunicationsRoutes } from "./routes/communications.js";
 import { registerDeveloperRoutes } from "./routes/developers.js";
@@ -48,6 +49,7 @@ import {
 } from "./capabilities/public-adapter.js";
 import { registerGrowthAgentRoutes } from "./agents/routes.js";
 import { registerGrowthAgentProvisioningRoutes } from "./agents/provisioning-routes.js";
+import { registerGrowthAgentChannelRoutes } from "./agents/channel-links.js";
 import { registerGrowthAgentActionRoutes } from "./agents/action-routes.js";
 import { registerWorkspaceRoutes } from "./routes/workspace.js";
 import { registerAdminLaunchAccessRoutes } from "./routes/admin-launch-access.js";
@@ -87,6 +89,7 @@ async function registerWhatsappCallbacks(
     config: context.config,
     publishEvent: (orgId, event) => publishInboxEvent(context, orgId, event),
     ingestCalls: ingestWebhookCalls,
+    routeToAgents: (value, logger) => routeGrowthManagedWhatsAppValue(context.pool, value, logger),
   });
 }
 
@@ -213,6 +216,7 @@ export const CORE_REGISTRARS = [
   registerGrowthAgentRoutes,
   registerGrowthAgentActionRoutes,
   registerGrowthAgentProvisioningRoutes,
+  registerGrowthAgentChannelRoutes,
   registerAdminLaunchAccessRoutes,
 ];
 

@@ -10,20 +10,7 @@ import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { api, ApiError, organizationPath } from "./api";
 import { WebsiteChannelSettings } from "./website-channel-settings";
 import { channelApi, channelError, channelNames, type CustomerChannel, type ChannelConnection, type ChannelList, type ChannelAsset, type MetaBegin, type TelegramSetup, type ChannelKind } from "./channel-api";
-
-type Facebook = { init(options:Record<string,unknown>):void; login(callback:(response:{authResponse?:{code?:string}})=>void,options:Record<string,unknown>):void };
-declare global { interface Window { FB?:Facebook } }
-async function facebookSdk(appId:string,version:string):Promise<Facebook> {
-  if(!window.FB) await new Promise<void>((resolve,reject)=>{
-    const existing=document.getElementById("agents-facebook-sdk");
-    const script=(existing as HTMLScriptElement|null) ?? document.createElement("script");
-    const timeout=setTimeout(()=>{script.remove();reject(new Error("Facebook signup could not load. Try again."));},15000);
-    script.addEventListener("load",()=>{clearTimeout(timeout);resolve();},{once:true});
-    script.addEventListener("error",()=>{clearTimeout(timeout);script.remove();reject(new Error("Facebook signup could not load. Try again."));},{once:true});
-    if(!existing){script.id="agents-facebook-sdk";script.async=true;script.src="https://connect.facebook.net/en_US/sdk.js";document.head.append(script);}
-  });
-  if(!window.FB)throw new Error("Facebook signup is unavailable.");window.FB.init({appId,version,xfbml:false});return window.FB;
-}
+import { loadFacebookSdk, type FacebookSdk } from "./facebook-sdk";
 const channelDescriptions: Record<ChannelKind, string> = {
   website: "Add a chat widget to your website.",
   whatsapp: "Customer conversations on WhatsApp.",
@@ -54,7 +41,7 @@ export function CustomerChannels({organizationId,owner,defaultAgentId,query = ""
   const [setup,setSetup]=useState<Setup|null>(null),[busy,setBusy]=useState(false),[name,setName]=useState(""),[secret,setSecret]=useState(""),[mode,setMode]=useState("");
   const [agents,setAgents]=useState<{id:string;name:string}[]>([]),[agentCursor,setAgentCursor]=useState<string|null>(null),[agentId,setAgentId]=useState("");
   const [ticket,setTicket]=useState(""),[assets,setAssets]=useState<ChannelAsset[]>([]),[assetCursor,setAssetCursor]=useState<string|null>(null),[assetId,setAssetId]=useState(""),[pin,setPin]=useState("");
-  const [replacement,setReplacement]=useState(""),[signup,setSignup]=useState<Extract<MetaBegin,{flow:"embedded_signup"}>|null>(null),[sdk,setSdk]=useState<Facebook|null>(null);
+  const [replacement,setReplacement]=useState(""),[signup,setSignup]=useState<Extract<MetaBegin,{flow:"embedded_signup"}>|null>(null),[sdk,setSdk]=useState<FacebookSdk|null>(null);
   const [signupCode,setSignupCode]=useState(""),[wabaId,setWabaId]=useState(""),[manual,setManual]=useState(false);
   const callback=useRef<{state:string;promise:Promise<{ticket:string;connectionId:string}>}|null>(null),signupCompleted=useRef("");
   const openedIntent = useRef("");
@@ -149,7 +136,7 @@ export function CustomerChannels({organizationId,owner,defaultAgentId,query = ""
         catch { /* Browser storage may be unavailable; authorization can still proceed. */ }
         window.location.assign(result.authorizationUrl);return;
       }
-      setSignup(result);setSignupCode("");setWabaId("");setSdk(await facebookSdk(result.appId,result.apiVersion));
+      setSignup(result);setSignupCode("");setWabaId("");setSdk(await loadFacebookSdk(result.appId,result.apiVersion));
     }catch(cause){setError(channelError(cause));}finally{setBusy(false);}
   }
   async function selectAsset() {
@@ -190,7 +177,7 @@ export function CustomerChannels({organizationId,owner,defaultAgentId,query = ""
       {ticket?<><label className="block space-y-2 text-sm">{definition?.assetLabel??"Account"}<select aria-label="Channel asset" className="min-h-10 w-full rounded-md border bg-background px-3" value={assetId} disabled={busy} onChange={event=>setAssetId(event.target.value)}><option value="">Select an asset</option>{assets.map(asset=><option key={asset.id} value={asset.id} disabled={!asset.eligible}>{asset.name}{!asset.eligible?` · ${asset.reasonCode??"Unavailable"}`:""}</option>)}</select></label>{!assets.length?<p className="text-sm text-muted-foreground">No eligible assets returned</p>:null}{assetCursor?<Button variant="outline" size="sm" disabled={busy} onClick={()=>{setBusy(true);void discover(ticket,assetCursor).catch(cause=>setError(channelError(cause))).finally(()=>setBusy(false));}}>Load more assets</Button>:null}{assets.find(asset=>asset.id===assetId)?.metadata.registrationRequired===true?<label className="block space-y-2 text-sm">Registration PIN<Input aria-label="Registration PIN" type="password" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={pin} onChange={event=>setPin(event.target.value)}/></label>:null}<Button disabled={!assetId||busy||!!uncertainSetup} onClick={()=>void selectAsset()}>{busy?"Connecting…":"Use selected asset"}</Button>{uncertainSetup?<div className="space-y-2"><p className="text-sm text-muted-foreground">Check the previous setup before making another subscription.</p><Button variant="outline" disabled={!assetId||busy||Date.parse(uncertainSetup.expiresAt)>Date.now()} onClick={()=>void reconcileSetup()}>Check previous setup</Button></div>:null}</>:null}
       {ingressFailure&&setup?.connection?<div className="space-y-2 rounded-md border p-3"><p className="text-sm">{ingressFailure.count} incoming messages need attention.</p>{ingressFailure.reason?<p className="text-xs text-muted-foreground">{ingressFailure.reason}</p>:null}<Button disabled={busy} variant="outline" onClick={()=>{const connection=setup.connection!;setBusy(true);void channelApi(organizationId,`/${connection.id}/retry-ingress`,{expectedRevision:connection.revision}).then(()=>refresh()).catch(cause=>setError(channelError(cause))).finally(()=>setBusy(false));}}>Retry pending messages</Button></div>:null}
       {setup?.connection?.state==="active"&&setup.kind!=="telegram"&&!ticket&&!signup?<form onSubmit={event=>void connect(event)}><Button type="submit" variant="outline" disabled={busy}>Reconnect account</Button></form>:null}
-      {signup?<><p className="text-sm">Finish WhatsApp signup, then choose the number to connect.</p><Button disabled={!sdk||busy} onClick={()=>{setError("");sdk?.login(response=>{if(response.authResponse?.code)setSignupCode(response.authResponse.code);else setError("WhatsApp signup cancelled. Try again.");},{config_id:signup.configurationId,response_type:signup.responseType,override_default_response_type:signup.overrideDefaultResponseType,extras:signup.extras,state:signup.state});}}>Continue with Facebook</Button>{!sdk&&!busy?<Button variant="outline" onClick={()=>{setBusy(true);void facebookSdk(signup.appId,signup.apiVersion).then(setSdk).catch(cause=>setError(channelError(cause))).finally(()=>setBusy(false));}}>Reload signup</Button>:null}</>:null}
+      {signup?<><p className="text-sm">Finish WhatsApp signup, then choose the number to connect.</p><Button disabled={!sdk||busy} onClick={()=>{setError("");sdk?.login(response=>{if(response.authResponse?.code)setSignupCode(response.authResponse.code);else setError("WhatsApp signup cancelled. Try again.");},{config_id:signup.configurationId,response_type:signup.responseType,override_default_response_type:signup.overrideDefaultResponseType,extras:signup.extras,state:signup.state});}}>Continue with Facebook</Button>{!sdk&&!busy?<Button variant="outline" onClick={()=>{setBusy(true);void loadFacebookSdk(signup.appId,signup.apiVersion).then(setSdk).catch(cause=>setError(channelError(cause))).finally(()=>setBusy(false));}}>Reload signup</Button>:null}</>:null}
       {setup&&setup.kind!=="website"&&!ticket&&!signup&&(setup.connection?.state!=="active"||setup.kind==="telegram")?<form onSubmit={event=>void connect(event)} className="space-y-4">
         {!setup.connection?<label className="block space-y-2 text-sm">Connection name<Input required value={name} maxLength={120} onChange={event=>setName(event.target.value)}/></label>:null}
         {setup.kind==="instagram"&&!setup.connection?<label className="block space-y-2 text-sm">Connect with<select aria-label="Instagram login mode" className="min-h-10 w-full rounded-md border bg-background px-3" value={mode} onChange={event=>setMode(event.target.value)}>{definition?.modes.map(item=><option key={item.id} value={item.id} disabled={!item.available}>{modeNames[item.id]??item.id}</option>)}</select></label>:null}

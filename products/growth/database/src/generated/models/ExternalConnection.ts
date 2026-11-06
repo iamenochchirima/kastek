@@ -329,6 +329,8 @@ export type ExternalConnectionWhereInput = {
   permissions?: Prisma.ExternalConnectionPermissionListRelationFilter
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptListRelationFilter
   consumers?: Prisma.ExternalConnectionConsumerListRelationFilter
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantListRelationFilter
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentListRelationFilter
   conversations?: Prisma.ConversationListRelationFilter
   calls?: Prisma.CommunicationCallListRelationFilter
 }
@@ -358,6 +360,8 @@ export type ExternalConnectionOrderByWithRelationInput = {
   permissions?: Prisma.ExternalConnectionPermissionOrderByRelationAggregateInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptOrderByRelationAggregateInput
   consumers?: Prisma.ExternalConnectionConsumerOrderByRelationAggregateInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantOrderByRelationAggregateInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentOrderByRelationAggregateInput
   conversations?: Prisma.ConversationOrderByRelationAggregateInput
   calls?: Prisma.CommunicationCallOrderByRelationAggregateInput
 }
@@ -391,6 +395,8 @@ export type ExternalConnectionWhereUniqueInput = Prisma.AtLeast<{
   permissions?: Prisma.ExternalConnectionPermissionListRelationFilter
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptListRelationFilter
   consumers?: Prisma.ExternalConnectionConsumerListRelationFilter
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantListRelationFilter
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentListRelationFilter
   conversations?: Prisma.ConversationListRelationFilter
   calls?: Prisma.CommunicationCallListRelationFilter
 }, "id" | "orgId_sourceType_sourceId">
@@ -471,6 +477,8 @@ export type ExternalConnectionCreateInput = {
   permissions?: Prisma.ExternalConnectionPermissionCreateNestedManyWithoutConnectionInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallCreateNestedManyWithoutConnectionInput
 }
@@ -499,6 +507,8 @@ export type ExternalConnectionUncheckedCreateInput = {
   permissions?: Prisma.ExternalConnectionPermissionUncheckedCreateNestedManyWithoutConnectionInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutConnectionInput
 }
@@ -527,6 +537,8 @@ export type ExternalConnectionUpdateInput = {
   permissions?: Prisma.ExternalConnectionPermissionUpdateManyWithoutConnectionNestedInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUpdateManyWithoutConnectionNestedInput
 }
@@ -555,6 +567,8 @@ export type ExternalConnectionUncheckedUpdateInput = {
   permissions?: Prisma.ExternalConnectionPermissionUncheckedUpdateManyWithoutConnectionNestedInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutConnectionNestedInput
 }
@@ -822,6 +836,36 @@ export type ExternalConnectionUpdateOneRequiredWithoutAuthorizationAttemptsNeste
   update?: Prisma.XOR<Prisma.XOR<Prisma.ExternalConnectionUpdateToOneWithWhereWithoutAuthorizationAttemptsInput, Prisma.ExternalConnectionUpdateWithoutAuthorizationAttemptsInput>, Prisma.ExternalConnectionUncheckedUpdateWithoutAuthorizationAttemptsInput>
 }
 
+export type ExternalConnectionCreateNestedOneWithoutAgentChannelGrantsInput = {
+  create?: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutAgentChannelGrantsInput, Prisma.ExternalConnectionUncheckedCreateWithoutAgentChannelGrantsInput>
+  connectOrCreate?: Prisma.ExternalConnectionCreateOrConnectWithoutAgentChannelGrantsInput
+  connect?: Prisma.ExternalConnectionWhereUniqueInput
+}
+
+export type ExternalConnectionUpdateOneRequiredWithoutAgentChannelGrantsNestedInput = {
+  create?: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutAgentChannelGrantsInput, Prisma.ExternalConnectionUncheckedCreateWithoutAgentChannelGrantsInput>
+  connectOrCreate?: Prisma.ExternalConnectionCreateOrConnectWithoutAgentChannelGrantsInput
+  upsert?: Prisma.ExternalConnectionUpsertWithoutAgentChannelGrantsInput
+  connect?: Prisma.ExternalConnectionWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ExternalConnectionUpdateToOneWithWhereWithoutAgentChannelGrantsInput, Prisma.ExternalConnectionUpdateWithoutAgentChannelGrantsInput>, Prisma.ExternalConnectionUncheckedUpdateWithoutAgentChannelGrantsInput>
+}
+
+export type ExternalConnectionCreateNestedOneWithoutAgentChannelLinkIntentsInput = {
+  create?: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutAgentChannelLinkIntentsInput, Prisma.ExternalConnectionUncheckedCreateWithoutAgentChannelLinkIntentsInput>
+  connectOrCreate?: Prisma.ExternalConnectionCreateOrConnectWithoutAgentChannelLinkIntentsInput
+  connect?: Prisma.ExternalConnectionWhereUniqueInput
+}
+
+export type ExternalConnectionUpdateOneWithoutAgentChannelLinkIntentsNestedInput = {
+  create?: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutAgentChannelLinkIntentsInput, Prisma.ExternalConnectionUncheckedCreateWithoutAgentChannelLinkIntentsInput>
+  connectOrCreate?: Prisma.ExternalConnectionCreateOrConnectWithoutAgentChannelLinkIntentsInput
+  upsert?: Prisma.ExternalConnectionUpsertWithoutAgentChannelLinkIntentsInput
+  disconnect?: Prisma.ExternalConnectionWhereInput | boolean
+  delete?: Prisma.ExternalConnectionWhereInput | boolean
+  connect?: Prisma.ExternalConnectionWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ExternalConnectionUpdateToOneWithWhereWithoutAgentChannelLinkIntentsInput, Prisma.ExternalConnectionUpdateWithoutAgentChannelLinkIntentsInput>, Prisma.ExternalConnectionUncheckedUpdateWithoutAgentChannelLinkIntentsInput>
+}
+
 export type ExternalConnectionCreateNestedOneWithoutConsumersInput = {
   create?: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutConsumersInput, Prisma.ExternalConnectionUncheckedCreateWithoutConsumersInput>
   connectOrCreate?: Prisma.ExternalConnectionCreateOrConnectWithoutConsumersInput
@@ -891,6 +935,8 @@ export type ExternalConnectionCreateWithoutOrgInput = {
   permissions?: Prisma.ExternalConnectionPermissionCreateNestedManyWithoutConnectionInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallCreateNestedManyWithoutConnectionInput
 }
@@ -918,6 +964,8 @@ export type ExternalConnectionUncheckedCreateWithoutOrgInput = {
   permissions?: Prisma.ExternalConnectionPermissionUncheckedCreateNestedManyWithoutConnectionInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutConnectionInput
 }
@@ -996,6 +1044,8 @@ export type ExternalConnectionCreateWithoutCapabilitiesInput = {
   permissions?: Prisma.ExternalConnectionPermissionCreateNestedManyWithoutConnectionInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallCreateNestedManyWithoutConnectionInput
 }
@@ -1023,6 +1073,8 @@ export type ExternalConnectionUncheckedCreateWithoutCapabilitiesInput = {
   permissions?: Prisma.ExternalConnectionPermissionUncheckedCreateNestedManyWithoutConnectionInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutConnectionInput
 }
@@ -1066,6 +1118,8 @@ export type ExternalConnectionUpdateWithoutCapabilitiesInput = {
   permissions?: Prisma.ExternalConnectionPermissionUpdateManyWithoutConnectionNestedInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUpdateManyWithoutConnectionNestedInput
 }
@@ -1093,6 +1147,8 @@ export type ExternalConnectionUncheckedUpdateWithoutCapabilitiesInput = {
   permissions?: Prisma.ExternalConnectionPermissionUncheckedUpdateManyWithoutConnectionNestedInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutConnectionNestedInput
 }
@@ -1120,6 +1176,8 @@ export type ExternalConnectionCreateWithoutPermissionsInput = {
   capabilities?: Prisma.ExternalConnectionCapabilityCreateNestedManyWithoutConnectionInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallCreateNestedManyWithoutConnectionInput
 }
@@ -1147,6 +1205,8 @@ export type ExternalConnectionUncheckedCreateWithoutPermissionsInput = {
   capabilities?: Prisma.ExternalConnectionCapabilityUncheckedCreateNestedManyWithoutConnectionInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutConnectionInput
 }
@@ -1190,6 +1250,8 @@ export type ExternalConnectionUpdateWithoutPermissionsInput = {
   capabilities?: Prisma.ExternalConnectionCapabilityUpdateManyWithoutConnectionNestedInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUpdateManyWithoutConnectionNestedInput
 }
@@ -1217,6 +1279,8 @@ export type ExternalConnectionUncheckedUpdateWithoutPermissionsInput = {
   capabilities?: Prisma.ExternalConnectionCapabilityUncheckedUpdateManyWithoutConnectionNestedInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutConnectionNestedInput
 }
@@ -1244,6 +1308,8 @@ export type ExternalConnectionCreateWithoutAuthorizationAttemptsInput = {
   capabilities?: Prisma.ExternalConnectionCapabilityCreateNestedManyWithoutConnectionInput
   permissions?: Prisma.ExternalConnectionPermissionCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallCreateNestedManyWithoutConnectionInput
 }
@@ -1271,6 +1337,8 @@ export type ExternalConnectionUncheckedCreateWithoutAuthorizationAttemptsInput =
   capabilities?: Prisma.ExternalConnectionCapabilityUncheckedCreateNestedManyWithoutConnectionInput
   permissions?: Prisma.ExternalConnectionPermissionUncheckedCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutConnectionInput
 }
@@ -1314,6 +1382,8 @@ export type ExternalConnectionUpdateWithoutAuthorizationAttemptsInput = {
   capabilities?: Prisma.ExternalConnectionCapabilityUpdateManyWithoutConnectionNestedInput
   permissions?: Prisma.ExternalConnectionPermissionUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUpdateManyWithoutConnectionNestedInput
 }
@@ -1341,6 +1411,272 @@ export type ExternalConnectionUncheckedUpdateWithoutAuthorizationAttemptsInput =
   capabilities?: Prisma.ExternalConnectionCapabilityUncheckedUpdateManyWithoutConnectionNestedInput
   permissions?: Prisma.ExternalConnectionPermissionUncheckedUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutConnectionNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutExternalConnectionNestedInput
+  calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutConnectionNestedInput
+}
+
+export type ExternalConnectionCreateWithoutAgentChannelGrantsInput = {
+  id?: string
+  provider: string
+  sourceType: string
+  sourceId: string
+  externalAccountId?: string | null
+  displayName: string
+  handle?: string | null
+  status?: $Enums.ExternalConnectionStatus
+  statusOverride?: $Enums.ExternalConnectionStatus | null
+  credentialStatus?: string
+  healthStatus?: string
+  webhookStatus?: string
+  lastCheckedAt?: Date | string | null
+  lastError?: string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  agentReviewRevision?: bigint | number
+  org: Prisma.OrganizationCreateNestedOneWithoutExternalConnectionsInput
+  capabilities?: Prisma.ExternalConnectionCapabilityCreateNestedManyWithoutConnectionInput
+  permissions?: Prisma.ExternalConnectionPermissionCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptCreateNestedManyWithoutConnectionInput
+  consumers?: Prisma.ExternalConnectionConsumerCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutConnectionInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutExternalConnectionInput
+  calls?: Prisma.CommunicationCallCreateNestedManyWithoutConnectionInput
+}
+
+export type ExternalConnectionUncheckedCreateWithoutAgentChannelGrantsInput = {
+  id?: string
+  orgId: string
+  provider: string
+  sourceType: string
+  sourceId: string
+  externalAccountId?: string | null
+  displayName: string
+  handle?: string | null
+  status?: $Enums.ExternalConnectionStatus
+  statusOverride?: $Enums.ExternalConnectionStatus | null
+  credentialStatus?: string
+  healthStatus?: string
+  webhookStatus?: string
+  lastCheckedAt?: Date | string | null
+  lastError?: string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  agentReviewRevision?: bigint | number
+  capabilities?: Prisma.ExternalConnectionCapabilityUncheckedCreateNestedManyWithoutConnectionInput
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedCreateNestedManyWithoutConnectionInput
+  consumers?: Prisma.ExternalConnectionConsumerUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutConnectionInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutExternalConnectionInput
+  calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutConnectionInput
+}
+
+export type ExternalConnectionCreateOrConnectWithoutAgentChannelGrantsInput = {
+  where: Prisma.ExternalConnectionWhereUniqueInput
+  create: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutAgentChannelGrantsInput, Prisma.ExternalConnectionUncheckedCreateWithoutAgentChannelGrantsInput>
+}
+
+export type ExternalConnectionUpsertWithoutAgentChannelGrantsInput = {
+  update: Prisma.XOR<Prisma.ExternalConnectionUpdateWithoutAgentChannelGrantsInput, Prisma.ExternalConnectionUncheckedUpdateWithoutAgentChannelGrantsInput>
+  create: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutAgentChannelGrantsInput, Prisma.ExternalConnectionUncheckedCreateWithoutAgentChannelGrantsInput>
+  where?: Prisma.ExternalConnectionWhereInput
+}
+
+export type ExternalConnectionUpdateToOneWithWhereWithoutAgentChannelGrantsInput = {
+  where?: Prisma.ExternalConnectionWhereInput
+  data: Prisma.XOR<Prisma.ExternalConnectionUpdateWithoutAgentChannelGrantsInput, Prisma.ExternalConnectionUncheckedUpdateWithoutAgentChannelGrantsInput>
+}
+
+export type ExternalConnectionUpdateWithoutAgentChannelGrantsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceType?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalAccountId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  displayName?: Prisma.StringFieldUpdateOperationsInput | string
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.EnumExternalConnectionStatusFieldUpdateOperationsInput | $Enums.ExternalConnectionStatus
+  statusOverride?: Prisma.NullableEnumExternalConnectionStatusFieldUpdateOperationsInput | $Enums.ExternalConnectionStatus | null
+  credentialStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  healthStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  webhookStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  lastCheckedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  agentReviewRevision?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
+  org?: Prisma.OrganizationUpdateOneRequiredWithoutExternalConnectionsNestedInput
+  capabilities?: Prisma.ExternalConnectionCapabilityUpdateManyWithoutConnectionNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUpdateManyWithoutConnectionNestedInput
+  consumers?: Prisma.ExternalConnectionConsumerUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutConnectionNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutExternalConnectionNestedInput
+  calls?: Prisma.CommunicationCallUpdateManyWithoutConnectionNestedInput
+}
+
+export type ExternalConnectionUncheckedUpdateWithoutAgentChannelGrantsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceType?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalAccountId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  displayName?: Prisma.StringFieldUpdateOperationsInput | string
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.EnumExternalConnectionStatusFieldUpdateOperationsInput | $Enums.ExternalConnectionStatus
+  statusOverride?: Prisma.NullableEnumExternalConnectionStatusFieldUpdateOperationsInput | $Enums.ExternalConnectionStatus | null
+  credentialStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  healthStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  webhookStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  lastCheckedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  agentReviewRevision?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
+  capabilities?: Prisma.ExternalConnectionCapabilityUncheckedUpdateManyWithoutConnectionNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedUpdateManyWithoutConnectionNestedInput
+  consumers?: Prisma.ExternalConnectionConsumerUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutConnectionNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutExternalConnectionNestedInput
+  calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutConnectionNestedInput
+}
+
+export type ExternalConnectionCreateWithoutAgentChannelLinkIntentsInput = {
+  id?: string
+  provider: string
+  sourceType: string
+  sourceId: string
+  externalAccountId?: string | null
+  displayName: string
+  handle?: string | null
+  status?: $Enums.ExternalConnectionStatus
+  statusOverride?: $Enums.ExternalConnectionStatus | null
+  credentialStatus?: string
+  healthStatus?: string
+  webhookStatus?: string
+  lastCheckedAt?: Date | string | null
+  lastError?: string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  agentReviewRevision?: bigint | number
+  org: Prisma.OrganizationCreateNestedOneWithoutExternalConnectionsInput
+  capabilities?: Prisma.ExternalConnectionCapabilityCreateNestedManyWithoutConnectionInput
+  permissions?: Prisma.ExternalConnectionPermissionCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptCreateNestedManyWithoutConnectionInput
+  consumers?: Prisma.ExternalConnectionConsumerCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutConnectionInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutExternalConnectionInput
+  calls?: Prisma.CommunicationCallCreateNestedManyWithoutConnectionInput
+}
+
+export type ExternalConnectionUncheckedCreateWithoutAgentChannelLinkIntentsInput = {
+  id?: string
+  orgId: string
+  provider: string
+  sourceType: string
+  sourceId: string
+  externalAccountId?: string | null
+  displayName: string
+  handle?: string | null
+  status?: $Enums.ExternalConnectionStatus
+  statusOverride?: $Enums.ExternalConnectionStatus | null
+  credentialStatus?: string
+  healthStatus?: string
+  webhookStatus?: string
+  lastCheckedAt?: Date | string | null
+  lastError?: string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  agentReviewRevision?: bigint | number
+  capabilities?: Prisma.ExternalConnectionCapabilityUncheckedCreateNestedManyWithoutConnectionInput
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedCreateNestedManyWithoutConnectionInput
+  consumers?: Prisma.ExternalConnectionConsumerUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutConnectionInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutExternalConnectionInput
+  calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutConnectionInput
+}
+
+export type ExternalConnectionCreateOrConnectWithoutAgentChannelLinkIntentsInput = {
+  where: Prisma.ExternalConnectionWhereUniqueInput
+  create: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutAgentChannelLinkIntentsInput, Prisma.ExternalConnectionUncheckedCreateWithoutAgentChannelLinkIntentsInput>
+}
+
+export type ExternalConnectionUpsertWithoutAgentChannelLinkIntentsInput = {
+  update: Prisma.XOR<Prisma.ExternalConnectionUpdateWithoutAgentChannelLinkIntentsInput, Prisma.ExternalConnectionUncheckedUpdateWithoutAgentChannelLinkIntentsInput>
+  create: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutAgentChannelLinkIntentsInput, Prisma.ExternalConnectionUncheckedCreateWithoutAgentChannelLinkIntentsInput>
+  where?: Prisma.ExternalConnectionWhereInput
+}
+
+export type ExternalConnectionUpdateToOneWithWhereWithoutAgentChannelLinkIntentsInput = {
+  where?: Prisma.ExternalConnectionWhereInput
+  data: Prisma.XOR<Prisma.ExternalConnectionUpdateWithoutAgentChannelLinkIntentsInput, Prisma.ExternalConnectionUncheckedUpdateWithoutAgentChannelLinkIntentsInput>
+}
+
+export type ExternalConnectionUpdateWithoutAgentChannelLinkIntentsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceType?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalAccountId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  displayName?: Prisma.StringFieldUpdateOperationsInput | string
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.EnumExternalConnectionStatusFieldUpdateOperationsInput | $Enums.ExternalConnectionStatus
+  statusOverride?: Prisma.NullableEnumExternalConnectionStatusFieldUpdateOperationsInput | $Enums.ExternalConnectionStatus | null
+  credentialStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  healthStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  webhookStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  lastCheckedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  agentReviewRevision?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
+  org?: Prisma.OrganizationUpdateOneRequiredWithoutExternalConnectionsNestedInput
+  capabilities?: Prisma.ExternalConnectionCapabilityUpdateManyWithoutConnectionNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUpdateManyWithoutConnectionNestedInput
+  consumers?: Prisma.ExternalConnectionConsumerUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutConnectionNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutExternalConnectionNestedInput
+  calls?: Prisma.CommunicationCallUpdateManyWithoutConnectionNestedInput
+}
+
+export type ExternalConnectionUncheckedUpdateWithoutAgentChannelLinkIntentsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceType?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalAccountId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  displayName?: Prisma.StringFieldUpdateOperationsInput | string
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.EnumExternalConnectionStatusFieldUpdateOperationsInput | $Enums.ExternalConnectionStatus
+  statusOverride?: Prisma.NullableEnumExternalConnectionStatusFieldUpdateOperationsInput | $Enums.ExternalConnectionStatus | null
+  credentialStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  healthStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  webhookStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  lastCheckedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  agentReviewRevision?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
+  capabilities?: Prisma.ExternalConnectionCapabilityUncheckedUpdateManyWithoutConnectionNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedUpdateManyWithoutConnectionNestedInput
+  consumers?: Prisma.ExternalConnectionConsumerUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutConnectionNestedInput
 }
@@ -1368,6 +1704,8 @@ export type ExternalConnectionCreateWithoutConsumersInput = {
   capabilities?: Prisma.ExternalConnectionCapabilityCreateNestedManyWithoutConnectionInput
   permissions?: Prisma.ExternalConnectionPermissionCreateNestedManyWithoutConnectionInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallCreateNestedManyWithoutConnectionInput
 }
@@ -1395,6 +1733,8 @@ export type ExternalConnectionUncheckedCreateWithoutConsumersInput = {
   capabilities?: Prisma.ExternalConnectionCapabilityUncheckedCreateNestedManyWithoutConnectionInput
   permissions?: Prisma.ExternalConnectionPermissionUncheckedCreateNestedManyWithoutConnectionInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutConnectionInput
 }
@@ -1438,6 +1778,8 @@ export type ExternalConnectionUpdateWithoutConsumersInput = {
   capabilities?: Prisma.ExternalConnectionCapabilityUpdateManyWithoutConnectionNestedInput
   permissions?: Prisma.ExternalConnectionPermissionUpdateManyWithoutConnectionNestedInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUpdateManyWithoutConnectionNestedInput
 }
@@ -1465,6 +1807,8 @@ export type ExternalConnectionUncheckedUpdateWithoutConsumersInput = {
   capabilities?: Prisma.ExternalConnectionCapabilityUncheckedUpdateManyWithoutConnectionNestedInput
   permissions?: Prisma.ExternalConnectionPermissionUncheckedUpdateManyWithoutConnectionNestedInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutConnectionNestedInput
 }
@@ -1493,6 +1837,8 @@ export type ExternalConnectionCreateWithoutConversationsInput = {
   permissions?: Prisma.ExternalConnectionPermissionCreateNestedManyWithoutConnectionInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutConnectionInput
   calls?: Prisma.CommunicationCallCreateNestedManyWithoutConnectionInput
 }
 
@@ -1520,6 +1866,8 @@ export type ExternalConnectionUncheckedCreateWithoutConversationsInput = {
   permissions?: Prisma.ExternalConnectionPermissionUncheckedCreateNestedManyWithoutConnectionInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutConnectionInput
   calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutConnectionInput
 }
 
@@ -1563,6 +1911,8 @@ export type ExternalConnectionUpdateWithoutConversationsInput = {
   permissions?: Prisma.ExternalConnectionPermissionUpdateManyWithoutConnectionNestedInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutConnectionNestedInput
   calls?: Prisma.CommunicationCallUpdateManyWithoutConnectionNestedInput
 }
 
@@ -1590,6 +1940,8 @@ export type ExternalConnectionUncheckedUpdateWithoutConversationsInput = {
   permissions?: Prisma.ExternalConnectionPermissionUncheckedUpdateManyWithoutConnectionNestedInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutConnectionNestedInput
   calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutConnectionNestedInput
 }
 
@@ -1617,6 +1969,8 @@ export type ExternalConnectionCreateWithoutCallsInput = {
   permissions?: Prisma.ExternalConnectionPermissionCreateNestedManyWithoutConnectionInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutExternalConnectionInput
 }
 
@@ -1644,6 +1998,8 @@ export type ExternalConnectionUncheckedCreateWithoutCallsInput = {
   permissions?: Prisma.ExternalConnectionPermissionUncheckedCreateNestedManyWithoutConnectionInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutConnectionInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutExternalConnectionInput
 }
 
@@ -1687,6 +2043,8 @@ export type ExternalConnectionUpdateWithoutCallsInput = {
   permissions?: Prisma.ExternalConnectionPermissionUpdateManyWithoutConnectionNestedInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutExternalConnectionNestedInput
 }
 
@@ -1714,6 +2072,8 @@ export type ExternalConnectionUncheckedUpdateWithoutCallsInput = {
   permissions?: Prisma.ExternalConnectionPermissionUncheckedUpdateManyWithoutConnectionNestedInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutExternalConnectionNestedInput
 }
 
@@ -1761,6 +2121,8 @@ export type ExternalConnectionUpdateWithoutOrgInput = {
   permissions?: Prisma.ExternalConnectionPermissionUpdateManyWithoutConnectionNestedInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUpdateManyWithoutConnectionNestedInput
 }
@@ -1788,6 +2150,8 @@ export type ExternalConnectionUncheckedUpdateWithoutOrgInput = {
   permissions?: Prisma.ExternalConnectionPermissionUncheckedUpdateManyWithoutConnectionNestedInput
   authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutConnectionNestedInput
+  agentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutConnectionNestedInput
 }
@@ -1823,6 +2187,8 @@ export type ExternalConnectionCountOutputType = {
   permissions: number
   authorizationAttempts: number
   consumers: number
+  agentChannelGrants: number
+  agentChannelLinkIntents: number
   conversations: number
   calls: number
 }
@@ -1832,6 +2198,8 @@ export type ExternalConnectionCountOutputTypeSelect<ExtArgs extends runtime.Type
   permissions?: boolean | ExternalConnectionCountOutputTypeCountPermissionsArgs
   authorizationAttempts?: boolean | ExternalConnectionCountOutputTypeCountAuthorizationAttemptsArgs
   consumers?: boolean | ExternalConnectionCountOutputTypeCountConsumersArgs
+  agentChannelGrants?: boolean | ExternalConnectionCountOutputTypeCountAgentChannelGrantsArgs
+  agentChannelLinkIntents?: boolean | ExternalConnectionCountOutputTypeCountAgentChannelLinkIntentsArgs
   conversations?: boolean | ExternalConnectionCountOutputTypeCountConversationsArgs
   calls?: boolean | ExternalConnectionCountOutputTypeCountCallsArgs
 }
@@ -1877,6 +2245,20 @@ export type ExternalConnectionCountOutputTypeCountConsumersArgs<ExtArgs extends 
 /**
  * ExternalConnectionCountOutputType without action
  */
+export type ExternalConnectionCountOutputTypeCountAgentChannelGrantsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.GrowthAgentChannelGrantWhereInput
+}
+
+/**
+ * ExternalConnectionCountOutputType without action
+ */
+export type ExternalConnectionCountOutputTypeCountAgentChannelLinkIntentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.GrowthAgentChannelLinkIntentWhereInput
+}
+
+/**
+ * ExternalConnectionCountOutputType without action
+ */
 export type ExternalConnectionCountOutputTypeCountConversationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.ConversationWhereInput
 }
@@ -1914,6 +2296,8 @@ export type ExternalConnectionSelect<ExtArgs extends runtime.Types.Extensions.In
   permissions?: boolean | Prisma.ExternalConnection$permissionsArgs<ExtArgs>
   authorizationAttempts?: boolean | Prisma.ExternalConnection$authorizationAttemptsArgs<ExtArgs>
   consumers?: boolean | Prisma.ExternalConnection$consumersArgs<ExtArgs>
+  agentChannelGrants?: boolean | Prisma.ExternalConnection$agentChannelGrantsArgs<ExtArgs>
+  agentChannelLinkIntents?: boolean | Prisma.ExternalConnection$agentChannelLinkIntentsArgs<ExtArgs>
   conversations?: boolean | Prisma.ExternalConnection$conversationsArgs<ExtArgs>
   calls?: boolean | Prisma.ExternalConnection$callsArgs<ExtArgs>
   _count?: boolean | Prisma.ExternalConnectionCountOutputTypeDefaultArgs<ExtArgs>
@@ -1994,6 +2378,8 @@ export type ExternalConnectionInclude<ExtArgs extends runtime.Types.Extensions.I
   permissions?: boolean | Prisma.ExternalConnection$permissionsArgs<ExtArgs>
   authorizationAttempts?: boolean | Prisma.ExternalConnection$authorizationAttemptsArgs<ExtArgs>
   consumers?: boolean | Prisma.ExternalConnection$consumersArgs<ExtArgs>
+  agentChannelGrants?: boolean | Prisma.ExternalConnection$agentChannelGrantsArgs<ExtArgs>
+  agentChannelLinkIntents?: boolean | Prisma.ExternalConnection$agentChannelLinkIntentsArgs<ExtArgs>
   conversations?: boolean | Prisma.ExternalConnection$conversationsArgs<ExtArgs>
   calls?: boolean | Prisma.ExternalConnection$callsArgs<ExtArgs>
   _count?: boolean | Prisma.ExternalConnectionCountOutputTypeDefaultArgs<ExtArgs>
@@ -2013,6 +2399,8 @@ export type $ExternalConnectionPayload<ExtArgs extends runtime.Types.Extensions.
     permissions: Prisma.$ExternalConnectionPermissionPayload<ExtArgs>[]
     authorizationAttempts: Prisma.$ExternalConnectionAuthorizationAttemptPayload<ExtArgs>[]
     consumers: Prisma.$ExternalConnectionConsumerPayload<ExtArgs>[]
+    agentChannelGrants: Prisma.$GrowthAgentChannelGrantPayload<ExtArgs>[]
+    agentChannelLinkIntents: Prisma.$GrowthAgentChannelLinkIntentPayload<ExtArgs>[]
     conversations: Prisma.$ConversationPayload<ExtArgs>[]
     calls: Prisma.$CommunicationCallPayload<ExtArgs>[]
   }
@@ -2435,6 +2823,8 @@ export interface Prisma__ExternalConnectionClient<T, Null = never, ExtArgs exten
   permissions<T extends Prisma.ExternalConnection$permissionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ExternalConnection$permissionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ExternalConnectionPermissionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   authorizationAttempts<T extends Prisma.ExternalConnection$authorizationAttemptsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ExternalConnection$authorizationAttemptsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ExternalConnectionAuthorizationAttemptPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   consumers<T extends Prisma.ExternalConnection$consumersArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ExternalConnection$consumersArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ExternalConnectionConsumerPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  agentChannelGrants<T extends Prisma.ExternalConnection$agentChannelGrantsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ExternalConnection$agentChannelGrantsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$GrowthAgentChannelGrantPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  agentChannelLinkIntents<T extends Prisma.ExternalConnection$agentChannelLinkIntentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ExternalConnection$agentChannelLinkIntentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$GrowthAgentChannelLinkIntentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   conversations<T extends Prisma.ExternalConnection$conversationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ExternalConnection$conversationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ConversationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   calls<T extends Prisma.ExternalConnection$callsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ExternalConnection$callsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CommunicationCallPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
@@ -2974,6 +3364,54 @@ export type ExternalConnection$consumersArgs<ExtArgs extends runtime.Types.Exten
   take?: number
   skip?: number
   distinct?: Prisma.ExternalConnectionConsumerScalarFieldEnum | Prisma.ExternalConnectionConsumerScalarFieldEnum[]
+}
+
+/**
+ * ExternalConnection.agentChannelGrants
+ */
+export type ExternalConnection$agentChannelGrantsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the GrowthAgentChannelGrant
+   */
+  select?: Prisma.GrowthAgentChannelGrantSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the GrowthAgentChannelGrant
+   */
+  omit?: Prisma.GrowthAgentChannelGrantOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.GrowthAgentChannelGrantInclude<ExtArgs> | null
+  where?: Prisma.GrowthAgentChannelGrantWhereInput
+  orderBy?: Prisma.GrowthAgentChannelGrantOrderByWithRelationInput | Prisma.GrowthAgentChannelGrantOrderByWithRelationInput[]
+  cursor?: Prisma.GrowthAgentChannelGrantWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.GrowthAgentChannelGrantScalarFieldEnum | Prisma.GrowthAgentChannelGrantScalarFieldEnum[]
+}
+
+/**
+ * ExternalConnection.agentChannelLinkIntents
+ */
+export type ExternalConnection$agentChannelLinkIntentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the GrowthAgentChannelLinkIntent
+   */
+  select?: Prisma.GrowthAgentChannelLinkIntentSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the GrowthAgentChannelLinkIntent
+   */
+  omit?: Prisma.GrowthAgentChannelLinkIntentOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.GrowthAgentChannelLinkIntentInclude<ExtArgs> | null
+  where?: Prisma.GrowthAgentChannelLinkIntentWhereInput
+  orderBy?: Prisma.GrowthAgentChannelLinkIntentOrderByWithRelationInput | Prisma.GrowthAgentChannelLinkIntentOrderByWithRelationInput[]
+  cursor?: Prisma.GrowthAgentChannelLinkIntentWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.GrowthAgentChannelLinkIntentScalarFieldEnum | Prisma.GrowthAgentChannelLinkIntentScalarFieldEnum[]
 }
 
 /**

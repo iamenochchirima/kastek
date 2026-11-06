@@ -6,8 +6,34 @@ import { messagingChannelAdapter } from "../../adapters/channels/providers";
 import type { ChannelStore } from "./channel-store";
 import type { ChannelDelivery } from "./channel-delivery";
 import { metaSetupProfileDigest, type MetaSetupProfile } from "./meta-setup";
+import { growthAgentChannelRequestSchema } from "@kasitek-labs/contracts";
+import { GrowthServiceAuth, type GrowthServiceTrust } from "../../adapters/products/growth-service-auth";
 
-export async function registerChannelWebhooks(app: FastifyInstance,options:{channels:ChannelStore;delivery:ChannelDelivery;profiles:readonly MetaSetupProfile[]}) {
+export async function registerChannelWebhooks(app: FastifyInstance,options:{channels:ChannelStore;delivery:ChannelDelivery;profiles:readonly MetaSetupProfile[];growthTrust?:GrowthServiceTrust}) {
+  const growthAuth=options.growthTrust?new GrowthServiceAuth(options.growthTrust):undefined;
+  app.post("/internal/agents/channel-events",{bodyLimit:32768},async request=>{
+    if(!growthAuth)throw new PlatformError("GROWTH_CHANNEL_UNAVAILABLE",503,"Growth channel delivery is unavailable");
+    const parsed=growthAgentChannelRequestSchema.safeParse(request.body);
+    if(!parsed.success||parsed.data.operation!=="webhook.deliver")throw new PlatformError("GROWTH_CHANNEL_EVENT_INVALID",400,"Invalid channel event");
+    const command=parsed.data;
+    const bearer=request.headers.authorization?.match(/^Bearer ([A-Za-z0-9_.-]+)$/)?.[1];
+    if(!bearer)throw new PlatformError("PRODUCT_SERVICE_DENIED",401,"Growth service authentication is required");
+    await growthAuth.verify(bearer,command);
+    await options.channels.assertGrowthManagedInboundAuthority({workspaceId:command.workspaceId,agentId:command.agentId,
+      connectionId:command.agentsConnectionId,grantId:command.grantId,provider:command.provider,
+      providerAssetId:command.providerAssetId,actor:command.actor});
+    try {
+      const admitted = await options.delivery.persist(command.provider,[command.event]);
+      request.log.info({ event: "agents.growth_channel.inbox.admission", provider: command.provider,
+        outcome: "accepted", admitted_events: admitted, correlation_id: command.requestId });
+    } catch (error) {
+      request.log.warn({ event: "agents.growth_channel.inbox.admission", provider: command.provider,
+        outcome: "failed", correlation_id: command.requestId,
+        error_code: error instanceof PlatformError ? error.code : "internal" });
+      throw error;
+    }
+    return {accepted:true};
+  });
   // Encapsulation keeps signed bytes intact without changing ordinary JSON application routes.
   await app.register(async webhooks=>{
     webhooks.removeContentTypeParser("application/json");
