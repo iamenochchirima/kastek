@@ -3,7 +3,7 @@
 Owner: Agents engineering. Last reviewed: 2026-11-03.
 
 This setup connects Growth's Agents workspace and general assistant launcher to the shared
-business worker. New managed defaults revision11 uses `AgentsBusinessRunV25` / `product-capabilities-v15`
+business worker. New managed defaults revision15 uses `AgentsBusinessRunV25` / `product-capabilities-v15`
 for the assistant and specialists. Older accepted work keeps its exact runtime identity. Growth users keep their
 existing business membership. They do not sign into standalone Agents or supply the worker's service credentials.
 
@@ -75,6 +75,12 @@ subject `growth-api`. Capability calls use `POST /internal/agents/capabilities`,
 lifecycle/review calls retain `POST /internal/agents/actions` with audience `growth-agent-actions`.
 The shared runtime checks originating Growth access separately from each destination operation.
 Production service URLs require HTTPS.
+
+Managed Growth agents publish capability revision15 with adapter release11. Declared Growth
+record selectors are projected to opaque, conversation-scoped references before model use;
+authorized tool inputs resolve those references before Growth rechecks the current actor and
+resource access. Retained task history uses the same projection. The additive Agents schema132
+stores the scoped references and should be applied before starting the updated API and worker.
 
 ## Growth-managed customer channels
 

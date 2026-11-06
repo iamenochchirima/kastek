@@ -34,6 +34,8 @@ export async function taskRecipientTextScope(pool:Pool|PoolClient,taskId:string,
     SELECT id::text AS value FROM scoped
     UNION SELECT version_id::text FROM scoped
     UNION SELECT grant_id::text FROM scoped
+    UNION SELECT ref.id FROM agents_platform.product_references ref JOIN scoped t ON t.id=ref.source_task_id
+    UNION SELECT ref.resource_id FROM agents_platform.product_references ref JOIN scoped t ON t.id=ref.source_task_id
     UNION SELECT o.id::text FROM agents_platform.operations o JOIN scoped t ON t.id=o.task_id
     UNION SELECT item->>'id' FROM agents_platform.operations o JOIN scoped t ON t.id=o.task_id
       CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(o.output#>'{value,result,connections}')='array'

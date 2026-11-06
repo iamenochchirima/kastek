@@ -10,6 +10,7 @@ import { TaskArtifactStore } from "../artifacts/task-artifacts";
 import type { DependencyManifest } from "../../contracts/source-contracts";
 import type { Execution } from "../../contracts/execution";
 import { productModelResult } from "../products/product-result";
+import { projectProductReferences } from "../products/product-references";
 import { connectedModelView } from "../../capabilities/connected-tools/connected-model-view";
 import type { ConnectedObservation } from "../../capabilities/connected-tools/connected-executor";
 import { builtinObservationView } from "../../capabilities/tool-observation-feedback";
@@ -73,6 +74,14 @@ export function modelReceiptOutput(execution:Execution,row:{id:string;name:strin
   const binding=execution.configuration.productBindings.find(value=>value.id===row.request!.productBindingId&&value.digest===row.request!.bindingDigest);
   if(!binding)throw new PlatformError("EVIDENCE_INTEGRITY",409,"The product result is unavailable");
   return productModelResult(binding,row.output,execution.task.id,row.id);
+}
+export async function modelReceiptOutputWithReferences(pool:Pool,taskId:string,execution:Execution,row:{id:string;name:string;state:string;output:unknown;error_code?:string|null;request?:{productBindingId?:string;bindingDigest?:string;arguments?:string}}):Promise<unknown>{
+  if(row.state!=="completed")return row.request?.productBindingId?{state:row.state,errorCode:row.error_code??"PRODUCT_OPERATION_FAILED"}:row.output;
+  const projected=modelReceiptOutput(execution,row);
+  if(!row.request?.productBindingId)return projected;
+  const binding=execution.configuration.productBindings.find(value=>value.id===row.request!.productBindingId&&value.digest===row.request!.bindingDigest);
+  if(!binding)throw new PlatformError("EVIDENCE_INTEGRITY",409,"The product result is unavailable");
+  return projectProductReferences(pool,taskId,row.id,binding,projected);
 }
 
 async function scope(pool: Pool, taskId: string) {
@@ -151,7 +160,7 @@ export async function searchHistory(pool: Pool, taskId: string, raw: unknown, ev
         last=row.id;beforeTime=row.cursor_time;
         try{await evidence.validateOperation(taskId,row.id);}
         catch(error){if(error instanceof PlatformError&&[403,404,409].includes(error.statusCode))continue;throw error;}
-        const content=publicReceiptContent({operationId:row.id,name:row.name,state:row.state,output:modelReceiptOutput(execution,row),errorCode:row.error_code});
+        const content=publicReceiptContent({operationId:row.id,name:row.name,state:row.state,output:await modelReceiptOutputWithReferences(pool,taskId,execution,row),errorCode:row.error_code});
         const terms=input.query?.toLocaleLowerCase().split(/\s+/u).filter(Boolean)??[];
         if(terms.some(term=>!content.toLocaleLowerCase().includes(term)))continue;
         await evidence.retainOperation(taskId,row.id);
@@ -211,7 +220,7 @@ export async function readHistory(pool: Pool, taskId: string, raw: unknown, evid
       AND kind IN ('tool','delegation','resource') AND state IN ('completed','failed','uncertain') AND name NOT IN ('history.search','history.read')`,[input.operationId,taskId])).rows[0];
     if(!receipt)throw new PlatformError("HISTORY_UNAVAILABLE",404,"The retained receipt is unavailable");
     await evidence.retainOperation(taskId,receipt.id);
-    const projected=modelReceiptOutput(execution,receipt);
+    const projected=await modelReceiptOutputWithReferences(pool,taskId,execution,receipt);
     const content=publicReceiptContent({operationId:receipt.id,name:receipt.name,state:receipt.state,output:projected,errorCode:receipt.error_code});
     const changed=receipt.state==="completed"&&!receipt.request?.productBindingId&&requestDigest(projected??null)!==requestDigest(receipt.output??null);
     if(!changed)return pageRecord(content,input.offset,{taskId,operationId:receipt.id,part:"operations"});
@@ -237,7 +246,7 @@ export async function readHistory(pool: Pool, taskId: string, raw: unknown, evid
     for(const receipt of operations){
       await evidence.retainOperation(taskId,receipt.id,row.id);
       const {request:_request,...publicReceipt}=receipt;
-      projected.push({...publicReceipt,output:modelReceiptOutput(origin,receipt)});
+      projected.push({...publicReceipt,output:await modelReceiptOutputWithReferences(pool,row.id,origin,receipt)});
     }
     content = JSON.stringify(projected);
   } else {

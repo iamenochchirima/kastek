@@ -40,9 +40,9 @@ test("revised Growth instructions change behavior without expanding product auth
 
 test("current Growth publication derives the canonical callable contract", async () => {
   const {growthOperationDescriptors}=await import("../src/operations/manifest.js");
-  assert.equal(growthAgentPublication.manifest.revision,"14");
-  assert.equal(growthAgentPublication.policy.revision,"14");
-  assert.equal(growthAgentPublication.manifest.adapter.release,"10");
+  assert.equal(growthAgentPublication.manifest.revision,"15");
+  assert.equal(growthAgentPublication.policy.revision,"15");
+  assert.equal(growthAgentPublication.manifest.adapter.release,"11");
   assert.equal(growthAgentPublicationV10.manifest.revision,"10");
   assert.equal(growthAgentPublicationV10.manifest.adapter.release,"7");
   assert.deepEqual(growthAgentPublication.policy.delegation,{
@@ -71,7 +71,7 @@ test("current Growth publication derives the canonical callable contract", async
 
 
 test("private content writes remain writes and only revision 9 receives the new preview contract", () => {
-  assert.equal(growthAgentPublication.manifest.adapter.release, "10");
+  assert.equal(growthAgentPublication.manifest.adapter.release, "11");
   const direct = ["content.posts.draft.create", "content.posts.draft.update", "content.posts.duplicate", "content.media.upload", "content.media.transfer.prepare"];
   for (const name of direct) {
     const operation = growthAgentPublication.manifest.operations.find(item => item.operation === name)!;

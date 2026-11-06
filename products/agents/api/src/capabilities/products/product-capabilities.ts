@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import type { ProductCapabilityDescriptor,ProductCapabilityManifest,ProductCapabilityInvocation,ProductCapabilityResult } from "@kasitek-labs/contracts";
+import type { ProductCapabilityDescriptor,ProductCapabilityManifest,ProductCapabilityInvocation,ProductCapabilityResult,GrowthProductReferenceRule } from "@kasitek-labs/contracts";
 import { canonicalJson,PlatformError,requestDigest } from "../../contracts/contracts";
 import { adapterReferenceSchema,capabilityBindingSchema,capabilityPolicySchema,catalogToolSchema,createModelAlias,
   ExecutableAdapterRegistry,preflightToolSchema,type AdapterManifest,type CapabilityBinding } from "../../contracts/capability-catalog";
@@ -11,8 +11,11 @@ const descriptorSchema=z.strictObject({operation:id,revision:id,description:z.st
   evidence:z.enum(["none","versioned_sources"]),limits:z.strictObject({timeoutMs:z.number().int().min(1).max(240000),maxPhysicalAttempts:z.number().int().min(1).max(3),maxResponseBytes:z.number().int().min(1).max(2097152),maxModelResultBytes:z.number().int().min(1).max(8192)})});
 const manifestSchema=z.strictObject({schemaVersion:z.literal(1),product:id,revision:id,adapter:adapterReferenceSchema,operations:z.array(descriptorSchema).min(1).max(64),digest});
 type ProductModelProjection = "effect-status-v1" | "growth-content-post-read-v1";
+export interface ProductReferenceRule extends GrowthProductReferenceRule {}
 export interface InstalledProductAdapter { handlers:readonly string[]; accessReceiptHandlers?:readonly string[];
-  modelProjections?:Readonly<Record<string,ProductModelProjection>>; invoke(command:ProductCapabilityInvocation,signal?:AbortSignal):Promise<ProductCapabilityResult> }
+  modelProjections?:Readonly<Record<string,ProductModelProjection>>;
+  references?:Readonly<Record<string,readonly ProductReferenceRule[]>>;
+  invoke(command:ProductCapabilityInvocation,signal?:AbortSignal):Promise<ProductCapabilityResult> }
 export const productAdapterRegistry=new ExecutableAdapterRegistry<InstalledProductAdapter>();
 const manifests=new Map<string,ProductCapabilityManifest>();
 const installedMetadata=new Map<string,InstalledProductAdapter>();
@@ -21,10 +24,23 @@ export function registerRetainedProductAdapter(manifest:AdapterManifest,adapter:
 function installProductAdapter(manifest:AdapterManifest,adapter:InstalledProductAdapter,retained:boolean){
   const key=canonicalJson([manifest.id,manifest.release,requestDigest(manifest)]),prior=installedMetadata.get(key),handlers=[...adapter.handlers].sort(),accessReceiptHandlers=[...adapter.accessReceiptHandlers??[]].sort();
   const modelProjections=Object.fromEntries(Object.entries(adapter.modelProjections??{}).sort(([left],[right])=>left.localeCompare(right)));
+  const references=Object.fromEntries(Object.entries(adapter.references??{}).sort(([left],[right])=>left.localeCompare(right)).map(([handler,rules])=>[handler,rules.map(rule=>({
+    resourceType:rule.resourceType,
+    ...(rule.outputRows?{outputRows:[...rule.outputRows]}:{}),
+    ...(rule.outputValues?{outputValues:[...rule.outputValues]}:{}),
+    ...(rule.inputPaths?{inputPaths:[...rule.inputPaths]}:{}),
+    ...(rule.labelFields?{labelFields:[...rule.labelFields]}:{}),
+  }))]));
   if(new Set(accessReceiptHandlers).size!==accessReceiptHandlers.length||accessReceiptHandlers.some(handler=>!handlers.includes(handler))||
     Object.entries(modelProjections).some(([handler,version])=>!handlers.includes(handler)||!(["effect-status-v1","growth-content-post-read-v1"] as unknown[]).includes(version)))throw invalid();
+  if(Object.entries(references).some(([handler,rules])=>!handlers.includes(handler)||!Array.isArray(rules)||rules.length>8||rules.some(rule=>
+    !/^[a-z][a-z0-9_.-]{0,63}$/.test(rule.resourceType)||[...rule.outputRows??[],...rule.outputValues??[],...rule.inputPaths??[]].some(path=>!validReferencePath(path))||
+    new Set(rule.outputRows??[]).size!==(rule.outputRows??[]).length||new Set(rule.inputPaths??[]).size!==(rule.inputPaths??[]).length||
+    new Set(rule.outputValues??[]).size!==(rule.outputValues??[]).length||
+    (rule.labelFields??[]).some(field=>!/^[$A-Za-z_][\w$-]{0,63}$/.test(field))||(rule.outputRows?.length??0)>8||(rule.outputValues?.length??0)>8||(rule.inputPaths?.length??0)>16)))throw invalid();
   if(prior&&(canonicalJson(prior.handlers)!==canonicalJson(handlers)||canonicalJson(prior.accessReceiptHandlers??[])!==canonicalJson(accessReceiptHandlers)||canonicalJson(prior.modelProjections??{})!==canonicalJson(modelProjections)))throw new PlatformError("ADAPTER_RELEASE_CONFLICT",409,"The installed handler release changed");
-  const metadata=prior??Object.freeze({handlers:Object.freeze(handlers),accessReceiptHandlers:Object.freeze(accessReceiptHandlers),modelProjections:Object.freeze(modelProjections),invoke:async()=>{throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"The runtime has no destination adapter");}});
+  if(prior&&canonicalJson(prior.references??{})!==canonicalJson(references))throw new PlatformError("ADAPTER_RELEASE_CONFLICT",409,"The installed reference contract changed");
+  const metadata=prior??Object.freeze({handlers:Object.freeze(handlers),accessReceiptHandlers:Object.freeze(accessReceiptHandlers),modelProjections:Object.freeze(modelProjections),references:Object.freeze(references),invoke:async()=>{throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"The runtime has no destination adapter");}});
   const reference=retained?productAdapterRegistry.registerRetainedVariant(manifest,metadata):productAdapterRegistry.register(manifest,metadata);installedMetadata.set(key,metadata);return reference;
 }
 export function registerProductManifest(input:ProductCapabilityManifest):ProductCapabilityManifest {
@@ -104,6 +120,13 @@ export function createProductBindings(manifestInput:ProductCapabilityManifest,or
 }
 export function productModelTools(bindings:readonly CapabilityBinding[]):ToolDefinition[]{assertProductBindings(bindings);return bindings.map(binding=>({type:"function",function:{name:binding.alias,description:binding.definition.description,parameters:binding.definition.inputSchema as Record<string,unknown>}}));}
 export function productAdapter(binding:CapabilityBinding):InstalledProductAdapter{productDescriptor(binding);return productAdapterRegistry.resolve(binding);}
+export function productReferenceRules(binding:CapabilityBinding):readonly ProductReferenceRule[]{
+  const descriptor=productDescriptor(binding);
+  return productAdapterRegistry.resolve(binding).references?.[descriptor.handlerRef]??[];
+}
+function validReferencePath(path:string):boolean {
+  return path.length>0&&path.length<=256&&path.split(".").every(part=>part==="*"||/^[A-Za-z_$][\w$-]{0,63}$/.test(part)&&!(["__proto__","prototype","constructor"] as string[]).includes(part));
+}
 
 /** Binding identities are publication-local; authority requires identical validated descriptors and scope. */
 export function sameProductAuthority(left:CapabilityBinding,right:CapabilityBinding):boolean {

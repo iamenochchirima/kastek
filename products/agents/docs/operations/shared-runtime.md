@@ -52,6 +52,12 @@ it does not authorize another mutation. Current-authority cancellation and exact
 controls remain separate, and an already-started effect recovers through its original status-only
 path. Retain the private receipt when rolling back; do not restore raw effect output to context.
 
+Schema132 stores opaque product references scoped to the organization, product tenant,
+conversation and principal. Product adapters declare which selector fields are converted before
+model use and which tool inputs may resolve them. The owning product still checks current access
+after resolution. Apply the additive migration before the API and worker that register the new
+adapter release; retain the table on rollback.
+
 Schema108 atomically records a nonprogress stop with its input closure. A correction accepted
 before that decision resumes the task; a later correction uses normal continuation. Retry recovers
 the stored decision rather than recomputing it. Pick up the change at an idle boundary. An older

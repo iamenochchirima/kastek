@@ -98,6 +98,16 @@ propose a candidate, delegate bounded specialist work, or request isolated analy
 acceptance, correction, and forgetting require authenticated management actions.
 No prompt instruction substitutes for those checks.
 
+Ordinary agent replies and supported recipient surfaces pass through a shared exact-value
+projection for known execution identifiers, tool-result identifiers and issued product
+references. Product adapters may declare which result selectors become opaque, conversation-,
+principal-, tenant- and resource-scoped references. The runtime resolves them only at declared
+tool input fields. A reference is a selector, not authorization: the destination product checks
+current membership, operation grants and resource state on every call. The projection preserves
+display names, public handles and approved business references. It is a known-value backstop,
+not general secret detection; technical exports, binary artifacts and arbitrary transformed values
+have separate or limited coverage.
+
 Personal memory uses organization, agent, and verified-account namespaces.
 Current membership is checked on each request. Candidate content is excluded
 from retrieval. Revision checks prevent stale overwrites, and operation keys
