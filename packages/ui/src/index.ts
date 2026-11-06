@@ -21,6 +21,7 @@ export * from "./scroll-area.js";
 export * from "./progress.js";
 export * from "./radio-group.js";
 export * from "./appearance.js";
+export * from "./app-switcher.js";
 export * from "./agent.js";
 export * from "./agent-memory.js";
 export * from "./agent-model-picker.js";

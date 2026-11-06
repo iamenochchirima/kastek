@@ -106,6 +106,10 @@
       "types": "./dist/appearance.d.ts",
       "default": "./dist/appearance.js"
     },
+    "./app-switcher": {
+      "types": "./dist/app-switcher.d.ts",
+      "default": "./dist/app-switcher.js"
+    },
     "./utils": {
       "types": "./dist/utils.d.ts",
       "default": "./dist/utils.js"
