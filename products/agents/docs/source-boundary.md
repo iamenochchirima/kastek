@@ -332,9 +332,10 @@ colour, title, greeting, avatar URL, position, window size, corner radius, launc
 suggested messages and branding visibility. Settings use current owner authorization and
 optimistic appearance digests. Existing JSON settings receive recovered defaults; no schema
 migration is required. Avatars permit HTTPS or local development HTTP and use no referrer.
-The website widget shows one active conversation. New conversation starts a separate visitor
-session after in-flight requests finish; the header has no conversation selector. The active
-session and pending request survive reloads in the same browser tab. Previous conversations
+The website widget shows one active conversation; the header has no conversation selector and no
+new-conversation button. The active session and pending request survive reloads in the same browser
+tab. When the conversation is resolved, or its session expires, the widget automatically starts a
+fresh conversation; the visitor's unsent text is preserved. Previous conversations
 remain in the staff Inbox. An expired session does not grant access to its earlier conversation.
 Rejected sends retain their text and a separate visible error through background refreshes.
 An unknown send outcome retains its original request key for retry. Model-configuration failures

@@ -99,7 +99,7 @@ describe("website widget send feedback", () => {
       const before = context.reads();
       await page.clock.runFor(1_500);
       await browserExpect.poll(context.reads).toBeGreaterThan(before);
-      await browserExpect(page.getByRole("button", { name: "New conversation", exact: true })).toBeEnabled();
+      await browserExpect(page.getByRole("button", { name: "New conversation", exact: true })).toHaveCount(0);
       await browserExpect(page.getByRole("log")).toContainText("Already sent");
       await browserExpect(page.getByRole("alert")).toBeHidden();
       expect(context.submitted).toHaveLength(1);
@@ -117,7 +117,7 @@ describe("website widget send feedback", () => {
       const before = context.reads();
       await page.clock.runFor(4_500);
       await browserExpect.poll(context.reads).toBeGreaterThan(before);
-      await browserExpect(page.getByRole("button", { name: "New conversation", exact: true })).toBeEnabled();
+      await browserExpect(page.getByRole("button", { name: "New conversation", exact: true })).toHaveCount(0);
       await browserExpect(failure).toBeVisible();
       await browserExpect(page.getByRole("textbox", { name: "Message", exact: true })).toHaveValue("Keep my message");
     } finally { await browser.close(); }
@@ -149,7 +149,7 @@ describe("website widget send feedback", () => {
       const before = context.reads();
       await page.clock.runFor(4_500);
       await browserExpect.poll(context.reads).toBeGreaterThan(before);
-      await browserExpect(page.getByRole("button", { name: "New conversation", exact: true })).toBeEnabled();
+      await browserExpect(page.getByRole("button", { name: "New conversation", exact: true })).toHaveCount(0);
       await browserExpect(failure).toHaveText("Chat is temporarily unavailable. Please try again later.");
       await input.fill("Hello again");
       await page.reload();
@@ -179,7 +179,7 @@ describe("website widget send feedback", () => {
       const before = context.reads();
       await page.clock.runFor(4_500);
       await browserExpect.poll(context.reads).toBeGreaterThan(before);
-      await browserExpect(page.getByRole("button", { name: "New conversation", exact: true })).toBeEnabled();
+      await browserExpect(page.getByRole("button", { name: "New conversation", exact: true })).toHaveCount(0);
       await browserExpect(page.getByRole("alert")).toHaveText("Service unavailable");
       await page.reload();
       await context.open(true);
