@@ -19,6 +19,12 @@ import { projectProductReferences, resolveProductReferences } from "./product-re
 const sourceSchema=z.strictObject({id:z.string().min(1).max(1024),revision:z.string().regex(/^[a-f0-9]{64}$/),title:z.string().min(1).max(512),text:z.string().min(1).max(8192),acquiredAt:z.iso.datetime({offset:true}),continuation:z.string().max(2048).nullable(),route:z.string().max(2048).refine(value=>value.startsWith("/")&&!value.startsWith("//")&&!/[\x00-\x20\x7f]/.test(value)).optional()});
 const accessSchema=z.strictObject({version:z.literal("1"),reference:z.string().min(1).max(1024),scopeReference:z.string().min(1).max(1024),resultDigest:z.string().regex(/^[a-f0-9]{64}$/)});
 const reviewSchema=z.strictObject({id:z.string().min(1).max(256),product:z.string().min(1).max(128),taskId:z.uuid(),operationId:z.string().min(1).max(256),payloadDigest:z.string().regex(/^[a-f0-9]{64}$/),state:z.enum(["proposed","approved","saved","rejected","expired","uncertain"]),expiresAt:z.iso.datetime({offset:true})});
+/** Transient capability observation failures degrade one tool; authorization failures still throw. */
+export function degradedBindingObservation(error: unknown): boolean {
+  if (error instanceof PlatformError) return error.statusCode >= 500 || error.statusCode === 429;
+  const name = error instanceof Error ? error.name : "";
+  return name === "TimeoutError" || name === "AbortError";
+}
 const AVAILABILITY_CONCURRENCY = 8;
 /** Bounded concurrency that preserves input order and surfaces the first rejection. */
 async function mapBounded<T, R>(items: readonly T[], limit: number, run: (item: T, index: number) => Promise<R>): Promise<R[]> {
@@ -175,11 +181,19 @@ export class ProductRuntime implements ProductRuntimePort {
   async availableBindings(taskId:string):Promise<CapabilityBinding[]>{
     await this.authorizeTask(taskId);const execution=await loadExecution(this.pool,taskId);
     const candidates=execution.configuration.productBindings.filter(binding=>!(binding.policy.effect==="reviewed_write"&&!productEffectProjection(binding)));
+    let degraded=0;
     const observed=await mapBounded(candidates,AVAILABILITY_CONCURRENCY,async binding=>{
       try{const result=await this.dispatch(this.pool,taskId,"availability:"+randomUUID(),binding,"authorize",{},undefined,undefined,true,false,execution);
         return (result.value as {authorized?:boolean})?.authorized===true ? binding : undefined;}
-      catch(error){if(error instanceof PlatformError&&[403,404].includes(error.statusCode))return undefined;throw error;}
+      catch(error){
+        if(error instanceof PlatformError&&[403,404].includes(error.statusCode))return undefined;
+        // An optional capability that cannot be observed right now must not block the whole answer.
+        // It is excluded from the callable surface and re-checked on actual invocation.
+        if(degradedBindingObservation(error)){degraded+=1;return undefined;}
+        throw error;
+      }
     });
+    if(degraded)console.warn(JSON.stringify({event:"agent.capability.degraded",taskId,count:degraded}));
     return observed.filter((binding):binding is CapabilityBinding=>binding!==undefined);
   }
   async projectForModel(taskId:string,operationId:string,binding:CapabilityBinding,output:unknown):Promise<unknown>{

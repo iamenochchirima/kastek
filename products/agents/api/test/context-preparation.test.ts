@@ -63,12 +63,24 @@ describe("context preparation cost guards", () => {
     expect(availability.loadCalls).toBe(1);
   });
 
-  it("surfaces a non-denial dispatch failure instead of silently dropping the binding", async () => {
+  it("surfaces a contract failure instead of silently dropping the binding", async () => {
     availability.bindings = [binding("broken")];
     const runtime = Object.create(ProductRuntime.prototype) as ProductRuntime;
     Object.assign(runtime, { pool: {} as never, authorizeTask: vi.fn(async () => undefined) });
-    Object.assign(runtime, { dispatch: vi.fn(async () => { throw new PlatformError("PRODUCT_RESULT_INVALID", 502, "Invalid"); }) });
-    await expect(runtime.availableBindings(randomUUID())).rejects.toMatchObject({ code: "PRODUCT_RESULT_INVALID" });
+    Object.assign(runtime, { dispatch: vi.fn(async () => { throw new PlatformError("CAPABILITY_INPUT_INVALID", 400, "Invalid"); }) });
+    await expect(runtime.availableBindings(randomUUID())).rejects.toMatchObject({ code: "CAPABILITY_INPUT_INVALID" });
+  });
+
+  it("excludes a transiently unavailable binding without failing the turn", async () => {
+    availability.bindings = [binding("works"), binding("flaky")];
+    const runtime = Object.create(ProductRuntime.prototype) as ProductRuntime;
+    Object.assign(runtime, { pool: {} as never, authorizeTask: vi.fn(async () => undefined) });
+    Object.assign(runtime, { dispatch: vi.fn(async (_db: unknown, _task: string, _op: string, candidate: { alias: string }) => {
+      if (candidate.alias === "flaky") throw new PlatformError("PRODUCT_UNAVAILABLE", 503, "Unavailable");
+      return { value: { authorized: true } };
+    }) });
+    const available = await runtime.availableBindings(randomUUID());
+    expect(available.map(item => (item as unknown as { alias: string }).alias)).toEqual(["works"]);
   });
 });
 
@@ -114,5 +126,19 @@ describe("tool schema exposure", () => {
       "3",
     );
     expect(capabilityExposure(catalog, [], versions, policy as never).tools.map(tool => tool.function.name)).toContain("t_product");
+  });
+});
+
+describe("optional capability outages", () => {
+  it("degrades one binding instead of failing prompt construction", async () => {
+    const { degradedBindingObservation } = await import("../src/execution/products/product-runtime");
+    expect(degradedBindingObservation(new PlatformError("PRODUCT_UNAVAILABLE", 503, "x"))).toBe(true);
+    expect(degradedBindingObservation(new PlatformError("CAPABILITY_RATE_LIMITED", 429, "x"))).toBe(true);
+    expect(degradedBindingObservation(Object.assign(new Error("timeout"), { name: "TimeoutError" }))).toBe(true);
+    // Authorization and contract failures must stay loud.
+    expect(degradedBindingObservation(new PlatformError("CAPABILITY_SCOPE_DENIED", 403, "x"))).toBe(false);
+    expect(degradedBindingObservation(new PlatformError("PRODUCT_RESULT_INVALID", 502, "x"))).toBe(true);
+    expect(degradedBindingObservation(new PlatformError("INVALID_REQUEST", 400, "x"))).toBe(false);
+    expect(degradedBindingObservation(new Error("boom"))).toBe(false);
   });
 });
