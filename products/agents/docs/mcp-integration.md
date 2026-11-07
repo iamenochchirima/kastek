@@ -49,7 +49,15 @@ An external request already sent to a provider cannot be recalled on revocation.
 The server exposes agent setup, knowledge, supported capabilities, model selection, private preview,
 widget appearance and website activation through the same product services as the app. It requests
 signed-in review for permission expansion, source policy and website activation. A review is tied to
-the proposed revision and a stale proposal cannot be approved. Private preview permits knowledge and
+the proposed revision and a stale proposal cannot be approved.
+
+`import_knowledge` imports UTF-8 text, Markdown, JSON or CSV as a private candidate. The content is
+limited to 120 KB to leave room for JSON escaping inside the 256 KiB MCP request body. JSON and CSV
+use the same normalization as the management API. The import returns the source, revision and
+accepted generation; approval still requires `request_knowledge_review`. When document processing
+is available the source is embedded for hybrid retrieval; otherwise it is admitted through the
+inline text path and reports `lexical-v1`. PDF, HTML and larger files use the management API or web
+Knowledge page. Private preview permits knowledge and
 discovery only; connected actions, delegation and other effectful tools are unavailable there.
 OAuth consent shows the client ID and callback host; the client-provided display name is unverified.
 Authorization is rate-limited per socket peer and registered client, forwarded IP headers are not
