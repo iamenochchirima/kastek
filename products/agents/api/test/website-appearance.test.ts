@@ -10,7 +10,7 @@ import {dropClosedTestDatabase} from "./support/database-cleanup";
 describe("recovered website appearance contract",()=>{
  it("fills recovered settings for existing deployments",()=>{
   expect(websiteAppearanceSchema.parse({title:"Support",accent:"#065f46"})).toMatchObject({title:"Support",accent:"#065f46",
-   launcherSize:56,windowWidth:390,windowHeight:620,borderRadius:16,launcherOffset:16,showBranding:true,avatarUrl:""});
+   subtitle:"",theme:"light",launcherSize:56,windowWidth:390,windowHeight:620,borderRadius:16,launcherOffset:16,showBranding:true,avatarUrl:""});
  });
  it.each([["launcherSize",44,96],["windowWidth",300,600],["windowHeight",360,800],["borderRadius",0,28],["launcherOffset",8,48]] as const)("validates %s against the recovered editor bounds",(field,min,max)=>{
   for(const value of [min,max])expect(websiteAppearanceSchema.safeParse({[field]:value}).success).toBe(true);
@@ -19,6 +19,12 @@ describe("recovered website appearance contract",()=>{
  it("accepts image URLs without allowing executable or credential-bearing sources",()=>{
   for(const avatarUrl of ["","https://images.example/avatar.png","http://localhost:3007/avatar.png"])expect(websiteAppearanceSchema.safeParse({avatarUrl}).success).toBe(true);
   for(const avatarUrl of ["javascript:alert(1)","data:image/svg+xml,<svg/>","http://images.example/avatar.png","https://user:password@images.example/avatar.png","/avatar.png"])expect(websiteAppearanceSchema.safeParse({avatarUrl}).success).toBe(false);
+ });
+ it("validates template subtitle and theme",()=>{
+  expect(websiteAppearanceSchema.safeParse({subtitle:"Ask us anything",theme:"dark"}).success).toBe(true);
+  expect(websiteAppearanceSchema.safeParse({subtitle:"x".repeat(120)}).success).toBe(true);
+  expect(websiteAppearanceSchema.safeParse({subtitle:"x".repeat(121)}).success).toBe(false);
+  expect(websiteAppearanceSchema.safeParse({theme:"system"}).success).toBe(false);
  });
 });
 

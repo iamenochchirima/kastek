@@ -58,6 +58,15 @@ test("mobile sizing and ignored foreign postMessage",async({page})=>{
 test("paused cannot create a visitor session or send",async({page})=>{
   const f=await fixture(page,true);await page.getByRole("button",{name:"Ask support",exact:true}).click();await expect(page.getByRole("status")).toHaveText("Chat is currently unavailable");await expect(page.getByRole("button",{name:"Send",exact:true})).toBeDisabled();expect(f.sessions).toBe(0);expect(f.sent).toHaveLength(0);
 });
+test("renders an optional subtitle and dark theme",async({page})=>{
+  const appearance={subtitle:"Ask us anything: menu, prices, orders",theme:"dark",accent:"#2fd4a7"};
+  await fixture(page,false,appearance);
+  await page.getByRole("button",{name:"Ask support",exact:true}).click();
+  await expect(page.locator(".subtitle")).toHaveText("Ask us anything: menu, prices, orders");
+  await expect(page.locator(".eyebrow")).toBeHidden();
+  await expect(page.locator("[data-agents-widget]")).toHaveAttribute("data-theme","dark");
+  await page.screenshot({path:test.info().outputPath("dark-template.png")});
+});
 
 test("restored appearance applies geometry, avatar, branding and expansion",async({page})=>{
   await page.route("https://avatar.example.test/avatar.svg",route=>route.fulfill({contentType:"image/svg+xml",body:'<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="#065f46"/></svg>'}));

@@ -329,7 +329,11 @@ pill composer and expand/collapse controls while using current Agents sessions, 
 messages and booking/intake confirmations. **Customize widget** is available under both
 Connections → Website and the agent's Configure → Website tab. Its live preview supports custom
 colour, title, greeting, avatar URL, position, window size, corner radius, launcher size/offset,
-suggested messages and branding visibility. Settings use current owner authorization and
+suggested messages and branding visibility. Appearance presets (Light, Minimal, Business, Dark)
+fill the editor with a complete appearance; later edits override the preset. Presets are snapshots,
+so updating a preset does not rewrite an already saved widget. An optional subtitle replaces the
+status eyebrow in the header, and the theme switches the widget surface between light and dark.
+Settings use current owner authorization and
 optimistic appearance digests. Existing JSON settings receive recovered defaults; no schema
 migration is required. Avatars permit HTTPS or local development HTTP and use no referrer.
 The website widget shows one active conversation; the header has no conversation selector and no
