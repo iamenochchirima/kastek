@@ -65,44 +65,51 @@ async function openPanel(page: Page) {
   await expect(page.getByRole("dialog", { name: "Assistant" })).toBeVisible();
 }
 
-test("sidebar assistant opens a chat panel with history and settings tabs", async ({ page }) => {
+test("sidebar assistant opens a resizable panel with navigation rail", async ({ page }) => {
   await launcher(page);
   await openPanel(page);
   const dialog = page.getByRole("dialog", { name: "Assistant" });
-  await expect(dialog.getByRole("tab", { name: "Chat" })).toHaveAttribute("aria-selected", "true");
+  const nav = dialog.getByRole("navigation", { name: "Assistant navigation" });
+  await expect(nav.getByRole("button", { name: "New chat" })).toBeVisible();
   await expect(dialog.getByRole("textbox", { name: "Message", exact: true })).toBeVisible();
-  await dialog.getByRole("tab", { name: "History" }).click();
-  await expect(dialog.getByText("Launch plan", { exact: true })).toBeVisible();
-  await dialog.getByRole("tab", { name: "Settings" }).click();
+  await nav.getByRole("button", { name: "Chats" }).click();
+  const library = dialog.getByRole("region", { name: "Conversation library" });
+  await expect(dialog.getByRole("heading", { name: "Conversations" })).toBeVisible();
+  await expect(library.getByText("Launch plan", { exact: true }).first()).toBeVisible();
+  await nav.getByRole("button", { name: "Settings" }).click();
+  await expect(dialog.getByRole("heading", { name: "Assistant settings" })).toBeVisible();
   await expect(dialog.getByRole("heading", { name: "Model" })).toBeVisible();
   await expect(dialog.getByRole("button", { name: /Memory/ })).toBeVisible();
+  await nav.getByRole("button", { name: "Channels" }).click();
+  await expect(dialog.getByRole("heading", { name: "Your messaging accounts" })).toBeVisible();
 });
 
 test("history searches, pins, archives and restores conversations", async ({ page }) => {
   await launcher(page);
   await openPanel(page);
   const dialog = page.getByRole("dialog", { name: "Assistant" });
-  await dialog.getByRole("tab", { name: "History" }).click();
-  await dialog.getByRole("textbox", { name: "Search conversations" }).fill("launch");
-  await expect(dialog.getByText("Launch plan", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("Hiring draft", { exact: true })).toHaveCount(0);
-  await dialog.getByRole("textbox", { name: "Search conversations" }).fill("");
-  await dialog.getByRole("button", { name: "Pin Hiring draft" }).click();
-  await expect(dialog.getByRole("button", { name: "Unpin Hiring draft" })).toBeVisible();
-  await dialog.getByRole("button", { name: "Archive Launch plan" }).click();
-  await expect(dialog.getByText("Launch plan", { exact: true })).toHaveCount(0);
-  await dialog.getByRole("button", { name: "Archived", exact: true }).click();
-  await expect(dialog.getByText("Launch plan", { exact: true })).toBeVisible();
-  await dialog.getByRole("button", { name: "Restore Launch plan" }).click();
-  await dialog.getByRole("button", { name: "Hide archived", exact: true }).click();
-  await expect(dialog.getByText("Launch plan", { exact: true })).toBeVisible();
+  await dialog.getByRole("navigation", { name: "Assistant navigation" }).getByRole("button", { name: "Chats" }).click();
+  const library = dialog.getByRole("region", { name: "Conversation library" });
+  await library.getByRole("textbox", { name: "Search conversations" }).fill("launch");
+  await expect(library.getByText("Launch plan", { exact: true }).first()).toBeVisible();
+  await expect(library.getByText("Hiring draft", { exact: true })).toHaveCount(0);
+  await library.getByRole("textbox", { name: "Search conversations" }).fill("");
+  await library.getByRole("button", { name: "Pin Hiring draft" }).click();
+  await expect(library.getByRole("button", { name: "Unpin Hiring draft" })).toBeVisible();
+  await library.getByRole("button", { name: "Archive Launch plan" }).click();
+  await expect(library.getByText("Launch plan", { exact: true })).toHaveCount(0);
+  await library.getByRole("button", { name: "Archived", exact: true }).click();
+  await expect(library.getByText("Launch plan", { exact: true }).first()).toBeVisible();
+  await library.getByRole("button", { name: "Restore", exact: true }).click();
+  await library.getByRole("button", { name: "Hide archived", exact: true }).click();
+  await expect(library.getByText("Launch plan", { exact: true }).first()).toBeVisible();
 });
 
 test("settings saves a model selection for the assistant", async ({ page }) => {
   const { saved } = await launcher(page);
   await openPanel(page);
   const dialog = page.getByRole("dialog", { name: "Assistant" });
-  await dialog.getByRole("tab", { name: "Settings" }).click();
+  await dialog.getByRole("navigation", { name: "Assistant navigation" }).getByRole("button", { name: "Settings" }).click();
   await expect(dialog.getByRole("heading", { name: "Model" })).toBeVisible();
   await dialog.getByRole("button", { name: "Chat model: Choose model" }).click();
   const picker = page.getByRole("dialog", { name: "Choose model" });
@@ -134,7 +141,7 @@ test("member pairs, confirms and unlinks a messaging account in channels", async
   const { calls, pair } = await launcher(page);
   await openPanel(page);
   const dialog = page.getByRole("dialog", { name: "Assistant" });
-  await dialog.getByRole("tab", { name: "Channels" }).click();
+  await dialog.getByRole("navigation", { name: "Assistant navigation" }).getByRole("button", { name: "Channels" }).click();
   await expect(dialog.getByRole("heading", { name: "Your messaging accounts" })).toBeVisible();
   await dialog.getByRole("button", { name: "Link Office bot" }).click();
   await expect(dialog.getByText("/pair private-code", { exact: true })).toBeVisible();
@@ -158,7 +165,7 @@ test("disabled private messaging blocks new links", async ({ page }) => {
   await launcher(page, { channelsEnabled: false });
   await openPanel(page);
   const dialog = page.getByRole("dialog", { name: "Assistant" });
-  await dialog.getByRole("tab", { name: "Channels" }).click();
+  await dialog.getByRole("navigation", { name: "Assistant navigation" }).getByRole("button", { name: "Channels" }).click();
   await expect(dialog.getByText("Private messaging unavailable", { exact: true })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Link Office bot" })).toBeDisabled();
 });

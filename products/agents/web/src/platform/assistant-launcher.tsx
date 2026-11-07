@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AiChat02Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { Link } from "react-router-dom";
-import { PiArchive, PiArrowCounterClockwise, PiChatCircle, PiGear, PiLinkSimple, PiMagnifyingGlass, PiPlus, PiPushPin, PiPushPinFill } from "react-icons/pi";
+import { PiArchive, PiArrowLeft, PiChatCircle, PiGear, PiLinkSimple, PiMagnifyingGlass, PiPlus, PiPushPin, PiPushPinFill, PiSidebarSimple } from "react-icons/pi";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,12 +12,17 @@ import { ChatModelPicker } from "./agent-model";
 import { AgentMemory } from "./agent-memory";
 import { MemberChannelsPanel, type Assistant } from "./assistant";
 import { Chat } from "./chat";
+import { cn } from "@/lib/utils";
 
-type Tab = "chat" | "history" | "settings" | "channels";
+type View = "chat" | "library" | "settings" | "channels";
 
-const MIN_PANEL_WIDTH = 340;
-const MAX_PANEL_WIDTH = 680;
-const DEFAULT_PANEL_WIDTH = 420;
+const MIN_PANEL_WIDTH = 360;
+const MAX_PANEL_WIDTH = 900;
+const DEFAULT_PANEL_WIDTH = 480;
+const WIDTH_KEY_PREFIX = "agents.assistant.panelWidth";
+const PINS_KEY_PREFIX = "agents.assistant.pins";
+const LAUNCHER_SIZE = 56;
+const DRAG_THRESHOLD = 4;
 
 function readWidth(storageKey: string): number {
   try {
@@ -35,8 +40,25 @@ function readPins(storageKey: string): string[] {
   return [];
 }
 
+function dateGroup(iso: string) {
+  const date = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(Date.now() - 86_400_000);
+  if (date.toDateString() === today.toDateString()) return "Today";
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return date > new Date(Date.now() - 7 * 86_400_000) ? "Previous 7 days" : "Older";
+}
+
+type LauncherPosition = { left: number; top: number };
+function clampLauncher(position: LauncherPosition): LauncherPosition {
+  const gutter = window.innerWidth < 640 ? 16 : 24;
+  const maxLeft = Math.max(gutter, window.innerWidth - LAUNCHER_SIZE - gutter);
+  const maxTop = Math.max(gutter, window.innerHeight - LAUNCHER_SIZE - gutter);
+  return { left: Math.min(Math.max(gutter, position.left), maxLeft), top: Math.min(Math.max(gutter, position.top), maxTop) };
+}
+
 /**
- * Workspace assistant surface: chat, conversation history and settings.
+ * Workspace assistant panel: chat, conversation library, settings and channels.
  * The assistant is a system helper, so it lives outside the agent catalogue and gets its own surface.
  */
 export function AssistantLauncher({ organizationId, accountId, isOwner, open, onOpenChange, hidden = false }: {
@@ -49,28 +71,24 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
 }) {
   const [assistant, setAssistant] = useState<Assistant | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [tab, setTab] = useState<Tab>("chat");
+  const [view, setView] = useState<View>("chat");
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
+  const [navigationExpanded, setNavigationExpanded] = useState(true);
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
-  const widthKey = `agents.assistant.panelWidth.${accountId}.${organizationId}`;
-  const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
-  const widthRef = useRef(panelWidth);
-  widthRef.current = panelWidth;
-  const resizing = useRef(false);
-
-  const onResizeMove = useCallback((event: MouseEvent) => {
-    if (!resizing.current) return;
-    setPanelWidth(Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, window.innerWidth - event.clientX - 24)));
-  }, []);
-  const stopResize = useCallback(() => {
-    if (!resizing.current) return;
-    resizing.current = false;
-    document.removeEventListener("mousemove", onResizeMove);
-    document.removeEventListener("mouseup", stopResize);
-    try { window.localStorage.setItem(widthKey, String(widthRef.current)); } catch { /* The panel remains usable when storage is unavailable. */ }
-  }, [onResizeMove, widthKey]);
+  const panel = useRef<HTMLElement>(null);
+  const widthKey = `${WIDTH_KEY_PREFIX}.${accountId}.${organizationId}`;
+  const [width, setWidth] = useState(DEFAULT_PANEL_WIDTH);
+  const widthRef = useRef(width);
+  widthRef.current = width;
+  const resizeStart = useRef<{ x: number; width: number } | null>(null);
+  const [resizing, setResizing] = useState(false);
+  const [launcherPosition, setLauncherPosition] = useState<LauncherPosition | null>(null);
+  const launcherPositionRef = useRef<LauncherPosition | null>(null);
+  const dragRef = useRef<{ pointerId: number; startLeft: number; startTop: number; offsetX: number; offsetY: number; moved: boolean } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const suppressClickRef = useRef(false);
 
   useEffect(() => {
     let live = true;
@@ -81,7 +99,20 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
     return () => { live = false; };
   }, [organizationId]);
 
-  useEffect(() => { setPanelWidth(readWidth(widthKey)); }, [widthKey]);
+  useEffect(() => { setWidth(readWidth(widthKey)); }, [widthKey]);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        const value = JSON.parse(window.localStorage.getItem(`${widthKey}.launcher`) ?? "null") as Partial<LauncherPosition> | null;
+        if (typeof value?.left === "number" && typeof value.top === "number") {
+          const next = clampLauncher({ left: value.left, top: value.top });
+          launcherPositionRef.current = next;
+          setLauncherPosition(next);
+        }
+      } catch { /* The launcher remains usable when storage is unavailable. */ }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [widthKey]);
 
   const close = useCallback(() => {
     onOpenChange(false);
@@ -93,6 +124,7 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       if (document.querySelector('[data-slot="dialog-content"]')) return;
+      if (mobileNavigationOpen) { setMobileNavigationOpen(false); return; }
       close();
     };
     document.addEventListener("keydown", onKeyDown);
@@ -101,7 +133,7 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
       cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open, close]);
+  }, [open, close, mobileNavigationOpen]);
 
   const agentId = assistant?.agent?.id ?? null;
   const ready = assistant?.state === "configured" && Boolean(agentId);
@@ -115,90 +147,256 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
   const openChat = useCallback((conversationId: string | null) => {
     setActiveConversationId(conversationId);
     if (conversationId === null) setNonce(value => value + 1);
-    setTab("chat");
+    setView("chat");
   }, []);
+
+  const beginResize = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (window.innerWidth < 640) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    resizeStart.current = { x: event.clientX, width: widthRef.current };
+    setResizing(true);
+  }, []);
+  const moveResize = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (!resizeStart.current) return;
+    const max = Math.min(MAX_PANEL_WIDTH, window.innerWidth);
+    setWidth(Math.min(max, Math.max(Math.min(MIN_PANEL_WIDTH, window.innerWidth), resizeStart.current.width + resizeStart.current.x - event.clientX)));
+  }, []);
+  const finishResize = useCallback(() => {
+    resizeStart.current = null;
+    setResizing(false);
+    try { window.localStorage.setItem(widthKey, String(widthRef.current)); } catch { /* The panel remains usable when storage is unavailable. */ }
+  }, [widthKey]);
+
+  const finishLauncherDrag = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    dragRef.current = null;
+    setDragging(false);
+    if (drag.moved) {
+      suppressClickRef.current = true;
+      if (launcherPositionRef.current) {
+        try { window.localStorage.setItem(`${widthKey}.launcher`, JSON.stringify(launcherPositionRef.current)); } catch { /* The launcher remains usable when storage is unavailable. */ }
+      }
+    }
+  }, [widthKey]);
 
   if (hidden) return null;
 
   const chatKey = `agents.assistant.${accountId}.${organizationId}.${activeConversationId ?? `new-${nonce}`}`;
 
   return <>
-    {!open ? <button
-      ref={trigger}
-      type="button"
-      aria-label="Open assistant"
-      title="Open assistant"
-      onClick={() => onOpenChange(true)}
-      className="fixed bottom-5 right-5 z-30 grid size-14 place-items-center rounded-full border border-border bg-primary text-primary-foreground shadow-sm transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:bottom-6 sm:right-6"
+    {!open ? <div
+      className={cn("fixed z-30 h-14 w-14", !launcherPosition && "bottom-5 right-5 sm:bottom-6 sm:right-6")}
+      style={launcherPosition ? { left: launcherPosition.left, top: launcherPosition.top } : undefined}
     >
-      <HugeiconsIcon icon={AiChat02Icon} size={24} aria-hidden="true" />
-    </button> : null}
+      <button
+        ref={trigger}
+        type="button"
+        aria-label="Open assistant"
+        title="Open assistant"
+        onClick={() => { if (suppressClickRef.current) { suppressClickRef.current = false; return; } onOpenChange(true); }}
+        onPointerDown={event => {
+          if (event.button !== 0) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          dragRef.current = { pointerId: event.pointerId, startLeft: rect.left, startTop: rect.top, offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top, moved: false };
+          setDragging(true);
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={event => {
+          const drag = dragRef.current;
+          if (!drag || drag.pointerId !== event.pointerId) return;
+          const left = event.clientX - drag.offsetX, top = event.clientY - drag.offsetY;
+          if (!drag.moved && Math.hypot(left - drag.startLeft, top - drag.startTop) >= DRAG_THRESHOLD) drag.moved = true;
+          const next = clampLauncher({ left, top });
+          launcherPositionRef.current = next;
+          setLauncherPosition(next);
+        }}
+        onPointerUp={finishLauncherDrag}
+        onPointerCancel={finishLauncherDrag}
+        className={cn("grid size-14 place-items-center rounded-full border border-border bg-primary text-primary-foreground shadow-sm transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50", dragging ? "cursor-grabbing scale-105" : "cursor-grab")}
+      >
+        <HugeiconsIcon icon={AiChat02Icon} size={24} aria-hidden="true" />
+      </button>
+    </div> : null}
     {open ? createPortal(
       <div className="fixed inset-0 z-40" role="presentation">
-        <div className="absolute inset-0 bg-black/40" onClick={close} aria-hidden="true" />
-        <div
+        <div className="absolute inset-0 bg-black/40 sm:hidden" onClick={close} aria-hidden="true" />
+        <aside
           ref={panel}
+          tabIndex={-1}
           role="dialog"
           aria-modal="true"
           aria-label="Assistant"
-          style={{ width: panelWidth }}
-          className="absolute inset-x-0 bottom-0 top-0 flex max-w-full flex-col overflow-hidden border border-border bg-background shadow-lg sm:inset-auto sm:bottom-6 sm:right-6 sm:top-auto sm:h-[min(720px,calc(100dvh-48px))] sm:max-w-[calc(100vw-48px)] sm:rounded-lg"
+          style={{ width: `min(${width}px, 100vw)` }}
+          className={cn("fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l border-border bg-background shadow-2xl", resizing && "select-none")}
         >
           <div
             role="separator"
             aria-orientation="vertical"
             aria-label="Resize assistant panel"
-            className="absolute inset-y-0 left-0 hidden w-2 cursor-ew-resize touch-none sm:block"
-            onMouseDown={event => {
-              event.preventDefault();
-              resizing.current = true;
-              document.addEventListener("mousemove", onResizeMove);
-              document.addEventListener("mouseup", stopResize);
-            }}
+            className="absolute inset-y-0 -left-2 z-10 hidden w-4 cursor-ew-resize touch-none sm:block"
+            onPointerDown={beginResize}
+            onPointerMove={moveResize}
+            onPointerUp={finishResize}
+            onPointerCancel={finishResize}
           />
-          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
-            <span className="grid size-8 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground"><HugeiconsIcon icon={AiChat02Icon} size={16} aria-hidden="true" /></span>
-            <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{assistant?.agent?.name ?? "Assistant"}</h2>
-            <Button type="button" size="icon" variant="ghost" onClick={close} aria-label="Close assistant">
-              <HugeiconsIcon icon={Cancel01Icon} size={18} aria-hidden="true" />
-            </Button>
+          <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
+            <div className="flex min-w-0 items-center gap-2">
+              <Button variant="ghost" size="icon" className="h-8 w-8 sm:hidden" onClick={() => setMobileNavigationOpen(true)} aria-label="Open assistant navigation" aria-expanded={mobileNavigationOpen}>
+                <PiSidebarSimple size={16} aria-hidden="true" />
+              </Button>
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                <HugeiconsIcon icon={AiChat02Icon} size={16} aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="truncate text-sm font-semibold">{assistant?.agent?.name ?? "Assistant"}</h2>
+                <p className="truncate text-[11px] text-muted-foreground">{ready ? "Your workspace assistant" : "Setup required"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={close} aria-label="Close assistant">
+                <HugeiconsIcon icon={Cancel01Icon} size={18} aria-hidden="true" />
+              </Button>
+            </div>
           </header>
-          <div role="tablist" aria-label="Assistant views" className="flex shrink-0 gap-1 border-b border-border px-3 py-2">
-            {([["chat", "Chat", PiChatCircle], ["history", "History", PiMagnifyingGlass], ["settings", "Settings", PiGear], ["channels", "Channels", PiLinkSimple]] as const).map(([id, label, Icon]) => (
-              <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
-                className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm ${tab === id ? "bg-secondary font-medium" : "text-muted-foreground hover:bg-secondary/60"}`}>
-                <Icon size={16} aria-hidden="true" />{label}
-              </button>
-            ))}
+          <div className="relative flex min-h-0 flex-1">
+            <div className="hidden min-h-0 shrink-0 sm:flex">
+              <AssistantNavigation
+                expanded={navigationExpanded}
+                view={view}
+                organizationId={organizationId}
+                agentId={agentId}
+                selectedId={activeConversationId}
+                onToggle={() => setNavigationExpanded(current => !current)}
+                onNew={() => openChat(null)}
+                onChats={() => setView("library")}
+                onSettings={() => setView("settings")}
+                onChannels={() => setView("channels")}
+                onOpen={id => openChat(id)}
+              />
+            </div>
+            {mobileNavigationOpen ? <>
+              <div className="absolute inset-0 z-10 bg-black/40 sm:hidden" onClick={() => setMobileNavigationOpen(false)} aria-hidden="true" />
+              <div className="absolute inset-y-0 left-0 z-20 flex w-64 max-w-[calc(100%-3rem)] sm:hidden">
+                <AssistantNavigation
+                  expanded
+                  view={view}
+                  organizationId={organizationId}
+                  agentId={agentId}
+                  selectedId={activeConversationId}
+                  onToggle={() => setMobileNavigationOpen(false)}
+                  onNew={() => { setMobileNavigationOpen(false); openChat(null); }}
+                  onChats={() => { setMobileNavigationOpen(false); setView("library"); }}
+                  onSettings={() => { setMobileNavigationOpen(false); setView("settings"); }}
+                  onChannels={() => { setMobileNavigationOpen(false); setView("channels"); }}
+                  onOpen={id => { setMobileNavigationOpen(false); openChat(id); }}
+                />
+              </div>
+            </> : null}
+            <div className="flex min-w-0 flex-1 flex-col">
+              {view === "library" ? (
+                ready ? <ConversationLibrary
+                  organizationId={organizationId}
+                  accountId={accountId}
+                  agentId={agentId}
+                  selectedId={activeConversationId}
+                  onBack={() => setView("chat")}
+                  onNew={() => openChat(null)}
+                  onOpen={id => openChat(id)}
+                /> : loaded ? <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} /> : <div className="flex flex-1 items-center justify-center gap-2 p-6 text-sm text-muted-foreground" role="status">Loading assistant…</div>
+              ) : null}
+              {view === "settings" ? (
+                <AssistantSettings organizationId={organizationId} assistant={assistant} loaded={loaded} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} onBack={() => setView("chat")} />
+              ) : null}
+              {view === "channels" ? (
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <div className="flex items-center gap-2 border-b border-border p-4">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setView("chat")} aria-label="Back to chat">
+                      <PiArrowLeft size={16} aria-hidden="true" />
+                    </Button>
+                    <h3 className="flex-1 text-sm font-semibold">Channels</h3>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                    <MemberChannelsPanel agentPath={agentPath} ready={ready} />
+                  </div>
+                </div>
+              ) : null}
+              {view === "chat" ? (
+                ready ? <Chat
+                  key={chatKey}
+                  endpoint={`${organizationPath(organizationId)}/tasks`}
+                  storageKey={chatKey}
+                  agentId={agentId!}
+                  expectedAgentId={agentId!}
+                  initialConversationId={activeConversationId ?? undefined}
+                  onConversationReady={id => setActiveConversationId(id)}
+                  cancellable
+                /> : loaded ? <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} /> : <div className="flex flex-1 items-center justify-center gap-2 p-6 text-sm text-muted-foreground" role="status">Loading assistant…</div>
+              ) : null}
+            </div>
           </div>
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {tab === "chat" ? (
-              ready ? <Chat
-                key={chatKey}
-                endpoint={`${organizationPath(organizationId)}/tasks`}
-                storageKey={chatKey}
-                agentId={agentId!}
-                expectedAgentId={agentId!}
-                initialConversationId={activeConversationId ?? undefined}
-                onConversationReady={id => setActiveConversationId(id)}
-                cancellable
-              /> : loaded ? <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} /> : <p className="p-6 text-sm text-muted-foreground" role="status">Loading assistant…</p>
-            ) : null}
-            {tab === "history" ? (
-              ready ? <AssistantHistory organizationId={organizationId} accountId={accountId} activeConversationId={activeConversationId} onOpen={openChat} /> : loaded ? <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} /> : <p className="p-6 text-sm text-muted-foreground" role="status">Loading assistant…</p>
-            ) : null}
-            {tab === "settings" ? (
-              <AssistantSettings organizationId={organizationId} assistant={assistant} loaded={loaded} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} />
-            ) : null}
-            {tab === "channels" ? (
-              loaded ? <div className="min-h-0 flex-1 overflow-y-auto p-4"><MemberChannelsPanel agentPath={agentPath} ready={ready} /></div> : <p className="p-6 text-sm text-muted-foreground" role="status">Loading assistant…</p>
-            ) : null}
-          </div>
-        </div>
+        </aside>
       </div>,
       document.body,
     ) : null}
   </>;
+}
+
+function AssistantNavigation({ expanded, view, organizationId, agentId, selectedId, onToggle, onNew, onChats, onSettings, onChannels, onOpen }: {
+  expanded: boolean;
+  view: View;
+  organizationId: string;
+  agentId: string | null;
+  selectedId: string | null;
+  onToggle: () => void;
+  onNew: () => void;
+  onChats: () => void;
+  onSettings: () => void;
+  onChannels: () => void;
+  onOpen: (conversationId: string) => void;
+}) {
+  const [recents, setRecents] = useState<ConversationSummary[] | null>(null);
+  useEffect(() => {
+    if (!expanded || !agentId) { setRecents(null); return; }
+    let live = true;
+    api<{ conversations: ConversationSummary[] }>(`${organizationPath(organizationId)}/conversations?agentId=${encodeURIComponent(agentId)}&limit=20`)
+      .then(result => { if (live) setRecents(result.conversations); })
+      .catch(() => { if (live) setRecents([]); });
+    return () => { live = false; };
+  }, [expanded, organizationId, agentId]);
+  const actionClass = (active = false) =>
+    cn("flex h-9 items-center rounded-md text-sm transition-colors hover:bg-muted", expanded ? "w-full gap-2 px-2.5" : "w-9 justify-center", active && "bg-muted text-foreground");
+  return <nav aria-label="Assistant navigation" className={cn("flex shrink-0 flex-col border-r border-border bg-card/30 p-2 transition-[width]", expanded ? "w-56" : "w-14")}>
+    <div className={cn("mb-2 flex items-center", expanded ? "justify-between px-1" : "justify-center")}>
+      <span className={cn("text-sm font-semibold", !expanded && "sr-only")}>Assistant</span>
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onToggle} aria-label={expanded ? "Collapse assistant navigation" : "Expand assistant navigation"}>
+        <PiSidebarSimple size={16} aria-hidden="true" className={cn("transition-transform", expanded && "rotate-180")} />
+      </Button>
+    </div>
+    <button type="button" onClick={onNew} className={actionClass(view === "chat" && !selectedId)} title="New chat">
+      <PiPlus size={16} aria-hidden="true" className="shrink-0" />{expanded ? <span>New chat</span> : null}
+    </button>
+    <button type="button" onClick={onChats} className={actionClass(view === "library")} title="Chats">
+      <PiChatCircle size={16} aria-hidden="true" className="shrink-0" />{expanded ? <span>Chats</span> : null}
+    </button>
+    <button type="button" onClick={onSettings} className={actionClass(view === "settings")} title="Settings">
+      <PiGear size={16} aria-hidden="true" className="shrink-0" />{expanded ? <span>Settings</span> : null}
+    </button>
+    <button type="button" onClick={onChannels} className={actionClass(view === "channels")} title="Channels">
+      <PiLinkSimple size={16} aria-hidden="true" className="shrink-0" />{expanded ? <span>Channels</span> : null}
+    </button>
+    {expanded ? <div className="mt-5 min-h-0 flex-1 overflow-y-auto">
+      <p className="px-2 pb-2 text-[11px] font-medium text-muted-foreground">Recents</p>
+      <div className="space-y-0.5">
+        {recents?.map(item => <button type="button" key={item.id} onClick={() => onOpen(item.id)} title={item.title}
+          className={cn("w-full truncate rounded-md px-2 py-2 text-left text-xs hover:bg-muted", item.id === selectedId && "bg-muted font-medium")}>
+          {item.title}
+        </button>)}
+        {recents && !recents.length ? <p className="px-2 py-2 text-xs text-muted-foreground">No chats yet.</p> : null}
+      </div>
+    </div> : null}
+  </nav>;
 }
 
 function AssistantSetupSection({ organizationId, assistant, isOwner, onUpdate, onNavigate }: {
@@ -234,36 +432,29 @@ function AssistantSetupSection({ organizationId, assistant, isOwner, onUpdate, o
   </div>;
 }
 
-function AssistantHistory({ organizationId, accountId, activeConversationId, onOpen }: {
+function ConversationLibrary({ organizationId, accountId, agentId, selectedId, onBack, onNew, onOpen }: {
   organizationId: string;
   accountId: string;
-  activeConversationId: string | null;
-  onOpen: (conversationId: string | null) => void;
+  agentId: string | null;
+  selectedId: string | null;
+  onBack: () => void;
+  onNew: () => void;
+  onOpen: (conversationId: string) => void;
 }) {
-  const agentPath = `${organizationPath(organizationId)}`;
-  const [assistant, setAssistant] = useState<Assistant | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[] | null>(null);
   const [archived, setArchived] = useState<ConversationSummary[] | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
-  const pinsKey = `agents.assistant.pins.${accountId}.${organizationId}`;
+  const pinsKey = `${PINS_KEY_PREFIX}.${accountId}.${organizationId}`;
   const [pins, setPins] = useState<string[]>(() => readPins(pinsKey));
+  const agentPath = `${organizationPath(organizationId)}`;
 
   useEffect(() => {
+    if (!agentId) { setConversations([]); return; }
     let live = true;
     setConversations(null); setArchived(null); setError("");
-    api<Assistant>(`${agentPath}/assistant`)
-      .then(result => { if (!live) return; setAssistant(result); })
-      .catch(cause => { if (live) setError(message(cause)); });
-    return () => { live = false; };
-  }, [agentPath]);
-
-  const agentId = assistant?.agent?.id ?? null;
-  useEffect(() => {
-    if (!agentId) return;
-    let live = true;
     api<{ conversations: ConversationSummary[]; nextCursor: string | null }>(`${agentPath}/conversations?agentId=${encodeURIComponent(agentId)}&limit=100`)
       .then(result => { if (live) setConversations(result.conversations); })
       .catch(cause => { if (live) setError(message(cause)); });
@@ -291,7 +482,7 @@ function AssistantHistory({ organizationId, accountId, activeConversationId, onO
       } else {
         setConversations(current => current?.filter(item => item.id !== id) ?? null);
         setArchived(null);
-        if (activeConversationId === id) onOpen(null);
+        if (selectedId === id) onOpen(id);
       }
     } catch (cause) { setError(message(cause)); }
     finally { setBusyId(null); }
@@ -313,51 +504,83 @@ function AssistantHistory({ organizationId, accountId, activeConversationId, onO
     return [...filtered].sort((left, right) => Number(pinned.has(right.id)) - Number(pinned.has(left.id)));
   }, [archived, conversations, pins, search, showArchived]);
 
-  return <div className="flex min-h-0 flex-1 flex-col">
-    <div className="flex shrink-0 items-center gap-2 p-3">
+  if (!agentId) return <p className="p-6 text-sm text-muted-foreground" role="status">Loading chats…</p>;
+  return <div className="flex min-h-0 flex-1 flex-col" role="region" aria-label="Conversation library">
+    <div className="flex items-center gap-2 border-b border-border p-4">
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack} aria-label="Back to chat">
+        <PiArrowLeft size={16} aria-hidden="true" />
+      </Button>
+      <h3 className="flex-1 text-sm font-semibold">Conversations</h3>
+      <Button size="sm" onClick={onNew}><PiPlus size={14} aria-hidden="true" />New chat</Button>
+    </div>
+    <div className="flex shrink-0 items-center gap-2 border-b border-border p-3">
       <label className="relative min-w-0 flex-1">
         <PiMagnifyingGlass size={15} aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input aria-label="Search conversations" placeholder="Search conversations" value={search} onChange={event => setSearch(event.target.value)} className="pl-8" />
+        <Input aria-label="Search conversations" placeholder="Search chats" value={search} onChange={event => setSearch(event.target.value)} className="pl-8" />
       </label>
-      <Button type="button" size="sm" variant="outline" onClick={() => onOpen(null)}><PiPlus size={15} aria-hidden="true" />New</Button>
-    </div>
-    <div className="flex shrink-0 items-center gap-2 px-3 pb-2">
-      <Button type="button" size="sm" variant={showArchived ? "secondary" : "ghost"} onClick={() => setShowArchived(value => !value)}>
+      <Button type="button" size="sm" variant={showArchived ? "secondary" : "ghost"} onClick={() => setShowArchived(value => !value)} aria-pressed={showArchived}>
         <PiArchive size={15} aria-hidden="true" />{showArchived ? "Hide archived" : "Archived"}
       </Button>
     </div>
-    {error ? <p role="alert" className="shrink-0 px-4 pb-2 text-sm text-destructive">{error}</p> : null}
-    <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-      {!conversations && !error ? <p role="status" className="p-2 text-sm text-muted-foreground">Loading conversations…</p> :
-        !list.length ? <p className="p-2 text-sm text-muted-foreground">{search.trim() ? "No matching conversations" : showArchived ? "No archived conversations" : "No conversations yet"}</p> :
-        <ul className="space-y-1">
-          {list.map(item => <li key={item.id} className={`flex items-center gap-1 rounded-md px-2 py-1.5 ${activeConversationId === item.id && !showArchived ? "bg-secondary" : "hover:bg-secondary/60"}`}>
-            <button type="button" onClick={() => togglePin(item.id)} aria-label={pins.includes(item.id) ? `Unpin ${item.title}` : `Pin ${item.title}`} title={pins.includes(item.id) ? "Unpin" : "Pin"}
-              className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground">
-              {pins.includes(item.id) ? <PiPushPinFill size={15} aria-hidden="true" /> : <PiPushPin size={15} aria-hidden="true" />}
-            </button>
-            <button type="button" onClick={() => { if (!showArchived) onOpen(item.id); }} disabled={showArchived} className="min-w-0 flex-1 text-left disabled:cursor-default">
-              <span className="block truncate text-sm font-medium">{item.title}</span>
-              <span className="block truncate text-xs text-muted-foreground">{new Date(item.updatedAt).toLocaleString()}</span>
-            </button>
-            <Button type="button" size="icon" variant="ghost" className="size-8 shrink-0" disabled={busyId === item.id}
-              onClick={() => void archive(item.id, showArchived)}
-              aria-label={showArchived ? `Restore ${item.title}` : `Archive ${item.title}`} title={showArchived ? "Restore" : "Archive"}>
-              {showArchived ? <PiArrowCounterClockwise size={15} aria-hidden="true" /> : <PiArchive size={15} aria-hidden="true" />}
-            </Button>
-          </li>)}
-        </ul>}
+    {error ? <p role="alert" className="shrink-0 px-4 pt-2 text-sm text-destructive">{error}</p> : null}
+    <div className="min-h-0 flex-1 overflow-y-auto p-3">
+      {!showArchived ? (["Today", "Yesterday", "Previous 7 days", "Older"] as const).map(label => {
+        const items = list.filter(item => dateGroup(item.updatedAt) === label);
+        if (!items.length) return null;
+        return <section key={label} className="mb-5">
+          <h4 className="px-2 pb-1 text-[11px] font-medium text-muted-foreground">{label}</h4>
+          {items.map(item => <ConversationRow key={item.id} item={item} selected={item.id === selectedId} pinned={pins.includes(item.id)} busy={busyId === item.id}
+            onOpen={() => onOpen(item.id)} onPin={() => togglePin(item.id)} onArchive={() => void archive(item.id, false)} />)}
+        </section>;
+      }) : null}
+      {!showArchived && !list.length && conversations ? <p className="px-2 py-8 text-center text-sm text-muted-foreground">{search.trim() ? "No conversations found." : "No chats yet."}</p> : null}
+      {showArchived ? <section>
+        <h4 className="px-2 pb-1 text-[11px] font-medium text-muted-foreground">Archived</h4>
+        {!archived ? <p role="status" className="px-2 py-2 text-sm text-muted-foreground">Loading archived chats…</p> :
+          !list.length ? <p className="px-2 py-8 text-center text-sm text-muted-foreground">No archived chats.</p> :
+          list.map(item => <div key={item.id} className="flex items-center gap-1 rounded-lg px-2 py-2 text-sm text-muted-foreground">
+            <span className="min-w-0 flex-1 truncate">{item.title}</span>
+            <Button variant="ghost" size="sm" className="h-7 shrink-0 text-[11px]" disabled={busyId === item.id} onClick={() => void archive(item.id, true)}>Restore</Button>
+          </div>)}
+      </section> : null}
+      {!conversations && !error ? <p role="status" className="px-2 py-8 text-center text-sm text-muted-foreground">Loading chats…</p> : null}
     </div>
   </div>;
 }
 
-function AssistantSettings({ organizationId, assistant, loaded, isOwner, onUpdate, onNavigate }: {
+function ConversationRow({ item, selected, pinned, busy, onOpen, onPin, onArchive }: {
+  item: ConversationSummary;
+  selected: boolean;
+  pinned: boolean;
+  busy: boolean;
+  onOpen: () => void;
+  onPin: () => void;
+  onArchive: () => void;
+}) {
+  return <div className={cn("group flex items-center gap-1 rounded-lg px-2 py-1.5", selected ? "bg-muted" : "hover:bg-muted/60")}>
+    <button type="button" onClick={onPin} aria-label={pinned ? `Unpin ${item.title}` : `Pin ${item.title}`} title={pinned ? "Unpin" : "Pin"}
+      className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
+      {pinned ? <PiPushPinFill size={14} aria-hidden="true" /> : <PiPushPin size={14} aria-hidden="true" />}
+    </button>
+    <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left" title={item.title}>
+      <span className="block truncate text-sm font-medium">{pinned ? "• " : ""}{item.title}</span>
+      <span className="block truncate text-[11px] text-muted-foreground">{new Date(item.updatedAt).toLocaleString()}</span>
+    </button>
+    <Button type="button" size="icon" variant="ghost" className="size-7 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100" disabled={busy}
+      onClick={onArchive} aria-label={`Archive ${item.title}`} title="Archive">
+      <PiArchive size={14} aria-hidden="true" />
+    </Button>
+  </div>;
+}
+
+function AssistantSettings({ organizationId, assistant, loaded, isOwner, onUpdate, onNavigate, onBack }: {
   organizationId: string;
   assistant: Assistant | null;
   loaded: boolean;
   isOwner: boolean;
   onUpdate: (assistant: Assistant) => void;
   onNavigate: () => void;
+  onBack: () => void;
 }) {
   const [agent, setAgent] = useState<Agent | null>(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -392,39 +615,53 @@ function AssistantSettings({ organizationId, assistant, loaded, isOwner, onUpdat
   }
 
   if (!loaded || !assistant?.agent) {
-    return <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={onUpdate} onNavigate={onNavigate} />;
+    return <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center gap-2 border-b border-border p-4">
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack} aria-label="Back to chat">
+          <PiArrowLeft size={16} aria-hidden="true" />
+        </Button>
+        <h3 className="flex-1 text-sm font-semibold">Assistant settings</h3>
+      </div>
+      <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={onUpdate} onNavigate={onNavigate} />
+    </div>;
   }
   const settingsAgent = agent?.id === assistant.agent.id ? agent : null;
-  if (!settingsAgent) {
-    return <p className="p-6 text-sm text-muted-foreground" role="status">Loading settings…</p>;
-  }
-  return <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-    <section aria-label="Assistant profile" className="flex items-center gap-3">
-      <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
-        {assistant.agent.name.slice(0, 1).toUpperCase()}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold">{assistant.agent.name}</p>
-        <p className="text-xs text-muted-foreground">Workspace system assistant · {assistant.state === "configured" ? "Ready" : "Needs setup"}</p>
-      </div>
-    </section>
-    <section aria-label="Model" className="space-y-2">
-      <h3 className="text-sm font-medium">Model</h3>
-      {!settingsLoaded ? <p role="status" className="text-sm text-muted-foreground">Loading model…</p> :
-        <ChatModelPicker organizationId={organizationId} agentId={settingsAgent.id} configuration={settingsAgent.draft} dirty={false} saving={saving} onSelect={saveModel} />}
-      {modelError ? <p role="alert" className="text-sm text-destructive">{modelError}</p> : null}
-    </section>
-    <section aria-label="Memory" className="space-y-2">
-      <h3 className="text-sm font-medium">Memory</h3>
-      <div className="flex items-center gap-2">
-        <AgentMemory agentId={settingsAgent.id} enabled={settingsAgent.draft.memory?.enabled ?? false} />
-        <span className="text-xs text-muted-foreground">{settingsAgent.draft.memory?.enabled ? "Memory enabled" : "Memory disabled"}</span>
-      </div>
-    </section>
-    <section aria-label="More setup" className="space-y-2 border-t border-border pt-4">
-      <h3 className="text-sm font-medium">More setup</h3>
-      <p className="text-xs text-muted-foreground">Instructions, knowledge, tools and channels live in the agent editor.</p>
-      {isOwner ? <Button asChild type="button" size="sm" variant="outline"><Link to={`/app/agents/${encodeURIComponent(settingsAgent.id)}?section=configuration`} onClick={onNavigate}>Configure in editor</Link></Button> : null}
-    </section>
+  return <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex items-center gap-2 border-b border-border p-4">
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack} aria-label="Back to chat">
+        <PiArrowLeft size={16} aria-hidden="true" />
+      </Button>
+      <h3 className="flex-1 text-sm font-semibold">Assistant settings</h3>
+    </div>
+    <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+      <section aria-label="Assistant profile" className="flex items-center gap-3">
+        <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
+          {assistant.agent.name.slice(0, 1).toUpperCase()}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">{assistant.agent.name}</p>
+          <p className="text-xs text-muted-foreground">Workspace system assistant · {assistant.state === "configured" ? "Ready" : "Needs setup"}</p>
+        </div>
+      </section>
+      <section aria-label="Model" className="space-y-2">
+        <h4 className="text-sm font-medium">Model</h4>
+        {!settingsLoaded ? <p role="status" className="text-sm text-muted-foreground">Loading model…</p> :
+          settingsAgent ? <ChatModelPicker organizationId={organizationId} agentId={settingsAgent.id} configuration={settingsAgent.draft} dirty={false} saving={saving} onSelect={saveModel} /> :
+          <p className="text-sm text-muted-foreground">Model settings are unavailable.</p>}
+        {modelError ? <p role="alert" className="text-sm text-destructive">{modelError}</p> : null}
+      </section>
+      <section aria-label="Memory" className="space-y-2">
+        <h4 className="text-sm font-medium">Memory</h4>
+        {settingsAgent ? <div className="flex items-center gap-2">
+          <AgentMemory agentId={settingsAgent.id} enabled={settingsAgent.draft.memory?.enabled ?? false} />
+          <span className="text-xs text-muted-foreground">{settingsAgent.draft.memory?.enabled ? "Memory enabled" : "Memory disabled"}</span>
+        </div> : <p className="text-sm text-muted-foreground">Memory settings are unavailable.</p>}
+      </section>
+      <section aria-label="More setup" className="space-y-2 border-t border-border pt-4">
+        <h4 className="text-sm font-medium">More setup</h4>
+        <p className="text-xs text-muted-foreground">Instructions, knowledge, tools and channels live in the agent editor.</p>
+        {isOwner && settingsAgent ? <Button asChild type="button" size="sm" variant="outline"><Link to={`/app/agents/${encodeURIComponent(settingsAgent.id)}?section=configuration`} onClick={onNavigate}>Configure in editor</Link></Button> : null}
+      </section>
+    </div>
   </div>;
 }
