@@ -13,7 +13,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return <html lang="en" suppressHydrationWarning><head>
     <meta charSet="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#111316" /><link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" /><link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" /><link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" /><link rel="apple-touch-icon" href="/apple-touch-icon.png" /><Meta /><Links /><ThemeScript />
+    {/* Bump ?v= when the icon files change so browsers fetch the new artwork. */}
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" /><link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=2" /><link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png?v=2" /><link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2" /><Meta /><Links /><ThemeScript />
   </head><body className="font-sans antialiased">{children}<ScrollRestoration /><Scripts /></body></html>;
 }
 function NavigationProgress() {
