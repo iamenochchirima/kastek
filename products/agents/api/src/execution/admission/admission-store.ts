@@ -29,6 +29,7 @@ import { loadExecution } from "../lifecycle/state";
 import { assertPendingSupportStatusAuthority } from "../lifecycle/authority";
 import { assertPlatformRootAdmissionOpen } from "./platform-gate";
 import { assertCustomerChannelRecipient } from "../context/recipient-boundary";
+import { assertAgentsBillingAccess } from "../../product/billing/billing";
 
 import type { AdmitTaskInput,TaskEvent,TaskRecord } from "../../contracts/records";
 import { AuthorityStore } from "./authority-store";
@@ -70,6 +71,7 @@ export class AdmissionStore extends AuthorityStore {
   }
   private async admitForPurpose(db:PoolClient,input:AdmitTaskInput,episodeCommandId?:string,privatePreview=false):Promise<{task:TaskRecord;replayed:boolean}> {
     assertCustomerChannelRecipient(input.authority.product, input.authority.principal, input.channelBinding);
+    if (input.authority.product === "agents") await assertAgentsBillingAccess(this.pool, input.authority.organizationId);
     const policy=schedulingPolicyFromEnvironment();
     const requestKey = text(input.requestKey, 128);
     if (!input.input.trim()) throw new PlatformError("INVALID_INPUT", 400, "Enter a message");

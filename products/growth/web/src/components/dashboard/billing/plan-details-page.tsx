@@ -24,7 +24,7 @@ export function PlanDetailsPage({ details }: { details: AvailablePlanDetails }) 
       <div className="mx-auto max-w-[980px] space-y-6">
         <div className="flex items-center justify-between gap-4">
           <Button asChild variant="outline" size="sm"><Link to="/upgrade"><ArrowLeft className="size-3.5" />All plans</Link></Button>
-          <Badge variant="outline">{details.interval === "YEARLY" ? "Annual billing" : "Monthly billing"}</Badge>
+          <Badge variant="outline">Monthly billing</Badge>
         </div>
 
         <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-panel)]">
@@ -32,7 +32,7 @@ export function PlanDetailsPage({ details }: { details: AvailablePlanDetails }) 
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-primary">{details.productKey}</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-foreground sm:text-4xl">{details.name}</h1>
             <div className="mt-7 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-              <div><p className="text-4xl font-semibold tracking-[-0.04em] text-foreground">{formatPrice(details.amountMinor, details.currency)}</p><p className="mt-1 text-sm text-muted-foreground">per {details.interval === "YEARLY" ? "year" : "month"}</p></div>
+              <div><p className="text-4xl font-semibold tracking-[-0.04em] text-foreground">{formatPrice(details.amountMinor, details.currency)}</p><p className="mt-1 text-sm text-muted-foreground">per month</p></div>
               <div className="rounded-xl border border-border bg-background/40 px-4 py-3"><p className="text-xs text-muted-foreground">Credits per period</p><p className="mt-1 text-lg font-semibold text-foreground">{details.creditsPerPeriod?.toLocaleString() ?? "—"}</p></div>
             </div>
           </div>

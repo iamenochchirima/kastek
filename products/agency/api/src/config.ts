@@ -39,6 +39,10 @@ export interface TenantConfig {
   analytics_reporting_issuer: string;
   analytics_reporting_audience: string;
   analytics_reporting_timeout_ms: number;
+  billing_service_url: string | null;
+  billing_service_secret: string | null;
+  billing_snapshot_secret: string | null;
+  billing_enforcement: boolean;
   env: Record<string, string | undefined>;
 }
 const uint = (value: string | undefined, max: number): number | undefined => {
@@ -99,6 +103,11 @@ export function readConfig(source: Record<string,string|undefined> = process.env
   analytics_reporting_resolver_token:optional('ANALYTICS_REPORTING_RESOLVER_TOKEN'),
   analytics_reporting_issuer:str('ANALYTICS_REPORTING_ISSUER','kasitek-tenant-platform'),
   analytics_reporting_audience:str('ANALYTICS_REPORTING_AUDIENCE','kasitek-analytics-reporting'),
-  analytics_reporting_timeout_ms:Math.min(120000,Math.max(250,n('ANALYTICS_REPORTING_TIMEOUT_MS',5000))),env,
+  analytics_reporting_timeout_ms:Math.min(120000,Math.max(250,n('ANALYTICS_REPORTING_TIMEOUT_MS',5000))),
+  billing_service_url:optional('BILLING_SERVICE_URL'),
+  billing_service_secret:optional('BILLING_SERVICE_SECRET'),
+  billing_snapshot_secret:optional('BILLING_SNAPSHOT_SECRET'),
+  billing_enforcement:bool('AGENCY_BILLING_ENFORCEMENT',false),
+  env,
  };
 }

@@ -86,7 +86,6 @@ export function installErrorHandler(app: FastifyInstance): void {
         [
           "/api/webhooks/whatsapp",
           "/api/webhooks/meta",
-          "/api/webhooks/paystack",
           "/api/webhooks/tiktok",
         ].includes(request.routeOptions.url ?? "") ||
         (request.method === "DELETE" &&

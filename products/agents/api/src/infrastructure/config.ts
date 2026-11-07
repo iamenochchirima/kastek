@@ -17,6 +17,10 @@ const configurationSchema = z.object({
   RESTATE_INGRESS_URL: z.url().default("http://localhost:18080"),
   RESTATE_ADMIN_URL: z.url().default("http://localhost:19070"),
   OPENROUTER_API_KEY: z.string().min(1).optional(),
+  BILLING_SERVICE_URL: z.url().optional(),
+  BILLING_SERVICE_SECRET: z.string().min(32).optional(),
+  BILLING_SNAPSHOT_SECRET: z.string().min(32).optional(),
+  AGENTS_BILLING_ENFORCEMENT: z.string().optional(),
 });
 export type PlatformConfig = z.infer<typeof configurationSchema>;
 

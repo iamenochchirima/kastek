@@ -6,6 +6,13 @@ last_reviewed: 2026-09-10
 
 # Credit billing coverage
 
+> **Current state (2026-11-07):** Growth no longer owns a credit ledger, plan catalog, or billing
+> tables. The central billing service in `services/billing/` owns credits, usage, plans, invoices,
+> and entitlements. The historical audit below is retained only to explain how the old Growth
+> implementation worked; it is not the current contract. See the
+> [central billing architecture](./central-billing.md).
+
+
 This document records the source audit of credit charging and the gap between that implementation
 and the intended product-wide credit model. Its behavior conclusions date from 2026-09-10; the
 links below point to the local TypeScript counterparts, but this is not a post-migration parity

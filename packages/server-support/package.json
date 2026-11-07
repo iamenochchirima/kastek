@@ -49,6 +49,11 @@
       "import": "./dist/admin-authority.js",
       "require": "./dist/admin-authority.js"
     },
+    "./billing-authority": {
+      "types": "./dist/billing-authority.d.ts",
+      "import": "./dist/billing-authority.js",
+      "require": "./dist/billing-authority.js"
+    },
     "./admin-reporting": {
       "types": "./dist/admin-reporting.d.ts",
       "import": "./dist/admin-reporting.js",
@@ -83,6 +88,11 @@
       "types": "./dist/operations-source.d.ts",
       "import": "./dist/operations-source.js",
       "require": "./dist/operations-source.js"
+    },
+    "./billing-client": {
+      "types": "./dist/billing-client.d.ts",
+      "import": "./dist/billing-client.js",
+      "require": "./dist/billing-client.js"
     }
   },
   "scripts": {
@@ -106,6 +116,9 @@
     "*": {
       "admin-authority": [
         "dist/admin-authority.d.ts"
+      ],
+      "billing-authority": [
+        "dist/billing-authority.d.ts"
       ],
       "admin-reporting": [
         "dist/admin-reporting.d.ts"
@@ -133,6 +146,9 @@
       ],
       "operations-source": [
         "dist/operations-source.d.ts"
+      ],
+      "billing-client": [
+        "dist/billing-client.d.ts"
       ]
     }
   }

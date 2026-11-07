@@ -13,6 +13,7 @@ packages:
   - packages/contracts
   - packages/server-support
   - services/analytics
+  - services/billing
   - services/operations
 
 onlyBuiltDependencies:

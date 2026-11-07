@@ -86,7 +86,7 @@ export function BillingCatalogManager({
           <FormField id="plan-product" label="Product" required><Select id="plan-product" name="productKey" required><option value="" disabled>Select product</option>{products.map((product) => <option key={product.key} value={product.key}>{product.name}</option>)}</Select></FormField>
           <FormField id="plan-key" label="Plan key" required><Input id="plan-key" name="key" placeholder="workspace-starter-monthly" required /></FormField>
           <FormField id="plan-name" label="Name" required><Input id="plan-name" name="name" placeholder="Starter" required /></FormField>
-          <div className="grid grid-cols-2 gap-2"><FormField id="plan-interval" label="Interval"><Select id="plan-interval" name="interval"><option>MONTHLY</option><option>YEARLY</option></Select></FormField><FormField id="plan-currency" label="Currency" required><Input id="plan-currency" name="currency" defaultValue="ZAR" required /></FormField></div>
+          <FormField id="plan-currency" label="Currency" required><Input id="plan-currency" name="currency" defaultValue="ZAR" required /></FormField>
           <FormField id="plan-amount" label="Amount in cents" required><Input id="plan-amount" name="amountMinor" type="number" min="0" placeholder="39900" required /></FormField>
           <FormField id="plan-credits" label="Credits per period" required><Input id="plan-credits" name="creditsPerPeriod" type="number" min="1" placeholder="5000" required /></FormField>
           <FormField id="plan-paystack-code" label="Paystack plan code" hint="Optional until the Paystack plan is created."><Input id="plan-paystack-code" name="paystackPlanCode" placeholder="PLN_..." /></FormField>

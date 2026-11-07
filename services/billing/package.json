@@ -1,0 +1,35 @@
+{
+  "name": "@kasitek/billing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "start": "node dist/api-main.js",
+    "start:worker": "node dist/worker-main.js",
+    "migrate": "node dist/migrate-main.js",
+    "seed": "node dist/seed-main.js",
+    "dev": "tsx watch src/api-main.ts",
+    "dev:worker": "tsx watch src/worker-main.ts"
+  },
+  "dependencies": {
+    "@kasitek-labs/contracts": "workspace:*",
+    "@kasitek-labs/server-support": "workspace:*",
+    "@fastify/cookie": "^11.0.2",
+    "@opentelemetry/api": "1.9.0",
+    "dotenv": "^16.6.1",
+    "fastify": "^5.6.2",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/pg": "^8.15.6",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

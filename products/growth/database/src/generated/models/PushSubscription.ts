@@ -513,6 +513,14 @@ export type PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput = {
   deleteMany?: Prisma.PushSubscriptionScalarWhereInput | Prisma.PushSubscriptionScalarWhereInput[]
 }
 
+export type NullableBigIntFieldUpdateOperationsInput = {
+  set?: bigint | number | null
+  increment?: bigint | number
+  decrement?: bigint | number
+  multiply?: bigint | number
+  divide?: bigint | number
+}
+
 export type PushSubscriptionCreateWithoutUserInput = {
   id?: string
   endpoint: string

@@ -124,80 +124,10 @@ export type EmailInboxBinding = Prisma.EmailInboxBindingModel
  */
 export type EmailOAuthState = Prisma.EmailOAuthStateModel
 /**
- * Model Product
- * 
- */
-export type Product = Prisma.ProductModel
-/**
- * Model ProductPlan
- * 
- */
-export type ProductPlan = Prisma.ProductPlanModel
-/**
  * Model UserProductTour
  * 
  */
 export type UserProductTour = Prisma.UserProductTourModel
-/**
- * Model PlanEntitlement
- * 
- */
-export type PlanEntitlement = Prisma.PlanEntitlementModel
-/**
- * Model OrganizationSubscription
- * 
- */
-export type OrganizationSubscription = Prisma.OrganizationSubscriptionModel
-/**
- * Model OrganizationEntitlementGrant
- * 
- */
-export type OrganizationEntitlementGrant = Prisma.OrganizationEntitlementGrantModel
-/**
- * Model UsageEvent
- * 
- */
-export type UsageEvent = Prisma.UsageEventModel
-/**
- * Model ReferralCode
- * 
- */
-export type ReferralCode = Prisma.ReferralCodeModel
-/**
- * Model ReferralAttribution
- * 
- */
-export type ReferralAttribution = Prisma.ReferralAttributionModel
-/**
- * Model CreditAccount
- * 
- */
-export type CreditAccount = Prisma.CreditAccountModel
-/**
- * Model CreditGrant
- * 
- */
-export type CreditGrant = Prisma.CreditGrantModel
-/**
- * Model CreditLedgerEntry
- * 
- */
-export type CreditLedgerEntry = Prisma.CreditLedgerEntryModel
-/**
- * Model CreditReservation
- * 
- */
-export type CreditReservation = Prisma.CreditReservationModel
-/**
- * Model CreditUsageEvent
- * 
- */
-export type CreditUsageEvent = Prisma.CreditUsageEventModel
-/**
- * Model CreditAdminOperation
- * 
- */
-export type CreditAdminOperation = Prisma.CreditAdminOperationModel
 /**
  * Model PublicApiRequest
  * 
@@ -218,26 +148,6 @@ export type PublicApiWebhookSubscription = Prisma.PublicApiWebhookSubscriptionMo
  * 
  */
 export type PublicApiWebhookDelivery = Prisma.PublicApiWebhookDeliveryModel
-/**
- * Model BillingCheckout
- * 
- */
-export type BillingCheckout = Prisma.BillingCheckoutModel
-/**
- * Model BillingInvoice
- * 
- */
-export type BillingInvoice = Prisma.BillingInvoiceModel
-/**
- * Model PaystackWebhookEvent
- * 
- */
-export type PaystackWebhookEvent = Prisma.PaystackWebhookEventModel
-/**
- * Model BillingReconciliationIssue
- * 
- */
-export type BillingReconciliationIssue = Prisma.BillingReconciliationIssueModel
 /**
  * Model User
  * 
@@ -668,3 +578,8 @@ export type GrowthOperationReview = Prisma.GrowthOperationReviewModel
  * 
  */
 export type GrowthMediaTransfer = Prisma.GrowthMediaTransferModel
+/**
+ * Model BillingUsageOutbox
+ * 
+ */
+export type BillingUsageOutbox = Prisma.BillingUsageOutboxModel

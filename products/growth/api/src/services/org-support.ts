@@ -7,12 +7,6 @@ import type { CoreContext } from '../context.js';
 import { ApiError } from '../error.js';
 import { updateOrg, type OrgRow } from './orgs.js';
 export function unsignedSetting(value: string|undefined,fallback: number): number {if(!value||!/^\+?\d+$/.test(value))return fallback;const parsed=Number(value);return Number.isSafeInteger(parsed)&&parsed<=4294967295?parsed:fallback;}
-export function trialSettings(context: CoreContext): {credits: bigint;days: number} {return {credits:BigInt(Math.max(1,unsignedSetting(context.config.env.KASITEK_TRIAL_CREDITS,1000))),days:Math.max(1,Math.min(90,unsignedSetting(context.config.env.KASITEK_TRIAL_DURATION_DAYS,14)))};}
-export { ensureReferralCode } from './referrals.js';
-import { grantSystemCredits } from './credits.js';
-export async function grantInitialTrial(pool: Pool,orgId: string,amount: bigint,days: number): Promise<void> {
- await grantSystemCredits(pool,orgId,amount,'TRIAL',new Date(Date.now()+days*86400000),'Initial workspace trial credits',`trial:${orgId}`,{trialDurationDays:days},`trial-grant:${orgId}`);
-}
 export async function sendOrganizationEmail(context: CoreContext,to: string,subject: string,text: string): Promise<void> {
  const sink=context.config.env.LOCAL_MAILPIT_URL;
  if(context.config.environment.toLowerCase()!=='production'&&sink){let url: URL;try{url=new URL(sink);}catch{throw new ApiError(400,'bad_request','Invalid local mail sink URL');}if(!['localhost','127.0.0.1','[::1]'].includes(url.hostname))throw new ApiError(400,'bad_request','Local mail sink must use loopback');const response=await fetch(`${sink.replace(/\/$/,'')}/api/v1/send`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({From:{Email:'growth@kasitek.local',Name:'KasiTek Growth'},To:[{Email:to}],Subject:subject,Text:text})});if(!response.ok)throw new ApiError(503,'service_unavailable','Local email delivery failed');return;}

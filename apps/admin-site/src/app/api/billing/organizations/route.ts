@@ -1,6 +1,25 @@
-import { getAdminSession, proxyToCore } from "@/lib/admin-auth";
+import { billingJson, withBillingActor } from "@/lib/billing-api";
 
 export async function GET(req: Request) {
-  if (!(await getAdminSession())) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  return proxyToCore(req, "/api/admin/billing/organizations");
+  const url = new URL(req.url);
+  const query = new URLSearchParams({
+    q: url.searchParams.get("q") ?? "",
+    limit: url.searchParams.get("limit") ?? "25",
+    product: "growth",
+  });
+  return withBillingActor(async (actor) => {
+    const result = await billingJson<{
+      organizations: Array<Record<string, unknown>>;
+    }>(actor, "GET", `/admin/accounts?${query.toString()}`);
+    return Response.json({
+      organizations: result.organizations.map((row) => ({
+        id: row.id,
+        name: row.name,
+        slug: String(row.id),
+        ownerEmail: row.billingEmail ?? null,
+        balance: Number(row.balance ?? 0),
+        reservedBalance: Number(row.reservedBalance ?? 0),
+      })),
+    });
+  });
 }

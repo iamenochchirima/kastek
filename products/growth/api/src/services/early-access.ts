@@ -5,16 +5,10 @@ import { ApiError } from '../error.js';
 import { EARLY_ACCESS_SQL as sql } from './early-access-sql.js';
 import type { CoreContext } from '../context.js';
 import { sendOrganizationEmail } from './org-support.js';
-import { createManualGrant, expireManualGrant } from './billing.js';
-import { grantSystemCredits, revokeUnspentSystemGrant } from './credits.js';
 import { createOrg, deleteOrg, requireAdmin, slugify, uniqueSlug } from './orgs.js';
 import { publishAdminNotification } from './admin-notification-publisher.js';
 
 export const BETA_PACKAGE_KEY = 'beta-2026-01';
-export const DEFAULT_CAPABILITIES = [
-  'feature.analytics.view', 'feature.inbox.access', 'feature.agents.manage',
-  'feature.campaigns.manage', 'feature.content.manage',
-] as const;
 export type ApplicationStatus = 'new' | 'approved' | 'invited' | 'active' | 'rejected' | 'expired' | 'revoked';
 const transitions: Record<ApplicationStatus, readonly ApplicationStatus[]> = {
   new: ['approved', 'rejected'], approved: ['invited', 'active', 'revoked'],
@@ -36,43 +30,20 @@ export function requiredText(value: string | null | undefined, field: string, ma
   if (result === null) throw new ApiError(400, 'bad_request', `${field} is required`);
   return result;
 }
-export function selectedCapabilities(keys?: string[] | null): string[] {
-  const selected: string[] = [];
-  for (const raw of keys ?? DEFAULT_CAPABILITIES) {
-    const key = raw.trim();
-    if (!key || selected.includes(key)) continue;
-    if (!(DEFAULT_CAPABILITIES as readonly string[]).includes(key)) {
-      throw new ApiError(400, 'bad_request', `Unsupported early-access capability: ${key}`);
-    }
-    selected.push(key);
-  }
-  if (!selected.length) throw new ApiError(400, 'bad_request', 'At least one capability is required');
-  return selected;
-}
 export function validPackageKey(key?: string | null): string {
   const clean = key?.trim();
   if (clean && clean !== BETA_PACKAGE_KEY) throw new ApiError(400, 'bad_request', 'Unsupported early-access package');
   return BETA_PACKAGE_KEY;
 }
 export function betaPackageSnapshot() {
-  return { key: BETA_PACKAGE_KEY, durationDays: 30, credits: 1000, capabilities: [...DEFAULT_CAPABILITIES] };
+  return { key: BETA_PACKAGE_KEY, durationDays: 30 };
 }
-export function packageParameters(snapshot: unknown): { durationDays: number; credits: bigint; capabilities: string[] } {
-  if (snapshot == null) throw new ApiError(409, 'conflict', 'The approved early-access package is missing');
-  const row = typeof snapshot === 'object' && !Array.isArray(snapshot) ? snapshot as Record<string, unknown> : {};
-  if (typeof row.key !== 'string') throw new ApiError(409, 'conflict', 'The approved early-access package is invalid');
-  validPackageKey(row.key);
-  const integer = (value: unknown, max: number, message: string): bigint => {
-    const number = typeof value === 'bigint' ? value : typeof value === 'number' && Number.isSafeInteger(value) ? BigInt(value) : null;
-    if (number === null || number < 1n || number > BigInt(max)) throw new ApiError(409, 'conflict', message);
-    return number;
-  };
-  const days = integer(row.durationDays, 365, 'The early-access duration is invalid');
-  const credits = integer(row.credits, 1_000_000, 'The early-access credit allocation is invalid');
-  if (!Array.isArray(row.capabilities)) throw new ApiError(409, 'conflict', 'The early-access capabilities are invalid');
-  // Rust filters non-string JSON values before validating the remaining capability keys.
-  return { durationDays: Number(days), credits,
-    capabilities: selectedCapabilities(row.capabilities.filter((key): key is string => typeof key === 'string')) };
+export function packageParameters(snapshot: unknown): { durationDays: number } {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return { durationDays: 30 };
+  const row = snapshot as Record<string, unknown>;
+  const days = row.durationDays == null ? 30 : Number(row.durationDays);
+  if (!Number.isInteger(days) || days < 1 || days > 365) throw new ApiError(409, 'conflict', 'The early-access duration is invalid');
+  return { durationDays: Math.floor(days) };
 }
 
 export async function expireDueInvitations(pool: Pool): Promise<void> {
@@ -218,10 +189,6 @@ export async function batchApprove(core: CoreContext, actorId: string, input: { 
   }
   return result;
 }
-async function ensureEntitlement(pool: Pool, orgId: string, key: string, endsAt: Date, reason: string, actorId: string): Promise<string> {
-  const existing = (await pool.query(sql.ensure_entitlement_grant[0], [orgId, key, reason])).rows[0]?.id;
-  return typeof existing === 'string' ? existing : String((await createManualGrant(pool, orgId, key, true, endsAt, reason, actorId)).id);
-}
 // The original service serializes activation in-process, then claims the invitation atomically in PostgreSQL.
 let activationTail: Promise<void> = Promise.resolve();
 export async function activateInvitation(core: CoreContext, token: string, userId: string,
@@ -257,32 +224,23 @@ async function activateClaimedInvitation(core: CoreContext, token: string, userI
     name = requiredText(input.workspaceName, 'Workspace name', 80);
     slug = await uniqueSlug(pool, slugify(name));
   }
-  const { durationDays, credits, capabilities } = packageParameters(application.packageSnapshot);
+  const { durationDays } = packageParameters(application.packageSnapshot);
   const claimed = await pool.query(sql.activate_signup_invitation[2], [invitation.id]);
   if (!claimed.rows.length) throw invalid();
   let orgId: string;
   const created = existingOrg === null;
   if (existingOrg) orgId = existingOrg;
   else {
-    try { orgId = (await createOrg(core, userId, name!, slug!, null, 0n, durationDays)).id; }
+    try { orgId = (await createOrg(core, userId, name!, slug!, null)).id; }
     catch (error) { await releaseActivationClaim(pool, invitation.id); throw error; }
   }
   const cleanup = async () => {
     if (created) { try { await deleteOrg(pool, orgId); } catch { /* source cleanup remains best effort */ } }
     await releaseActivationClaim(pool, invitation.id);
   };
-  const endsAt = new Date(Date.now() + durationDays * 86400000), reason = `Early-access package ${BETA_PACKAGE_KEY}`;
-  const grants: string[] = [];
-  try {
-    for (const key of capabilities) grants.push(await ensureEntitlement(pool, orgId, key, endsAt, reason, userId));
-  } catch (error) { await cleanup(); throw error; }
-  let credit: Record<string, unknown>;
-  try {
-    credit = await grantSystemCredits(pool, orgId, credits, 'EARLY_ACCESS', endsAt, reason, userId,
-      { applicationId: application.id, packageKey: BETA_PACKAGE_KEY }, `early-access-credits:${application.id}`);
-  } catch (error) { await cleanup(); throw error; }
+  const endsAt = new Date(Date.now() + durationDays * 86400000);
   // SQL errors propagate at this step, matching the source's claim semantics.
-  const updated = await pool.query(sql.activate_signup_invitation[3], [orgId, endsAt, JSON.stringify(grants), credit.grantId, application.id]);
+  const updated = await pool.query(sql.activate_signup_invitation[3], [orgId, endsAt, application.id]);
   if (updated.rowCount !== 1) {
     await cleanup();
     throw new ApiError(409, 'conflict', 'This application is no longer available for activation');
@@ -298,16 +256,7 @@ export async function revokeApplication(pool: Pool, applicationId: string, actor
   if (!['approved', 'invited', 'active'].includes(application.status)) throw new ApiError(409, 'conflict', 'Only approved, invited, or active access can be revoked');
   await pool.query(sql.revoke_application[0], [applicationId]);
   const orgId = application.organizationId;
-  if (typeof orgId === 'string') {
-    const grants = Array.isArray(application.entitlementGrantIds) ? application.entitlementGrantIds : [];
-    for (const grant of grants) {
-      if (typeof grant === 'string') { try { await expireManualGrant(pool, orgId, grant); } catch { /* source best effort */ } }
-    }
-    if (typeof application.creditGrantId === 'string') {
-      try { await revokeUnspentSystemGrant(pool, orgId, application.creditGrantId, reason,
-        `early-access-revoke:${applicationId}:${application.creditGrantId}`); } catch { /* source best effort */ }
-    }
-  }
+  void orgId;
   await pool.query(sql.revoke_application[1], [reason, applicationId]);
   await recordEvent(pool, applicationId, application.status, 'revoked', 'revoked', actorId, reason, {});
   try { await publishAdminNotification(pool, 'early_access.revoked', 'Early access revoked',

@@ -3,8 +3,8 @@ export const COVERAGE = {
     {
       key: "usage_events",
       label: "Product usage events",
-      status: "available",
-      detail: "Transactional Core usage records",
+      status: "unavailable",
+      detail: "Forwarded to the central billing service",
     },
     {
       key: "messaging",
@@ -36,33 +36,32 @@ export const COVERAGE = {
     {
       key: "invoices",
       label: "Invoices and collections",
-      status: "available",
-      detail: "Core invoice records with provider references",
+      status: "unavailable",
+      detail: "Owned by the central billing service",
     },
     {
       key: "subscriptions",
       label: "Subscriptions",
-      status: "available",
-      detail: "Core subscription state and plan catalog",
+      status: "unavailable",
+      detail: "Owned by the central billing service",
     },
     {
       key: "payments",
       label: "Paystack checkout outcomes",
-      status: "available",
-      detail: "Core checkout and webhook reconciliation records",
+      status: "unavailable",
+      detail: "Owned by the central billing service",
     },
     {
       key: "refunds",
       label: "Refunds",
-      status: "partial",
-      detail:
-        "Refunded invoice statuses; provider-level net settlement is not stored",
+      status: "unavailable",
+      detail: "Owned by the central billing service",
     },
     {
       key: "credits",
       label: "Credit lifecycle",
-      status: "available",
-      detail: "Core credit ledger records",
+      status: "unavailable",
+      detail: "Owned by the central billing service",
     },
   ],
   customers: [

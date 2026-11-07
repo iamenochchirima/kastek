@@ -61,6 +61,8 @@ import { composeChannels } from "./channels";
 import { databasePoolOptions } from "../infrastructure/pool-policy";
 
 import { createConfiguredProductRuntime } from "../execution/products/configured-runtime";
+import { agentsBillingClient } from "../product/billing/billing";
+import { forwardAgentsUsage } from "../product/billing/usage";
 async function main(): Promise<void> {
   const dispatchPolicy = dispatchPolicyFromEnvironment();
   const telemetryTransport = createObservationTelemetry("agents-worker");
@@ -146,6 +148,21 @@ async function main(): Promise<void> {
       .catch(()=>console.error(JSON.stringify({...diagnosticIdentity,event:"preparation_reconcile_failed"})))
       .finally(()=>{preparationPending=undefined;});
   },60000);preparationTimer.unref();
+  const billing = agentsBillingClient(process.env);
+  if (billing) {
+    let billingPending: Promise<unknown> | undefined;
+    const billingTimer = setInterval(() => {
+      if (billingPending) return;
+      billingPending = forwardAgentsUsage(pool, billing, 100)
+        .then((count) => {
+          if (count)
+            console.info(JSON.stringify({ ...diagnosticIdentity, event: "billing_usage_forwarded", count }));
+        })
+        .catch(() => console.error(JSON.stringify({ ...diagnosticIdentity, event: "billing_usage_forward_failed" })))
+        .finally(() => { billingPending = undefined; });
+    }, 15_000);
+    billingTimer.unref();
+  }
   const modelVault = connectionVaultFromEnvironment();
   const modelProvider = new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined);
   const productRuntime=await createConfiguredProductRuntime(pool,evidence);

@@ -8,17 +8,14 @@ import type {
 } from "../identity/request-context.js";
 import { ApiError } from "../error.js";
 import { transaction } from "../db.js";
-import {
-  canonicalJson,
-  wireInteger,
-} from "@kasitek-labs/server-support/json";
+import { wireInteger } from "@kasitek-labs/server-support/json";
 type Row = Record<string, unknown>;
 const SQL = {
   audit_begin_request: [
     "SELECT pg_advisory_xact_lock(hashtext($1)::bigint)",
     '\n        SELECT COUNT(*)::BIGINT\n        FROM "PublicApiRequest"\n        WHERE "orgId" = $1\n          AND "principalId" = $2\n          AND "createdAt" >= NOW() - INTERVAL \'1 minute\'\n        ',
     '\n        INSERT INTO "PublicApiRequest"\n            ("id", "orgId", "principalType", "principalId", "route", "method", "statusCode", "correlationId", "createdAt", "updatedAt")\n        VALUES ($1, $2, $3, $4, $5, $6, 0, $7, NOW(), NOW())\n        ',
-    '\n        INSERT INTO "UsageEvent"\n            ("id", "orgId", "productKey", "metricKey", "quantity", "sourceType", "sourceId", "idempotencyKey", "metadata")\n        VALUES ($1, $2, \'workspace\', $3, 1, \'public_api\', $4, $5, $6)\n        ',
+    '\n        INSERT INTO "BillingUsageOutbox"(\n            id, "orgId", "meterKey", quantity, "sourceType", "sourceId", "idempotencyKey"\n        ) VALUES ($1, $2, $3, 1, \'public_api\', $4, $5)\n        ',
   ],
   audit_finish_request: [
     '\n        UPDATE "PublicApiRequest"\n        SET "statusCode" = $2, "action" = COALESCE($3, "action"), "updatedAt" = NOW()\n        WHERE "id" = $1\n        ',
@@ -44,9 +41,6 @@ const SQL = {
   key_authenticate: [
     '\n        SELECT id, "orgId", "createdById", scopes\n        FROM "DeveloperApiKey"\n        WHERE "keyHash" = $1\n          AND status = \'ACTIVE\'\n          AND ("expiresAt" IS NULL OR "expiresAt" > NOW())\n        ',
     'UPDATE "DeveloperApiKey" SET "lastUsedAt" = NOW(), "updatedAt" = NOW() WHERE id = $1',
-  ],
-  transport_active_entitlements: [
-    '\n        SELECT key\n        FROM "OrganizationEntitlementGrant"\n        WHERE "orgId" = $1\n          AND "startsAt" <= NOW()\n          AND ("endsAt" IS NULL OR "endsAt" > NOW())\n          AND jsonb_typeof(value) = \'boolean\'\n          AND (value #>> \'{}\')::boolean = TRUE\n        UNION\n        SELECT entitlement.key\n        FROM "OrganizationSubscription" subscription\n        JOIN "PlanEntitlement" entitlement ON entitlement."planId" = subscription."planId"\n        WHERE subscription."orgId" = $1\n          AND subscription.status IN (\n            \'TRIAL\'::"OrganizationSubscriptionStatus",\n            \'ACTIVE\'::"OrganizationSubscriptionStatus",\n            \'GRACE\'::"OrganizationSubscriptionStatus"\n          )\n          AND jsonb_typeof(entitlement.value) = \'boolean\'\n          AND (entitlement.value #>> \'{}\')::boolean = TRUE\n        ',
   ],
 } as const;
 export interface PublicActionDefinition extends PublicActionPolicy {
@@ -151,7 +145,6 @@ export async function beginRequest(
       "public_api_requests",
       id,
       `public-api:${id}`,
-      canonicalJson({ principalType: context.principal.kind, route, method }),
     ]);
     return {
       id,
@@ -199,16 +192,6 @@ export async function requestMetrics(
       }).map(([key, value]) => [key, wireInteger(value!)]),
     ),
   };
-}
-export async function activeEntitlements(
-  pool: Pool,
-  org: string,
-): Promise<Set<string>> {
-  return new Set(
-    (await pool.query(SQL.transport_active_entitlements[0], [org])).rows.map(
-      (row) => String(row.key),
-    ),
-  );
 }
 export const secretDigest = (secret: string): string =>
   createHash("sha256").update(secret).digest("hex");

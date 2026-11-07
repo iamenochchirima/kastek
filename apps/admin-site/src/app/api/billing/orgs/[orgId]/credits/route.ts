@@ -1,7 +1,12 @@
-import { getAdminSession, proxyToCore } from "@/lib/admin-auth";
+import { billingRequest, withBillingActor } from "@/lib/billing-api";
 
-export async function GET(req: Request, { params }: { params: Promise<{ orgId: string }> }) {
-  if (!(await getAdminSession())) return Response.json({ error: "Unauthorized" }, { status: 401 });
+export async function GET(_req: Request, { params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
-  return proxyToCore(req, `/api/admin/billing/orgs/${encodeURIComponent(orgId)}/credits`);
+  return withBillingActor(async (actor) =>
+    billingRequest(
+      actor,
+      "GET",
+      `/admin/tenants/growth/${encodeURIComponent(orgId)}/credits`,
+    ),
+  );
 }

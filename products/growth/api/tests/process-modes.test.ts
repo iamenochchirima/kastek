@@ -23,7 +23,7 @@ const modes = [
   'whatsapp-marketing-worker',
   'whatsapp-inbox-worker',
   'email-inbox-worker',
-  'billing-reconciliation-worker',
+  'billing-usage-forwarder',
   'analytics-publisher',
   'analytics-backfill-worker',
   'public-webhooks-worker',

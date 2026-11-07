@@ -22,10 +22,6 @@ test(
         "Organization",
         "OrganizationMember",
         "OrganizationInvitation",
-        "ReferralCode",
-        "CreditAccount",
-        "CreditGrant",
-        "CreditLedgerEntry",
       ]);
     const { pool } = fixture,
       mail = Fastify(),
@@ -111,15 +107,6 @@ test(
       assert.equal(result.invitation.email, "fresh@example.test");
       assert.equal(delivered, 1);
       assert.equal((await pool.query('SELECT count(*) FROM "GrowthAgentSetup"')).rows[0].count,"1");
-      assert.equal(
-        (
-          await pool.query(
-            'SELECT balance FROM "CreditAccount" WHERE "orgId"=$1',
-            [result.workspace.id],
-          )
-        ).rows[0].balance,
-        "1000",
-      );
       assert.equal(
         (await pool.query("SELECT COUNT(*) FROM analytics_outbox")).rows[0]
           .count,
@@ -249,7 +236,7 @@ test(
 test("administrative organisation creation records the durable agent setup intent",{skip:!process.env.CORE_ADMIN_ACCESS_TEST_DATABASE_URL},async()=>{
   const { provisionLaunchUser }=await import("../src/services/admin/launch-access.js");
   const fixture=await isolatedDatabase(process.env.CORE_ADMIN_ACCESS_TEST_DATABASE_URL!,"launch_agent_setup",[
-    "User","Organization","OrganizationMember","OrganizationInvitation","ReferralCode","CreditAccount","CreditGrant","CreditLedgerEntry",
+    "User","Organization","OrganizationMember","OrganizationInvitation",
   ]);
   const mail=Fastify();mail.post("/api/v1/send",async()=>({ID:"fixture"}));
   try {

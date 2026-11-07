@@ -244,7 +244,6 @@ export type UserWhereInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventListRelationFilter
   whatsappCallSessions?: Prisma.WhatsappCallSessionListRelationFilter
   pushSubscriptions?: Prisma.PushSubscriptionListRelationFilter
-  billingCheckouts?: Prisma.BillingCheckoutListRelationFilter
   productTours?: Prisma.UserProductTourListRelationFilter
 }
 
@@ -288,7 +287,6 @@ export type UserOrderByWithRelationInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventOrderByRelationAggregateInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionOrderByRelationAggregateInput
   pushSubscriptions?: Prisma.PushSubscriptionOrderByRelationAggregateInput
-  billingCheckouts?: Prisma.BillingCheckoutOrderByRelationAggregateInput
   productTours?: Prisma.UserProductTourOrderByRelationAggregateInput
 }
 
@@ -335,7 +333,6 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   whatsappSendEvents?: Prisma.WhatsappSendEventListRelationFilter
   whatsappCallSessions?: Prisma.WhatsappCallSessionListRelationFilter
   pushSubscriptions?: Prisma.PushSubscriptionListRelationFilter
-  billingCheckouts?: Prisma.BillingCheckoutListRelationFilter
   productTours?: Prisma.UserProductTourListRelationFilter
 }, "id" | "email">
 
@@ -409,7 +406,6 @@ export type UserCreateInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -453,7 +449,6 @@ export type UserUncheckedCreateInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -497,7 +492,6 @@ export type UserUpdateInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -541,7 +535,6 @@ export type UserUncheckedUpdateInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -751,20 +744,6 @@ export type UserUpdateOneRequiredWithoutCreatedDeveloperApiKeysNestedInput = {
   upsert?: Prisma.UserUpsertWithoutCreatedDeveloperApiKeysInput
   connect?: Prisma.UserWhereUniqueInput
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutCreatedDeveloperApiKeysInput, Prisma.UserUpdateWithoutCreatedDeveloperApiKeysInput>, Prisma.UserUncheckedUpdateWithoutCreatedDeveloperApiKeysInput>
-}
-
-export type UserCreateNestedOneWithoutBillingCheckoutsInput = {
-  create?: Prisma.XOR<Prisma.UserCreateWithoutBillingCheckoutsInput, Prisma.UserUncheckedCreateWithoutBillingCheckoutsInput>
-  connectOrCreate?: Prisma.UserCreateOrConnectWithoutBillingCheckoutsInput
-  connect?: Prisma.UserWhereUniqueInput
-}
-
-export type UserUpdateOneRequiredWithoutBillingCheckoutsNestedInput = {
-  create?: Prisma.XOR<Prisma.UserCreateWithoutBillingCheckoutsInput, Prisma.UserUncheckedCreateWithoutBillingCheckoutsInput>
-  connectOrCreate?: Prisma.UserCreateOrConnectWithoutBillingCheckoutsInput
-  upsert?: Prisma.UserUpsertWithoutBillingCheckoutsInput
-  connect?: Prisma.UserWhereUniqueInput
-  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutBillingCheckoutsInput, Prisma.UserUpdateWithoutBillingCheckoutsInput>, Prisma.UserUncheckedUpdateWithoutBillingCheckoutsInput>
 }
 
 export type UserCreateNestedOneWithoutPushSubscriptionsInput = {
@@ -1118,7 +1097,6 @@ export type UserCreateWithoutOwnedOrganizationsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -1161,7 +1139,6 @@ export type UserUncheckedCreateWithoutOwnedOrganizationsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -1220,7 +1197,6 @@ export type UserUpdateWithoutOwnedOrganizationsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -1263,7 +1239,6 @@ export type UserUncheckedUpdateWithoutOwnedOrganizationsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -1306,7 +1281,6 @@ export type UserCreateWithoutOrgMembershipsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -1349,7 +1323,6 @@ export type UserUncheckedCreateWithoutOrgMembershipsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -1408,7 +1381,6 @@ export type UserUpdateWithoutOrgMembershipsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -1451,7 +1423,6 @@ export type UserUncheckedUpdateWithoutOrgMembershipsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -1494,7 +1465,6 @@ export type UserCreateWithoutSentInvitationsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -1537,7 +1507,6 @@ export type UserUncheckedCreateWithoutSentInvitationsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -1596,7 +1565,6 @@ export type UserUpdateWithoutSentInvitationsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -1639,7 +1607,6 @@ export type UserUncheckedUpdateWithoutSentInvitationsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -1682,7 +1649,6 @@ export type UserCreateWithoutCreatedAgentChannelGrantsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -1725,7 +1691,6 @@ export type UserUncheckedCreateWithoutCreatedAgentChannelGrantsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -1784,7 +1749,6 @@ export type UserUpdateWithoutCreatedAgentChannelGrantsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -1827,7 +1791,6 @@ export type UserUncheckedUpdateWithoutCreatedAgentChannelGrantsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -1870,7 +1833,6 @@ export type UserCreateWithoutCreatedAgentChannelLinkIntentsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -1913,7 +1875,6 @@ export type UserUncheckedCreateWithoutCreatedAgentChannelLinkIntentsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -1972,7 +1933,6 @@ export type UserUpdateWithoutCreatedAgentChannelLinkIntentsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -2015,7 +1975,6 @@ export type UserUncheckedUpdateWithoutCreatedAgentChannelLinkIntentsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -2058,7 +2017,6 @@ export type UserCreateWithoutEmailConnectionsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -2101,7 +2059,6 @@ export type UserUncheckedCreateWithoutEmailConnectionsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -2160,7 +2117,6 @@ export type UserUpdateWithoutEmailConnectionsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -2203,7 +2159,6 @@ export type UserUncheckedUpdateWithoutEmailConnectionsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -2246,7 +2201,6 @@ export type UserCreateWithoutEmailOAuthStatesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -2289,7 +2243,6 @@ export type UserUncheckedCreateWithoutEmailOAuthStatesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -2348,7 +2301,6 @@ export type UserUpdateWithoutEmailOAuthStatesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -2391,7 +2343,6 @@ export type UserUncheckedUpdateWithoutEmailOAuthStatesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -2435,7 +2386,6 @@ export type UserCreateWithoutProductToursInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutProductToursInput = {
@@ -2478,7 +2428,6 @@ export type UserUncheckedCreateWithoutProductToursInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutProductToursInput = {
@@ -2537,7 +2486,6 @@ export type UserUpdateWithoutProductToursInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutProductToursInput = {
@@ -2580,7 +2528,6 @@ export type UserUncheckedUpdateWithoutProductToursInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutCreatedDeveloperApiKeysInput = {
@@ -2622,7 +2569,6 @@ export type UserCreateWithoutCreatedDeveloperApiKeysInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -2665,7 +2611,6 @@ export type UserUncheckedCreateWithoutCreatedDeveloperApiKeysInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -2724,7 +2669,6 @@ export type UserUpdateWithoutCreatedDeveloperApiKeysInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -2746,195 +2690,6 @@ export type UserUncheckedUpdateWithoutCreatedDeveloperApiKeysInput = {
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
-  createdAgentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutActorNestedInput
-  createdAgentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutActorNestedInput
-  businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
-  conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
-  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
-  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
-  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
-  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
-  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
-  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
-  createdContentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutCreatorNestedInput
-  updatedContentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutUpdatedByNestedInput
-  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutUploadedByNestedInput
-  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
-  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
-  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutUserNestedInput
-  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
-  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
-  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
-  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
-  pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
-  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-}
-
-export type UserCreateWithoutBillingCheckoutsInput = {
-  id?: string
-  name?: string | null
-  email?: string | null
-  emailVerified?: Date | string | null
-  image?: string | null
-  password?: string | null
-  phone?: string | null
-  createdAt?: Date | string
-  updatedAt?: Date | string
-  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
-  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
-  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
-  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
-  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
-  ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
-  orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
-  sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
-  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutCreatedByInput
-  createdAgentChannelGrants?: Prisma.GrowthAgentChannelGrantCreateNestedManyWithoutActorInput
-  createdAgentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentCreateNestedManyWithoutActorInput
-  businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
-  conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
-  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
-  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
-  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
-  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
-  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
-  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
-  createdContentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutCreatorInput
-  updatedContentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutUpdatedByInput
-  uploadedContentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutUploadedByInput
-  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
-  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
-  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutUserInput
-  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
-  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
-  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
-  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
-  pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-}
-
-export type UserUncheckedCreateWithoutBillingCheckoutsInput = {
-  id?: string
-  name?: string | null
-  email?: string | null
-  emailVerified?: Date | string | null
-  image?: string | null
-  password?: string | null
-  phone?: string | null
-  createdAt?: Date | string
-  updatedAt?: Date | string
-  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
-  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
-  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
-  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
-  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
-  ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
-  orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
-  sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
-  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutCreatedByInput
-  createdAgentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedCreateNestedManyWithoutActorInput
-  createdAgentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedCreateNestedManyWithoutActorInput
-  businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
-  conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
-  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
-  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
-  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
-  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
-  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
-  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
-  createdContentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutCreatorInput
-  updatedContentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutUpdatedByInput
-  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutUploadedByInput
-  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
-  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
-  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutUserInput
-  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
-  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
-  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
-  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
-  pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-}
-
-export type UserCreateOrConnectWithoutBillingCheckoutsInput = {
-  where: Prisma.UserWhereUniqueInput
-  create: Prisma.XOR<Prisma.UserCreateWithoutBillingCheckoutsInput, Prisma.UserUncheckedCreateWithoutBillingCheckoutsInput>
-}
-
-export type UserUpsertWithoutBillingCheckoutsInput = {
-  update: Prisma.XOR<Prisma.UserUpdateWithoutBillingCheckoutsInput, Prisma.UserUncheckedUpdateWithoutBillingCheckoutsInput>
-  create: Prisma.XOR<Prisma.UserCreateWithoutBillingCheckoutsInput, Prisma.UserUncheckedCreateWithoutBillingCheckoutsInput>
-  where?: Prisma.UserWhereInput
-}
-
-export type UserUpdateToOneWithWhereWithoutBillingCheckoutsInput = {
-  where?: Prisma.UserWhereInput
-  data: Prisma.XOR<Prisma.UserUpdateWithoutBillingCheckoutsInput, Prisma.UserUncheckedUpdateWithoutBillingCheckoutsInput>
-}
-
-export type UserUpdateWithoutBillingCheckoutsInput = {
-  id?: Prisma.StringFieldUpdateOperationsInput | string
-  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
-  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
-  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
-  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
-  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
-  ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
-  orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
-  sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
-  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutCreatedByNestedInput
-  createdAgentChannelGrants?: Prisma.GrowthAgentChannelGrantUpdateManyWithoutActorNestedInput
-  createdAgentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUpdateManyWithoutActorNestedInput
-  businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
-  conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
-  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
-  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
-  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
-  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
-  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
-  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
-  createdContentTemplates?: Prisma.ContentTemplateUpdateManyWithoutCreatorNestedInput
-  updatedContentTemplates?: Prisma.ContentTemplateUpdateManyWithoutUpdatedByNestedInput
-  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutUploadedByNestedInput
-  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
-  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
-  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutUserNestedInput
-  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
-  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
-  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
-  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
-  pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-}
-
-export type UserUncheckedUpdateWithoutBillingCheckoutsInput = {
-  id?: Prisma.StringFieldUpdateOperationsInput | string
-  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
-  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
-  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
-  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
-  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
-  ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
-  orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
-  sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
-  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutCreatedByNestedInput
   createdAgentChannelGrants?: Prisma.GrowthAgentChannelGrantUncheckedUpdateManyWithoutActorNestedInput
   createdAgentChannelLinkIntents?: Prisma.GrowthAgentChannelLinkIntentUncheckedUpdateManyWithoutActorNestedInput
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
@@ -2998,7 +2753,6 @@ export type UserCreateWithoutPushSubscriptionsInput = {
   whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -3041,7 +2795,6 @@ export type UserUncheckedCreateWithoutPushSubscriptionsInput = {
   whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -3100,7 +2853,6 @@ export type UserUpdateWithoutPushSubscriptionsInput = {
   whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -3143,7 +2895,6 @@ export type UserUncheckedUpdateWithoutPushSubscriptionsInput = {
   whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -3186,7 +2937,6 @@ export type UserCreateWithoutAccountsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -3229,7 +2979,6 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -3288,7 +3037,6 @@ export type UserUpdateWithoutAccountsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -3331,7 +3079,6 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -3374,7 +3121,6 @@ export type UserCreateWithoutSessionsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -3417,7 +3163,6 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -3476,7 +3221,6 @@ export type UserUpdateWithoutSessionsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -3519,7 +3263,6 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -3562,7 +3305,6 @@ export type UserCreateWithoutExternalIdentityInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -3605,7 +3347,6 @@ export type UserUncheckedCreateWithoutExternalIdentityInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -3664,7 +3405,6 @@ export type UserUpdateWithoutExternalIdentityInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -3707,7 +3447,6 @@ export type UserUncheckedUpdateWithoutExternalIdentityInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -3750,7 +3489,6 @@ export type UserCreateWithoutBusinessProfileInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -3793,7 +3531,6 @@ export type UserUncheckedCreateWithoutBusinessProfileInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -3852,7 +3589,6 @@ export type UserUpdateWithoutBusinessProfileInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -3895,7 +3631,6 @@ export type UserUncheckedUpdateWithoutBusinessProfileInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -3938,7 +3673,6 @@ export type UserCreateWithoutConversationsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -3981,7 +3715,6 @@ export type UserUncheckedCreateWithoutConversationsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -4040,7 +3773,6 @@ export type UserUpdateWithoutConversationsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -4083,7 +3815,6 @@ export type UserUncheckedUpdateWithoutConversationsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -4126,7 +3857,6 @@ export type UserCreateWithoutWhatsappConnectionsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -4169,7 +3899,6 @@ export type UserUncheckedCreateWithoutWhatsappConnectionsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -4228,7 +3957,6 @@ export type UserUpdateWithoutWhatsappConnectionsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -4271,7 +3999,6 @@ export type UserUncheckedUpdateWithoutWhatsappConnectionsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -4314,7 +4041,6 @@ export type UserCreateWithoutWhatsappCallSessionsInput = {
   whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -4357,7 +4083,6 @@ export type UserUncheckedCreateWithoutWhatsappCallSessionsInput = {
   whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -4416,7 +4141,6 @@ export type UserUpdateWithoutWhatsappCallSessionsInput = {
   whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -4459,7 +4183,6 @@ export type UserUncheckedUpdateWithoutWhatsappCallSessionsInput = {
   whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -4502,7 +4225,6 @@ export type UserCreateWithoutSocialChannelConnectionsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -4545,7 +4267,6 @@ export type UserUncheckedCreateWithoutSocialChannelConnectionsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -4604,7 +4325,6 @@ export type UserUpdateWithoutSocialChannelConnectionsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -4647,7 +4367,6 @@ export type UserUncheckedUpdateWithoutSocialChannelConnectionsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -4690,7 +4409,6 @@ export type UserCreateWithoutSocialPostsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -4733,7 +4451,6 @@ export type UserUncheckedCreateWithoutSocialPostsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -4792,7 +4509,6 @@ export type UserUpdateWithoutSocialPostsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -4835,7 +4551,6 @@ export type UserUncheckedUpdateWithoutSocialPostsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -4878,7 +4593,6 @@ export type UserCreateWithoutSocialPublishJobsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -4921,7 +4635,6 @@ export type UserUncheckedCreateWithoutSocialPublishJobsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -4980,7 +4693,6 @@ export type UserUpdateWithoutSocialPublishJobsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -5023,7 +4735,6 @@ export type UserUncheckedUpdateWithoutSocialPublishJobsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -5066,7 +4777,6 @@ export type UserCreateWithoutSocialPublishBatchesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -5109,7 +4819,6 @@ export type UserUncheckedCreateWithoutSocialPublishBatchesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -5168,7 +4877,6 @@ export type UserUpdateWithoutSocialPublishBatchesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -5211,7 +4919,6 @@ export type UserUncheckedUpdateWithoutSocialPublishBatchesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -5254,7 +4961,6 @@ export type UserCreateWithoutCreatedContentTemplatesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -5297,7 +5003,6 @@ export type UserUncheckedCreateWithoutCreatedContentTemplatesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -5345,7 +5050,6 @@ export type UserCreateWithoutUpdatedContentTemplatesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -5388,7 +5092,6 @@ export type UserUncheckedCreateWithoutUpdatedContentTemplatesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -5447,7 +5150,6 @@ export type UserUpdateWithoutCreatedContentTemplatesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -5490,7 +5192,6 @@ export type UserUncheckedUpdateWithoutCreatedContentTemplatesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -5544,7 +5245,6 @@ export type UserUpdateWithoutUpdatedContentTemplatesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -5587,7 +5287,6 @@ export type UserUncheckedUpdateWithoutUpdatedContentTemplatesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -5630,7 +5329,6 @@ export type UserCreateWithoutUploadedContentMediaAssetsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -5673,7 +5371,6 @@ export type UserUncheckedCreateWithoutUploadedContentMediaAssetsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -5732,7 +5429,6 @@ export type UserUpdateWithoutUploadedContentMediaAssetsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -5775,7 +5471,6 @@ export type UserUncheckedUpdateWithoutUploadedContentMediaAssetsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -5818,7 +5513,6 @@ export type UserCreateWithoutWhatsappContactsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -5861,7 +5555,6 @@ export type UserUncheckedCreateWithoutWhatsappContactsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -5920,7 +5613,6 @@ export type UserUpdateWithoutWhatsappContactsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -5963,7 +5655,6 @@ export type UserUncheckedUpdateWithoutWhatsappContactsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -6006,7 +5697,6 @@ export type UserCreateWithoutWhatsappContactListMembershipsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -6049,7 +5739,6 @@ export type UserUncheckedCreateWithoutWhatsappContactListMembershipsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -6108,7 +5797,6 @@ export type UserUpdateWithoutWhatsappContactListMembershipsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -6151,7 +5839,6 @@ export type UserUncheckedUpdateWithoutWhatsappContactListMembershipsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -6194,7 +5881,6 @@ export type UserCreateWithoutWhatsappTemplatesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -6237,7 +5923,6 @@ export type UserUncheckedCreateWithoutWhatsappTemplatesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -6296,7 +5981,6 @@ export type UserUpdateWithoutWhatsappTemplatesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -6339,7 +6023,6 @@ export type UserUncheckedUpdateWithoutWhatsappTemplatesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -6382,7 +6065,6 @@ export type UserCreateWithoutWhatsappCampaignsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -6425,7 +6107,6 @@ export type UserUncheckedCreateWithoutWhatsappCampaignsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -6484,7 +6165,6 @@ export type UserUpdateWithoutWhatsappCampaignsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -6527,7 +6207,6 @@ export type UserUncheckedUpdateWithoutWhatsappCampaignsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -6570,7 +6249,6 @@ export type UserCreateWithoutWhatsappSendEventsInput = {
   whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -6613,7 +6291,6 @@ export type UserUncheckedCreateWithoutWhatsappSendEventsInput = {
   whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -6672,7 +6349,6 @@ export type UserUpdateWithoutWhatsappSendEventsInput = {
   whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -6715,7 +6391,6 @@ export type UserUncheckedUpdateWithoutWhatsappSendEventsInput = {
   whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -6758,7 +6433,6 @@ export type UserCreateWithoutGrowthAgentReviewsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -6801,7 +6475,6 @@ export type UserUncheckedCreateWithoutGrowthAgentReviewsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -6860,7 +6533,6 @@ export type UserUpdateWithoutGrowthAgentReviewsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -6903,7 +6575,6 @@ export type UserUncheckedUpdateWithoutGrowthAgentReviewsInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -6946,7 +6617,6 @@ export type UserCreateWithoutGrowthAgentSourceHandlesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
@@ -6989,7 +6659,6 @@ export type UserUncheckedCreateWithoutGrowthAgentSourceHandlesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
@@ -7048,7 +6717,6 @@ export type UserUpdateWithoutGrowthAgentSourceHandlesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
 }
 
@@ -7091,7 +6759,6 @@ export type UserUncheckedUpdateWithoutGrowthAgentSourceHandlesInput = {
   whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -7129,7 +6796,6 @@ export type UserCountOutputType = {
   whatsappSendEvents: number
   whatsappCallSessions: number
   pushSubscriptions: number
-  billingCheckouts: number
   productTours: number
 }
 
@@ -7162,7 +6828,6 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   whatsappSendEvents?: boolean | UserCountOutputTypeCountWhatsappSendEventsArgs
   whatsappCallSessions?: boolean | UserCountOutputTypeCountWhatsappCallSessionsArgs
   pushSubscriptions?: boolean | UserCountOutputTypeCountPushSubscriptionsArgs
-  billingCheckouts?: boolean | UserCountOutputTypeCountBillingCheckoutsArgs
   productTours?: boolean | UserCountOutputTypeCountProductToursArgs
 }
 
@@ -7375,13 +7040,6 @@ export type UserCountOutputTypeCountPushSubscriptionsArgs<ExtArgs extends runtim
 /**
  * UserCountOutputType without action
  */
-export type UserCountOutputTypeCountBillingCheckoutsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  where?: Prisma.BillingCheckoutWhereInput
-}
-
-/**
- * UserCountOutputType without action
- */
 export type UserCountOutputTypeCountProductToursArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.UserProductTourWhereInput
 }
@@ -7427,7 +7085,6 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   whatsappSendEvents?: boolean | Prisma.User$whatsappSendEventsArgs<ExtArgs>
   whatsappCallSessions?: boolean | Prisma.User$whatsappCallSessionsArgs<ExtArgs>
   pushSubscriptions?: boolean | Prisma.User$pushSubscriptionsArgs<ExtArgs>
-  billingCheckouts?: boolean | Prisma.User$billingCheckoutsArgs<ExtArgs>
   productTours?: boolean | Prisma.User$productToursArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
@@ -7500,7 +7157,6 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   whatsappSendEvents?: boolean | Prisma.User$whatsappSendEventsArgs<ExtArgs>
   whatsappCallSessions?: boolean | Prisma.User$whatsappCallSessionsArgs<ExtArgs>
   pushSubscriptions?: boolean | Prisma.User$pushSubscriptionsArgs<ExtArgs>
-  billingCheckouts?: boolean | Prisma.User$billingCheckoutsArgs<ExtArgs>
   productTours?: boolean | Prisma.User$productToursArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
@@ -7540,7 +7196,6 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     whatsappSendEvents: Prisma.$WhatsappSendEventPayload<ExtArgs>[]
     whatsappCallSessions: Prisma.$WhatsappCallSessionPayload<ExtArgs>[]
     pushSubscriptions: Prisma.$PushSubscriptionPayload<ExtArgs>[]
-    billingCheckouts: Prisma.$BillingCheckoutPayload<ExtArgs>[]
     productTours: Prisma.$UserProductTourPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
@@ -7977,7 +7632,6 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   whatsappSendEvents<T extends Prisma.User$whatsappSendEventsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$whatsappSendEventsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$WhatsappSendEventPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   whatsappCallSessions<T extends Prisma.User$whatsappCallSessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$whatsappCallSessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$WhatsappCallSessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   pushSubscriptions<T extends Prisma.User$pushSubscriptionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$pushSubscriptionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PushSubscriptionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-  billingCheckouts<T extends Prisma.User$billingCheckoutsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$billingCheckoutsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$BillingCheckoutPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   productTours<T extends Prisma.User$productToursArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$productToursArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$UserProductTourPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
@@ -9112,30 +8766,6 @@ export type User$pushSubscriptionsArgs<ExtArgs extends runtime.Types.Extensions.
   take?: number
   skip?: number
   distinct?: Prisma.PushSubscriptionScalarFieldEnum | Prisma.PushSubscriptionScalarFieldEnum[]
-}
-
-/**
- * User.billingCheckouts
- */
-export type User$billingCheckoutsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  /**
-   * Select specific fields to fetch from the BillingCheckout
-   */
-  select?: Prisma.BillingCheckoutSelect<ExtArgs> | null
-  /**
-   * Omit specific fields from the BillingCheckout
-   */
-  omit?: Prisma.BillingCheckoutOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.BillingCheckoutInclude<ExtArgs> | null
-  where?: Prisma.BillingCheckoutWhereInput
-  orderBy?: Prisma.BillingCheckoutOrderByWithRelationInput | Prisma.BillingCheckoutOrderByWithRelationInput[]
-  cursor?: Prisma.BillingCheckoutWhereUniqueInput
-  take?: number
-  skip?: number
-  distinct?: Prisma.BillingCheckoutScalarFieldEnum | Prisma.BillingCheckoutScalarFieldEnum[]
 }
 
 /**

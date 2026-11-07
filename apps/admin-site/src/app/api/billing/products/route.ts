@@ -1,6 +1,8 @@
-import { getAdminSession, proxyToCore } from "@/lib/admin-auth";
+import { billingRequest, withBillingActor } from "@/lib/billing-api";
 
 export async function POST(req: Request) {
-  if (!(await getAdminSession())) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  return proxyToCore(req, "/api/admin/billing/products");
+  const body = await req.json();
+  return withBillingActor(async (actor) =>
+    billingRequest(actor, "POST", "/admin/products", body),
+  );
 }

@@ -30,37 +30,6 @@ export const ExternalConnectionStatus = {
 export type ExternalConnectionStatus = (typeof ExternalConnectionStatus)[keyof typeof ExternalConnectionStatus]
 
 
-export const BillingInterval = {
-  MONTHLY: 'MONTHLY',
-  YEARLY: 'YEARLY'
-} as const
-
-export type BillingInterval = (typeof BillingInterval)[keyof typeof BillingInterval]
-
-
-export const OrganizationSubscriptionStatus = {
-  TRIAL: 'TRIAL',
-  ACTIVE: 'ACTIVE',
-  PAST_DUE: 'PAST_DUE',
-  GRACE: 'GRACE',
-  SUSPENDED: 'SUSPENDED',
-  CANCELLED: 'CANCELLED',
-  EXPIRED: 'EXPIRED'
-} as const
-
-export type OrganizationSubscriptionStatus = (typeof OrganizationSubscriptionStatus)[keyof typeof OrganizationSubscriptionStatus]
-
-
-export const EntitlementSource = {
-  PLAN: 'PLAN',
-  TRIAL: 'TRIAL',
-  MANUAL: 'MANUAL',
-  MIGRATION: 'MIGRATION'
-} as const
-
-export type EntitlementSource = (typeof EntitlementSource)[keyof typeof EntitlementSource]
-
-
 export const BookingStatus = {
   SCHEDULED: 'SCHEDULED',
   CONFIRMED: 'CONFIRMED',

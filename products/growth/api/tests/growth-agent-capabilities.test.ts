@@ -28,7 +28,6 @@ test("real content discovery and continuation retain current tenant, actor, sour
   const url=process.env.CORE_ORGS_TEST_DATABASE_URL!,schema="growth_caps_"+randomUUID().replaceAll("-","");
   const admin=new pg.Pool({connectionString:url});await admin.query(`CREATE SCHEMA "${schema}"`);
   const pool=new pg.Pool({connectionString:url,options:`-c search_path=${schema} -c timezone=UTC`});
-  const previous=process.env.KASITEK_BILLING_ENFORCEMENT;process.env.KASITEK_BILLING_ENFORCEMENT="false";
   const app=Fastify();installErrorHandler(app);
   try {
     await pool.query(`CREATE TABLE "Organization"(id text PRIMARY KEY,name text,"reportingTimezone" text,"updatedAt" timestamp DEFAULT now());
@@ -146,7 +145,7 @@ test("real content discovery and continuation retain current tenant, actor, sour
     await pool.query('DELETE FROM "OrganizationMember" WHERE "userId"=\'user\'');
     assert.equal((await send(command)).statusCode,403);
   } finally {
-    if(previous===undefined)delete process.env.KASITEK_BILLING_ENFORCEMENT;else process.env.KASITEK_BILLING_ENFORCEMENT=previous;
+
     await app.close();await pool.end();await admin.query(`DROP SCHEMA "${schema}" CASCADE`);await admin.end();
   }
 });
@@ -170,7 +169,6 @@ test("analytics tools send explicit bounded selections to the scoped reporting g
   const scope={tenantId:"org",actor:{issuer:"https://growth.kasitek.co.za/identity",subject:"user"}};
   const report={metrics:["campaign.recipients.sent"],breakdowns:["channel"],filters:{channel:["whatsapp"]}};
   const range={from:"2030-01-01T00:00:00Z",to:"2030-02-01T00:00:00Z",timezone:"UTC"};
-  const previous=process.env.KASITEK_BILLING_ENFORCEMENT;process.env.KASITEK_BILLING_ENFORCEMENT="false";
   try {
     const result=await readGrowthRecord(core,scope,{kind:"analytics_report",range,report},{range,report});
     assert.equal((JSON.parse((result.data as {text:string}).text) as {value:number}).value,42);
@@ -179,7 +177,7 @@ test("analytics tools send explicit bounded selections to the scoped reporting g
     const unavailable={...core,config:readConfig({DATABASE_URL:"postgres://unused"})};
     await assert.rejects(readGrowthRecord(unavailable,scope,{kind:"analytics_report",range},{}),{code:"service_unavailable"});
   } finally {
-    if(previous===undefined)delete process.env.KASITEK_BILLING_ENFORCEMENT;else process.env.KASITEK_BILLING_ENFORCEMENT=previous;
+
     await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
 });

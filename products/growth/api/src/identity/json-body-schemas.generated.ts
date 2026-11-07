@@ -603,66 +603,6 @@ export const GENERATED_SERDE_BODY_SCHEMAS: Record<string, unknown> = {
       }
     }
   },
-  "POST /api/admin/billing/entitlements": {
-    "type": "object",
-    "properties": {
-      "planKey": {},
-      "key": {},
-      "value": {}
-    }
-  },
-  "POST /api/admin/billing/orgs/:orgId/credits/balance": {
-    "type": "object",
-    "properties": {
-      "targetBalance": {},
-      "reason": {},
-      "reference": {},
-      "idempotencyKey": {}
-    }
-  },
-  "POST /api/admin/billing/orgs/:orgId/credits/grants": {
-    "type": "object",
-    "properties": {
-      "amount": {},
-      "source": {},
-      "endsAt": {},
-      "reason": {},
-      "reference": {},
-      "idempotencyKey": {}
-    }
-  },
-  "POST /api/admin/billing/orgs/:orgId/grants": {
-    "type": "object",
-    "properties": {
-      "key": {},
-      "value": {},
-      "endsAt": {},
-      "reason": {}
-    }
-  },
-  "POST /api/admin/billing/plans": {
-    "type": "object",
-    "properties": {
-      "productKey": {},
-      "key": {},
-      "name": {},
-      "interval": {},
-      "currency": {},
-      "amountMinor": {},
-      "creditsPerPeriod": {},
-      "active": {},
-      "paystackPlanCode": {}
-    }
-  },
-  "POST /api/admin/billing/products": {
-    "type": "object",
-    "properties": {
-      "key": {},
-      "name": {},
-      "description": {},
-      "active": {}
-    }
-  },
   "POST /api/admin/early-access/:id/approve": {
     "type": "object",
     "properties": {
@@ -883,27 +823,6 @@ export const GENERATED_SERDE_BODY_SCHEMAS: Record<string, unknown> = {
       "validityDays": {},
       "status": {},
       "quoteRequestId": {}
-    }
-  },
-  "POST /api/admin/referrals/:attributionId/reject": {
-    "type": "object",
-    "properties": {
-      "reason": {},
-      "reference": {}
-    }
-  },
-  "POST /api/admin/referrals/:attributionId/reverse": {
-    "type": "object",
-    "properties": {
-      "reason": {},
-      "reference": {}
-    }
-  },
-  "POST /api/admin/referrals/orgs/:orgId/code": {
-    "type": "object",
-    "properties": {
-      "status": {},
-      "reason": {}
     }
   },
   "POST /api/admin/reports": {
@@ -1195,12 +1114,6 @@ export const GENERATED_SERDE_BODY_SCHEMAS: Record<string, unknown> = {
     "properties": {
       "email": {},
       "role": {}
-    }
-  },
-  "POST /api/referrals/attribute": {
-    "type": "object",
-    "properties": {
-      "code": {}
     }
   },
   "POST /api/social/channels": {

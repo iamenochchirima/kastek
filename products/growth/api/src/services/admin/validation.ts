@@ -235,66 +235,7 @@ const structs: Record<string, [string, string, boolean][]> = {
   'web_services.ImportBody': [
     ['leads', 'array:web_services.CreateBody', false],
   ],
-  'billing.CreateGrantRequest': [
-    ['key', 'string', false],
-    ['value', 'any', false],
-    ['endsAt', 'date', true],
-    ['reason', 'string', false],
-  ],
-  'billing.CreditGrantRequest': [
-    ['amount', 'i64', false],
-    ['source', 'string', false],
-    ['endsAt', 'date', true],
-    ['reason', 'string', false],
-    ['reference', 'string', true],
-    ['idempotencyKey', 'string', false],
-  ],
-  'billing.CreditSetBalanceRequest': [
-    ['targetBalance', 'i64', false],
-    ['reason', 'string', false],
-    ['reference', 'string', true],
-    ['idempotencyKey', 'string', false],
-  ],
-  'billing.CreditOrganizationQuery': [
-    ['q', 'string', true],
-    ['limit', 'i64', true],
-  ],
-  'billing.IssueQuery': [['status', 'string', true]],
-  'billing.ReferralQuery': [
-    ['orgId', 'string', true],
-    ['status', 'string', true],
-    ['limit', 'i64', true],
-  ],
-  'billing.ReferralActionRequest': [
-    ['reason', 'string', false],
-    ['reference', 'string', false],
-  ],
-  'billing.ReferralCodeStatusRequest': [
-    ['status', 'string', false],
-    ['reason', 'string', false],
-  ],
-  'billing.UpsertProductRequest': [
-    ['key', 'string', false],
-    ['name', 'string', false],
-    ['description', 'string', true],
-    ['active', 'bool', false],
-  ],
-  'billing.UpsertPlanRequest': [
-    ['productKey', 'string', false],
-    ['key', 'string', false],
-    ['name', 'string', false],
-    ['interval', 'string', false],
-    ['currency', 'string', false],
-    ['amountMinor', 'i32', true],
-    ['creditsPerPeriod', 'i64', true],
-    ['active', 'bool', false],
-    ['paystackPlanCode', 'string', true],
-  ],
-  'billing.UpsertEntitlementRequest': [
-    ['planKey', 'string', false],
-    ['key', 'string', false],
-    ['value', 'any', false],
-  ],
+
 };
 function reject(): never {
   throw new RequestExtractionError('json');

@@ -15,7 +15,6 @@ import * as outreach from '../services/admin/outreach.js';
 import * as conversations from '../services/admin/conversations.js';
 import * as notifications from '../services/admin/notifications.js';
 import { registerOperatorRoutes } from '../services/admin/operations.js';
-import { registerAdminBillingRoutes } from '../services/admin/billing.js';
 import { obj, type ObjectValue } from '../services/admin/common.js';
 import { validateBody } from '../services/admin/validation.js';
 import { queryBool, queryI64, typedQuery } from '../typed-query.js';
@@ -378,5 +377,4 @@ export function registerAdminOperationsRoutes(
   );
   registerAdminAnalyticsRoutes(app, context);
   registerOperatorRoutes(app, context);
-  registerAdminBillingRoutes(app, context);
 }

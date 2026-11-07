@@ -91,7 +91,7 @@ export type AvailablePlan = {
   key: string;
   productKey: string;
   name: string;
-  interval: "MONTHLY" | "YEARLY";
+  interval: "MONTHLY";
   currency: string;
   amountMinor: number | null;
   creditsPerPeriod: number | null;

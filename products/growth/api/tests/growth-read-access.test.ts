@@ -58,7 +58,6 @@ test("negotiated Growth read access binds the exact receipt and rechecks current
   await admin.query(`CREATE DATABASE "${name}"`);
   const target=new URL(database!);target.pathname=`/${name}`;
   const pool=new pg.Pool({connectionString:target.href,options:"-c timezone=UTC"});
-  const previous=process.env.KASITEK_BILLING_ENFORCEMENT;process.env.KASITEK_BILLING_ENFORCEMENT="true";
   const app=Fastify();installErrorHandler(app);
   try {
     await pool.query(`CREATE TYPE "OrganizationSubscriptionStatus" AS ENUM ('TRIAL','ACTIVE','GRACE');
@@ -155,6 +154,6 @@ test("negotiated Growth read access binds the exact receipt and rechecks current
     assert.equal((await send(evidence)).statusCode,403);
   } finally {
     await app.close();await pool.end();await admin.query(`DROP DATABASE "${name}" WITH (FORCE)`);await admin.end();
-    if(previous===undefined)delete process.env.KASITEK_BILLING_ENFORCEMENT;else process.env.KASITEK_BILLING_ENFORCEMENT=previous;
+
   }
 });

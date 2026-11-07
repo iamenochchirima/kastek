@@ -1,5 +1,7 @@
 export * from "./crypto.js";
 export * from "./config.js";
+export * from "./billing-authority.js";
+export * from "./billing-client.js";
 export * from "./json.js";
 export * from "./analytics-producer.js";
 export * from "./analytics-reporting.js";

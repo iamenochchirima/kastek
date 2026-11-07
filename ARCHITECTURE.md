@@ -24,6 +24,7 @@ membership, database access or permission to call internal operations.
 | `packages/server-support/` | Shared server implementation behind explicit exports |
 | `packages/ui/` | Shared workspace theme, appearance definitions and generic React controls |
 | `services/analytics/` | Analytics ingestion, publishing, registry and query service |
+| `services/billing/` | Billing accounts, plan catalog, Paystack, subscriptions, invoices, credits, usage and entitlement snapshots |
 | `services/operations/` | Independent Labs admin sessions, durable monitoring, incidents, and notification intent |
 | `infra/identity/` | Keycloak development identity configuration |
 | `infra/agents-runtime/` | Pinned local Restate runtime and recovery verification |
@@ -40,6 +41,26 @@ Service-to-service integration remains over the existing authenticated HTTP inte
 migrations, organizations, memberships, sessions, databases and secrets remain separately owned.
 Shared login does not synchronize product permissions. Agency customer identity remains scoped
 according to its existing contracts. Source relocation does not change cookie scopes or callbacks.
+
+## Billing boundary
+
+`services/billing/` is the financial system of record. It owns billing accounts, tenant links,
+catalog prices and versions, Paystack checkout and webhooks, subscriptions, invoices, credit
+ledgers, usage events, reconciliation and signed entitlement snapshots. Product APIs keep their
+own organizations and feature definitions, link a tenant to a billing account, and verify the
+signed snapshot before serving paid access. Products never read the billing database.
+
+Billing accounts are independent of product memberships. A Growth organization, Agents
+organization, or Agency workspace is linked by `(product, tenant_id)`. One billing account can
+hold multiple product subscriptions and receive one invoice. Embedded Agents usage belongs to the
+host product’s plan; standalone Agents has its own plan. Agency partners are the default payer for
+their client workspaces.
+
+The service is designed for ZAR and monthly billing first. Plan versions declare whether their
+price is VAT-inclusive or VAT-exclusive, and Paystack always receives the gross amount. Annual
+billing and multi-currency conversion are not enabled. The Growth cutover bridge is configured
+only when `BILLING_SERVICE_URL`, `BILLING_SERVICE_SECRET`, and `BILLING_SNAPSHOT_SECRET` are set;
+otherwise Growth retains its legacy implementation as a rollback path.
 
 ## Growth browser boundary
 

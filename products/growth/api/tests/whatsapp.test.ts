@@ -198,8 +198,6 @@ test(
         events.push(event);
       },
     };
-    const enforcement = process.env.KASITEK_BILLING_ENFORCEMENT;
-    process.env.KASITEK_BILLING_ENFORCEMENT = "false";
     try {
       await pool.query(
         readFileSync(
@@ -218,7 +216,7 @@ test(
         "ExternalConnection",
         "Customer",
         "CustomerIdentity",
-        "UsageEvent",
+        "BillingUsageOutbox",
       ];
       const columns = (
         await admin.query(
@@ -520,7 +518,7 @@ test(
       assert.equal(
         (
           await pool.query(
-            'SELECT COUNT(*)::integer AS count FROM "UsageEvent"',
+            'SELECT COUNT(*)::integer AS count FROM "BillingUsageOutbox"',
           )
         ).rows[0].count,
         1,
@@ -548,8 +546,6 @@ test(
       assert.equal((await listContacts(pool, "org", {})).contacts.length, 0);
     } finally {
       if (enforcement === undefined)
-        delete process.env.KASITEK_BILLING_ENFORCEMENT;
-      else process.env.KASITEK_BILLING_ENFORCEMENT = enforcement;
       server.closeAllConnections();
       await new Promise<void>((resolve) => server.close(() => resolve()));
       await pool.end();

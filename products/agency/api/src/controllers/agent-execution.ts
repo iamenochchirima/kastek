@@ -7,10 +7,12 @@ import { bad, TenantError } from "../error.js";
 import { agencyActorIssuer, authorizeAgencyExecution } from "../capabilities/execution-authority.js";
 import { agencyExecutionClient } from "../capabilities/execution-client.js";
 import { ensureAgencyClientExecution } from "../capabilities/execution-setup.js";
+import { assertAgencyBillingAccess, recordAgencyAgentCommand } from "../capabilities/billing.js";
 
 export function registerAgentExecutionRoutes(app:FastifyInstance,context:TenantContext):void {
   async function scope(request:FastifyRequest){
     const session=await extractTenantUserSession(request,context),clientId=(request.params as {id:string}).id;
+    await assertAgencyBillingAccess(context, session.workspace_id);
     const scope={tenantId:session.workspace_id,clientId,actor:{issuer:agencyActorIssuer(context),subject:session.tenant_user_id}};
     const authorized=await authorizeAgencyExecution(context,scope);return {...scope,roles:session.roles,clientName:authorized.clientName};
   }
@@ -26,6 +28,7 @@ export function registerAgentExecutionRoutes(app:FastifyInstance,context:TenantC
     catch(error){if(error instanceof AgencyAgentContractError)throw bad("invalid agent command");throw error;}
     await ensureAgencyClientExecution(context,s.tenantId,s.clientId,s.actor.subject);
     const response=await agencyExecutionClient(context).execute(command);
+    await recordAgencyAgentCommand(context, s.tenantId, command.requestId);
     request.log.info({event:"agent.execution.command",product:"agencies",workspace_id:s.tenantId,client_id:s.clientId,request_id:command.requestId,operation:command.operation},"Agent command");
     return response;
   });

@@ -92,7 +92,7 @@ export function UpgradePage({
                         <div>
                           <h3 className="text-base font-semibold text-foreground">{plan.name}</h3>
                           <p className="mt-1 text-sm text-muted-foreground">
-                            {formatPrice(plan.amountMinor, plan.currency)} / {plan.interval === "YEARLY" ? "year" : "month"}
+                            {formatPrice(plan.amountMinor, plan.currency)} / month
                           </p>
                         </div>
                         {isCurrent ? <Badge variant="secondary">Current</Badge> : null}
@@ -103,7 +103,7 @@ export function UpgradePage({
                           {formatPrice(plan.amountMinor, plan.currency)}
                         </p>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          per {plan.interval === "YEARLY" ? "year" : "month"}
+                          per month
                         </p>
                       </div>
 

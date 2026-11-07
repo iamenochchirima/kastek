@@ -7,6 +7,7 @@ import type {
   CustomerOperationReceipt,
 } from "@kasitek-labs/contracts";
 import { getBillingSummary, billingEnforcementEnabled } from "../billing.js";
+import { billingServiceConfig, serviceCredits } from "../billing-service.js";
 import { missing, bad, conflict } from "./common.js";
 import * as replay from "./webhook-replay.js";
 import {
@@ -69,55 +70,37 @@ export async function customerCollection(
             ]
           : [],
     }));
-  } else if (collection === "ledger") {
-    records = (
-      await pool.query(
-        `SELECT id,type,amount::text,"balanceAfter"::text,"createdAt" FROM "CreditLedgerEntry" WHERE "orgId"=$1 AND ($2::text IS NULL OR id>$2) ORDER BY id LIMIT $3`,
-        [id, cursor, limit + 1],
-      )
-    ).rows.map((r) => ({
-      id: r.id,
-      label: r.type,
-      state: "recorded",
-      facts: [
-        fact("amount", r.amount),
-        fact("balanceAfter", r.balanceAfter),
-        fact("createdAt", r.createdAt),
-      ],
-    }));
-  } else if (collection === "grants") {
-    records = (
-      await pool.query(
-        `SELECT id,source,"remainingAmount"::text,"startsAt","endsAt",CASE WHEN "endsAt"<=now() THEN 'expired_unsettled' WHEN "startsAt">now() THEN 'scheduled' ELSE 'active' END AS state FROM "CreditGrant" WHERE "orgId"=$1 AND ($2::text IS NULL OR id>$2) ORDER BY id LIMIT $3`,
-        [id, cursor, limit + 1],
-      )
-    ).rows.map((r) => ({
-      id: r.id,
-      label: r.source,
-      state: r.state,
-      facts: [
-        fact("remainingAmount", r.remainingAmount),
-        fact("startsAt", r.startsAt),
-        fact("endsAt", r.endsAt),
-      ],
-    }));
-  } else if (collection === "reservations") {
-    records = (
-      await pool.query(
-        `SELECT id,status,"estimatedCredits"::text,"capturedCredits"::text,"releasedCredits"::text,"expiresAt" FROM "CreditReservation" WHERE "orgId"=$1 AND ($2::text IS NULL OR id>$2) ORDER BY id LIMIT $3`,
-        [id, cursor, limit + 1],
-      )
-    ).rows.map((r) => ({
-      id: r.id,
-      label: "Credit reservation",
-      state: r.status,
-      facts: [
-        fact("estimatedCredits", r.estimatedCredits),
-        fact("capturedCredits", r.capturedCredits),
-        fact("releasedCredits", r.releasedCredits),
-        fact("expiresAt", r.expiresAt),
-      ],
-    }));
+  } else if (collection === "ledger" || collection === "grants" || collection === "reservations") {
+    const config = billingServiceConfig(process.env);
+    if (!config) throw new Error("Central billing is not configured");
+    const credits = await serviceCredits(config, id);
+    if (collection === "ledger") {
+      const ledger = Array.isArray(credits.ledger) ? credits.ledger as Record<string, unknown>[] : [];
+      records = ledger.map((entry) => ({
+        id: String(entry.id),
+        label: String(entry.type),
+        state: "recorded",
+        facts: [
+          fact("amount", entry.amount),
+          fact("balanceAfter", entry.balanceAfter),
+          fact("createdAt", entry.createdAt),
+        ],
+      }));
+    } else if (collection === "grants") {
+      const grants = Array.isArray(credits.grants) ? credits.grants as Record<string, unknown>[] : [];
+      records = grants.map((grant) => ({
+        id: String(grant.id),
+        label: String(grant.source),
+        state: "active",
+        facts: [
+          fact("remainingAmount", grant.remainingAmount),
+          fact("startsAt", grant.startsAt),
+          fact("endsAt", grant.endsAt),
+        ],
+      }));
+    } else {
+      records = [];
+    }
   } else if (collection === "operations") {
     const ids = (
       await pool.query(
@@ -250,27 +233,25 @@ export async function customerOverview(
     );
   }
   try {
-    const row = (
-      await pool.query(
-        `SELECT balance::text,"reservedBalance"::text,(SELECT COALESCE(sum("remainingAmount"),0)::text FROM "CreditGrant" WHERE "orgId"=$1 AND "endsAt"<=now()) AS "expiredUnsettled" FROM "CreditAccount" WHERE "orgId"=$1`,
-        [id],
-      )
-    ).rows[0];
+    const config = billingServiceConfig(process.env);
+    if (!config) throw new Error("Central billing is not configured");
+    const credits = await serviceCredits(config, id);
+    const account = credits.credits as Record<string, unknown> | undefined;
     sections.push({
       id: "credits",
       title: "Credits",
       status: "available",
       nextCursor: null,
-      records: row
+      records: account
         ? [
             {
               id,
-              label: "Persisted credits",
+              label: "Central billing credits",
               state: "persisted",
               facts: [
-                fact("balance", row.balance),
-                fact("reserved", row.reservedBalance),
-                fact("expiredUnsettled", row.expiredUnsettled),
+                fact("balance", account.balance),
+                fact("reserved", account.reserved),
+                fact("available", account.available),
               ],
             },
           ]

@@ -31,7 +31,6 @@ import {
   paginateCollection,
   redactKeys,
 } from "../src/routes/public-v1.js";
-import { runBillingReconciliation } from "../src/workers/billing-reconciliation.js";
 import { runPublicWebhooks } from "../src/workers/public-webhooks.js";
 import type { RequestContext } from "../src/identity/request-context.js";
 const principal: RequestContext = {
@@ -113,12 +112,6 @@ test("native workers honor pre-aborted shutdown without queue effects", async ()
     controller.signal,
     logger,
   );
-  await runBillingReconciliation(
-    pool,
-    readConfig({ DATABASE_URL: "postgres://unused" }),
-    controller.signal,
-    logger,
-  );
 });
 test(
   "isolated PostgreSQL keys, distributed rate accounting and signed webhook delivery",
@@ -156,7 +149,7 @@ test(
       for (const table of [
         "DeveloperApiKey",
         "PublicApiRequest",
-        "UsageEvent",
+        "BillingUsageOutbox",
         "PublicApiWebhookSubscription",
         "PublicApiWebhookDelivery",
       ])

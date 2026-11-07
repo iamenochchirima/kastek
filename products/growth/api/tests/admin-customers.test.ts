@@ -74,7 +74,7 @@ test(
       const address = receiver.address();
       assert.ok(address && typeof address === "object");
       await pool.query(
-        `CREATE TABLE "Organization"(id text PRIMARY KEY,name text);CREATE TABLE "AdminUser"(id text PRIMARY KEY,name text,email text,password text,role text,"updatedAt" timestamp);CREATE TABLE "Customer"(id text PRIMARY KEY,"orgId" text);CREATE TABLE "Conversation"(id text PRIMARY KEY,"orgId" text,"customerId" text,channel text,"customerIdentifier" text,"customerName" text,status text,"lastMessageAt" timestamp,"createdAt" timestamp);CREATE TABLE "Message"(id text,"conversationId" text,sender text,content text,timestamp timestamp);CREATE TABLE "CreditAccount"(id text,"orgId" text,balance bigint,"reservedBalance" bigint);CREATE TABLE "CreditGrant"(id text,"orgId" text,source text,"remainingAmount" bigint,"startsAt" timestamp,"endsAt" timestamp);CREATE TABLE "CreditLedgerEntry"(id text,"orgId" text,type text,amount bigint,"balanceAfter" bigint,"createdAt" timestamp);CREATE TABLE "PublicApiWebhookSubscription"(id text PRIMARY KEY,"orgId" text,status text);CREATE TABLE "PublicApiWebhookDelivery"(id text PRIMARY KEY,"subscriptionId" text,"eventId" text,"eventType" text,status text,"attemptCount" int,"nextAttemptAt" timestamp,"lastStatusCode" int,"lastError" text,"deliveredAt" timestamp,"updatedAt" timestamp);`,
+        `CREATE TABLE "Organization"(id text PRIMARY KEY,name text);CREATE TABLE "AdminUser"(id text PRIMARY KEY,name text,email text,password text,role text,"updatedAt" timestamp);CREATE TABLE "Customer"(id text PRIMARY KEY,"orgId" text);CREATE TABLE "Conversation"(id text PRIMARY KEY,"orgId" text,"customerId" text,channel text,"customerIdentifier" text,"customerName" text,status text,"lastMessageAt" timestamp,"createdAt" timestamp);CREATE TABLE "Message"(id text,"conversationId" text,sender text,content text,timestamp timestamp);CREATE TABLE "PublicApiWebhookSubscription"(id text PRIMARY KEY,"orgId" text,status text);CREATE TABLE "PublicApiWebhookDelivery"(id text PRIMARY KEY,"subscriptionId" text,"eventId" text,"eventType" text,status text,"attemptCount" int,"nextAttemptAt" timestamp,"lastStatusCode" int,"lastError" text,"deliveredAt" timestamp,"updatedAt" timestamp);`,
       );
       for (const migration of [
         "20260814170000_add_admin_support_access",
@@ -91,7 +91,7 @@ test(
           ),
         );
       await pool.query(
-        `INSERT INTO "Organization" VALUES('a','Customer A'),('b','Customer B');INSERT INTO "AdminUser" VALUES('operator','Operator','op@example.test','x','operator',now()),('second','Second','second@example.test','x','operator',now()),('viewer','Viewer','view@example.test','x','viewer',now());INSERT INTO "PublicApiWebhookSubscription" VALUES('sub','a','ACTIVE'),('sub-b','b','ACTIVE');INSERT INTO "PublicApiWebhookDelivery"(id,"subscriptionId","eventType",status,"attemptCount","updatedAt") VALUES('d1','sub','event.test','FAILED',3,now()),('d2','sub','event.test','FAILED',4,now()),('d3','sub','event.test','FAILED',3,now()),('other','sub-b','event.test','FAILED',3,now());INSERT INTO "CreditAccount" VALUES('account','a',9007199254740993,3);INSERT INTO "CreditGrant" VALUES('expired','a','MANUAL',7,now()-interval '1 month',now()-interval '1 day');INSERT INTO "Conversation" VALUES('conversation','a',NULL,'web','private-identity','Private','open',now(),now());INSERT INTO "Message" VALUES('message','conversation','user','DO NOT AUDIT THIS BODY',now());`,
+        `INSERT INTO "Organization" VALUES('a','Customer A'),('b','Customer B');INSERT INTO "AdminUser" VALUES('operator','Operator','op@example.test','x','operator',now()),('second','Second','second@example.test','x','operator',now()),('viewer','Viewer','view@example.test','x','viewer',now());INSERT INTO "PublicApiWebhookSubscription" VALUES('sub','a','ACTIVE'),('sub-b','b','ACTIVE');INSERT INTO "PublicApiWebhookDelivery"(id,"subscriptionId","eventType",status,"attemptCount","updatedAt") VALUES('d1','sub','event.test','FAILED',3,now()),('d2','sub','event.test','FAILED',4,now()),('d3','sub','event.test','FAILED',3,now()),('other','sub-b','event.test','FAILED',3,now());INSERT INTO "Conversation" VALUES('conversation','a',NULL,'web','private-identity','Private','open',now(),now());INSERT INTO "Message" VALUES('message','conversation','user','DO NOT AUDIT THIS BODY',now());`,
       );
 
       await pool.query(
@@ -111,23 +111,8 @@ test(
       assert.equal(first.customer.id, "a");
       assert.equal(first.customer.state, "present");
       assert.equal(
-        first.sections.find((x) => x.id === "credits")!.records[0]!.facts[0]!
-          .value,
-        "9007199254740993",
-      );
-      await customerOverview(pool, "a");
-      assert.equal(
-        (
-          await pool.query(
-            `SELECT "remainingAmount"::text AS amount FROM "CreditGrant" WHERE id='expired'`,
-          )
-        ).rows[0].amount,
-        "7",
-      );
-      assert.equal(
-        (await pool.query(`SELECT count(*) FROM "CreditLedgerEntry"`)).rows[0]
-          .count,
-        "0",
+        first.sections.find((x) => x.id === "credits")!.status,
+        "unavailable",
       );
       const page = await customerCollection(pool, "a", "failures", {
         limit: "1",

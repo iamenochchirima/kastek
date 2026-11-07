@@ -8,7 +8,7 @@ import { runSocialPublishing } from "./social-publishing.js";
 import { runSocialInsights } from "./social-insights.js";
 import { runWhatsappCampaigns } from "./whatsapp-campaigns.js";
 import { runPublicWebhooks } from "./public-webhooks.js";
-import { runBillingReconciliation } from "./billing-reconciliation.js";
+import { runBillingUsageForwarder } from "./billing-usage-forwarder.js";
 import { runAnalyticsPublisher } from "../analytics/publisher.js";
 import { runAnalyticsBackfill } from "./analytics-backfill.js";
 
@@ -25,7 +25,7 @@ export const API_WORKERS = [
   "social_insights",
   "whatsapp_campaigns",
   "public_webhooks",
-  "billing_reconciliation",
+  "billing_usage_forwarder",
 ] as const;
 export const ALL_WORKERS = [
   ...API_WORKERS,
@@ -42,7 +42,7 @@ const PROCESSES: Record<string, readonly WorkerName[]> = {
   "whatsapp-marketing-worker": ["whatsapp_campaigns"],
   "whatsapp-inbox-worker": ["whatsapp_inbox"],
   "email-inbox-worker": ["email_inbox"],
-  "billing-reconciliation-worker": ["billing_reconciliation"],
+  "billing-usage-forwarder": ["billing_usage_forwarder"],
   "analytics-publisher": ["analytics_publisher", "analytics_backfill"],
   "analytics-backfill-worker": ["analytics_backfill"],
   "public-webhooks-worker": ["public_webhooks"],
@@ -87,8 +87,8 @@ export function createWorkerRunners(
         log,
       ),
     public_webhooks: (signal) => runPublicWebhooks(pool, config, signal, log),
-    billing_reconciliation: (signal) =>
-      runBillingReconciliation(pool, config, signal, log),
+    billing_usage_forwarder: (signal) =>
+      runBillingUsageForwarder(pool, log, signal),
     analytics_publisher: (signal) =>
       runAnalyticsPublisher(pool, config.rawEnv, log, signal),
     analytics_backfill: (signal) =>

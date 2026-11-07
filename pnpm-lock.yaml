@@ -1048,6 +1048,43 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  services/billing:
+    dependencies:
+      '@fastify/cookie':
+        specifier: ^11.0.2
+        version: 11.1.2
+      '@kasitek-labs/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@kasitek-labs/server-support':
+        specifier: workspace:*
+        version: link:../../packages/server-support
+      '@opentelemetry/api':
+        specifier: 1.9.0
+        version: 1.9.0
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
+      fastify:
+        specifier: 5.12.5
+        version: 5.12.5
+      pg:
+        specifier: ^8.16.3
+        version: 8.16.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.1
+        version: 24.10.1
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
+      tsx:
+        specifier: ^4.20.6
+        version: 4.23.15
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   services/operations:
     dependencies:
       '@fastify/cookie':

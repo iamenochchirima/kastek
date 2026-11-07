@@ -5,7 +5,7 @@ import type { Pool, PoolClient } from 'pg';
 import type { CoreContext } from '../context.js';
 import { ApiError } from '../error.js';
 import { transaction } from '../db.js';
-import { enqueueOrganizationScope, ensureReferralCode, grantInitialTrial, sendOrganizationEmail } from './org-support.js';
+import { enqueueOrganizationScope, sendOrganizationEmail } from './org-support.js';
 export interface OrgRow { id: string; name: string; slug: string; logo: string | null; ownerId: string; reportingTimezone: string; createdAt: Date; updatedAt: Date }
 const columns = 'id,name,slug,logo,"ownerId","reportingTimezone","createdAt" AT TIME ZONE \'UTC\' AS "createdAt","updatedAt" AT TIME ZONE \'UTC\' AS "updatedAt"';
 export const bad = (message: string): ApiError => new ApiError(400,'bad_request',message);
@@ -19,7 +19,7 @@ export async function getMemberRole(pool: Pool,orgId: string,userId: string): Pr
 export async function requireMember(pool: Pool,orgId: string,userId: string): Promise<string> { const role=await getMemberRole(pool,orgId,userId);if(!role)throw new ApiError(403,'forbidden','Not a member of this organisation');return role; }
 export async function requireAdmin(pool: Pool,orgId: string,userId: string): Promise<void> { if(!['OWNER','ADMIN'].includes(await requireMember(pool,orgId,userId)))throw new ApiError(403,'forbidden','Admin or Owner role required'); }
 export async function requireOwner(pool: Pool,orgId: string,userId: string): Promise<void> { if(await requireMember(pool,orgId,userId)!=='OWNER')throw new ApiError(403,'forbidden','Owner role required'); }
-export async function createOrg(context: CoreContext,userId: string,name: string,slug: string,logo: string|null,trialCredits: bigint,trialDays: number): Promise<OrgRow> {
+export async function createOrg(context: CoreContext,userId: string,name: string,slug: string,logo: string|null): Promise<OrgRow> {
  const orgId=createId();
  const org=await transaction(context.pool,async tx=>{
   let created: OrgRow;
@@ -30,9 +30,6 @@ export async function createOrg(context: CoreContext,userId: string,name: string
   await enqueueGrowthAgentSetup(tx,orgId,context.config);
   return created;
  });
- // These effects intentionally occur after org commit, matching the Rust lifecycle boundary.
- await ensureReferralCode(context.pool,orgId);
- if(trialCredits>0n)await grantInitialTrial(context.pool,orgId,trialCredits,trialDays);
  return org;
 }
 export async function updateOrg(pool: Pool,id: string,name: string|null,logo: string|null|undefined): Promise<OrgRow> { const row=(await pool.query<OrgRow>(`UPDATE "Organization" SET name=COALESCE($1,name),logo=CASE WHEN $2 THEN $3 ELSE logo END,"updatedAt"=NOW() WHERE id=$4 RETURNING ${columns}`,[name,logo!==undefined,logo??null,id])).rows[0];if(!row)throw new ApiError(500,'internal_error','Database operation failed');return row; }

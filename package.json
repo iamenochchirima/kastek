@@ -27,7 +27,7 @@
     "build:agents": "pnpm build:shared && pnpm --filter @kasitek/agents build && pnpm --filter @kasitek/agent-platform build",
     "build:agency": "pnpm build:shared && pnpm --filter @kasitek/agency-tenants build && pnpm --filter tenant-portal build",
     "build:sites": "pnpm --filter @kasitek/admin-site build && pnpm --filter labs build",
-    "build:all": "pnpm build:shared && pnpm --filter @kasitek/database generate && pnpm --workspace-concurrency=2 --filter @kasitek/growth-core --filter client --filter @kasitek/agents --filter @kasitek/agent-platform --filter @kasitek/agency-tenants --filter tenant-portal --filter @kasitek/analytics --filter @kasitek/admin-site --filter labs -r build",
+    "build:all": "pnpm build:shared && pnpm --filter @kasitek/database generate && pnpm --workspace-concurrency=2 --filter @kasitek/growth-core --filter client --filter @kasitek/agents --filter @kasitek/agent-platform --filter @kasitek/agency-tenants --filter tenant-portal --filter @kasitek/analytics --filter @kasitek/billing --filter @kasitek/admin-site --filter labs -r build",
     "verify:boundaries": "node scripts/check-boundaries.mjs",
     "typecheck:all": "pnpm build:shared && pnpm -r --if-present typecheck",
     "test:growth": "pnpm --filter @kasitek/growth-core test",
@@ -45,7 +45,15 @@
     "test:operations": "pnpm --filter @kasitek/operations test",
     "dev:local": "node scripts/local-dev.mjs",
     "dev:ports": "node scripts/local-dev.mjs ports",
-    "test:local-dev": "node --test scripts/local-dev.test.mjs"
+    "test:local-dev": "node --test scripts/local-dev.test.mjs",
+    "dev:billing": "pnpm --filter @kasitek/billing dev",
+    "dev:billing-worker": "pnpm --filter @kasitek/billing dev:worker",
+    "build:billing": "pnpm build:shared && pnpm --filter @kasitek/billing build",
+    "start:billing": "pnpm --filter @kasitek/billing start",
+    "start:billing-worker": "pnpm --filter @kasitek/billing start:worker",
+    "migrate:billing": "pnpm --filter @kasitek/billing migrate",
+    "seed:billing": "pnpm --filter @kasitek/billing seed",
+    "test:billing": "pnpm --filter @kasitek/billing test"
   },
   "devDependencies": {
     "typescript": "5.9.3",

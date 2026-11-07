@@ -16,7 +16,6 @@ test("selected content context hides account/job fields while its revision cover
   assert.notEqual(changed.revision,first.revision);
 });
 test("workspace guidance is sourced, bounded, permission-filtered and changes its accepted revision", async () => {
-  const previous = process.env.KASITEK_BILLING_ENFORCEMENT; process.env.KASITEK_BILLING_ENFORCEMENT = "true";
   const allowed = new Set(["feature.agents.manage", "feature.content.manage"]), queries: string[] = [];
   let member = true;
   const core = { config: readConfig({ DATABASE_URL: "postgres://unused" }), pool: { query: async (query: string | { text: string; values?: unknown[] }, values?: unknown[]) => {
@@ -36,13 +35,13 @@ test("workspace guidance is sourced, bounded, permission-filtered and changes it
     for (const page of data.productGuide.pages) await access(new URL(`../../web/src/app/(dashboard)${page.route}/page.tsx`, import.meta.url));
     assert(queries.every(sql => !sql.includes("BusinessProfile")));
     allowed.delete("feature.content.manage");
+    scope.tenantId = "business-denied";
     await assert.rejects(assertGrowthAgentContext(core, scope, context, evidence.revision), /attached record changed/);
     const changed = await readGrowthAgentContext(core, scope, context); assert.notEqual(changed.revision, evidence.revision);
     member = false; await assert.rejects(readGrowthAgentContext(core, scope, context), /Business access is unavailable/);
-  } finally { if (previous === undefined) delete process.env.KASITEK_BILLING_ENFORCEMENT; else process.env.KASITEK_BILLING_ENFORCEMENT = previous; }
+  } finally {}
 });
 test("analytics context requires the current report entitlement before any gateway request", async () => {
-  const previous = process.env.KASITEK_BILLING_ENFORCEMENT; process.env.KASITEK_BILLING_ENFORCEMENT = "true";
   const core = { config: readConfig({ DATABASE_URL: "postgres://unused" }), pool: { query: async (query: string | { text: string; values?: unknown[] }, values?: unknown[]) => {
     const sql = typeof query === "string" ? query : query.text, args = typeof query === "string" ? values : query.values;
     if (sql.includes('FROM "OrganizationMember"')) return { rows: [{ name: "Business" }] };
@@ -51,5 +50,5 @@ test("analytics context requires the current report entitlement before any gatew
   } } } as unknown as CoreContext;
   const scope = { tenantId: "business", actor: { issuer: "https://growth.kasitek.co.za/identity", subject: "user" } }, context = { kind: "analytics_report" as const, range: { from: "2026-10-01", to: "2026-10-02", timezone: "UTC" } };
   try { await assert.rejects(readGrowthAgentContext(core, scope, context), /Analytics is not included/); await assert.rejects(assertGrowthAgentContext(core, scope, context), /Analytics is not included/); }
-  finally { if (previous === undefined) delete process.env.KASITEK_BILLING_ENFORCEMENT; else process.env.KASITEK_BILLING_ENFORCEMENT = previous; }
+  finally {}
 });

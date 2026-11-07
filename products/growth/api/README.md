@@ -39,11 +39,11 @@ Early-access self-service invitations are enabled by default. Set `EARLY_ACCESS_
 
 When the release is ready for public registration, set `KASITEK_ACCESS_MODE=public` on the core backend. Growth browser access uses the backend-owned login and access rules. Existing invitations and normal login continue to work in either mode.
 
-During the controlled Agent Platform testing phase, commercial feature and usage-limit enforcement
-is disabled by default so authenticated workspace users can test the product. Usage is still
-recorded, while authentication, organization isolation, runtime limits, approvals, and provider
-safety checks remain active. Set `KASITEK_BILLING_ENFORCEMENT=true` when commercial billing gates
-are ready to be re-enabled.
+Growth delegates customer billing routes, subscription actions, and entitlement checks to the
+central billing service in `services/billing/`. `BILLING_SERVICE_URL`, `BILLING_SERVICE_SECRET`,
+and `BILLING_SNAPSHOT_SECRET` are required. The service owns Paystack checkout and webhooks,
+invoices, credits, usage, and the plan catalog. Growth keeps only a signed entitlement snapshot
+cache and a durable usage outbox. There is no local billing fallback.
 
 By default, the API server also starts the WhatsApp inbox, WhatsApp marketing, and social publishing workers in the same process.
 
@@ -78,7 +78,7 @@ If you want a dedicated worker-only process, use:
 KASITEK_PROCESS=whatsapp-marketing-worker pnpm start
 KASITEK_PROCESS=whatsapp-inbox-worker pnpm start
 KASITEK_PROCESS=social-publishing-worker pnpm start
-KASITEK_PROCESS=billing-reconciliation-worker pnpm start
+KASITEK_PROCESS=billing-usage-forwarder pnpm start
 KASITEK_PROCESS=analytics-publisher pnpm start
 KASITEK_PROCESS=analytics-backfill-worker pnpm start
 KASITEK_PROCESS=all-workers pnpm start

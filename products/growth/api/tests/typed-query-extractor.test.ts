@@ -241,18 +241,6 @@ test('typed queries preserve Actix extractor errors before route effects', async
         'number too large to fit in target type',
       ],
       [
-        '/api/admin/billing/organizations?limit=invalid',
-        'invalid digit found in string',
-      ],
-      [
-        '/api/admin/referrals?orgId=a&orgId=b',
-        'duplicate field `orgId`',
-      ],
-      [
-        '/api/admin/billing/reconciliation-issues?status=open&status=closed',
-        'duplicate field `status`',
-      ],
-      [
         '/api/admin/notifications?unreadOnly=true&unreadOnly=false',
         'duplicate field `unreadOnly`',
       ],

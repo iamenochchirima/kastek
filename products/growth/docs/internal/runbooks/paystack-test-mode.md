@@ -1,30 +1,32 @@
+---
+title: Paystack Test-Mode Validation
+---
+
 # Paystack Test-Mode Validation
 
-Run this procedure with a dedicated internal organisation before configuring live Paystack keys. It verifies the server path from checkout creation through webhook handling and subscription cancellation. It does not grant access from a browser redirect.
+> **Moved:** test-mode checkout and webhook validation now runs against the central billing
+> service, not Growth.
 
-## Preconditions
+Use a dedicated billing database and Paystack test keys in `services/billing/.env`:
 
-- Set `PAYSTACK_MODE=test` and provide only `PAYSTACK_TEST_SECRET_KEY`.
-- Point Paystack's test webhook configuration at `POST /api/webhooks/paystack` on the environment under test.
-- Configure an active product plan with the matching Paystack test plan code.
-- Use a dedicated internal organisation and an organisation owner account.
+```text
+BILLING_DATABASE_URL=postgresql://.../kasitek_billing
+PAYSTACK_MODE=test
+PAYSTACK_TEST_SECRET_KEY=sk_test_...
+BILLING_INTERNAL_SECRET=<32+ bytes>
+BILLING_SNAPSHOT_SECRET=<32+ bytes>
+KASITEK_ADMIN_SERVICE_SECRET=<32+ bytes>
+BILLING_FREE_PLANS_JSON={"growth":"growth-free","agents":"agents-free","agency":"agency-free"}
+```
 
-## Procedure
+Point Paystack's test webhook at `POST /webhooks/paystack` on the billing service. The browser
+return URL must be in `BILLING_RETURN_ORIGINS`.
 
-1. Start checkout from Billing and usage and complete the Paystack test payment.
-2. Confirm the browser return only reports status; verify the server receives either the signed `charge.success` webhook or performs transaction verification.
-3. Confirm one `BillingCheckout` is `COMPLETED`, one organisation subscription has the intended plan, and only that organisation receives its entitlement.
-4. Confirm one `BillingInvoice` exists with the internal invoice number and retained provider transaction reference. If Paystack returns an invoice code during subscription reconciliation, confirm it is stored as `providerInvoiceId`.
-5. Re-deliver the same webhook and confirm no duplicate checkout, subscription, or invoice appears.
-6. Trigger an unsuccessful payment or `invoice.payment_failed` test event and confirm the subscription moves to `PAST_DUE` without granting a new entitlement.
-7. Cancel and reactivate the test subscription through Billing and usage. Confirm the provider state, `cancelAtPeriodEnd`, and server state reconcile correctly.
-8. Review open reconciliation issues in the internal billing controls and resolve any unexpected mismatch before proceeding.
+Validate one Growth checkout from a Growth workspace. Confirm:
 
-## Evidence to retain
-
-- Checkout reference and Paystack transaction ID
-- Webhook event key and processing status
-- Subscription and invoice external references
-- Screenshots or request logs for duplicate, failed-payment, cancellation, and reactivation checks
-
-Do not switch `PAYSTACK_MODE` to `live` until this procedure succeeds and the merchant-market recurring decision is approved.
+1. One `billing.checkouts` row completes.
+2. One `billing.invoices` row has the expected subtotal, VAT, and total.
+3. Plan credits appear in `billing.credit_ledger`.
+4. A renewal creates a second invoice visible through Growth billing.
+5. A full refund cancels the subscription and revokes unspent plan credits.
+6. The entitlement snapshot changes only after the server-side verification or webhook.

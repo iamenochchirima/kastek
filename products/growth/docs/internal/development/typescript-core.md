@@ -41,15 +41,15 @@ Set `KASITEK_PROCESS` to a source process name:
 | `whatsapp-marketing-worker` | WhatsApp campaigns |
 | `whatsapp-inbox-worker` | WhatsApp inbox delivery |
 | `email-inbox-worker` | Email inbox synchronization |
-| `billing-reconciliation-worker` | Billing reconciliation |
+| `billing-usage-forwarder` | Forward product usage to central billing |
 | `public-webhooks-worker` | Developer webhook delivery |
 | `analytics-publisher` | Analytics publisher and backfill, concurrently |
 | `analytics-backfill-worker` | Analytics backfill |
-| `all-workers` | All nine workers, concurrently |
+| `all-workers` | All ten workers, concurrently |
 
 Dedicated worker processes do not open an HTTP listener. Missing or unrecognized
 process names select the API, matching the Rust entrypoint. The API starts the
-seven non-Analytics workers unless `KASITEK_DISABLE_BACKGROUND_WORKERS` is
+eight non-Analytics workers unless `KASITEK_DISABLE_BACKGROUND_WORKERS` is
 `1`, `true`, `yes` or `on`, ignoring case and surrounding whitespace.
 
 SIGINT and SIGTERM abort worker polling. Shutdown waits for in-flight worker

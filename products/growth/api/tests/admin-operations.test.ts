@@ -28,21 +28,6 @@ test('invoice month-end clamping, source integer wrapping, typed DTO and support
   assert.equal(invoiceInteger(4294967297n, 14), 1);
   assert.equal(invoiceInteger('4294967297', 14), 14);
   assert.equal(invoiceInteger(1.5, 3), 3);
-  const b = validateBody('billing.CreditGrantRequest', {
-    amount: 9223372036854775807n,
-    source: 'MANUAL',
-    reason: 'Fixture credits',
-    idempotencyKey: 'fixture',
-  });
-  assert.equal(b.amount, 9223372036854775807n);
-  assert.equal(
-    validateBody('billing.UpsertEntitlementRequest', {
-      planKey: 'fixture',
-      key: 'fixture',
-      value: null,
-    }).value,
-    null,
-  );
   assert.throws(() =>
     validateBody('leads.CreateLeadBody', { businessName: 'x' }),
   );
@@ -458,11 +443,6 @@ test(
           )
         ).json().status,
         'completed',
-      );
-      assert.equal(
-        (await request('GET', '/billing/catalog', undefined, 'viewer'))
-          .statusCode,
-        403,
       );
       for (const actor of ['support','admin']) {
         assert.equal((await request('POST','/operations/commands',{commandType:'test'},actor)).statusCode,404);

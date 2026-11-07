@@ -173,9 +173,6 @@ test("source-derived DTO map enforces manual i64/i32 and nested media fields whi
     },
     [
       (app) => {
-        app.post("/api/admin/billing/orgs/:orgId/credits/grants", async () => ({
-          ok: true,
-        }));
         app.post("/api/social/posts", async () => ({ ok: true }));
         app.post("/api/admin/leads", async (request) => ({
           quoteAmount: new SerdeFloat(
@@ -186,18 +183,6 @@ test("source-derived DTO map enforces manual i64/i32 and nested media fields whi
     ],
   );
   try {
-    for (const token of ["1.0", "1e0", "-0", "9223372036854775808"])
-      assert.equal(
-        (
-          await app.inject({
-            method: "POST",
-            url: "/api/admin/billing/orgs/fixture/credits/grants",
-            headers: { "content-type": "application/json" },
-            payload: `{"amount":${token}}`,
-          })
-        ).statusCode,
-        400,
-      );
     assert.equal(
       (
         await app.inject({

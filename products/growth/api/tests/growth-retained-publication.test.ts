@@ -16,7 +16,6 @@ test("both source-frozen V11 catalogues authorize exact retained Facebook read b
   const admin=new pg.Pool({connectionString:url});await admin.query(`CREATE SCHEMA "${schema}"`);
   const pool=new pg.Pool({connectionString:url,options:`-c search_path=${schema}`});
   const app=Fastify();installErrorHandler(app);
-  const previous=process.env.KASITEK_BILLING_ENFORCEMENT;process.env.KASITEK_BILLING_ENFORCEMENT="false";
   try{
     await pool.query(`CREATE TABLE "Organization"(id text,name text);CREATE TABLE "User"(id text,"emailVerified" timestamp);CREATE TABLE "OrganizationMember"("orgId" text,"userId" text,role text);INSERT INTO "Organization" VALUES('org','Business');INSERT INTO "User" VALUES('user',now());INSERT INTO "OrganizationMember" VALUES('org','user','OWNER')`);
     const keys=await generateKeyPair("RS256",{extractable:true});
@@ -47,5 +46,5 @@ test("both source-frozen V11 catalogues authorize exact retained Facebook read b
     assert.equal((await send({...local,authority:{...local.authority,policyRevision:"12"}})).statusCode,403);
     await pool.query('DELETE FROM "OrganizationMember"');
     assert.equal((await send(local)).statusCode,403);
-  }finally{if(previous===undefined)delete process.env.KASITEK_BILLING_ENFORCEMENT;else process.env.KASITEK_BILLING_ENFORCEMENT=previous;await app.close();await pool.end();await admin.query(`DROP SCHEMA "${schema}" CASCADE`);await admin.end();}
+  }finally{await app.close();await pool.end();await admin.query(`DROP SCHEMA "${schema}" CASCADE`);await admin.end();}
 });

@@ -14,7 +14,6 @@ import { registerAdminAuthRoutes } from "./routes/admin-auth.js";
 import { registerBookingRoutes } from "./routes/bookings.js";
 import { registerCustomerRoutes } from "./routes/customers.js";
 import { registerBillingRoutes } from "./routes/billing.js";
-import { registerReferralRoutes } from "./routes/referrals.js";
 import { registerNotificationRoutes } from "./routes/notifications.js";
 import { registerRealtimeRoutes } from "./routes/realtime.js";
 import { registerAnalyticsRoutes } from "./routes/analytics.js";
@@ -187,7 +186,6 @@ export const CORE_REGISTRARS = [
   registerBookingRoutes,
   registerCustomerRoutes,
   registerBillingRoutes,
-  registerReferralRoutes,
   registerNotificationRoutes,
   registerRealtimeRoutes,
   registerAnalyticsRoutes,

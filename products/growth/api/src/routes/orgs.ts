@@ -3,7 +3,7 @@ import type { CoreContext } from '../context.js';
 import { ApiError } from '../error.js';
 import { ACTIVE_ORG_COOKIE, USER_SESSION_COOKIE, activeOrgCookie, extractUser, requireOrigin } from '../identity/session.js';
 import * as orgs from '../services/orgs.js';
-import { loadLogo, storeLogo, trialSettings, MAX_LOGO_BYTES } from '../services/org-support.js';
+import { loadLogo, storeLogo, MAX_LOGO_BYTES } from '../services/org-support.js';
 type Params={id: string;userId: string;invId: string;token: string};
 function params(request: FastifyRequest): Params{return request.params as Params;}
 function body(request: FastifyRequest): Record<string,unknown>{if(!request.body||typeof request.body!=='object'||Array.isArray(request.body))throw orgs.bad('Invalid request');return request.body as Record<string,unknown>;}
@@ -36,8 +36,8 @@ export function registerOrganizationRoutes(app: FastifyInstance,context: CoreCon
   schema:{body:{type:'object',required:['name'],properties:{name:{type:'string'},slug:{type:['string','null']},logo:{type:['string','null']}}}},
  },async(request,reply)=>{
   const user=await extractUser(request,context);const input=body(request);const name=string(input.name,true)!.trim();if(!name)throw orgs.bad('Organisation name is required');if(Buffer.byteLength(name)>80)throw orgs.bad('Organisation name must be 80 characters or fewer');
-  const requested=string(input.slug)?.trim();const base=orgs.slugify(requested||name);if(!base)throw orgs.bad('Could not generate a valid slug from the name');const logo=string(input.logo)?.trim()||null;const trial=trialSettings(context);
-  return reply.code(201).send({org:await orgs.createOrg(context,user.id,name,await orgs.uniqueSlug(context.pool,base),logo,trial.credits,trial.days)});
+  const requested=string(input.slug)?.trim();const base=orgs.slugify(requested||name);if(!base)throw orgs.bad('Could not generate a valid slug from the name');const logo=string(input.logo)?.trim()||null;
+  return reply.code(201).send({org:await orgs.createOrg(context,user.id,name,await orgs.uniqueSlug(context.pool,base),logo)});
  });
  app.get('/api/orgs/:id',async request=>{const user=await extractUser(request,context);const {id}=params(request);await orgs.requireMember(context.pool,id,user.id);const org=await orgs.getOrg(context.pool,id);if(!org)throw new ApiError(404,'not_found','Organisation not found');return {org};});
  app.patch('/api/orgs/:id',async request=>{const user=await extractUser(request,context);const {id}=params(request);await orgs.requireAdmin(context.pool,id,user.id);const input=body(request);const name=string(input.name)?.trim()||null;let logo: string|null|undefined;if(input.logo===null)logo=null;else if(typeof input.logo==='string')logo=input.logo.trim()||null;return {org:await orgs.updateOrg(context.pool,id,name,logo)};});

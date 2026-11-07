@@ -60,36 +60,6 @@ export const RUST_JSON_NUMERIC_FIELDS: Record<string, readonly (readonly [readon
       "i32"
     ]
   ],
-  "POST /api/admin/billing/orgs/:orgId/credits/balance": [
-    [
-      [
-        "targetBalance"
-      ],
-      "i64"
-    ]
-  ],
-  "POST /api/admin/billing/orgs/:orgId/credits/grants": [
-    [
-      [
-        "amount"
-      ],
-      "i64"
-    ]
-  ],
-  "POST /api/admin/billing/plans": [
-    [
-      [
-        "amountMinor"
-      ],
-      "i32"
-    ],
-    [
-      [
-        "creditsPerPeriod"
-      ],
-      "i64"
-    ]
-  ],
   "POST /api/admin/leads": [
     [
       [
@@ -309,16 +279,6 @@ export const RUST_JSON_VALUE_FIELDS: Record<string, readonly (readonly string[])
     ],
     [
       "metadata"
-    ]
-  ],
-  "POST /api/admin/billing/entitlements": [
-    [
-      "value"
-    ]
-  ],
-  "POST /api/admin/billing/orgs/:orgId/grants": [
-    [
-      "value"
     ]
   ],
   "POST /api/admin/invoices": [

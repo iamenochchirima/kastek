@@ -2,7 +2,6 @@ import { createId } from "@paralleldrive/cuid2";
 import type { CoreContext } from "../../context.js";
 import { ApiError } from "../../error.js";
 import * as orgs from "../orgs.js";
-import { trialSettings } from "../org-support.js";
 export interface LaunchUserRequest {
   name: string;
   email: string;
@@ -68,15 +67,12 @@ export async function provisionLaunchUser(
     [userId, name, email],
   );
   const slug = await orgs.uniqueSlug(core.pool, orgs.slugify(workspaceName)),
-    trial = trialSettings(core),
     workspace = await orgs.createOrg(
       core,
       userId,
       workspaceName,
       slug,
       null,
-      trial.credits,
-      trial.days,
     );
   const invitation = await orgs.createInvitation(
     core,

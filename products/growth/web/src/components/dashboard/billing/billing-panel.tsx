@@ -114,7 +114,7 @@ export function BillingPanel({
                           <p className="text-xs text-muted-foreground">Plan price</p>
                           <p className="mt-1 text-lg font-semibold text-foreground">
                             {plan ? formatPrice(plan.amountMinor, plan.currency) : "—"}
-                            <span className="ml-1 text-xs font-normal text-muted-foreground">/ {plan?.interval === "YEARLY" ? "year" : "month"}</span>
+                            <span className="ml-1 text-xs font-normal text-muted-foreground">/ month</span>
                           </p>
                         </div>
                       );

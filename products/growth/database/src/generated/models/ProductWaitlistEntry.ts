@@ -48,7 +48,6 @@ export type ProductWaitlistEntryMinAggregateOutputType = {
   packageKey: string | null
   activatedAt: Date | null
   earlyAccessEndsAt: Date | null
-  creditGrantId: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -77,7 +76,6 @@ export type ProductWaitlistEntryMaxAggregateOutputType = {
   packageKey: string | null
   activatedAt: Date | null
   earlyAccessEndsAt: Date | null
-  creditGrantId: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -108,8 +106,6 @@ export type ProductWaitlistEntryCountAggregateOutputType = {
   packageSnapshot: number
   activatedAt: number
   earlyAccessEndsAt: number
-  entitlementGrantIds: number
-  creditGrantId: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -140,7 +136,6 @@ export type ProductWaitlistEntryMinAggregateInputType = {
   packageKey?: true
   activatedAt?: true
   earlyAccessEndsAt?: true
-  creditGrantId?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -169,7 +164,6 @@ export type ProductWaitlistEntryMaxAggregateInputType = {
   packageKey?: true
   activatedAt?: true
   earlyAccessEndsAt?: true
-  creditGrantId?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -200,8 +194,6 @@ export type ProductWaitlistEntryCountAggregateInputType = {
   packageSnapshot?: true
   activatedAt?: true
   earlyAccessEndsAt?: true
-  entitlementGrantIds?: true
-  creditGrantId?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -305,8 +297,6 @@ export type ProductWaitlistEntryGroupByOutputType = {
   packageSnapshot: runtime.JsonValue | null
   activatedAt: Date | null
   earlyAccessEndsAt: Date | null
-  entitlementGrantIds: runtime.JsonValue
-  creditGrantId: string | null
   createdAt: Date
   updatedAt: Date
   _count: ProductWaitlistEntryCountAggregateOutputType | null
@@ -358,8 +348,6 @@ export type ProductWaitlistEntryWhereInput = {
   packageSnapshot?: Prisma.JsonNullableFilter<"ProductWaitlistEntry">
   activatedAt?: Prisma.DateTimeNullableFilter<"ProductWaitlistEntry"> | Date | string | null
   earlyAccessEndsAt?: Prisma.DateTimeNullableFilter<"ProductWaitlistEntry"> | Date | string | null
-  entitlementGrantIds?: Prisma.JsonFilter<"ProductWaitlistEntry">
-  creditGrantId?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
   createdAt?: Prisma.DateTimeFilter<"ProductWaitlistEntry"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"ProductWaitlistEntry"> | Date | string
   events?: Prisma.ProductWaitlistEventListRelationFilter
@@ -393,8 +381,6 @@ export type ProductWaitlistEntryOrderByWithRelationInput = {
   packageSnapshot?: Prisma.SortOrderInput | Prisma.SortOrder
   activatedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   earlyAccessEndsAt?: Prisma.SortOrderInput | Prisma.SortOrder
-  entitlementGrantIds?: Prisma.SortOrder
-  creditGrantId?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   events?: Prisma.ProductWaitlistEventOrderByRelationAggregateInput
@@ -431,8 +417,6 @@ export type ProductWaitlistEntryWhereUniqueInput = Prisma.AtLeast<{
   packageSnapshot?: Prisma.JsonNullableFilter<"ProductWaitlistEntry">
   activatedAt?: Prisma.DateTimeNullableFilter<"ProductWaitlistEntry"> | Date | string | null
   earlyAccessEndsAt?: Prisma.DateTimeNullableFilter<"ProductWaitlistEntry"> | Date | string | null
-  entitlementGrantIds?: Prisma.JsonFilter<"ProductWaitlistEntry">
-  creditGrantId?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
   createdAt?: Prisma.DateTimeFilter<"ProductWaitlistEntry"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"ProductWaitlistEntry"> | Date | string
   events?: Prisma.ProductWaitlistEventListRelationFilter
@@ -466,8 +450,6 @@ export type ProductWaitlistEntryOrderByWithAggregationInput = {
   packageSnapshot?: Prisma.SortOrderInput | Prisma.SortOrder
   activatedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   earlyAccessEndsAt?: Prisma.SortOrderInput | Prisma.SortOrder
-  entitlementGrantIds?: Prisma.SortOrder
-  creditGrantId?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.ProductWaitlistEntryCountOrderByAggregateInput
@@ -504,8 +486,6 @@ export type ProductWaitlistEntryScalarWhereWithAggregatesInput = {
   packageSnapshot?: Prisma.JsonNullableWithAggregatesFilter<"ProductWaitlistEntry">
   activatedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ProductWaitlistEntry"> | Date | string | null
   earlyAccessEndsAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ProductWaitlistEntry"> | Date | string | null
-  entitlementGrantIds?: Prisma.JsonWithAggregatesFilter<"ProductWaitlistEntry">
-  creditGrantId?: Prisma.StringNullableWithAggregatesFilter<"ProductWaitlistEntry"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"ProductWaitlistEntry"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"ProductWaitlistEntry"> | Date | string
 }
@@ -535,8 +515,6 @@ export type ProductWaitlistEntryCreateInput = {
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Date | string | null
   earlyAccessEndsAt?: Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   events?: Prisma.ProductWaitlistEventCreateNestedManyWithoutWaitlistEntryInput
@@ -570,8 +548,6 @@ export type ProductWaitlistEntryUncheckedCreateInput = {
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Date | string | null
   earlyAccessEndsAt?: Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   events?: Prisma.ProductWaitlistEventUncheckedCreateNestedManyWithoutWaitlistEntryInput
@@ -603,8 +579,6 @@ export type ProductWaitlistEntryUpdateInput = {
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   earlyAccessEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   events?: Prisma.ProductWaitlistEventUpdateManyWithoutWaitlistEntryNestedInput
@@ -638,8 +612,6 @@ export type ProductWaitlistEntryUncheckedUpdateInput = {
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   earlyAccessEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   events?: Prisma.ProductWaitlistEventUncheckedUpdateManyWithoutWaitlistEntryNestedInput
@@ -672,8 +644,6 @@ export type ProductWaitlistEntryCreateManyInput = {
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Date | string | null
   earlyAccessEndsAt?: Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -703,8 +673,6 @@ export type ProductWaitlistEntryUpdateManyMutationInput = {
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   earlyAccessEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -735,8 +703,6 @@ export type ProductWaitlistEntryUncheckedUpdateManyInput = {
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   earlyAccessEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -767,8 +733,6 @@ export type ProductWaitlistEntryCountOrderByAggregateInput = {
   packageSnapshot?: Prisma.SortOrder
   activatedAt?: Prisma.SortOrder
   earlyAccessEndsAt?: Prisma.SortOrder
-  entitlementGrantIds?: Prisma.SortOrder
-  creditGrantId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -797,7 +761,6 @@ export type ProductWaitlistEntryMaxOrderByAggregateInput = {
   packageKey?: Prisma.SortOrder
   activatedAt?: Prisma.SortOrder
   earlyAccessEndsAt?: Prisma.SortOrder
-  creditGrantId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -826,7 +789,6 @@ export type ProductWaitlistEntryMinOrderByAggregateInput = {
   packageKey?: Prisma.SortOrder
   activatedAt?: Prisma.SortOrder
   earlyAccessEndsAt?: Prisma.SortOrder
-  creditGrantId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -935,8 +897,6 @@ export type ProductWaitlistEntryCreateWithoutEarlyAccessInvitationsInput = {
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Date | string | null
   earlyAccessEndsAt?: Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   events?: Prisma.ProductWaitlistEventCreateNestedManyWithoutWaitlistEntryInput
@@ -969,8 +929,6 @@ export type ProductWaitlistEntryUncheckedCreateWithoutEarlyAccessInvitationsInpu
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Date | string | null
   earlyAccessEndsAt?: Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   events?: Prisma.ProductWaitlistEventUncheckedCreateNestedManyWithoutWaitlistEntryInput
@@ -1006,8 +964,6 @@ export type ProductWaitlistEntryCreateWithoutEarlyAccessInvitationInput = {
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Date | string | null
   earlyAccessEndsAt?: Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   events?: Prisma.ProductWaitlistEventCreateNestedManyWithoutWaitlistEntryInput
@@ -1039,8 +995,6 @@ export type ProductWaitlistEntryUncheckedCreateWithoutEarlyAccessInvitationInput
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Date | string | null
   earlyAccessEndsAt?: Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   events?: Prisma.ProductWaitlistEventUncheckedCreateNestedManyWithoutWaitlistEntryInput
@@ -1088,8 +1042,6 @@ export type ProductWaitlistEntryUpdateWithoutEarlyAccessInvitationsInput = {
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   earlyAccessEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   events?: Prisma.ProductWaitlistEventUpdateManyWithoutWaitlistEntryNestedInput
@@ -1122,8 +1074,6 @@ export type ProductWaitlistEntryUncheckedUpdateWithoutEarlyAccessInvitationsInpu
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   earlyAccessEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   events?: Prisma.ProductWaitlistEventUncheckedUpdateManyWithoutWaitlistEntryNestedInput
@@ -1165,8 +1115,6 @@ export type ProductWaitlistEntryUpdateWithoutEarlyAccessInvitationInput = {
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   earlyAccessEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   events?: Prisma.ProductWaitlistEventUpdateManyWithoutWaitlistEntryNestedInput
@@ -1198,8 +1146,6 @@ export type ProductWaitlistEntryUncheckedUpdateWithoutEarlyAccessInvitationInput
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   earlyAccessEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   events?: Prisma.ProductWaitlistEventUncheckedUpdateManyWithoutWaitlistEntryNestedInput
@@ -1231,8 +1177,6 @@ export type ProductWaitlistEntryCreateWithoutEventsInput = {
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Date | string | null
   earlyAccessEndsAt?: Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   earlyAccessInvitation?: Prisma.EarlyAccessInvitationCreateNestedOneWithoutCurrentForInput
@@ -1265,8 +1209,6 @@ export type ProductWaitlistEntryUncheckedCreateWithoutEventsInput = {
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Date | string | null
   earlyAccessEndsAt?: Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   earlyAccessInvitations?: Prisma.EarlyAccessInvitationUncheckedCreateNestedManyWithoutWaitlistEntryInput
@@ -1313,8 +1255,6 @@ export type ProductWaitlistEntryUpdateWithoutEventsInput = {
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   earlyAccessEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   earlyAccessInvitation?: Prisma.EarlyAccessInvitationUpdateOneWithoutCurrentForNestedInput
@@ -1347,8 +1287,6 @@ export type ProductWaitlistEntryUncheckedUpdateWithoutEventsInput = {
   packageSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   activatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   earlyAccessEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
-  creditGrantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   earlyAccessInvitations?: Prisma.EarlyAccessInvitationUncheckedUpdateManyWithoutWaitlistEntryNestedInput
@@ -1420,8 +1358,6 @@ export type ProductWaitlistEntrySelect<ExtArgs extends runtime.Types.Extensions.
   packageSnapshot?: boolean
   activatedAt?: boolean
   earlyAccessEndsAt?: boolean
-  entitlementGrantIds?: boolean
-  creditGrantId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   events?: boolean | Prisma.ProductWaitlistEntry$eventsArgs<ExtArgs>
@@ -1456,8 +1392,6 @@ export type ProductWaitlistEntrySelectCreateManyAndReturn<ExtArgs extends runtim
   packageSnapshot?: boolean
   activatedAt?: boolean
   earlyAccessEndsAt?: boolean
-  entitlementGrantIds?: boolean
-  creditGrantId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   earlyAccessInvitation?: boolean | Prisma.ProductWaitlistEntry$earlyAccessInvitationArgs<ExtArgs>
@@ -1489,8 +1423,6 @@ export type ProductWaitlistEntrySelectUpdateManyAndReturn<ExtArgs extends runtim
   packageSnapshot?: boolean
   activatedAt?: boolean
   earlyAccessEndsAt?: boolean
-  entitlementGrantIds?: boolean
-  creditGrantId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   earlyAccessInvitation?: boolean | Prisma.ProductWaitlistEntry$earlyAccessInvitationArgs<ExtArgs>
@@ -1522,13 +1454,11 @@ export type ProductWaitlistEntrySelectScalar = {
   packageSnapshot?: boolean
   activatedAt?: boolean
   earlyAccessEndsAt?: boolean
-  entitlementGrantIds?: boolean
-  creditGrantId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type ProductWaitlistEntryOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "businessName" | "contactPerson" | "phone" | "email" | "businessType" | "website" | "products" | "notes" | "source" | "status" | "cohort" | "contactConsentAt" | "reviewNotes" | "decisionReason" | "reviewedById" | "reviewedAt" | "approvedById" | "approvedAt" | "organizationId" | "earlyAccessInvitationId" | "packageKey" | "packageSnapshot" | "activatedAt" | "earlyAccessEndsAt" | "entitlementGrantIds" | "creditGrantId" | "createdAt" | "updatedAt", ExtArgs["result"]["productWaitlistEntry"]>
+export type ProductWaitlistEntryOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "businessName" | "contactPerson" | "phone" | "email" | "businessType" | "website" | "products" | "notes" | "source" | "status" | "cohort" | "contactConsentAt" | "reviewNotes" | "decisionReason" | "reviewedById" | "reviewedAt" | "approvedById" | "approvedAt" | "organizationId" | "earlyAccessInvitationId" | "packageKey" | "packageSnapshot" | "activatedAt" | "earlyAccessEndsAt" | "createdAt" | "updatedAt", ExtArgs["result"]["productWaitlistEntry"]>
 export type ProductWaitlistEntryInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   events?: boolean | Prisma.ProductWaitlistEntry$eventsArgs<ExtArgs>
   earlyAccessInvitation?: boolean | Prisma.ProductWaitlistEntry$earlyAccessInvitationArgs<ExtArgs>
@@ -1575,8 +1505,6 @@ export type $ProductWaitlistEntryPayload<ExtArgs extends runtime.Types.Extension
     packageSnapshot: runtime.JsonValue | null
     activatedAt: Date | null
     earlyAccessEndsAt: Date | null
-    entitlementGrantIds: runtime.JsonValue
-    creditGrantId: string | null
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["productWaitlistEntry"]>
@@ -2030,8 +1958,6 @@ export interface ProductWaitlistEntryFieldRefs {
   readonly packageSnapshot: Prisma.FieldRef<"ProductWaitlistEntry", 'Json'>
   readonly activatedAt: Prisma.FieldRef<"ProductWaitlistEntry", 'DateTime'>
   readonly earlyAccessEndsAt: Prisma.FieldRef<"ProductWaitlistEntry", 'DateTime'>
-  readonly entitlementGrantIds: Prisma.FieldRef<"ProductWaitlistEntry", 'Json'>
-  readonly creditGrantId: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
   readonly createdAt: Prisma.FieldRef<"ProductWaitlistEntry", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"ProductWaitlistEntry", 'DateTime'>
 }
