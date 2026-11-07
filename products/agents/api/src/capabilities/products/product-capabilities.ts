@@ -71,11 +71,11 @@ export function assertProductBindings(bindings:readonly CapabilityBinding[]):voi
   if(bindings.length>64||new Set(bindings.map(binding=>binding.alias)).size!==bindings.length)throw invalid();
   for(const binding of bindings)productDescriptor(binding);
 }
-/** The installed adapter declares reads that need an access receipt rather than a citation source. */
+/** The installed adapter declares reads and staging controls that need an access receipt rather than a citation source. Staging writes carry no evidence, so the receipt is their only retention record. */
 export function requiresProductAccess(binding:CapabilityBinding):boolean {
   const descriptor=productDescriptor(binding);
   const required=productAdapterRegistry.resolve(binding).accessReceiptHandlers?.includes(descriptor.handlerRef)??false;
-  if(required&&(descriptor.evidence!=="none"||descriptor.policy.effect!=="read"))throw invalid();
+  if(required&&(descriptor.evidence!=="none"||descriptor.policy.effect!=="read"&&descriptor.policy.effect!=="draft_write"))throw invalid();
   return required||productEffectProjection(binding)!==null;
 }
 /** A projection is installed with the executable adapter, not selected by a model or descriptor. */

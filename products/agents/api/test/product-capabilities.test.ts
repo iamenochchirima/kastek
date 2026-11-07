@@ -54,6 +54,15 @@ describe("installed product capability composition",()=>{
  expect(growthFullOperationAccessHandlers).toContain("growth.operation.workspace.read@1");
  expect(growthFullOperationAccessHandlers).toContain("growth.operation.content.media.transfer.prepare@1");
  });
+ it("allows an access receipt for an evidenceless staging write",()=>{
+ const read="records.read@1",stage="records.stage@1",manifest={schemaVersion:1 as const,id:"staging-test-"+randomUUID(),release:"1",executableDigest:"a".repeat(64),transports:["native_http" as const],protocolVersions:[],boundedSchemaValidation:true as const};
+ const adapter=registerProductAdapter(manifest,{handlers:[read,stage],accessReceiptHandlers:[read,stage],invoke:async()=>({value:{}})});
+ const limits={timeoutMs:30000,maxPhysicalAttempts:1,maxResponseBytes:32768,maxModelResultBytes:8192} as const;
+ const staging:ProductCapabilityDescriptor={operation:"records.stage",revision:"1",handlerRef:stage,description:"Stage a private transfer without creating a record",inputSchema:{type:"object",properties:{},additionalProperties:false},outputSchema:null,policy:{effect:"draft_write",disclosure:"exact_requested_payload",retry:"status_only",approval:"none",cancel:"reconcile_claimed"},requiredAuthority:["records.stage"],evidence:"none",limits:{...limits}};
+ const body={schemaVersion:1 as const,product:"fixture-product",revision:"1",adapter,operations:[staging]},publication={...body,digest:requestDigest(body)};
+ const staged=createProductBindings(publication,randomUUID(),{originProduct:"fixture-product",originTenantId:"tenant",tenantId:"tenant",mappingRef:"tenant",policyRevision:"1"},[staging.operation])[0]!;
+ expect(requiresProductAccess(staged)).toBe(true);
+ });
 });
 
 
