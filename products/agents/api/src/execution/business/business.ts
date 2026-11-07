@@ -80,6 +80,7 @@ import { planBackgroundCompaction } from "../context/background-planning";
 import { CONTEXT_COMPACTION_WORKFLOW,type ContextCompactionWorkflow } from "../context/compaction-workflow";
 import { createToolCatalog, progressiveModelTools, assertLoadedTool, discoverToolCatalog, loadToolSchemas, toolSchemaFailureFeedback, type ToolCatalog, type ToolCatalogMetadata } from "../../capabilities/tool-discovery";
 import { instructionHead } from "../context/request-manifest";
+import { catalogSnapshotFields, hydrateCatalog } from "../context/catalog-reference";
 import { HANDOFF_RECEIPT_DEADLINE_MS, type HandoffFeedbackRequest } from "../../contracts/channel";
 function contextModelPolicy(execution: Execution, role: "primary" | "compaction" = "primary", privateCosts: Map<string, number> = new Map(), packingOverhead = 0): ContextModelPolicy {
   const route = execution.models[role], policy = route.policy;
@@ -216,6 +217,12 @@ function phaseTimer(taskId: string, step: number, label: string) {
     event: "context.phase", label, taskId, step, totalMs: Date.now() - started, phases, ...extra })) };
 }
 
+/** A referenced catalogue must resolve; a missing owner is a hard failure, never a silent degrade. */
+async function hydrateCatalogOrFail<T extends Record<string,unknown>>(payload:T,snapshotId:string,taskId:string,pool:Pool):Promise<T>{
+  try{return await hydrateCatalog(payload,async ref=>(await pool.query(`SELECT payload->'catalog' AS catalog FROM agents_platform.context_snapshots WHERE id=$1 AND task_id=$2`,[ref,taskId])).rows[0]?.catalog ?? null);}
+  catch{if(payload.catalogRef!==undefined)throw new PlatformError("CATALOG_REFERENCE_UNAVAILABLE",409,"The retained tool catalog is unavailable");throw new Error("CATALOG_HYDRATION_FAILED");}
+}
+
 async function buildSnapshot(pool: Pool, taskId: string, step: number, working: ContextGroup[], summary: ContextSource | undefined,
   omitted: string[], options: BusinessOptions, initialKnowledge?: KnowledgeObservation, knownGeneration?: number, knownExpiry?: number, executionObservation?: string, packingOverhead = 0, deliveredInstructionIds: readonly string[] = []): Promise<{ snapshot?: Snapshot; history: ContextGroup[]; working: ContextGroup[];
     memoryFence?: MemoryFence; invalidated: boolean; needsCompaction: boolean; backgroundCompactionRequested?:boolean }> {
@@ -231,8 +238,9 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const recorded = (await pool.query("SELECT * FROM agents_platform.context_snapshots WHERE id=$1 AND task_id=$2",[snapshotId,taskId])).rows[0];
   if (recorded) {
     phase.mark("prepare");
-    const snapshot: Snapshot = {id:snapshotId,...recorded.payload,digest:recorded.digest,historyCutoff:recorded.history_cutoff,
-      memoryFence:recorded.memory_scope_id ? {id:recorded.memory_scope_id,generation:Number(recorded.memory_generation),expiresAt:recorded.payload.memoryExpiresAt}:undefined};
+    const recordedPayload=await hydrateCatalogOrFail(recorded.payload,recorded.id,taskId,pool);
+    const snapshot: Snapshot = {id:snapshotId,...recordedPayload,digest:recorded.digest,historyCutoff:recorded.history_cutoff,
+      memoryFence:recorded.memory_scope_id ? {id:recorded.memory_scope_id,generation:Number(recorded.memory_generation),expiresAt:recordedPayload.memoryExpiresAt}:undefined};
     if (options.evidence) {
       await options.evidence.inheritHistory(taskId,snapshotId,recorded.payload.historyGroupIds ?? []);
       await options.evidence.supplyContext(taskId,snapshotId,recorded.payload.evidenceIds ?? [],recorded.payload.continuationEvidenceIds ?? []);
@@ -240,7 +248,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     }
     phase.mark("evidence");
     phase.finish({ replay: true });
-    return {snapshot,history:[],working:[...working,...(recorded.payload.instructionGroups??[]).filter((group:ContextGroup)=>!omitted.includes(group.id)&&!working.some(existing=>existing.id===group.id))],memoryFence:snapshot.memoryFence,invalidated:false,needsCompaction:false,backgroundCompactionRequested:recorded.payload.backgroundCompactionRequested===true};
+    return {snapshot,history:[],working:[...working,...(recorded.payload.instructionGroups??[]).filter((group:ContextGroup)=>!omitted.includes(group.id)&&!working.some(existing=>existing.id===group.id))],memoryFence:snapshot.memoryFence,invalidated:false,needsCompaction:false,backgroundCompactionRequested:recordedPayload.backgroundCompactionRequested===true};
   }
   const sources: ContextSource[] = initialKnowledge?.passages.map(passage => ({ id: passage.sourceId ?? passage.evidenceId,
     revision: passage.revisionId ?? passage.evidenceId, kind: "knowledge", evidenceId: passage.evidenceId,
@@ -436,20 +444,27 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   }
   phase.mark("assemble");
   const selectedContinuation=built.continuation;
-  const previousSize=sharedProtocol?(await pool.query("SELECT payload->>'estimatedTokens' AS tokens FROM agents_platform.context_snapshots WHERE task_id=$1 AND step>=0 AND step<$2 ORDER BY step DESC LIMIT 1",[taskId,step])).rows[0]:undefined;
+  const previousSnapshot=sharedProtocol?(await pool.query(`SELECT id,payload->>'estimatedTokens' AS tokens,payload->>'catalogDigest' AS "catalogDigest",
+      payload->>'catalogOwner' AS "catalogOwner",(payload ? 'catalog') AS "hasCatalog"
+    FROM agents_platform.context_snapshots WHERE task_id=$1 AND step>=0 AND step<$2 ORDER BY step DESC LIMIT 1`,[taskId,step])).rows[0]:undefined;
+  const previousSize=previousSnapshot;
   const mandatory=sharedProtocol?buildContext({...input,history:[],summary:undefined,sources:[],workingGroups:active.filter(group=>group.id.startsWith("instruction:"))}).estimatedTokens:0;
   const forecast=compactionForecast(execution.models.primary.policy,built.estimatedTokens,previousSize?Number(previousSize.tokens):undefined,mandatory);
   const id = `context:${taskId}:${step}`;
   const row = (await pool.query(`INSERT INTO agents_platform.context_snapshots
     (id,task_id,step,digest,payload,source_references,memory_scope_id,memory_generation,history_cutoff)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO NOTHING RETURNING id`,
-  [id, taskId, step, built.digest, { ...(selectedContinuation?{continuation:selectedContinuation,continuationEvidenceIds:selectedContinuation.checkpoint.evidence.map(item=>item.id)}:{}), ...(selectedProductContext?{selectedProductContext}:{}), messages: built.messages, tools: modelTools, ...(directory?{capabilities:{...directory,text:undefined,...(exposure?{schemaFootprint:exposure.schemaFootprint,schemaAllowance:exposure.schemaAllowance}: {})}}:{}), instructionHead:preparedInstructionHead, countMethod:input.modelPolicy.counterRevision, ...(catalog?{catalog}:{}), ...(modernInstructions?{primaryInstructionIds}:{}), instructionGroups:active.filter(group=>group.id.startsWith("instruction:")),
+  [id, taskId, step, built.digest, { ...(selectedContinuation?{continuation:selectedContinuation,continuationEvidenceIds:selectedContinuation.checkpoint.evidence.map(item=>item.id)}:{}), ...(selectedProductContext?{selectedProductContext}:{}), messages: built.messages, tools: modelTools, ...(directory?{capabilities:{...directory,text:undefined,...(exposure?{schemaFootprint:exposure.schemaFootprint,schemaAllowance:exposure.schemaAllowance}: {})}}:{}), instructionHead:preparedInstructionHead, countMethod:input.modelPolicy.counterRevision,
+    ...catalogSnapshotFields(catalog, previousSnapshot ? { id: previousSnapshot.id,
+      owner: typeof previousSnapshot.catalogOwner === "string" ? previousSnapshot.catalogOwner : (previousSnapshot.hasCatalog === "catalog" ? previousSnapshot.id : null),
+      digest: typeof previousSnapshot.catalogDigest === "string" ? previousSnapshot.catalogDigest : null } : undefined), ...(modernInstructions?{primaryInstructionIds}:{}), instructionGroups:active.filter(group=>group.id.startsWith("instruction:")),
     historyGroupIds: built.historyGroupIds.filter(groupId=>!groupId.startsWith("channel:")),
     ...(task.channel_binding?{channelHistoryGroupIds:built.historyGroupIds}:{}), estimatedTokens: built.estimatedTokens,...(sharedProtocol?{compactionForecast:forecast,backgroundCompactionRequested:forecast.requested&&totalGroups>2}:{}), memoryExpiresAt: memoryFence?.expiresAt, evidenceIds: [...new Set([...built.sourceReferences.flatMap(reference=>reference.evidenceId?[reference.evidenceId]:[]),...active.flatMap(group=>group.evidenceIds??[])])] }, JSON.stringify(built.sourceReferences),
     memoryFence?.id ?? null, memoryFence?.generation ?? null, task.history_cutoff ?? "0"])).rows[0];
   const saved = row ? undefined : (await pool.query("SELECT * FROM agents_platform.context_snapshots WHERE id=$1", [id])).rows[0];
   phase.mark("insert");
-  const snapshot: Snapshot = saved ? { id, ...saved.payload, digest: saved.digest, historyCutoff: saved.history_cutoff,
+  const savedPayload=saved?await hydrateCatalogOrFail(saved.payload,id,taskId,pool):undefined;
+  const snapshot: Snapshot = saved && savedPayload ? { id, ...savedPayload, digest: saved.digest, historyCutoff: saved.history_cutoff,
     memoryFence: saved.memory_scope_id ? { id: saved.memory_scope_id, generation: Number(saved.memory_generation), expiresAt: saved.payload.memoryExpiresAt } : undefined } :
     { id, instructionHead:preparedInstructionHead,...(catalog?{catalog}:{}), ...(modernInstructions?{primaryInstructionIds}:{}), messages: built.messages, tools: modelTools, digest: built.digest, estimatedTokens: built.estimatedTokens, memoryFence, historyCutoff: task.history_cutoff ?? "0" };
   if (options.evidence) {
