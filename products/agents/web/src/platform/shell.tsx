@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiError, message, type Session } from "./api";
 import { AppSwitcher, buildKasitekAppLinks } from "@kasitek-labs/ui/app-switcher";
 import { InboxAlertsButton, InboxAlertsDialog, useInboxAlerts } from "./inbox-alerts";
+import { AssistantLauncher } from "./assistant-launcher";
 
 type Workspace = { organizationId: string; session: Session; createWorkspace: () => void; selectWorkspace: (id: string) => void; logout: () => Promise<void> };
 const WorkspaceContext = createContext<Workspace | null>(null);
@@ -80,6 +81,7 @@ export function WorkspaceShell() {
     <main id="workspace-content" tabIndex={-1} className={`workspace-main ${location.pathname.startsWith("/app/agents") ? "workspace-main-agents" : ""}`}>
       {error ? <div className="workspace-page space-y-3"><ErrorMessage value={error} /><Button variant="outline" onClick={() => void load()}>Try again</Button></div> : !session ? <div className="workspace-page"><Loading /></div> : !organizationId ? <section className="workspace-page space-y-4"><h1 className="text-2xl font-semibold">No workspace access</h1><Button variant="outline" onClick={() => void load()}>Try again</Button></section> : <WorkspaceContext.Provider value={{ organizationId, session, createWorkspace: () => setWorkspaceOpen(true), selectWorkspace, logout }}><div className="workspace-outlet" key={`${session.account.id}.${organizationId}`}><Outlet /></div></WorkspaceContext.Provider>}
     </main>
+    <AssistantLauncher organizationId={organizationId} accountId={session?.account.id ?? ""} hidden={navigationOpen || workspaceOpen || alertsOpen || !organizationId || !session} />
     <InboxAlertsDialog key={`${organizationId}.${session?.account.id}`} open={alertsOpen} onOpenChange={setAlertsOpen} controller={alerts} restoreFocus={() => { if (alertsTrigger.current?.isConnected) alertsTrigger.current.focus(); else navigationTrigger.current?.focus(); }} />
     <Dialog open={workspaceOpen} onOpenChange={setWorkspaceOpen}><DialogContent><DialogHeader><DialogTitle>Create workspace</DialogTitle><DialogDescription>Name your workspace.</DialogDescription></DialogHeader><form onSubmit={event => void createWorkspace(event)} className="space-y-4"><label className="block space-y-2 text-sm">Workspace name<Input required maxLength={120} value={name} onChange={event => setName(event.target.value)} autoFocus /></label><Button type="submit" disabled={busy || !name.trim()}>{busy ? "Creating…" : "Create workspace"}</Button></form></DialogContent></Dialog>
   </div>;

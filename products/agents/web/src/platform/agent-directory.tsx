@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { PiRobot as Bot, PiCaretLeft as ChevronLeft, PiClockCounterClockwise as History, PiPlus as Plus, PiMagnifyingGlass as Search, PiChatCircle, PiPulse, PiSlidersHorizontal } from "react-icons/pi";
 import { toast } from "sonner";
@@ -22,6 +22,8 @@ export function AgentDirectory() {
   const location = useLocation(), navigate = useNavigate();
   const path = organizationPath(organizationId);
   const [agents, setAgents] = useState<AgentSummary[] | null>(null), [agentCursor, setAgentCursor] = useState<string | null>(null);
+  const [assistantAgentId, setAssistantAgentId] = useState<string | null>(null);
+  const [assistantReady, setAssistantReady] = useState(false);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]), [conversationCursor, setConversationCursor] = useState<string | null>(null);
   const [error, setError] = useState(""), [historyError, setHistoryError] = useState(""), [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
@@ -45,6 +47,15 @@ export function AgentDirectory() {
   }, [agentId, navigate, organizationId, session.account.id]);
   useEffect(() => { let live = true; setAgents(null); setAgentCursor(null); setError(""); api<Page<"agents", AgentSummary>>(`${path}/agents/summaries?q=${encodeURIComponent(query)}&status=${encodeURIComponent(filter)}`).then(result => { if (live) { setAgents(result.agents); setAgentCursor(result.nextCursor); } }).catch(e => { if (live) setError(message(e)); }); return () => { live = false; }; }, [path, generation, query, filter]);
   useEffect(() => {
+    let live = true;
+    setAssistantReady(false);
+    // The workspace assistant is a system helper, not a customer agent. Keep it out of the agent catalogue.
+    api<{ agent: { id: string } | null }>(`${path}/assistant`)
+      .then(result => { if (live) { setAssistantAgentId(result.agent?.id ?? null); setAssistantReady(true); } })
+      .catch(() => { if (live) setAssistantReady(true); });
+    return () => { live = false; };
+  }, [path, generation]);
+  useEffect(() => {
     setConversations([]); setConversationCursor(null); setHistoryError("");
     if (!agentId) return;
     let live = true; setHistoryLoading(true);
@@ -53,6 +64,10 @@ export function AgentDirectory() {
   }, [path, agentId, generation]);
   async function moreAgents() { if (!agentCursor || busy) return; setBusy(true); const captured = scope.current; try { const result = await api<Page<"agents", AgentSummary>>(`${path}/agents/summaries?q=${encodeURIComponent(query)}&status=${encodeURIComponent(filter)}&cursor=${encodeURIComponent(agentCursor)}`); if (scope.current.path !== captured.path || scope.current.generation !== captured.generation || scope.current.query !== captured.query || scope.current.filter !== captured.filter) return; setAgents(current => [...(current ?? []), ...result.agents]); setAgentCursor(result.nextCursor); } catch (e) { setError(message(e)); } finally { setBusy(false); } }
   async function moreConversations() { if (!conversationCursor || !agentId || busy) return; setBusy(true); const captured = scope.current; try { const result = await api<Page<"conversations", ConversationSummary>>(`${path}/conversations?agentId=${encodeURIComponent(agentId)}&cursor=${encodeURIComponent(conversationCursor)}`); if (scope.current.path !== captured.path || scope.current.agentId !== captured.agentId || scope.current.generation !== captured.generation) return; setConversations(current => [...current, ...result.conversations]); setConversationCursor(result.nextCursor); } catch (e) { setHistoryError(message(e)); } finally { setBusy(false); } }
+  const visibleAgents = useMemo(
+    () => (assistantReady ? agents?.filter(agent => agent.id !== assistantAgentId) ?? null : null),
+    [agents, assistantReady, assistantAgentId],
+  );
   const activeSection = new URLSearchParams(location.search).get("section") ?? "chat";
   const configMode = Boolean(agentId && ["configuration", "tools", "skills", "publish"].includes(activeSection));
   const navigateSection = (value: string) => navigate({ pathname: location.pathname, search: value === "chat" ? "" : `?section=${value}` }, { replace: true });
@@ -65,11 +80,11 @@ export function AgentDirectory() {
     <div className="agent-directory-heading"><h2>Agents</h2><Button aria-label="Create agent" title="Create agent" variant="ghost" size="icon" onClick={() => setOpen(true)}><Plus size={17} /></Button></div>
     <label className="agent-search"><Search size={15} /><Input aria-label="Search agents" placeholder="Search agents" value={search} onChange={event => setSearch(event.target.value)} /></label>
     <ErrorMessage value={error} />
-    {!agents && !error ? <Loading /> : <nav aria-label="Agent directory" className="agent-roster">{agents?.map(agent => <Link key={agent.id} to={`/app/agents/${agent.id}`} onClick={() => setDirectoryOpen(false)} aria-current={agentId === agent.id ? "page" : undefined} className={`agent-roster-item ${agentId === agent.id ? "is-active" : ""}`}><AgentAvatar id={agent.avatar} size={30} /><span className="min-w-0"><span className="block truncate font-medium">{agent.name}</span></span></Link>)}{agents?.length === 0 && !query ? <div className="px-3 py-6 text-sm text-muted-foreground">No agents yet</div> : agents?.length === 0 && query ? <p className="px-3 py-4 text-sm text-muted-foreground">No matching agents</p> : null}</nav>}
+    {!visibleAgents && !error ? <Loading /> : <nav aria-label="Agent directory" className="agent-roster">{visibleAgents?.map(agent => <Link key={agent.id} to={`/app/agents/${agent.id}`} onClick={() => setDirectoryOpen(false)} aria-current={agentId === agent.id ? "page" : undefined} className={`agent-roster-item ${agentId === agent.id ? "is-active" : ""}`}><AgentAvatar id={agent.avatar} size={30} /><span className="min-w-0"><span className="block truncate font-medium">{agent.name}</span></span></Link>)}{visibleAgents?.length === 0 && !query ? <div className="px-3 py-6 text-sm text-muted-foreground">No agents yet</div> : visibleAgents?.length === 0 && query ? <p className="px-3 py-4 text-sm text-muted-foreground">No matching agents</p> : null}</nav>}
     {agentCursor ? <Button variant="ghost" size="sm" onClick={() => void moreAgents()} disabled={busy}>Load more agents</Button> : null}
     {agentId ? <section className="conversation-directory"><div className="agent-directory-heading"><h2><History size={14} />Conversations</h2><Button aria-label="Start new conversation" title="New chat" size="icon" variant="ghost" onClick={newChat}><Plus size={16} /></Button></div><ErrorMessage value={historyError} />{historyLoading ? <div role="status" className="p-3 text-xs text-muted-foreground">Loading conversations…</div> : conversations.length ? <nav aria-label="Conversation history">{conversations.map(conversation => <Link key={conversation.id} to={`/app/agents/${agentId}/conversations/${conversation.id}`} onClick={() => setDirectoryOpen(false)} aria-current={conversationId === conversation.id ? "page" : undefined} className={`conversation-link ${conversationId === conversation.id ? "is-active" : ""}`}><span className="truncate">{conversation.title}</span></Link>)}</nav> : !historyError ? <p className="px-3 py-4 text-xs text-muted-foreground">No conversations yet</p> : null}{conversationCursor ? <Button size="sm" variant="ghost" onClick={() => void moreConversations()} disabled={busy}>Older conversations</Button> : null}</section> : null}
   </>;
-  return <DirectoryContext.Provider value={{ refresh, newChat, chatGeneration }}>{agentId ? <div className={`agent-workspace ${configMode ? "is-configuring" : ""}`}><aside className="agent-directory">{configMode ? configurationDirectory : directory}</aside><div className="agent-content"><div className="agent-mobile-toolbar"><Button ref={directoryTrigger} variant="ghost" size="sm" onClick={() => setDirectoryOpen(true)}><ChevronLeft size={16} />Agents & history</Button></div><div className="agent-route" key={agentId}><Outlet key={agentId} /></div></div></div> : <AgentLanding agents={agents} search={search} onSearch={setSearch} filter={filter} onFilter={setFilter} error={error} onRetry={refresh} hasMore={Boolean(agentCursor)} onMore={() => void moreAgents()} busy={busy} onCreate={() => setOpen(true)} />}
+  return <DirectoryContext.Provider value={{ refresh, newChat, chatGeneration }}>{agentId ? <div className={`agent-workspace ${configMode ? "is-configuring" : ""}`}><aside className="agent-directory">{configMode ? configurationDirectory : directory}</aside><div className="agent-content"><div className="agent-mobile-toolbar"><Button ref={directoryTrigger} variant="ghost" size="sm" onClick={() => setDirectoryOpen(true)}><ChevronLeft size={16} />Agents & history</Button></div><div className="agent-route" key={agentId}><Outlet key={agentId} /></div></div></div> : <AgentLanding agents={visibleAgents} search={search} onSearch={setSearch} filter={filter} onFilter={setFilter} error={error} onRetry={refresh} hasMore={Boolean(agentCursor)} onMore={() => void moreAgents()} busy={busy} onCreate={() => setOpen(true)} />}
     <Dialog open={directoryOpen} onOpenChange={setDirectoryOpen}><DialogContent className="agent-directory-drawer" onCloseAutoFocus={event => { event.preventDefault(); directoryTrigger.current?.focus(); }}><DialogHeader><DialogTitle>Agents & history</DialogTitle><DialogDescription className="sr-only">Choose an agent or conversation.</DialogDescription></DialogHeader>{directory}</DialogContent></Dialog>
     <GuidedAgentCreation key={`${session.account.id}.${organizationId}`} open={open || resumeSetup} onOpenChange={value => { setOpen(value); if (!value && resumeSetup) navigate(`/app/agents/${agentId}`,{replace:true}); }} organizationId={organizationId} resumeAgentId={resumeSetup ? agentId : undefined} onCreated={id => { refresh(); setOpen(false); setDirectoryOpen(false); navigate(`/app/agents/${id}`); }} onDraftCreated={refresh} />
   </DirectoryContext.Provider>;
