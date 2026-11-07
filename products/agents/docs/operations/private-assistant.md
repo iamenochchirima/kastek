@@ -5,7 +5,7 @@ Owner: Agents engineering. Reviewed: 2026-10-30.
 The organization assistant is an ordinary business agent. Schema094 records its lifecycle identity;
 it adds no authorization. New workspaces create one Assistant draft in the same transaction as
 organization membership. Repeated setup preserves customizations. Deletion leaves the marker;
-an owner explicitly restores the same definition in `/app/assistant`. Restoration does not revive
+an owner explicitly restores the same definition from the assistant panel setup. Restoration does not revive
 revoked grants, channels or automations. Existing organizations use **Set up assistant** explicitly.
 
 Configure a model, instructions, approved knowledge and permitted tools through the normal editor.

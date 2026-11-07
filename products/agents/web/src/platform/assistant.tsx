@@ -3,10 +3,10 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
-import { api, message, organizationPath, type Agent, type Version } from "./api";
+import { api, message, organizationPath } from "./api";
 import { ErrorMessage, Loading, useWorkspace } from "./shell";
 
-type Assistant = { state: "absent" | "draft" | "configured" | "deleted"; agent: Agent | null; version: Version | null };
+export type Assistant = { state: "absent" | "draft" | "configured" | "deleted"; agent: { id: string; name: string } | null };
 type MemberLink = { id: string; connectionId: string; kind: "telegram" | "whatsapp"; state: "challenge" | "pending" | "active" | "revoked" | "expired"; senderLabel: string | null; expiresAt: string | null; conversationId: string | null };
 type MemberDelivery = { id: string; linkId: string; taskId: string | null; state: string; reason: string | null; segment: number; updatedAt: string };
 type MemberChannels = { enabled?: boolean; links: MemberLink[]; deliveries?: MemberDelivery[]; connections: { id: string; kind: "telegram" | "whatsapp"; label: string }[] };
@@ -23,46 +23,7 @@ function deliveryLabel(deliveries: MemberDelivery[], linkId: string) {
   return null;
 }
 
-export function AssistantPage() {
-  const { organizationId, session } = useWorkspace();
-  const owner = session.organizations.find(organization => organization.id === organizationId)?.role === "owner";
-  const path = organizationPath(organizationId);
-  const [assistant, setAssistant] = useState<Assistant | null>(null);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [generation, setGeneration] = useState(0);
-  useEffect(() => {
-    let live = true;
-    api<Assistant>(`${path}/assistant`).then(result => { if (live) { setAssistant(result); setError(""); } }).catch(e => { if (live) setError(message(e)); });
-    return () => { live = false; };
-  }, [path, generation]);
-  async function repair() {
-    setBusy(true);
-    try { setAssistant(await api<Assistant>(`${path}/assistant/repair`, {})); toast.success("Assistant ready to configure"); }
-    catch (e) { toast.error(message(e)); }
-    finally { setBusy(false); }
-  }
-  const agentPath = assistant?.agent ? `/app/agents/${encodeURIComponent(assistant.agent.id)}` : null;
-  return <div className="workspace-page space-y-8">
-    <header><h1 className="text-2xl font-semibold">Assistant</h1></header>
-    <ErrorMessage value={error} />
-    {error ? <Button variant="outline" onClick={() => setGeneration(value => value + 1)}>Retry</Button> : !assistant ? <Loading /> : <>
-      <section aria-label="Organization assistant" className="space-y-4">
-        <h2 className="text-lg font-medium">{assistant.agent?.name ?? (assistant.state === "deleted" ? "Assistant removed" : "No assistant yet")}</h2>
-        {assistant.state === "draft" ? <p className="text-sm text-muted-foreground">Configuration required</p> : null}
-        <div className="flex flex-wrap gap-2">
-          {agentPath ? <>
-            {assistant.state === "configured" ? <Button asChild><Link to={agentPath}>Open chat</Link></Button> : null}
-            {owner ? <Button asChild variant={assistant.state === "draft" ? "default" : "outline"}><Link to={`${agentPath}?section=configuration`}>Configure</Link></Button> : assistant.state === "draft" ? <p className="text-sm text-muted-foreground">Ask an owner to configure the assistant.</p> : null}
-          </> : owner ? <Button disabled={busy} onClick={() => void repair()}>{busy ? "Preparing…" : assistant.state === "deleted" ? "Restore assistant" : "Set up assistant"}</Button> : <p className="text-sm text-muted-foreground">Ask an owner to set up the assistant.</p>}
-        </div>
-      </section>
-      <MemberChannelsPanel agentPath={agentPath} ready={assistant.state === "configured"} />
-    </>}
-  </div>;
-}
-
-function MemberChannelsPanel({ agentPath, ready }: { agentPath: string | null; ready: boolean }) {
+export function MemberChannelsPanel({ agentPath, ready }: { agentPath: string | null; ready: boolean }) {
   const { organizationId, session } = useWorkspace();
   const { confirm } = useConfirmationDialog();
   const path = `${organizationPath(organizationId)}/member-channels`;

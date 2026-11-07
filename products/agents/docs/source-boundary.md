@@ -43,7 +43,7 @@ focused local checks establish production rollout or live-model acceptance.
 
 ## Private organization assistant
 
-`/app/assistant` opens an ordinary organization business agent and its current member's private
+The assistant panel opens an ordinary organization business agent and its current member's private
 phone links. Schema094 provisions one customizable draft for new workspaces, preserves deletion
 tombstones and offers explicit owner restore. Existing organizations opt in through setup.
 The normal editor can create a Content specialist and bind up to two permitted pinned business

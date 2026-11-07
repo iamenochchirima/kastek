@@ -3,16 +3,17 @@ import { createPortal } from "react-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AiChat02Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { Link } from "react-router-dom";
-import { PiArchive, PiArrowCounterClockwise, PiChatCircle, PiGear, PiMagnifyingGlass, PiPlus, PiPushPin, PiPushPinFill } from "react-icons/pi";
+import { PiArchive, PiArrowCounterClockwise, PiChatCircle, PiGear, PiLinkSimple, PiMagnifyingGlass, PiPlus, PiPushPin, PiPushPinFill } from "react-icons/pi";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, message, organizationPath, type Agent, type Configuration, type ConversationSummary } from "./api";
 import { ChatModelPicker } from "./agent-model";
 import { AgentMemory } from "./agent-memory";
+import { MemberChannelsPanel, type Assistant } from "./assistant";
 import { Chat } from "./chat";
 
-type Assistant = { state: "absent" | "draft" | "configured" | "deleted"; agent: Agent | null };
-type Tab = "chat" | "history" | "settings";
+type Tab = "chat" | "history" | "settings" | "channels";
 
 const MIN_PANEL_WIDTH = 340;
 const MAX_PANEL_WIDTH = 680;
@@ -38,9 +39,10 @@ function readPins(storageKey: string): string[] {
  * Workspace assistant surface: chat, conversation history and settings.
  * The assistant is a system helper, so it lives outside the agent catalogue and gets its own surface.
  */
-export function AssistantLauncher({ organizationId, accountId, open, onOpenChange, hidden = false }: {
+export function AssistantLauncher({ organizationId, accountId, isOwner, open, onOpenChange, hidden = false }: {
   organizationId: string;
   accountId: string;
+  isOwner: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   hidden?: boolean;
@@ -103,6 +105,7 @@ export function AssistantLauncher({ organizationId, accountId, open, onOpenChang
 
   const agentId = assistant?.agent?.id ?? null;
   const ready = assistant?.state === "configured" && Boolean(agentId);
+  const agentPath = agentId ? `/app/agents/${encodeURIComponent(agentId)}` : null;
 
   // Another shell dialog takes over the viewport; close instead of leaving an orphaned panel.
   useEffect(() => {
@@ -161,7 +164,7 @@ export function AssistantLauncher({ organizationId, accountId, open, onOpenChang
             </Button>
           </header>
           <div role="tablist" aria-label="Assistant views" className="flex shrink-0 gap-1 border-b border-border px-3 py-2">
-            {([["chat", "Chat", PiChatCircle], ["history", "History", PiMagnifyingGlass], ["settings", "Settings", PiGear]] as const).map(([id, label, Icon]) => (
+            {([["chat", "Chat", PiChatCircle], ["history", "History", PiMagnifyingGlass], ["settings", "Settings", PiGear], ["channels", "Channels", PiLinkSimple]] as const).map(([id, label, Icon]) => (
               <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
                 className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm ${tab === id ? "bg-secondary font-medium" : "text-muted-foreground hover:bg-secondary/60"}`}>
                 <Icon size={16} aria-hidden="true" />{label}
@@ -179,13 +182,16 @@ export function AssistantLauncher({ organizationId, accountId, open, onOpenChang
                 initialConversationId={activeConversationId ?? undefined}
                 onConversationReady={id => setActiveConversationId(id)}
                 cancellable
-              /> : loaded ? <AssistantSetupPrompt state={assistant?.state ?? null} onClose={close} /> : <p className="p-6 text-sm text-muted-foreground" role="status">Loading assistant…</p>
+              /> : loaded ? <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} /> : <p className="p-6 text-sm text-muted-foreground" role="status">Loading assistant…</p>
             ) : null}
             {tab === "history" ? (
-              ready ? <AssistantHistory organizationId={organizationId} accountId={accountId} activeConversationId={activeConversationId} onOpen={openChat} /> : loaded ? <AssistantSetupPrompt state={assistant?.state ?? null} onClose={close} /> : <p className="p-6 text-sm text-muted-foreground" role="status">Loading assistant…</p>
+              ready ? <AssistantHistory organizationId={organizationId} accountId={accountId} activeConversationId={activeConversationId} onOpen={openChat} /> : loaded ? <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} /> : <p className="p-6 text-sm text-muted-foreground" role="status">Loading assistant…</p>
             ) : null}
             {tab === "settings" ? (
-              <AssistantSettings organizationId={organizationId} assistant={assistant} loaded={loaded} onClose={close} />
+              <AssistantSettings organizationId={organizationId} assistant={assistant} loaded={loaded} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} />
+            ) : null}
+            {tab === "channels" ? (
+              loaded ? <div className="min-h-0 flex-1 overflow-y-auto p-4"><MemberChannelsPanel agentPath={agentPath} ready={ready} /></div> : <p className="p-6 text-sm text-muted-foreground" role="status">Loading assistant…</p>
             ) : null}
           </div>
         </div>
@@ -195,11 +201,36 @@ export function AssistantLauncher({ organizationId, accountId, open, onOpenChang
   </>;
 }
 
-function AssistantSetupPrompt({ state, onClose }: { state: Assistant["state"] | null; onClose: () => void }) {
+function AssistantSetupSection({ organizationId, assistant, isOwner, onUpdate, onNavigate }: {
+  organizationId: string;
+  assistant: Assistant | null;
+  isOwner: boolean;
+  onUpdate: (assistant: Assistant) => void;
+  onNavigate: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function repair() {
+    if (busy) return;
+    setBusy(true); setError("");
+    try {
+      const result = await api<Assistant>(`${organizationPath(organizationId)}/assistant/repair`, {});
+      onUpdate(result);
+      toast.success("Assistant ready to configure");
+    } catch (cause) { setError(message(cause)); }
+    finally { setBusy(false); }
+  }
+  const agentPath = assistant?.agent ? `/app/agents/${encodeURIComponent(assistant.agent.id)}` : null;
+  if (!assistant) return <p className="p-6 text-sm text-muted-foreground" role="status">Loading assistant…</p>;
   return <div className="space-y-3 p-6 text-sm">
-    <p className="font-medium">{state === "deleted" ? "Assistant removed" : "Assistant needs setup"}</p>
-    <p className="text-muted-foreground">{state === "deleted" ? "Restore the assistant to start chatting." : "Configure the assistant before chatting."}</p>
-    <Button asChild size="sm"><Link to="/app/assistant" onClick={onClose}>Open setup</Link></Button>
+    <p className="font-medium">{assistant.state === "deleted" ? "Assistant removed" : assistant.state === "draft" ? "Configuration required" : "Assistant needs setup"}</p>
+    {assistant.state === "draft" ? <p className="text-muted-foreground">Configure the assistant before chatting.</p> : null}
+    {error ? <p role="alert" className="text-destructive">{error}</p> : null}
+    <div className="flex flex-wrap gap-2">
+      {agentPath ? <>
+        {assistant.state === "configured" ? null : isOwner ? <Button asChild size="sm"><Link to={`${agentPath}?section=configuration`} onClick={onNavigate}>Configure</Link></Button> : <p className="text-muted-foreground">Ask an owner to configure the assistant.</p>}
+      </> : isOwner ? <Button size="sm" disabled={busy} onClick={() => void repair()}>{busy ? "Preparing…" : assistant.state === "deleted" ? "Restore assistant" : "Set up assistant"}</Button> : <p className="text-muted-foreground">Ask an owner to set up the assistant.</p>}
+    </div>
   </div>;
 }
 
@@ -320,11 +351,13 @@ function AssistantHistory({ organizationId, accountId, activeConversationId, onO
   </div>;
 }
 
-function AssistantSettings({ organizationId, assistant, loaded, onClose }: {
+function AssistantSettings({ organizationId, assistant, loaded, isOwner, onUpdate, onNavigate }: {
   organizationId: string;
   assistant: Assistant | null;
   loaded: boolean;
-  onClose: () => void;
+  isOwner: boolean;
+  onUpdate: (assistant: Assistant) => void;
+  onNavigate: () => void;
 }) {
   const [agent, setAgent] = useState<Agent | null>(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -359,7 +392,11 @@ function AssistantSettings({ organizationId, assistant, loaded, onClose }: {
   }
 
   if (!loaded || !assistant?.agent) {
-    return loaded ? <AssistantSetupPrompt state={assistant?.state ?? null} onClose={onClose} /> : <p className="p-6 text-sm text-muted-foreground" role="status">Loading settings…</p>;
+    return <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={onUpdate} onNavigate={onNavigate} />;
+  }
+  const settingsAgent = agent?.id === assistant.agent.id ? agent : null;
+  if (!settingsAgent) {
+    return <p className="p-6 text-sm text-muted-foreground" role="status">Loading settings…</p>;
   }
   return <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
     <section aria-label="Assistant profile" className="flex items-center gap-3">
@@ -374,21 +411,20 @@ function AssistantSettings({ organizationId, assistant, loaded, onClose }: {
     <section aria-label="Model" className="space-y-2">
       <h3 className="text-sm font-medium">Model</h3>
       {!settingsLoaded ? <p role="status" className="text-sm text-muted-foreground">Loading model…</p> :
-        agent ? <ChatModelPicker organizationId={organizationId} agentId={agent.id} configuration={agent.draft} dirty={false} saving={saving} onSelect={saveModel} /> :
-        <p className="text-sm text-muted-foreground">Model settings are unavailable.</p>}
+        <ChatModelPicker organizationId={organizationId} agentId={settingsAgent.id} configuration={settingsAgent.draft} dirty={false} saving={saving} onSelect={saveModel} />}
       {modelError ? <p role="alert" className="text-sm text-destructive">{modelError}</p> : null}
     </section>
     <section aria-label="Memory" className="space-y-2">
       <h3 className="text-sm font-medium">Memory</h3>
-      {agent ? <div className="flex items-center gap-2">
-        <AgentMemory agentId={agent.id} enabled={agent.draft.memory?.enabled ?? false} />
-        <span className="text-xs text-muted-foreground">{agent.draft.memory?.enabled ? "Memory enabled" : "Memory disabled"}</span>
-      </div> : <p className="text-sm text-muted-foreground">Memory settings are unavailable.</p>}
+      <div className="flex items-center gap-2">
+        <AgentMemory agentId={settingsAgent.id} enabled={settingsAgent.draft.memory?.enabled ?? false} />
+        <span className="text-xs text-muted-foreground">{settingsAgent.draft.memory?.enabled ? "Memory enabled" : "Memory disabled"}</span>
+      </div>
     </section>
     <section aria-label="More setup" className="space-y-2 border-t border-border pt-4">
       <h3 className="text-sm font-medium">More setup</h3>
-      <p className="text-xs text-muted-foreground">Instructions, knowledge, tools, channels and private messaging live in full setup.</p>
-      <Button asChild type="button" size="sm" variant="outline"><Link to="/app/assistant" onClick={onClose}>Open full setup</Link></Button>
+      <p className="text-xs text-muted-foreground">Instructions, knowledge, tools and channels live in the agent editor.</p>
+      {isOwner ? <Button asChild type="button" size="sm" variant="outline"><Link to={`/app/agents/${encodeURIComponent(settingsAgent.id)}?section=configuration`} onClick={onNavigate}>Configure in editor</Link></Button> : null}
     </section>
   </div>;
 }

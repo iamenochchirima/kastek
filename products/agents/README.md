@@ -239,7 +239,8 @@ responsibilities.
 The conditional appointment step binds an authorized Google or Microsoft calendar policy.
 Every runnable business agent opens Chat,
 with Activity and Configure tabs.
-The organization Assistant opens at `/app/assistant`. Configure can explicitly enable adaptive
+The organization Assistant opens from the sidebar Assistant entry as a chat, history, settings
+and channels panel. Configure can explicitly enable adaptive
 coordination and select published specialists. Chat and task activity show model-authored work
 progress alongside actual child task states. Active root tasks accept queued instructions;
 child tasks link to their own exact-effect reviews. The controlled API/runtime and responsive

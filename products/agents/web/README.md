@@ -48,8 +48,7 @@ opaque HTTP-only product session, never a service or model credential.
 - `/login`: provider sign-in.
 - `/app/overview`: customer conversation activity, current handoffs, enquiries and channel totals for the selected workspace.
 - `/app/agents`: searchable agent directory with configuration filters, selected-agent details, chat and configuration links, and guided customer-service setup.
-- `/app/assistant`: workspace assistant home for setup, owner configuration and private Telegram/WhatsApp member links. The assistant is a system helper provisioned per workspace; it is excluded from the agent directory and catalogue and is reached from the floating assistant launcher instead. Assistant replies address the signed-in member by name when their account provides one.
-- `/app/agents/:agentId`: chat, activity and configuration, including tools, skills and per-agent channel connections.
+- `/app/agents/:agentId`: chat, activity and configuration, including tools, skills and per-agent channel connections. The workspace assistant is configured here after setup; it is excluded from the agent directory and catalogue and is reached from the floating assistant launcher instead. Assistant replies address the signed-in member by name when their account provides one.
 - In an agent's General configuration, Delete agent stops its deployments and automations and retains conversation history and customer records. Deletion waits for active tasks and message delivery to finish.
 - `/app/agents/:agentId/conversations/:conversationId`: authorized conversation history and chat.
 - `/app/inbox`: customer conversations, assignment, human replies and handoff.

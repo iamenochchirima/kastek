@@ -584,7 +584,7 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     const login=httpServer((request,response)=>{
       if(request.url!=="/__fixture/login"){response.writeHead(404).end();return;}
       response.setHeader("Set-Cookie",`${f.cookie}; Path=/; HttpOnly; SameSite=Lax`);
-      response.writeHead(302,{location:`${origin}/app/assistant`});response.end();
+      response.writeHead(302,{location:`${origin}/app/overview`});response.end();
     });
     await new Promise<void>(resolve=>login.listen(0,"127.0.0.1",resolve));
     const loginPort=(login.address() as {port:number}).port;
@@ -673,9 +673,12 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
       await context.addCookies([{ name: "agents_session", value: f.cookie.slice("agents_session=".length), url: origin }]);
       page = await context.newPage();
       await mkdir(artifact, { recursive: true });
-      await page.goto(`${origin}/app/assistant`);
-      await browserExpect(page.getByRole("heading", { name: "Assistant", exact: true })).toBeVisible();
-      await page.getByRole("link", { name: "Configure", exact: true }).click();
+      await page.goto(`${origin}/app/overview`);
+      await page.getByRole("button", { name: "Assistant", exact: true }).click();
+      const panel = page.getByRole("dialog", { name: "Assistant" });
+      await browserExpect(panel).toBeVisible();
+      await panel.getByRole("tab", { name: "Settings" }).click();
+      await panel.getByRole("link", { name: "Configure in editor", exact: true }).click();
       const specialists = page.getByRole("region", { name: "Specialists", exact: true });
       await browserExpect(specialists.getByText("Content · v1", { exact: true })).toBeVisible();
       await specialists.getByRole("button", { name: "Remove", exact: true }).click();
@@ -694,17 +697,22 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
         await specialists.screenshot({ path: resolve(artifact, `specialists-${width}-${theme}.png`), animations: "disabled" });
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       }
-      await page.goto(`${origin}/app/assistant`);
-      await page.getByRole("link", { name: "Open chat", exact: true }).click();
-      await page.getByRole("textbox", { name: "Message", exact: true }).fill("Draft a launch post");
+      await page.goto(`${origin}/app/overview`);
+      await page.getByRole("button", { name: "Assistant", exact: true }).click();
+      const chat = page.getByRole("dialog", { name: "Assistant" });
+      await chat.getByRole("textbox", { name: "Message", exact: true }).fill("Draft a launch post");
       const admitted = page.waitForResponse((response: any) => response.url().endsWith("/tasks") && response.request().method() === "POST" && response.status() === 202);
-      await page.getByRole("button", { name: "Send message", exact: true }).click();
+      await chat.getByRole("button", { name: "Send message", exact: true }).click();
       const task = (await (await admitted).json()).task;
       expect(await finish(f, task.id)).toMatchObject({ state: "completed", output: "DRAFT: A concise launch post." });
-      await browserExpect(page.getByText("DRAFT: A concise launch post.", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+      await browserExpect(chat.getByText("DRAFT: A concise launch post.", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
       expect((await pool.query("SELECT version_id,state FROM agents_platform.tasks WHERE parent_task_id=$1", [task.id])).rows).toEqual([{ version_id: f.specialist.id, state: "completed" }]);
       await page.reload();
-      await browserExpect(page.getByText("DRAFT: A concise launch post.", { exact: true }).first()).toBeVisible();
+      await page.getByRole("button", { name: "Assistant", exact: true }).click();
+      const resumed = page.getByRole("dialog", { name: "Assistant" });
+      await resumed.getByRole("tab", { name: "History" }).click();
+      await resumed.getByText("Draft a launch post", { exact: true }).click();
+      await browserExpect(resumed.getByText("DRAFT: A concise launch post.", { exact: true }).first()).toBeVisible();
       await page.screenshot({ path: resolve(artifact, "persisted-private-draft-mobile-dark.png"), fullPage: true, animations: "disabled" });
       const channels = new ChannelStore(pool, new ConnectionVault("fixture", { fixture: randomBytes(32).toString("base64") }));
       const assetId = String(randomInt(1_000_000, 1_000_000_000));
@@ -712,27 +720,30 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
         state: "active", credentials: { botToken: `${assetId}:browser-controlled-fixture`, webhookSecret: "browser-controlled-secret" } });
       const inbox = new InboxStore(pool, { admit: async () => { throw Error("Private pairing entered customer admission"); }, readableOutput: async (_db, _id, text) => text, cancelRoot: async () => undefined });
       const delivery = new ChannelDelivery(pool, channels, inbox, { assertPolicy: async () => undefined, context: () => { throw Error("Browser pairing must not send provider messages"); } });
-      await page.goto(`${origin}/app/assistant`);
+      await page.goto(`${origin}/app/overview`);
+      await page.getByRole("button", { name: "Assistant", exact: true }).click();
+      const messaging = page.getByRole("dialog", { name: "Assistant" });
+      await messaging.getByRole("tab", { name: "Channels" }).click();
       const challenged = page.waitForResponse((response: any) => response.url().endsWith("/member-channels/challenges") && response.status() === 200);
-      await page.getByRole("button", { name: "Link Browser pairing bot", exact: true }).click();
+      await messaging.getByRole("button", { name: "Link Browser pairing bot", exact: true }).click();
       const challenge = await (await challenged).json();
-      await browserExpect(page.getByText(`/pair ${challenge.token}`, { exact: true })).toBeVisible();
+      await browserExpect(messaging.getByText(`/pair ${challenge.token}`, { exact: true })).toBeVisible();
       await delivery.persist("telegram", [channelWebhookEventSchema.parse({ kind: "message", assetId, eventId: randomUUID(), externalConversationId: "27710001111",
         senderId: "27710001111", providerMessageId: randomUUID(), occurredAt: new Date().toISOString(), text: `/pair ${challenge.token}`, privateChat: true })]);
-      await browserExpect(page.getByText("27710001111", { exact: true })).toBeVisible();
-      await browserExpect(page.getByText(`/pair ${challenge.token}`, { exact: true })).toHaveCount(0);
-      await page.getByRole("button", { name: "Confirm account", exact: true }).click();
+      await browserExpect(messaging.getByText("27710001111", { exact: true })).toBeVisible();
+      await browserExpect(messaging.getByText(`/pair ${challenge.token}`, { exact: true })).toHaveCount(0);
+      await messaging.getByRole("button", { name: "Confirm account", exact: true }).click();
       await browserExpect(page.getByRole("alertdialog")).toContainText("27710001111 on Telegram");
       expect((await pool.query("SELECT state FROM agents_platform.member_channel_links WHERE id=$1", [challenge.id])).rows).toEqual([{ state: "pending" }]);
       await page.getByRole("alertdialog").getByRole("button", { name: "Confirm account", exact: true }).click();
-      await browserExpect(page.getByText("Telegram · Linked", { exact: true })).toBeVisible();
+      await browserExpect(messaging.getByText("Telegram · Linked", { exact: true })).toBeVisible();
       await page.screenshot({ path: resolve(artifact, "verified-member-link-mobile-dark.png"), fullPage: true, animations: "disabled" });
-      await page.getByRole("button", { name: "Unlink", exact: true }).click();
+      await messaging.getByRole("button", { name: "Unlink", exact: true }).click();
       await page.getByRole("alertdialog").getByRole("button", { name: "Cancel", exact: true }).click();
       expect((await pool.query("SELECT state FROM agents_platform.member_channel_links WHERE id=$1", [challenge.id])).rows).toEqual([{ state: "active" }]);
-      await page.getByRole("button", { name: "Unlink", exact: true }).click();
+      await messaging.getByRole("button", { name: "Unlink", exact: true }).click();
       await page.getByRole("alertdialog").getByRole("button", { name: "Unlink", exact: true }).click();
-      await browserExpect(page.getByText("27710001111", { exact: true })).toHaveCount(0);
+      await browserExpect(messaging.getByText("27710001111", { exact: true })).toHaveCount(0);
       expect((await pool.query("SELECT state FROM agents_platform.member_channel_links WHERE id=$1", [challenge.id])).rows).toEqual([{ state: "revoked" }]);
     } catch (error) {
       if (page && !page.isClosed()) { await page.screenshot({ path: resolve(artifact, "failure.png"), fullPage: true }); console.error((await page.locator("body").innerText()).slice(0, 4000)); }
