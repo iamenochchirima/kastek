@@ -37,3 +37,11 @@ describe("active instruction ledger", () => {
     expect(retained[0]?.messages[0]?.content).toContain("(received 2026-11-07T09:15:00.000Z)");
   });
 });
+
+describe("progress observation scope", () => {
+  it("applies to a non-delegating tool-directed agent", async () => {
+    const { progressObservationApplies } = await import("../src/execution/delegation/progress");
+    expect(progressObservationApplies({ program: { version: "4" } })).toBe(true);
+    expect(progressObservationApplies({ program: { version: "3" } })).toBe(false);
+  });
+});

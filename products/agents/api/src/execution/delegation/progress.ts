@@ -236,10 +236,15 @@ export function repeatedOperationObservation(rows: ProgressOperation[], limit: n
   return null;
 }
 
+/** Progress observation applies to every tool-directed agent, with or without delegation. */
+export function progressObservationApplies(configuration: { program: { version: string } }): boolean {
+  return configuration.program.version === "4";
+}
+
 export async function orchestrationProgressObservation(pool: Db, taskId: string) {
   const execution = await loadExecution(pool, taskId), delegation = execution.configuration.capabilities.delegation;
-  if (execution.configuration.program.version !== "4" || !delegation.enabled) return null;
-  const limit = delegation.policy?.maxStalls ?? 3;
+  if (!progressObservationApplies(execution.configuration)) return null;
+  const limit = delegation.enabled ? delegation.policy?.maxStalls ?? 3 : 3;
   if ((await pool.query("SELECT 1 FROM agents_platform.tasks WHERE parent_task_id=$1 AND state NOT IN ('completed','incomplete','failed','cancelled','refused','uncertain') LIMIT 1", [taskId])).rowCount) return null;
   // Shared-runtime operations pin the instruction revision they observed. Earlier actions
   // cannot establish that the revised request is making no progress.
@@ -293,7 +298,7 @@ export async function decideStallStop(pool:Pool,taskId:string,step:number,observ
 export async function orchestrationStalled(pool: Pool, taskId: string) {
   const execution = await loadExecution(pool, taskId), delegation = execution.configuration.capabilities.delegation;
   if (execution.configuration.program.version !== "4" || !delegation.enabled) return false;
-  const limit = delegation.policy?.maxStalls ?? 3;
+  const limit = delegation.enabled ? delegation.policy?.maxStalls ?? 3 : 3;
   if ((await pool.query("SELECT 1 FROM agents_platform.tasks WHERE parent_task_id=$1 AND state NOT IN ('completed','incomplete','failed','cancelled','refused','uncertain') LIMIT 1", [taskId])).rowCount) return false;
   const rows = (await pool.query("SELECT request_digest FROM agents_platform.operations WHERE task_id=$1 AND kind IN ('tool','delegation','resource') AND name NOT IN ('agents.wait','work.inspect') ORDER BY started_at DESC,id DESC LIMIT $2", [taskId, limit])).rows;
   return rows.length === limit && rows.every(row => row.request_digest === rows[0].request_digest);
