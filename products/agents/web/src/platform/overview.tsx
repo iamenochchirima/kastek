@@ -19,13 +19,14 @@ type OverviewData = {
 const channelNames: Record<string, string> = { website: "Website", whatsapp: "WhatsApp", telegram: "Telegram", facebook: "Messenger", instagram: "Instagram" };
 const stateNames: Record<string, string> = { automation_active: "Automated", handoff_pending: "Needs a person", human_owned: "With support", resolved: "Resolved" };
 const channelIcons = { website: Globe02Icon, whatsapp: WhatsappIcon, telegram: TelegramIcon, facebook: Facebook01Icon, instagram: InstagramIcon };
-const channelIcon = (channel: string) => channelIcons[channel as keyof typeof channelIcons] ?? Chatting01Icon;
-const channelName = (channel: string) => channelNames[channel] ?? channel;
+export const channelIcon = (channel: string) => channelIcons[channel as keyof typeof channelIcons] ?? Chatting01Icon;
+export const channelName = (channel: string) => channelNames[channel] ?? channel;
+export const stateName = (state: string) => stateNames[state] ?? state;
 const dateLabel = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
-const timeLabel = (date: string) => new Date(date).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+export const timeLabel = (date: string) => new Date(date).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 const inboxLink = (id: string) => `/app/inbox?conversation=${encodeURIComponent(id)}`;
 
-function ConversationChart({ points }: { points: OverviewData["conversationActivity"] }) {
+export function ConversationChart({ points }: { points: { date: string; count: number }[] }) {
   if (!points.length) return <p className="overview-empty">No conversations in this period</p>;
   const max = Math.max(1, ...points.map(point => point.count));
   const chartTop = 10, chartBottom = 155, chartLeft = 40, chartRight = 720;

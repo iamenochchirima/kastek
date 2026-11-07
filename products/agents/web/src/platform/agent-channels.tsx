@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
@@ -12,7 +12,7 @@ type Organization = { id: string; name: string };
 type Asset = { connectionId: string; providerAssetId: string; name: string; handle: string | null; permissionRevision: string; inbound: true; outbound: true };
 type OAuthBegin = { operation: "oauth.begin"; flow: "oauth"; authorizationUrl: string } |
   { operation: "oauth.begin"; flow: "embedded_signup"; intentId: string; appId: string; apiVersion: string; configurationId: string; messageOrigins: string[] };
-export function AgentChannels({ organizationId, agentId, owner }: { organizationId: string; agentId: string; owner: boolean }) {
+export function AgentChannels({ organizationId, agentId, owner, hideWebsite = false }: { organizationId: string; agentId: string; owner: boolean; hideWebsite?: boolean }) {
   const [params, setParams] = useSearchParams();
   const { confirm } = useConfirmationDialog();
   const [list, setList] = useState<ChannelList | null>(null);
@@ -196,10 +196,14 @@ export function AgentChannels({ organizationId, agentId, owner }: { organization
         });
       }}>Open Facebook signup</Button></div> : null}
     </section>
-    <section className="agent-config-panel space-y-3">
+    {hideWebsite ? <section className="agent-config-panel space-y-3">
+      <div><h2 className="text-base font-semibold">Website</h2></div>
+      {websites.length ? <ul className="divide-y rounded-md border">{websites.map(site => <li key={site.id} className="space-y-1 p-3"><p className="text-sm font-medium">{site.agentName}</p><p className="break-all text-xs text-muted-foreground">{site.allowedOrigins.join(", ")}</p></li>)}</ul> : <p className="text-sm text-muted-foreground">No website widget connected</p>}
+      <Link className="text-sm underline underline-offset-4" to={`/app/agents/${encodeURIComponent(agentId)}?section=widget`}>{websites.length ? "Customize widget" : "Connect website"}</Link>
+    </section> : <section className="agent-config-panel space-y-3">
       <div><h2 className="text-base font-semibold">Website</h2></div>
       {websites.length ? <WebsiteChannelSettings organizationId={organizationId} agentId={agentId} owner={owner} showConnect={false} /> :
         <WebsiteChannelSettings organizationId={organizationId} agentId={agentId} owner={owner} />}
-    </section>
+    </section>}
   </div>;
 }

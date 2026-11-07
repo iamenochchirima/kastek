@@ -1,21 +1,19 @@
 import "./agent-workspace.css";
 import { CustomerRecordTools } from "./customer-record-tools";
 import { TaskControlTools } from "./task-control-tools";
-import { AgentSetupStatus } from "./agent-setup-status";
 import { defaultSupportHours, normalizeSupportHours, SupportHoursFields, validSupportHours } from "./support-hours";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useNavigate, useParams, useSearchParams, useBlocker } from "react-router-dom";
+import { useBlocker, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { flushSync } from "react-dom";
-import { PiPulse as Activity, PiChatCircle as MessageSquare, PiPlus as Plus, PiSlidersHorizontal as Settings2, PiUploadSimple as Upload } from "react-icons/pi";
+import { PiPlus as Plus, PiUploadSimple as Upload } from "react-icons/pi";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { api, ApiError, message, organizationPath, type Agent, type Configuration, type KnowledgeSource, type KnowledgeSources, type Version } from "./api";
 import { ErrorMessage, Loading, useWorkspace } from "./shell";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
-import { useAgentDirectory } from "./agent-directory";
+import { normalizeAgentSection, useAgentDirectory } from "./agent-directory";
 import { Chat } from "./chat";
 import { SpecialistConfiguration } from "./specialist-configuration";
 import { SourceConfiguration } from "./source-configuration";
@@ -25,10 +23,19 @@ import { AnalysisConfiguration } from "./analysis-configuration";
 import { BookingPolicies } from "./booking-policies";
 import { AgentModel, ChatModelPicker } from "./agent-model";
 import { AgentChannels } from "./agent-channels";
+import { WebsiteChannelSettings } from "./website-channel-settings";
 import { WebsiteKnowledgeImport } from "./website-knowledge-import";
 import { KnowledgeUpload } from "./knowledge-upload";
 import { AgentMemory } from "./agent-memory";
 import { AgentAvatar } from "./agent-avatar";
+import { AgentOverview } from "./agent-overview";
+import { AgentConversations } from "./agent-conversations";
+import { AgentCapabilities, type CapabilityId } from "./agent-capabilities";
+import { AgentSettings } from "./agent-settings";
+
+const sections = ["overview", "conversations", "capabilities", "knowledge", "behaviour", "widget", "deploy", "settings"] as const;
+type Section = (typeof sections)[number];
+type BehaviourTab = "general" | "tools" | "skills";
 
 export function AgentEditor() {
   const { organizationId, session } = useWorkspace();
@@ -43,10 +50,22 @@ export function AgentEditor() {
   const [versions, setVersions] = useState<Version[]>([]);
   const [knowledge, setKnowledge] = useState<KnowledgeSource[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
-  const section = searchParams.get("section") === "publish" ? "channels" : searchParams.get("section") ?? "chat";
-  const view = ["configuration", "tools", "skills", "publish", "channels"].includes(section) ? "configure" : section === "activity" ? "activity" : "chat";
-  const setSection = (value: string) => setSearchParams(value === "chat" ? {} : { section: value }, { replace: true });
-  useEffect(() => { if (searchParams.get("section") === "publish") setSearchParams({ section: "channels" }, { replace: true }); }, [searchParams, setSearchParams]);
+  const rawSection = searchParams.get("section");
+  const normalized = normalizeAgentSection(rawSection);
+  const section: Section = (sections as readonly string[]).includes(normalized) ? normalized as Section : "overview";
+  const behaviourTab: BehaviourTab = searchParams.get("panel") === "tools" || rawSection === "tools" ? "tools" : searchParams.get("panel") === "skills" || rawSection === "skills" ? "skills" : "general";
+  function setBehaviourTab(tab: BehaviourTab) {
+    const next = new URLSearchParams(searchParams);
+    next.set("section", "behaviour");
+    if (tab === "general") next.delete("panel"); else next.set("panel", tab);
+    setSearchParams(next, { replace: true });
+  }
+  function goSection(value: Section, panel?: string) {
+    const next = new URLSearchParams();
+    next.set("section", value);
+    if (panel) next.set("panel", panel);
+    setSearchParams(next, { replace: true });
+  }
   const [error, setError] = useState("");
   const [supportHoursError, setSupportHoursError] = useState("");
   const supportSection = useRef<HTMLElement>(null);
@@ -61,6 +80,7 @@ export function AgentEditor() {
   const dirty = Boolean(agent && configuration && (name !== agent.name || JSON.stringify(configuration) !== JSON.stringify(agent.draft)));
   const pendingSetup = Boolean(agent && (!versions[0] || JSON.stringify(agent.draft) !== JSON.stringify(versions[0].configuration)));
   const needsApply = dirty || pendingSetup;
+  const editableSection = section === "knowledge" || section === "behaviour" || section === "capabilities";
   const blocker = useBlocker(({ currentLocation, nextLocation }) => !deleted.current && dirty && currentLocation.pathname !== nextLocation.pathname);
   useEffect(() => { if (blocker.state !== "blocked") return; let live = true; void confirm({ title: "Discard unsaved changes?", description: "Your configuration has not been saved.", confirmLabel: "Discard changes", variant: "destructive" }).then(discard => { if (live) { if (discard) blocker.proceed(); else blocker.reset(); } }); return () => { live = false; }; }, [blocker, confirm]);
   async function applyConfiguration(configuration: Configuration, name: string, draftBefore = { name, configuration }, expectedRevision = agent?.draftRevision): Promise<boolean> {
@@ -87,7 +107,7 @@ export function AgentEditor() {
   function checkSupportHours(value: Configuration): boolean {
     if (!value.supportHours || validSupportHours(value.supportHours)) { setSupportHoursError(""); return true; }
     setSupportHoursError("Enter valid support days, hours and timezone.");
-    setSection("configuration");
+    goSection("behaviour");
     requestAnimationFrame(() => {
       supportSection.current?.scrollIntoView({ block: "center" });
       supportSection.current?.querySelector<HTMLInputElement>('[aria-invalid="true"]')?.focus();
@@ -97,7 +117,13 @@ export function AgentEditor() {
   function normalizedConfiguration(value: Configuration): Configuration {
     return value.supportHours ? { ...value, supportHours: normalizeSupportHours(value.supportHours) } : value;
   }
-  async function save(event: FormEvent) { event.preventDefault(); if (event.target !== event.currentTarget) return; if (!agent || !configuration) return; setBusy(true); setError(""); try { await applyConfiguration(configuration, name); } catch (e) { setError(message(e)); } finally { setBusy(false); } }
+  async function save(event?: FormEvent) {
+    event?.preventDefault();
+    if (event && event.target !== event.currentTarget) return;
+    if (!agent || !configuration) return;
+    setBusy(true); setError("");
+    try { await applyConfiguration(configuration, name); } catch (e) { setError(message(e)); } finally { setBusy(false); }
+  }
   async function changeChatModel(selection: NonNullable<Configuration["model"]["selection"]>) {
     if (!agent || busy || dirty) return false;
     const previous = { name: agent.name, configuration: agent.draft };
@@ -122,6 +148,38 @@ export function AgentEditor() {
       return true;
     } finally { setBusy(false); }
   }
+  async function changeCapabilities(id: CapabilityId, enabled: boolean) {
+    if (!agent || busy) return;
+    if (dirty) { toast.error("Save your changes before changing capabilities."); return; }
+    const current = agent.setup?.responsibilities ?? [];
+    const responsibilities = enabled ? [...new Set([...current, id])] : current.filter(value => value !== id);
+    if (!responsibilities.length) { toast.error("Keep at least one capability."); return; }
+    const removing = !enabled;
+    if (removing && !await confirm({ title: "Remove capability?", description: "The agent stops using this capability. Configuration and conversation history are kept.", confirmLabel: "Remove capability", variant: "destructive" })) return;
+    setBusy(true); setError("");
+    try {
+      const body = { responsibilities, expectedRevision: agent.draftRevision, ...(removing ? { confirmImpact: true } : {}) };
+      type Saved = { agent: Agent; snapshot: Version };
+      let result: Saved;
+      try { result = await api<Saved>(`${path}/capabilities`, body, "PUT"); }
+      catch (reason) {
+        if (!(reason instanceof ApiError) || reason.code !== "CONFIGURATION_CONFIRMATION_REQUIRED") throw reason;
+        const approved = await confirm({ title: "Add capability?", description: "This lets the agent perform more work for customers. New messages use the updated capability after saving.", confirmLabel: "Add capability" });
+        if (!approved) return;
+        result = await api<Saved>(`${path}/capabilities`, { ...body, confirmImpact: true }, "PUT");
+      }
+      setAgent(result.agent); setName(result.agent.name); setConfiguration(result.agent.draft);
+      setVersions(values => [result.snapshot, ...values.filter(item => item.id !== result.snapshot.id)]);
+      refresh(); toast.success("Capabilities updated");
+    } catch (reason) { setError(message(reason)); } finally { setBusy(false); }
+  }
+  function configureCapability(id: CapabilityId) {
+    if (!agent) return;
+    if (id === "answer-questions") goSection("knowledge");
+    else if (id === "customer-support") goSection("behaviour");
+    else if (id === "bookings") { goSection("capabilities"); requestAnimationFrame(() => document.getElementById("agent-booking-config")?.scrollIntoView({ behavior: "smooth", block: "start" })); }
+    else navigate(`/app/agents/${agent.id}?setup=guided`);
+  }
   async function deleteAgent() {
     if (deleteBusy) return;
     setDeleteBusy(true); setDeleteError("");
@@ -135,36 +193,38 @@ export function AgentEditor() {
     finally { setDeleteBusy(false); }
   }
   if (!agent || !configuration) return <><ErrorMessage value={error} />{!error ? <Loading /> : null}</>;
-  return <div className={`agent-editor agent-view-${view}`}><header className="agent-editor-header"><div className="flex min-w-0 items-center gap-3"><AgentAvatar id={agent.avatar} size={34} /><h1 className="truncate text-lg font-semibold">{agent.name}</h1></div><div className="flex shrink-0 items-center gap-2"><AgentMemory agentId={agent.id} enabled={agent.draft.memory?.enabled ?? false} />{section === "configuration" ? <Button type="submit" form="agent-general-form" disabled={!needsApply || busy}>{busy ? "Saving…" : "Save changes"}</Button> : <Button size="sm" variant="outline" onClick={newChat}><Plus size={15} />New chat</Button>}</div></header>
-    <nav className="agent-tabs" aria-label="Agent sections">{([["chat", "Chat", MessageSquare], ["activity", "Activity", Activity], ["configuration", "Configure", Settings2]] as const).map(([id, label, Icon]) => <button type="button" key={id} onClick={() => setSection(id)} aria-current={(id === "configuration" ? view === "configure" : view === id) ? "page" : undefined} className={(id === "configuration" ? view === "configure" : view === id) ? "is-active" : ""}><Icon size={16} />{label}</button>)}</nav>
-    <div className="agent-editor-body"><ErrorMessage value={error} />{view === "configure" && pendingSetup ? <p role="status" className="mb-4 text-sm text-muted-foreground">Save changes to apply the updated setup.</p> : null}
-    {view !== "configure" ? <Chat endpoint={`${organizationPath(organizationId)}/tasks`} key={`${agent.id}.${conversationId ?? "new"}.${chatGeneration}`} storageKey={`agents.chat.${session.account.id}.${organizationId}.${agent.id}.${conversationId ?? "new"}`} agentId={agent.id} initialConversationId={conversationId} expectedAgentId={agent.id} onConversationReady={id => { refresh(); if (!conversationId) navigate(`/app/agents/${agent.id}/conversations/${id}`, { replace: true }); }} view={view} composerAccessory={view === "chat" ? <ChatModelPicker organizationId={organizationId} agentId={agent.id} configuration={agent.draft} dirty={dirty} saving={busy} onSelect={changeChatModel} /> : undefined} cancellable /> : <>
-    <nav className="configuration-tabs" aria-label="Configuration sections">{[["configuration", "General"], ["tools", "Tools"], ["skills", "Skills"], ["channels", "Channels"]].map(([id, label]) => <button key={id} onClick={() => setSection(id)} aria-current={section === id ? "page" : undefined}>{label}</button>)}</nav>
-    {searchParams.get("skill") && section !== "skills" ? <Button type="button" size="sm" variant="ghost" onClick={() => setSearchParams({ section: "skills", skill: searchParams.get("skill")! }, { replace: true })}>Back to skill</Button> : null}
-    {section === "configuration" ? <div className="agent-general-grid"><form id="agent-general-form" className="agent-general-form" onSubmit={event => void save(event)}>
-      <section className="agent-config-panel agent-config-basic"><h2>Basic information</h2>
-      <label className="block space-y-2 text-sm font-medium">Name<Input required maxLength={120} value={name} onChange={event => setName(event.target.value)} /></label>
-      {agent.setup && configuration.instructions.includes("The setup below is business context") ? <details className="agent-instructions-disclosure" onInvalid={event => { event.currentTarget.open = true; }}><summary>Instructions</summary><label className="agent-instructions block space-y-2 text-sm font-medium"><span className="sr-only">Instructions</span><Textarea required maxLength={8_000} rows={7} value={configuration.instructions} onChange={event => setConfiguration({ ...configuration, instructions: event.target.value })} /><span aria-hidden="true" className="agent-instructions-count">{configuration.instructions.length.toLocaleString()} / 8,000</span></label></details> : <label className="agent-instructions block space-y-2 text-sm font-medium">Instructions<Textarea required maxLength={8_000} rows={7} value={configuration.instructions} onChange={event => setConfiguration({ ...configuration, instructions: event.target.value })} /><span aria-hidden="true" className="agent-instructions-count">{configuration.instructions.length.toLocaleString()} / 8,000</span></label>}
-      </section>
-      {agent.setup?.responsibilities.includes("customer-support") || configuration.supportHours || configuration.tools?.some(tool => tool.startsWith("support.") || tool === "channel.request_handoff") ? <section className="agent-config-panel agent-config-support" aria-label="Human support" ref={supportSection}>
-        <h2>Human support</h2>
-        {configuration.supportHours ? <SupportHoursFields value={configuration.supportHours} onChange={supportHours => { setConfiguration({ ...configuration, supportHours }); setSupportHoursError(""); }} error={supportHoursError || undefined} /> : <Button type="button" size="sm" variant="outline" onClick={() => setConfiguration({ ...configuration, supportHours: agent.setup?.supportHours ?? defaultSupportHours() })}>Set support hours</Button>}
-      </section> : null}
-      <section className="agent-config-panel agent-config-knowledge">
-      <SourceConfiguration sources={knowledge} configuration={configuration} onChange={setConfiguration} action={<div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" disabled={dirty || busy} onClick={() => setDocumentsOpen(true)}><Upload size={15} />Add documents</Button>{["faq", "customer-service"].includes(agent.offering ?? "") && (!agent.setup || agent.setup.responsibilities.some(value => ["answer-questions", "customer-support"].includes(value))) ? <Button type="button" size="sm" variant="outline" disabled={dirty || busy} onClick={() => setKnowledgeOpen(true)}><Upload size={15} />Import website</Button> : null}</div>} />
-      </section>
-      <section className="agent-config-panel agent-config-model">
-      <AgentModel key={`${organizationId}:${agent.id}`} organizationId={organizationId} agentId={agent.id} configuration={configuration} onChange={setConfiguration} />
-      </section>
-      <section className="agent-config-panel agent-config-extras">
-      {agent.offering === "booking" || (!agent.setup && agent.offering === "customer-service") || agent.setup?.responsibilities.includes("bookings") || configuration.capabilities.businessActions.enabled || searchParams.get("setup") === "booking" ? <BookingPolicies agentId={agent.id} configuration={configuration} onChange={setConfiguration} /> : null}
-      {configuration.capabilities.sandbox.enabled || searchParams.get("setup") === "analysis" ? <AnalysisConfiguration configuration={configuration} onChange={setConfiguration} /> : null}
-      </section>
-      {configuration.executionKind === "business" && !agent.offering ? <SpecialistConfiguration key={agent.id} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} configuration={configuration} onChange={setConfiguration} /> : null}
-      <details className="agent-config-history rounded-md border border-border p-4 text-sm"><summary className="cursor-pointer font-medium">Configuration history</summary><div className="mt-3 space-y-3">{versions.map((snapshot, index) => <div key={snapshot.id} className="flex flex-wrap items-center justify-between gap-2"><span>{snapshot.createdAt ? new Date(snapshot.createdAt).toLocaleString() : index === 0 ? "Current configuration" : "Previous configuration"}</span><Button type="button" size="sm" variant="outline" disabled={busy} onClick={async () => { if (dirty && !await confirm({ title: "Replace unsaved changes?", description: "Load this saved configuration into the editor. Apply it with Save changes.", confirmLabel: "Load configuration" })) return; setConfiguration(structuredClone(snapshot.configuration)); setSupportHoursError(""); toast.success("Configuration loaded. Save changes to apply it."); }}>Load configuration</Button></div>)}</div></details>
-      <section className="agent-config-panel agent-config-delete"><h2>Delete agent</h2><Button type="button" variant="destructive" disabled={busy} onClick={() => { setDeleteError(""); setDeleteOpen(true); }}>Delete agent</Button></section>
-    </form><AgentSetupStatus organizationId={organizationId} agent={agent} /></div> : section === "tools" || section === "skills" ? <><AgentCatalogue key={`${agent.id}.${section}`} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} kind={section} configuration={configuration} onChange={setConfiguration} onBeforeConnect={beforeConnect} />{section === "tools" ? <><AgentProcedures key={agent.id} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} configuration={configuration} onChange={setConfiguration} disabled={busy} /><CustomerRecordTools configuration={configuration} onChange={setConfiguration} />{configuration.executionKind === "business" && !agent.offering ? <TaskControlTools configuration={configuration} onChange={setConfiguration} /> : null}</> : null}<form className="catalogue-save" onSubmit={event => void save(event)}><Button type="submit" disabled={!needsApply || busy}>{busy ? "Saving…" : "Save changes"}</Button></form></> : <AgentChannels organizationId={organizationId} agentId={agent.id} owner={session.organizations.find(org => org.id === organizationId)?.role === "owner"} />}
-    </>}
+  const chatOpen = Boolean(conversationId) || rawSection === "chat";
+  const view = chatOpen ? "chat" : "section";
+  const knowledgeCount = configuration.sourceRevisionIds?.length ?? 0;
+  return <div className={`agent-editor agent-view-${view}`}><header className="agent-editor-header"><div className="flex min-w-0 items-center gap-3"><AgentAvatar id={agent.avatar} size={34} /><h1 className="truncate text-lg font-semibold">{agent.name}</h1></div><div className="flex shrink-0 items-center gap-2">{chatOpen ? <AgentMemory agentId={agent.id} enabled={agent.draft.memory?.enabled ?? false} /> : null}{chatOpen || section === "conversations" ? <Button size="sm" variant="outline" onClick={newChat}><Plus size={15} />New chat</Button> : editableSection ? <Button size="sm" onClick={() => void save()} disabled={!needsApply || busy}>{busy ? "Saving…" : "Save changes"}</Button> : null}</div></header>
+    <div className="agent-editor-body"><ErrorMessage value={error} />{!chatOpen && editableSection && pendingSetup ? <p role="status" className="agent-unsaved-note">Save changes to apply the updated setup.</p> : null}
+    {chatOpen ? <Chat endpoint={`${organizationPath(organizationId)}/tasks`} key={`${agent.id}.${conversationId ?? "new"}.${chatGeneration}`} storageKey={`agents.chat.${session.account.id}.${organizationId}.${agent.id}.${conversationId ?? "new"}`} agentId={agent.id} initialConversationId={conversationId} expectedAgentId={agent.id} onConversationReady={id => { refresh(); if (!conversationId) navigate(`/app/agents/${agent.id}/conversations/${id}`, { replace: true }); }} view="chat" composerAccessory={<ChatModelPicker organizationId={organizationId} agentId={agent.id} configuration={agent.draft} dirty={dirty} saving={busy} onSelect={changeChatModel} />} cancellable /> :
+    section === "overview" ? <AgentOverview organizationId={organizationId} agent={agent} /> :
+    section === "conversations" ? <AgentConversations organizationId={organizationId} agentId={agent.id} onNewChat={newChat} /> :
+    section === "capabilities" ? <><AgentCapabilities agent={agent} configuration={configuration} knowledgeCount={knowledgeCount} busy={busy || dirty || pendingSetup} onToggle={(id, enabled) => void changeCapabilities(id, enabled)} onConfigure={configureCapability} />{agent.setup?.responsibilities.includes("bookings") ? <section className="agent-section agent-capability-config" id="agent-booking-config"><BookingPolicies agentId={agent.id} configuration={configuration} onChange={setConfiguration} embedded returnTo={`/app/agents/${agent.id}?section=capabilities`} onBeforeConnect={async () => { await beforeConnect(); }} onBusyChange={setBusy} /></section> : null}</> :
+    section === "knowledge" ? <section className="agent-section agent-knowledge-page"><p className="agent-section-lead">Approved sources this agent answers from.</p><SourceConfiguration sources={knowledge} configuration={configuration} onChange={setConfiguration} action={<div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" disabled={dirty || busy} onClick={() => setDocumentsOpen(true)}><Upload size={15} />Add documents</Button>{["faq", "customer-service"].includes(agent.offering ?? "") && (!agent.setup || agent.setup.responsibilities.some(value => ["answer-questions", "customer-support"].includes(value))) ? <Button type="button" size="sm" variant="outline" disabled={dirty || busy} onClick={() => setKnowledgeOpen(true)}><Upload size={15} />Import website</Button> : null}</div>} /></section> :
+    section === "behaviour" ? <section className="agent-section agent-behaviour-page"><nav className="agent-subtabs" aria-label="Behaviour sections">{([["general", "General"], ["tools", "Tools"], ["skills", "Skills"]] as const).map(([id, label]) => <button key={id} type="button" onClick={() => setBehaviourTab(id)} aria-current={behaviourTab === id ? "page" : undefined}>{label}</button>)}</nav>
+      {behaviourTab === "general" ? <div className="agent-general-grid"><form id="agent-behaviour-form" className="agent-general-form" onSubmit={event => void save(event)}>
+        <section className="agent-config-panel agent-config-basic"><h2>Instructions</h2>
+          {agent.setup && configuration.instructions.includes("The setup below is business context") ? <details className="agent-instructions-disclosure" onInvalid={event => { event.currentTarget.open = true; }}><summary>Instructions</summary><label className="agent-instructions block space-y-2 text-sm font-medium"><span className="sr-only">Instructions</span><Textarea required maxLength={8_000} rows={7} value={configuration.instructions} onChange={event => setConfiguration({ ...configuration, instructions: event.target.value })} /><span aria-hidden="true" className="agent-instructions-count">{configuration.instructions.length.toLocaleString()} / 8,000</span></label></details> : <label className="agent-instructions block space-y-2 text-sm font-medium">Instructions<Textarea required maxLength={8_000} rows={7} value={configuration.instructions} onChange={event => setConfiguration({ ...configuration, instructions: event.target.value })} /><span aria-hidden="true" className="agent-instructions-count">{configuration.instructions.length.toLocaleString()} / 8,000</span></label>}
+        </section>
+        <section className="agent-config-panel agent-config-memory"><h2>Memory</h2><AgentMemory agentId={agent.id} enabled={agent.draft.memory?.enabled ?? false} /></section>
+        {agent.setup?.responsibilities.includes("customer-support") || configuration.supportHours || configuration.tools?.some(tool => tool.startsWith("support.") || tool === "channel.request_handoff") ? <section className="agent-config-panel agent-config-support" aria-label="Human support" ref={supportSection}>
+          <h2>Human support</h2>
+          {configuration.supportHours ? <SupportHoursFields value={configuration.supportHours} onChange={supportHours => { setConfiguration({ ...configuration, supportHours }); setSupportHoursError(""); }} error={supportHoursError || undefined} /> : <Button type="button" size="sm" variant="outline" onClick={() => setConfiguration({ ...configuration, supportHours: agent.setup?.supportHours ?? defaultSupportHours() })}>Set support hours</Button>}
+        </section> : null}
+        <section className="agent-config-panel agent-config-model"><h2>Model</h2><AgentModel key={`${organizationId}:${agent.id}`} organizationId={organizationId} agentId={agent.id} configuration={configuration} onChange={setConfiguration} /></section>
+        {configuration.capabilities.sandbox.enabled || searchParams.get("setup") === "analysis" ? <section className="agent-config-panel"><AnalysisConfiguration configuration={configuration} onChange={setConfiguration} /></section> : null}
+        {configuration.executionKind === "business" && !agent.offering ? <SpecialistConfiguration key={agent.id} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} configuration={configuration} onChange={setConfiguration} /> : null}
+        <details className="agent-config-history rounded-md border border-border p-4 text-sm"><summary className="cursor-pointer font-medium">Configuration history</summary><div className="mt-3 space-y-3">{versions.map((snapshot, index) => <div key={snapshot.id} className="flex flex-wrap items-center justify-between gap-2"><span>{snapshot.createdAt ? new Date(snapshot.createdAt).toLocaleString() : index === 0 ? "Current configuration" : "Previous configuration"}</span><Button type="button" size="sm" variant="outline" disabled={busy} onClick={async () => { if (dirty && !await confirm({ title: "Replace unsaved changes?", description: "Load this saved configuration into the editor. Apply it with Save changes.", confirmLabel: "Load configuration" })) return; setConfiguration(structuredClone(snapshot.configuration)); setSupportHoursError(""); toast.success("Configuration loaded. Save changes to apply it."); }}>Load configuration</Button></div>)}</div></details>
+      </form></div> : null}
+      {behaviourTab === "tools" ? <><AgentCatalogue key={`${agent.id}.tools`} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} kind="tools" configuration={configuration} onChange={setConfiguration} onBeforeConnect={beforeConnect} /><AgentProcedures key={agent.id} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} configuration={configuration} onChange={setConfiguration} disabled={busy} /><CustomerRecordTools configuration={configuration} onChange={setConfiguration} />{configuration.executionKind === "business" && !agent.offering ? <TaskControlTools configuration={configuration} onChange={setConfiguration} /> : null}</> : null}
+      {behaviourTab === "skills" ? <AgentCatalogue key={`${agent.id}.skills`} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} kind="skills" configuration={configuration} onChange={setConfiguration} onBeforeConnect={beforeConnect} /> : null}
+    </section> :
+    section === "widget" ? <section className="agent-section agent-widget-page"><header className="agent-section-heading"><div><h1>Chat widget</h1><p>Customize the website chat window.</p></div></header><WebsiteChannelSettings organizationId={organizationId} agentId={agent.id} owner={session.organizations.find(org => org.id === organizationId)?.role === "owner"} /></section> :
+    section === "deploy" ? <section className="agent-section agent-deploy-page"><header className="agent-section-heading"><div><h1>Deploy</h1><p>Connect the channels customers use.</p></div></header><AgentChannels organizationId={organizationId} agentId={agent.id} owner={session.organizations.find(org => org.id === organizationId)?.role === "owner"} hideWebsite /></section> :
+    section === "settings" ? <AgentSettings organizationId={organizationId} agent={agent} onUpdated={updated => { setAgent(updated); setName(updated.name); refresh(); }} onDelete={() => { setDeleteError(""); setDeleteOpen(true); }} /> :
+    null}
     </div>
     <Dialog open={deleteOpen} onOpenChange={value => { if (!deleteBusy) setDeleteOpen(value); }}><DialogContent showCloseButton={!deleteBusy} onInteractOutside={event => { if (deleteBusy) event.preventDefault(); }} onEscapeKeyDown={event => { if (deleteBusy) event.preventDefault(); }}><DialogHeader><DialogTitle>Delete {agent.name}?</DialogTitle><DialogDescription>Connected channels and automations will stop. Conversation history and customer records will be retained. This cannot be undone.{dirty ? " Unsaved changes will be discarded." : ""}</DialogDescription></DialogHeader><ErrorMessage value={deleteError} /><DialogFooter><Button type="button" variant="outline" disabled={deleteBusy} onClick={() => setDeleteOpen(false)}>Cancel</Button><Button type="button" variant="destructive" disabled={deleteBusy} onClick={() => void deleteAgent()}>{deleteBusy ? "Deleting…" : "Delete agent"}</Button></DialogFooter></DialogContent></Dialog>
     <Dialog open={knowledgeOpen} onOpenChange={value => { if (!knowledgeBusy) setKnowledgeOpen(value); }}><DialogContent className="sm:max-w-2xl" showCloseButton={!knowledgeBusy} onInteractOutside={event => { if (knowledgeBusy) event.preventDefault(); }} onEscapeKeyDown={event => { if (knowledgeBusy) event.preventDefault(); }}><DialogHeader><DialogTitle>Import website</DialogTitle><DialogDescription>Review website content before adding it to your agent.</DialogDescription></DialogHeader><WebsiteKnowledgeImport organizationId={organizationId} agentId={agent.id} onComplete={() => void refreshKnowledge().catch(e => setError(message(e)))} onBusyChange={setKnowledgeBusy} /></DialogContent></Dialog>
