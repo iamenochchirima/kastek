@@ -39,8 +39,8 @@ async function fixture(page: Page, options: { unknown?: boolean; versions?: bool
 
 test("mock transport: default chat, server history after storage clear, pinned continuation and safe content", async ({ page }) => {
   const { posts } = await fixture(page);
-  await page.goto(`/app/agents/${agentId}`);
-  await expect(page.getByRole("button", { name: "Chat", exact: true })).toHaveAttribute("aria-current", "page");
+  await page.goto(`/app/agents/${agentId}?section=chat`);
+  await expect(page.getByRole("link", { name: "Conversations", exact: true })).toHaveAttribute("aria-current", "page");
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("My project is ORCHID-17.");
   await page.getByRole("textbox", { name: "Message", exact: true }).press("Enter");
   await expect(page).toHaveURL(/\/conversations\/conversation-1$/);
@@ -50,7 +50,8 @@ test("mock transport: default chat, server history after storage clear, pinned c
   expect(await page.evaluate(() => Object.entries(sessionStorage).some(([k,v]) => k.startsWith("agents.chat") && v.includes("Hello.")))).toBe(false);
   await page.evaluate(() => sessionStorage.clear()); await page.goto("/app/agents");
   await page.getByRole("link", { name: "Open Research assistant", exact: true }).click();
-  await page.getByRole("navigation", { name: "Conversation history" }).getByRole("link").click();
+  await page.getByRole("link", { name: "Conversations", exact: true }).click();
+  await page.locator(".agent-conversation-row").first().click();
   await expect(page.getByText("Hello.", { exact: true })).toBeVisible();
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("What is my project?");
   await page.getByRole("button", { name: "Send message" }).click();
@@ -62,7 +63,7 @@ test("mock transport: default chat, server history after storage clear, pinned c
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeInViewport();
-    if (width === 390) { await page.getByRole("button", { name: "Agents & history" }).click(); await expect(page.getByRole("dialog")).toBeVisible(); await page.keyboard.press("Escape"); await expect(page.getByRole("button", { name: "Agents & history" })).toBeFocused(); }
+    if (width === 390) { await page.getByRole("button", { name: "Agent menu" }).click(); await expect(page.getByRole("dialog")).toBeVisible(); await page.keyboard.press("Escape"); await expect(page.getByRole("button", { name: "Agent menu" })).toBeFocused(); }
     await page.screenshot({ path: test.info().outputPath(`workspace-${width}.png`) });
     if (width === 390) {
       await page.evaluate(() => { Object.defineProperty(window.visualViewport!, "height", { configurable: true, value: 520 }); window.visualViewport!.dispatchEvent(new Event("resize")); });
@@ -75,7 +76,7 @@ test("mock transport: default chat, server history after storage clear, pinned c
 
 test("mock transport: uncertain admission retries same key after reload and creates one task", async ({ page }) => {
   const { tasks, posts } = await fixture(page, { unknown: true });
-  await page.goto(`/app/agents/${agentId}`);
+  await page.goto(`/app/agents/${agentId}?section=chat`);
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Recover me."); await page.getByRole("button", { name: "Send message" }).click();
   await expect(page.getByRole("button", { name: "Retry request" })).toBeVisible();
   await page.reload(); await page.getByRole("button", { name: "Retry request" }).click();
@@ -106,7 +107,7 @@ test("mock transport: standalone shared memory review, correction and Forget red
     else throw Error("Unexpected memory mutation");
     await route.fulfill({ json: current });
   });
-  await page.goto(`/app/agents/${agentId}`);
+  await page.goto(`/app/agents/${agentId}?section=chat`);
   const trigger = page.getByRole("button", { name: "Memory", exact: true });
   await trigger.click();
   const modal = page.getByRole("dialog");
@@ -167,7 +168,7 @@ test("mock transport: inline activity loads cursor-paged task events", async ({ 
   const { tasks } = await fixture(page);
   await page.route(`**/api/organizations/${org}/tasks/task-1`, route => route.fulfill({ json: { task: tasks[0], events: [{ sequence: 30, kind: "model_started" }], eventsNextCursor: "next-events", actions: [], children: [], resources: [], artifacts: [], operations: [] } }));
   await page.route(`**/api/organizations/${org}/tasks/task-1/events?*`, route => route.fulfill({ json: { events: [{ sequence: 31, kind: "event_page_loaded" }], nextCursor: null } }));
-  await page.goto(`/app/agents/${agentId}`);
+  await page.goto(`/app/agents/${agentId}?section=chat`);
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Inspect activity."); await page.getByRole("button", { name: "Send message" }).click();
   await expect(page).toHaveURL(/\/conversations\/conversation-1$/);
   await page.getByText("Event history", { exact: true }).click();
@@ -188,7 +189,7 @@ for (const [code, label] of [
 ]) {
   test(`mock transport: actionable model failure ${code} in chat and task details`, async ({ page }) => {
     await fixture(page, { errorCode: code });
-    await page.goto(`/app/agents/${agentId}`);
+    await page.goto(`/app/agents/${agentId}?section=chat`);
     await page.getByRole("textbox", { name: "Message", exact: true }).fill("Hi");
     await page.getByRole("button", { name: "Send message" }).click();
     await expect(page.getByText(label, { exact: true })).toBeVisible();
@@ -206,7 +207,7 @@ for (const [code, label] of [
 
 test("mock transport: running subagent uses shared modal, retains parent and updates to final output", async ({ page }) => {
   const { tasks, posts } = await fixture(page, { child: true });
-  await page.goto(`/app/agents/${agentId}`);
+  await page.goto(`/app/agents/${agentId}?section=chat`);
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Help us launch Wheelhouse.");
   await page.getByRole("button", { name: "Send message" }).click();
   const open = page.getByRole("button", { name: "Open Research activity", exact: true });
@@ -220,6 +221,7 @@ test("mock transport: running subagent uses shared modal, retains parent and upd
   await assignment.locator("summary").click();
   await expect(assignment.getByText(specialistAssignment, { exact: true })).toBeVisible();
   await expect(modal.getByText("I have read the launch brief and am checking the audience.", { exact: true })).toBeVisible();
+  await modal.getByText("Execution details", { exact: true }).click();
   await modal.getByText("Read launch brief", { exact: true }).click();
   await expect(modal.getByText("Status", { exact: true })).toBeVisible();
   await expect(modal.getByRole("textbox")).toHaveCount(0);
@@ -258,7 +260,7 @@ test("mock transport: nested subagent modal keeps its task identity and live dur
   const clock="2026-11-02T10:00:00Z";
   await page.route(`**/api/organizations/${org}/tasks/child-1`,route=>route.fulfill({json:{task:{id:"child-1",state:"running",input:specialistAssignment,output:null,errorCode:null,conversationId:"child-conversation",elapsedMs:65000,observedAt:clock},operations:[],events:[],children:[{id:"grandchild-1",agentName:"Content",state:finished?"completed":"running",parentTaskId:"child-1",rootTaskId:"task-1"}],resources:[],artifacts:[],actions:[]}}));
   await page.route(`**/api/organizations/${org}/tasks/grandchild-1`,route=>route.fulfill({json:{task:{id:"grandchild-1",state:finished?"completed":"running",input:"Review the launch wording",output:finished?"The launch wording is ready.":null,errorCode:null,conversationId:"grandchild-conversation",elapsedMs:finished?22000:20000,observedAt:finished?"2026-11-02T10:00:02Z":clock},operations:[],events:[],children:[],resources:[],artifacts:[],actions:[]}}));
-  await page.goto(`/app/agents/${agentId}`);
+  await page.goto(`/app/agents/${agentId}?section=chat`);
   await page.getByRole("textbox",{name:"Message",exact:true}).fill("Please review our launch.");
   await page.getByRole("button",{name:"Send message",exact:true}).click();
   const open=page.getByRole("button",{name:"Open Research activity",exact:true});
@@ -290,7 +292,7 @@ test("mock transport: nested subagent modal keeps its task identity and live dur
 
 test("mock transport: subagent access withdrawal clears its visible transcript", async ({ page }) => {
   await fixture(page, { child: true });
-  await page.goto(`/app/agents/${agentId}`);
+  await page.goto(`/app/agents/${agentId}?section=chat`);
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Help us launch Wheelhouse.");
   await page.getByRole("button", { name: "Send message" }).click();
   await page.getByRole("button", { name: "Open Research activity", exact: true }).click();
@@ -313,7 +315,7 @@ test("mock transport: active instructions use the shared composer and preserve r
     instructions.push(route.request().postDataJSON());
     await route.fulfill(instructions.length === 1 ? { status: 503, json: { error: { message: "Temporary interruption" } } } : { json: { accepted: true } });
   });
-  await page.goto(`/app/agents/${agentId}`);
+  await page.goto(`/app/agents/${agentId}?section=chat`);
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Help us launch Wheelhouse.");
   await page.getByRole("button", { name: "Send message" }).click();
   const composer = page.getByRole("textbox", { name: "Update instructions", exact: true });
@@ -333,7 +335,7 @@ test("mock transport: specialist modal stays read-only when its work needs revie
   let reviewRequests = 0;
   page.on("request", request => { if (request.url().includes("/tasks/child-1/tool-reviews")) reviewRequests++; });
   await page.route("**/tasks/child-1", route => route.fulfill({ json: { task: { id: "child-1", state: "waiting_review", input: "Check the launch audience.", output: null, errorCode: null, conversationId: "child-conversation", hasToolReviews: true }, operations: [], children: [], events: [], actions: [] } }));
-  await page.goto(`/app/agents/${agentId}`);
+  await page.goto(`/app/agents/${agentId}?section=chat`);
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Help us launch Wheelhouse.");
   await page.getByRole("button", { name: "Send message" }).click();
   await page.getByRole("button", { name: "Open Research activity", exact: true }).click();

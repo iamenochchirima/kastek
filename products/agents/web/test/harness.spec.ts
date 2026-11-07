@@ -32,12 +32,12 @@ test("mock transport: shared harness tool observations and contextual conversati
     else { await route.fulfill({ status: 404, json: { error: { message: "Not found" } } }); return; }
     await route.fulfill({ json: data });
   });
-  await page.goto(`/app/agents/${agentId}`);
+  await page.goto(`/app/agents/${agentId}?section=chat`);
   await expect(page.getByRole("heading", { name: "Assistant", exact: true })).toBeVisible();
   await page.getByRole("textbox", { name: "Message" }).fill("My name is Ada.");
   await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByText("Hello Ada.", { exact: true })).toBeVisible();
-  await page.getByText("Task details", { exact: true }).click();
+  await page.getByText("Execution details", { exact: true }).click();
   await expect(page.getByText("memory.search", { exact: true })).toBeVisible();
   await page.getByRole("textbox", { name: "Message" }).fill("What is my name?");
   await page.getByRole("button", { name: "Send message", exact: true }).click();
@@ -85,7 +85,7 @@ test("live harness: scoped memory, tool rounds, contextual follow-up and new con
   await saveNativeProgram(page, { ...native.agent.draft, program: { id: "tool-directed", version: "1" }, instructions: "Help the user. Use memory.search for relevant saved preferences when needed. Use authorized earlier conversation for follow-up questions. Answer in one short sentence. Do not invent facts or claim that a suggestion is saved memory.", memory: { enabled: true }, tools: ["memory.search", "memory.propose"], skillIds: [skill.id] });
   await page.reload(); await configure(page);
   await page.getByRole("button", { name: "Create version", exact: true }).click();
-  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  await page.goto(`/app/agents/${agentId}?section=chat`);
   const originalVersionId = await page.getByRole("combobox", { name: "Version", exact: true }).inputValue();
   const acceptedTasks: string[] = [];
   let taskEndpoint = "";
@@ -112,7 +112,7 @@ test("live harness: scoped memory, tool rounds, contextual follow-up and new con
   await page.getByRole("button", { name: "Create version", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Version", exact: true })).not.toHaveValue(originalVersionId);
   const latestVersionId = await page.getByRole("combobox", { name: "Version", exact: true }).inputValue();
-  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  await page.goto(`/app/agents/${agentId}?section=chat`);
   await send("Call memory.search to look up my favorite color, then tell me the color.");
   await expect(page.getByRole("paragraph").filter({ hasText: /cobalt/i })).toBeVisible();
   const records = await Promise.all(acceptedTasks.map(async taskId => {
@@ -134,7 +134,7 @@ test("live harness: scoped memory, tool rounds, contextual follow-up and new con
     await chooseConversation(page, toolTask!.task.input);
   }
   const toolTurn = page.getByRole("article", { name: `Turn ${toolTask!.task.turnSequence}`, exact: true });
-  if (!(await toolTurn.locator("details").evaluate(element => (element as HTMLDetailsElement).open))) await toolTurn.getByText("Task details", { exact: true }).click();
+  if (!(await toolTurn.locator("details").evaluate(element => (element as HTMLDetailsElement).open))) await toolTurn.getByText("Execution details", { exact: true }).click();
   await expect(toolTurn.getByRole("list", { name: "Task operations" }).getByText("memory.search", { exact: true }).first()).toBeVisible();
   console.log(`Verified real memory.search receipt in ${toolTask!.task.id}`);
   const corrected = await nativeJson<Memory>(page, `${native.path}/memory/${acceptedMemory.id}`, "PATCH", { operationId: randomUUID(), expectedRevision: acceptedMemory.revision, content: "My favorite color is forest green." });
@@ -190,6 +190,6 @@ test("mock transport: waiting task continues with current access and preserves i
   await expect(page.getByRole("button", { name: "Continue task", exact: true })).toHaveCount(0);
   expect(continuations).toBe(1);
   expect(admissions).toBe(1);
-  await page.getByText("Task details", { exact: true }).click();
+  await page.getByText("Execution details", { exact: true }).click();
   await expect(page.getByText("waiting-task", { exact: true })).toBeVisible();
 });

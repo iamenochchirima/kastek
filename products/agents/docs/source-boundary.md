@@ -25,7 +25,7 @@ to the existing business model loop. Procedures grant no capability authority.
 
 Per-agent `configuration.procedures` defaults to empty. The authenticated
 `GET /api/organizations/:organizationId/agents/:agentId/procedures` catalogue powers
-Configure → Tools → Workflows. Execution intersects selected accepted/current definitions with
+Behaviour → Tools → Workflows. Execution intersects selected accepted/current definitions with
 trusted organization, agent, conversation and channel authority. Cross-agent visibility is denied.
 The current runtime remains `product-capabilities-v15` / `AgentsBusinessRunV25`.
 
@@ -115,7 +115,7 @@ use exact trusted conversation/principal/trial scope. An amendment retains previ
 requires exact confirmation through Chat/widget/channel review and projects onto the same real
 customer record. Tool arguments cannot set tenant or participant authority.
 
-Configure → Tools offers optional staff record search/update. Saved configuration, `records.read`
+Behaviour → Tools offers optional staff record search/update. Saved configuration, `records.read`
 or `records.write` grants and current signed-in membership are all required. Materialization hides
 these tools from channels, automations, subagents and evaluation trials; execution checks again.
 Search returns bounded record fields/status/revision/due date, excluding notes and contact-directory
@@ -139,7 +139,7 @@ is added. Operational investigation uses record revisions/activity plus existing
 Agent creation uses one customer-service offering with selectable question answering, support,
 appointments and native enquiries. The guided flow saves progress on the server after each forward
 step. A scoped session pointer resumes the same agent after reload; creation retries use a stable
-operation ID. Configure → General → Agent setup resumes or edits it. Saves use draft revisions and
+operation ID. The setup progress card on the agent menu resumes or edits it. Saves use draft revisions and
 internal snapshots. A stale save offers an explicit reload instead of overwriting concurrent work.
 
 The optional Appointments step reuses Google/Microsoft service connections and the booking-policy
@@ -172,7 +172,7 @@ Customer-service setup starts new support schedules with editable Monday–Frida
 values and the browser timezone; saved schedules are preserved. Enabling a day inserts real hours,
 not placeholder text. Time and timezone input is normalized before save; malformed, reversed and
 overlapping periods remain invalid, with 24:00 accepted only as closing time. These are suggested
-setup values, not inferred business facts. After creation, Configure → General → Human support
+setup values, not inferred business facts. After creation, Behaviour → Human support
 edits the schedule directly through the revision-checked Save changes action. Existing hours are
 loaded without applying defaults; Set support hours explicitly initializes an absent schedule.
 Both draft and published-configuration saves synchronize changed hours to the saved setup record
@@ -284,7 +284,7 @@ or message bodies. No new external analytics producer or Collector configuration
 
 
 Website knowledge import is available as an optional creation step and under
-Configure → General → Import website. Owners can enter a bare domain, follow crawl progress,
+Knowledge → Import website. Owners can enter a bare domain, follow crawl progress,
 select pages, inspect extracted Markdown, and import the selection as one knowledge candidate.
 The next review shows the normalized candidate. **Approve and use** approves the revision, publishes
 it for customer replies, and attaches it through the normal revision-checked agent configuration API.
@@ -327,7 +327,7 @@ and operator verification command are documented in `infra/firecrawl/README.md`.
 The website widget restores Growth's original dark header, avatar, message bubbles, round launcher,
 pill composer and expand/collapse controls while using current Agents sessions, canonical Inbox
 messages and booking/intake confirmations. **Customize widget** is available under both
-Connections → Website and the agent's Configure → Website tab. Its live preview supports custom
+Connections → Website and the agent's Chat widget section. Its live preview supports custom
 colour, title, greeting, avatar URL, position, window size, corner radius, launcher size/offset,
 suggested messages and branding visibility. Appearance presets (Light, Minimal, Business, Dark)
 fill the editor with a complete appearance; later edits override the preset. Presets are snapshots,

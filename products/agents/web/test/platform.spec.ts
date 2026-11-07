@@ -172,7 +172,7 @@ test("live platform: authenticated knowledge, private reply, task recovery and p
   await page.reload();
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   await expect(page.getByText(/30\s+days|thirty\s+days/i)).toBeVisible({ timeout: 120_000 });
-  await page.getByText("Task details", { exact: true }).click();
+  await page.getByText("Execution details", { exact: true }).click();
   await expect(page.getByText(taskId, { exact: true })).toBeVisible();
   expect(resubmitted).toBe(false); page.off("request", listener);
   await configure(page, "Website");

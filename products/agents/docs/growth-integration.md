@@ -87,7 +87,7 @@ reference publication while preserving custom settings, permissions and accepted
 ## Growth-managed customer channels
 
 Facebook Page Messenger, Instagram messaging and WhatsApp use Growth as the only provider
-credential owner. Start linking from an Agent's **Channels** section. Growth authorizes the current
+credential owner. Start linking from an Agent's **Deploy** section. Growth authorizes the current
 Growth organization, runs its existing Meta OAuth or WhatsApp Embedded Signup, presents eligible
 accounts, and exchanges a short-lived one-use grant with Agents. The callback returns to the
 selected Agent route; it does not send the user to the global Connections page. Agents stores the
@@ -172,9 +172,9 @@ verified by this implementation.
 
 | Field | Decision |
 | --- | --- |
-| Change and owner | Growth-owned Facebook Page Messenger, Instagram messaging and WhatsApp connections in Agent Channels; Growth and Agents engineering. |
+| Change and owner | Growth-owned Facebook Page Messenger, Instagram messaging and WhatsApp connections in Agent Deploy; Growth and Agents engineering. |
 | Risk | High: signed cross-product authorization, provider webhooks, outbound messages and additive database tables. |
-| Affected services and surfaces | Growth API and `public_webhooks` worker; Agents API, worker and Agent Channels UI; Inbox delivery. |
+| Affected services and surfaces | Growth API and `public_webhooks` worker; Agents API, worker and Agent Deploy UI; Inbox delivery. |
 | Release identity | Planned platform release `0.6.0` (`platform-v0.6.0`); merge commit, service deployment IDs and artifact identities will be recorded after rollout. |
 | API/schema changes | Versioned signed channel-link contract; Growth migration `20261105090000_growth_agent_channel_grants`; Agents schema `131_growth_managed_channels.sql`. |
 | Rollout | Owner-authorized production release after local Facebook/Messenger acceptance. Apply the Growth migration and Agents schema before deploying their API/worker runtimes; deploy the Agents UI through its existing Vercel project. No production provider messages will be sent as part of rollout. Keep `GROWTH_AGENT_CHANNEL_LINKS_ENABLED` off until the production service configuration is verified, then enable it for customer use. Turning it off blocks new links; revoking an Agents grant returns that asset's route to Growth. |

@@ -100,8 +100,9 @@ are excluded from this block.
 
 The public landing leads to registration and sign-in. The target workspace includes Inbox,
 Agents, Customers, Knowledge, Connections, Tasks, Automations, and Settings. Inbox is the customer-service
-workspace. Every agent also supports direct Chat for setup, testing, and permitted interaction,
-with Activity and Configure available. Direct operator chat and task history do not replace Inbox.
+workspace. Every agent also opens a job-based workspace with Overview, Conversations, Capabilities,
+Knowledge, Behaviour, Chat widget, Deploy and Settings. Direct operator chat and task history
+do not replace Inbox.
 
 Connections distinguishes customer channels from business-system connections. Customers authorize
 accounts, choose resources and permitted operations, and bind them to agents. Adapter transport
@@ -479,7 +480,7 @@ are channels. Sandboxes are execution resources. None adds a third category.
 
 ### Business procedures within autonomous agents
 
-The first implementation is `after-hours-assistance@1`, selected per agent under Configure →
+The first implementation is `after-hours-assistance@1`, selected per agent under Behaviour →
 Tools → Workflows. Generic versioned instances and receipt-based progress run in the existing
 business loop. The [operations reference](../operations/business-procedures.md) documents implemented
 contracts and limits. Production rollout remains a joint owner step. The execution

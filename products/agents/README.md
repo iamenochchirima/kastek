@@ -52,9 +52,9 @@ Use the model picker in chat to select a connected account and model. The select
 saves the agent configuration in the background and applies to new messages,
 including connected customer channels. Changes affecting those channels or model
 access require confirmation. In-progress work keeps its accepted route. Unsaved
-Configure edits must be saved or discarded before switching from chat.
+Behaviour or Knowledge edits must be saved or discarded before switching from chat.
 
-**Configure > Model** exposes the same selection and advanced limits. The displayed
+**Behaviour > Model** exposes the same selection and advanced limits. The displayed
 input budget is separate from the model's advertised context window. Admission
 checks model capacity, saved limits, grants and shared execution policy; changing
 only the form does not grant additional authority. There is no silent model or
@@ -237,10 +237,11 @@ The workspace sidebar contains Agents, Inbox, Customers, Tasks, Knowledge, Conne
 Automations and Settings. Creation exposes one customer-service offering with selectable
 responsibilities.
 The conditional appointment step binds an authorized Google or Microsoft calendar policy.
-Every runnable business agent opens Chat,
-with Activity and Configure tabs.
-The organization Assistant opens from the sidebar Assistant entry as a chat, history, settings
-and channels panel. Configure can explicitly enable adaptive
+Every runnable business agent opens with an agent-scoped menu: **Overview**, **Conversations**,
+**Capabilities**, **Knowledge**, **Behaviour**, **Chat widget**, **Deploy** and **Settings**.
+**Overview** is the agent home with customer-conversation metrics, setup progress and recent
+activity. The organization Assistant opens from the sidebar Assistant entry as a chat, history, settings
+and channels panel. **Behaviour** can explicitly enable adaptive
 coordination and select published specialists. Chat and task activity show model-authored work
 progress alongside actual child task states. Active root tasks accept queued instructions;
 child tasks link to their own exact-effect reviews. The controlled API/runtime and responsive
@@ -372,7 +373,7 @@ retried deliberately after correcting the displayed failure. Repeated ingress re
 
 ### Business workflows
 
-Configure → Tools → Workflows enables versioned playbooks per agent. **After-hours support**
+Behaviour → Tools → Workflows enables versioned playbooks per agent. **After-hours support**
 selects `after-hours-assistance@1`; new and existing configurations default to no selected
 procedures. The same agent discovers and loads its authorized playbook, then uses validated
 support tools. Workflows do not grant permissions or replace the ordinary model/tool loop.
@@ -510,7 +511,7 @@ owner-run. Unrestricted pending-support agent turns remain unavailable.
 Website settings provide install/share links, pause and **Customize widget**. The recovered Growth
 appearance editor includes a live preview, custom colour, title/greeting/avatar, position, window
 and launcher dimensions, corner radius, screen offset, suggested messages and branding visibility.
-The same editor is available in Configure → Website. The embedded widget retains current Agents
+The same editor is available in Chat widget. The embedded widget retains current Agents
 sessions, canonical Inbox messages and confirmed booking/intake flows. A sent message appears immediately and is reconciled with the saved message; uncertain sends retain their retry key. Visitors can start and
 switch conversations in the same browser tab. Each conversation has its own visitor session and
 pending message; the list is stored in that tab's session storage. An expired session cannot be
@@ -753,7 +754,7 @@ depth are explicit caller options, not subscription limits imposed by this adapt
 Agent creation now uses guided customer-service setup: business, responsibilities, conditional
 knowledge, channels, operating preferences and review/test. Website import appears when answering
 questions or handling support is selected. Existing eligible agents expose the same import flow
-under Configure → General → Import website. Enter a domain, wait for the crawl, select pages and
+under Knowledge → Import website. Enter a domain, wait for the crawl, select pages and
 review their content, then import the selection. The existing isolated document pipeline prepares
 a private candidate. Review it and choose **Approve and use** to attach it to the agent. Enable
 **Allow use in public website replies** when the source may be used by website visitors.
@@ -764,7 +765,7 @@ not automatically repeated. The existing exact-URL importer remains separately a
 Automatic scheduled refresh is not implemented.
 
 
-Guided setup saves progress after each forward step and resumes from **Continue setup** in Configure.
+Guided setup saves progress after each forward step and resumes from the setup progress card on the agent menu.
 Selecting enquiries exposes a native submission tool with the chosen fields. The customer confirms
 exact details before a durable record is saved. Submitted enquiries appear in Inbox conversation
 details. A CRM connection is not required; external export and Growth synchronization are deferred.
@@ -793,7 +794,7 @@ claim or assign follow-up, set a due date, add internal notes and update status.
 link records. Email/phone text never verifies identity or merges contacts.
 
 Enquiry setup enables native enquiry submission, own-enquiry reading and exact-confirmed
-amendment. Original submissions remain immutable. Configure → Tools separately enables staff
+amendment. Original submissions remain immutable. Behaviour → Tools separately enables staff
 record search and follow-up updates for signed-in staff with explicit grants. Customer deployments
 never receive those staff tools or internal notes. Due dates do not trigger outbound reminders.
 Private operator tests and evaluation trials do not create ordinary customer records. Staff-tool

@@ -6,12 +6,18 @@ export function conversationSummaries(tasks:{conversationId:string;input:string;
  return [...new Map(tasks.map(task=>[task.conversationId,{id:task.conversationId,agentId:agent.id,agentName:agent.name,versionId:task.versionId??version.id,versionNumber:version.number,title:tasks.find(item=>item.conversationId===task.conversationId)!.input,updatedAt:"2026-10-18T12:00:00Z",state:task.state,canContinue:true}])).values()];
 }
 export async function configure(page:Page,section="General") {
- await page.getByRole("button",{name:"Configure",exact:true}).click();
- await page.getByRole("button",{name:section,exact:true}).click();
+ if((page.viewportSize()?.width??1440)<=640)await page.getByRole("button",{name:"Agent menu",exact:true}).click();
+ if(section==="Website"){
+  await page.getByRole("link",{name:"Chat widget",exact:true}).filter({visible:true}).last().click();
+  return;
+ }
+ await page.getByRole("link",{name:"Behaviour",exact:true}).filter({visible:true}).last().click();
+ if(section!=="General")await page.getByRole("button",{name:section,exact:true}).click();
 }
 export async function chooseConversation(page:Page,title:string) {
- const link=page.getByRole("navigation",{name:"Conversation history",exact:true}).getByRole("link",{name:new RegExp(title.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"))});
- if((page.viewportSize()?.width??1440)<=640)await page.getByRole("button",{name:"Agents & history",exact:true}).click();
+ if((page.viewportSize()?.width??1440)<=640)await page.getByRole("button",{name:"Agent menu",exact:true}).click();
+ await page.getByRole("link",{name:"Conversations",exact:true}).filter({visible:true}).last().click();
+ const link=page.getByRole("link",{name:new RegExp(title.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"))});
  await expect(link.last()).toBeVisible();await link.last().click();
 }
 export async function newChat(page:Page) { await page.getByRole("button",{name:"New chat",exact:true}).filter({visible:true}).last().click(); }

@@ -10,7 +10,7 @@ name does not select a separate execution engine or grant access.
 ## Business workflows
 
 Agents may select immutable playbook references in `configuration.procedures`, default `[]`.
-Configure → Tools → Workflows exposes the per-agent catalogue. `after-hours-assistance@1`
+Behaviour → Tools → Workflows exposes the per-agent catalogue. `after-hours-assistance@1`
 provides the first **After-hours support** workflow. The ordinary agent discovers and loads
 selected definitions through `procedures.*`, while durable instances track revision-checked
 progress and verified domain receipts. A definition never expands tool or tenant authority.

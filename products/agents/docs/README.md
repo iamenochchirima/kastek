@@ -6,9 +6,9 @@ metadata, inspect affected agents and schedules, refresh models, run an explicit
 paid generation or tool test, and choose an organization default. OpenRouter,
 OpenAI, Anthropic, Google, xAI, DeepSeek, Mistral, Groq, Together, Fireworks,
 Moonshot/Kimi and Z.ai have installed adapters with controlled HTTP coverage.
-The chat model picker and Configure select that default or an explicit account and model.
-Chat selection saves immediately through the same confirmation flow. Unsaved Configure edits
-must be saved or discarded first. Environment keys do not populate workspace connections. Saving
+The chat model picker and Behaviour select that default or an explicit account and model.
+Chat selection saves immediately through the same confirmation flow. Unsaved Behaviour or
+Knowledge edits must be saved or discarded first. Environment keys do not populate workspace connections. Saving
 creates configuration snapshots in the background. Admission pins the selected
 account, model metadata, use grant, and effective policy before the shared Restate
 worker runs chat or tool rounds. Existing accepted work retains its selection when
@@ -41,8 +41,9 @@ An opt-in Agents MCP server lets authorized external assistants create and confi
 website knowledge, preview privately, customize a widget, and request signed-in review before
 activation. It uses Agents organization grants; Growth's operation catalogue and permissions remain
 separate.
-Configure → Channels on an Agent starts and manages that Agent's channel connection. The global
-Connections page reflects connected provider accounts. Website setup is also managed on the Agent.
+Deploy on an Agent starts and manages that Agent's social channel connections. The global
+Connections page reflects connected provider accounts. Website installation and appearance are
+managed under Chat widget.
 All customer channels share Inbox ownership and durable messaging receipts. Meta setup requires a
 configured provider app and reachable webhook; Telegram requires an owner-created bot and reachable
 webhook. Installed adapters and controlled checks do not establish live account acceptance. The

@@ -57,13 +57,12 @@ async function fixture(page: Page, impact = false, tools = false, missingSelecti
   return { saves, posts, tasks, snapshots, deployments, policies };
 }
 
-test("Connect from setup status stays in the selected agent's Channels section", async ({ page }) => {
+test("Deploy connects social channels for the selected agent", async ({ page }) => {
   await fixture(page, false, false, false, "configured", "needs_connection");
   await page.goto(`/app/agents/${agentId}?section=configuration`);
-  const row = page.getByRole("region", { name: "Connected channels" }).locator(".agent-channel-row").filter({ hasText: "Messenger" });
-  await row.getByRole("link", { name: "Connect", exact: true }).click();
-  await expect(page).toHaveURL(`/app/agents/${agentId}?section=channels`);
-  await expect(page.getByRole("heading", { name: "Channels", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Deploy", exact: true }).click();
+  await expect(page).toHaveURL(`/app/agents/${agentId}?section=deploy`);
+  await expect(page.getByRole("heading", { name: "Deploy", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Connect Facebook Page", exact: true })).toBeVisible();
 });
 
@@ -107,16 +106,16 @@ for(const width of [1440,768,390])test(`context mode preserves explicit caps and
 });
 
 test("configuration applies to the next turn in an existing chat; no ordinary version controls", async ({ page }) => {
-  const state = await fixture(page); await page.goto(`/app/agents/${agentId}`);
+  const state = await fixture(page); await page.goto(`/app/agents/${agentId}?section=chat`);
   await expect(page.getByRole("combobox", { name: "Version", exact: true })).toHaveCount(0);
   await expect(page.getByText(/Version \d/)).toHaveCount(0);
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Hello"); await page.getByRole("button", { name: "Send message" }).click();
   await expect(page).toHaveURL(/\/conversations\/conversation$/);
-  await page.getByRole("button", { name: "Configure", exact: true }).click();
+  await page.getByRole("link", { name: "Behaviour", exact: true }).click();
   await page.getByRole("textbox", { name: "Instructions", exact: true }).fill("Updated support instructions.");
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  await page.goto(`/app/agents/${agentId}/conversations/conversation`);
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Use the updated settings"); await page.getByRole("button", { name: "Send message" }).click();
   await expect(page.getByText("Updated support instructions.", { exact: true })).toBeVisible();
   expect(state.posts[1]).toMatchObject({ agentId, conversationId: "conversation" }); expect(state.posts[1]).not.toHaveProperty("versionId");
@@ -141,8 +140,9 @@ test("history restores through save; website setup uses current configuration on
   await page.getByText("Configuration history", { exact: true }).click(); await page.getByRole("button", { name: "Load configuration", exact: true }).last().click();
   await expect(page.getByRole("textbox", { name: "Instructions", exact: true })).toHaveValue("Answer customer questions."); expect(state.snapshots).toHaveLength(2);
   await page.getByRole("button", { name: "Save changes", exact: true }).click(); await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Website", exact: true }).click(); await page.getByRole("button", { name: "Publish website", exact: true }).click();
-  await page.getByRole("textbox", { name: "Website domains" }).fill("https://example.com"); await page.getByRole("dialog").getByRole("button", { name: "Publish website", exact: true }).click();
+  await page.getByRole("button", { name: "Agent menu", exact: true }).click();
+  await page.getByRole("link", { name: "Chat widget", exact: true }).click();
+  await page.getByRole("textbox", { name: "Website domains" }).fill("https://example.com"); await page.getByRole("button", { name: "Connect website", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Website", exact: true })).toHaveValue("website"); expect(state.deployments[0].allowedOrigins).toEqual(["https://example.com"]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("configuration-mobile.png") });
@@ -247,7 +247,7 @@ for (const width of [1440, 768, 390]) test(`tool model compatibility preserves t
 
 for (const width of [1440, 390]) test(`chat model picker saves only the selected model at ${width}px`, async ({ page }) => {
   const state = await fixture(page, true); await page.setViewportSize({ width, height: 1000 });
-  await page.goto(`/app/agents/${agentId}`);
+  await page.goto(`/app/agents/${agentId}?section=chat`);
   const current = page.getByRole("button", { name: "Chat model: OpenAI account · GPT fixture", exact: true, includeHidden: true }); await expect(current).toBeVisible();
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Keep this draft while changing models");
   await current.click(); const picker = page.getByRole("dialog", { name: "Choose model", exact: true });
@@ -261,29 +261,26 @@ for (const width of [1440, 390]) test(`chat model picker saves only the selected
   await expect(page.getByRole("textbox", { name: "Message", exact: true })).toHaveValue("Keep this draft while changing models");
   expect(state.snapshots).toHaveLength(2);
   expect((state.saves.at(-1)!.configuration as ReturnType<typeof configuration>)).toMatchObject({ instructions: "Answer customer questions.", model: { selection: { kind: "connection", connectionId: "provider-b", modelId: "model-b" } } });
-  await page.getByRole("button", { name: "Send message", exact: true }).click(); await expect(page.getByText("Answer customer questions.", { exact: true })).toBeVisible();
+  await page.getByRole("textbox", { name: "Message", exact: true }).press("Enter"); await expect(page.getByText("Answer customer questions.", { exact: true })).toBeVisible();
   expect(state.tasks.at(-1)?.versionId).toBe("snapshot-2"); expect(state.posts.at(-1)).not.toHaveProperty("model");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath(`chat-model-${width}.png`), fullPage: true });
 });
 
-test("chat model picker preserves unsaved configuration and recovers after save failure", async ({ page }) => {
+test("model changes preserve unsaved instructions and recover after save failure", async ({ page }) => {
   const state = await fixture(page); await page.goto(`/app/agents/${agentId}?section=configuration`);
   await page.getByRole("textbox", { name: "Instructions", exact: true }).fill("Unsaved instructions stay here");
-  await page.getByRole("button", { name: "Chat", exact: true }).click();
-  const current = page.getByRole("button", { name: "Chat model: OpenAI account · GPT fixture", exact: true, includeHidden: true }); await current.click();
-  const picker = page.getByRole("dialog", { name: "Choose model", exact: true }); await expect(picker).toContainText("Save configuration changes");
-  await picker.getByRole("radio", { name: /Claude fixture/ }).click(); await expect(picker.getByRole("button", { name: "Save model", exact: true })).toBeDisabled();
-  await picker.getByRole("button", { name: "Cancel", exact: true }).click(); expect(state.saves).toHaveLength(0);
-  await page.getByRole("button", { name: "Configure", exact: true }).click(); await expect(page.getByRole("textbox", { name: "Instructions", exact: true })).toHaveValue("Unsaved instructions stay here");
-  await page.getByRole("button", { name: "Save changes", exact: true }).click(); await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  const picker = page.getByRole("combobox", { name: "Agent model", exact: true });
+  await page.getByRole("textbox", { name: "Search agent models" }).fill("Anthropic");
+  await picker.selectOption(JSON.stringify({ kind: "connection", connectionId: "provider-b", modelId: "model-b" }));
   await page.route("**/configuration", route => route.fulfill({ status: 503, json: { error: { message: "Save temporarily unavailable" } } }));
-  await current.click(); await picker.getByRole("radio", { name: /Claude fixture/ }).click(); await picker.getByRole("button", { name: "Save model", exact: true }).click();
-  await expect(picker.getByRole("alert")).toContainText("Save temporarily unavailable"); await expect(current).toBeAttached(); expect(state.snapshots).toHaveLength(2);
-  await page.unroute("**/configuration"); await picker.getByRole("button", { name: "Save model", exact: true }).click();
-  await expect(picker).toHaveCount(0); await expect(page.getByRole("button", { name: "Chat model: Anthropic account · Claude fixture", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByText("Save temporarily unavailable", { exact: true })).toBeVisible(); expect(state.snapshots).toHaveLength(1);
+  await page.unroute("**/configuration");
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   expect((state.saves.at(-1)!.configuration as ReturnType<typeof configuration>).instructions).toBe("Unsaved instructions stay here");
+  expect((state.saves.at(-1)!.configuration as ReturnType<typeof configuration>).model.selection).toEqual({ kind: "connection", connectionId: "provider-b", modelId: "model-b" });
 });
 
 
@@ -297,7 +294,7 @@ test("chat model save reads current configuration instead of stale tab fields", 
     Object.assign(stale.model, { provider: "openrouter", model: "retired/model" });
     await route.fulfill({ json: { agent: { id: agentId, name: "Old tab name", offering: "faq", draft: stale, draftRevision: 1 }, versions: [], deployments: [] } });
   });
-  await page.goto(`/app/agents/${agentId}`);
+  await page.goto(`/app/agents/${agentId}?section=chat`);
   await page.getByRole("button", { name: /^Chat model:/ }).click();
   await page.getByRole("dialog").getByRole("radio", { name: /Claude fixture/ }).click();
   await page.getByRole("button", { name: "Save model", exact: true }).click();
@@ -322,7 +319,7 @@ test("owner can cancel agent deletion and sees errors before a successful deleti
     return route.fulfill({ status: 204, body: "" });
   });
   await page.route("**/agents/summaries*", route => deleted ? route.fulfill({ json: { agents: [], nextCursor: null } }) : route.fallback());
-  await page.goto(`/app/agents/${agentId}?section=configuration`);
+  await page.goto(`/app/agents/${agentId}?section=settings`);
   await page.getByRole("button", { name: "Delete agent", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Delete Support?" });
   await expect(dialog).toBeVisible();
@@ -341,13 +338,13 @@ test("owner can cancel agent deletion and sees errors before a successful deleti
 test("a rejected deletion keeps the agent available", async ({ page }) => {
   await fixture(page);
   await page.route(`**/api/organizations/${org}/agents/${agentId}`, route => route.request().method() === "DELETE" ? route.fulfill({ status: 403, json: { error: { message: "Not authorized" } } }) : route.fallback());
-  await page.goto(`/app/agents/${agentId}?section=configuration`);
+  await page.goto(`/app/agents/${agentId}?section=settings`);
   await page.getByRole("button", { name: "Delete agent", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Delete Support?" });
   await dialog.getByRole("button", { name: "Delete agent", exact: true }).click();
   await expect(dialog).toContainText("Not authorized");
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "Instructions", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
 });
 
 
@@ -417,11 +414,16 @@ for(const width of [1440,768,390]) for(const theme of ["light","dark"] as const)
   await expect(page.getByRole("region",{name:"Human support",exact:true})).toBeVisible();
   await expect(page.getByLabel("Monday opens",{exact:true})).toHaveValue("09:00");
   await expect(page.getByRole("link",{name:"Manage model providers",exact:true})).toHaveCount(1);
-  await expect(page.getByRole("button",{name:"Import website",exact:true})).toBeVisible();
-  await expect(page.getByRole("button",{name:"Delete agent",exact:true})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByLabel("Monday opens",{exact:true}).focus();
   await page.screenshot({path:test.info().outputPath(`agent-general-${width}-${theme}.png`),fullPage:true});
+  if(width<=640)await page.getByRole("button",{name:"Agent menu",exact:true}).click();
+  await page.getByRole("link",{name:"Knowledge",exact:true}).filter({visible:true}).last().click();
+  await expect(page.getByRole("button",{name:"Import website",exact:true})).toBeVisible();
+  if(width<=640)await page.getByRole("button",{name:"Agent menu",exact:true}).click();
+  await page.getByRole("link",{name:"Settings",exact:true}).filter({visible:true}).last().click();
+  await expect(page.getByRole("button",{name:"Delete agent",exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("button",{name:"Delete agent",exact:true}).scrollIntoViewIfNeeded();
   await page.screenshot({path:test.info().outputPath(`agent-general-secondary-${width}-${theme}.png`),fullPage:true});
 });

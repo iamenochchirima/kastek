@@ -182,7 +182,7 @@ test("active adaptive work shows progress and queues corrections without losing 
     }
     return route.fulfill({ json: { task, canSteer: true, orchestration: { revision: 2, record: { objective: "Prepare launch draft", steps: [{ id: "draft", title: "Collect specialist draft", state: "in_progress" }], questions: ["Which audience?"], evidenceTaskIds: [] } }, children: [{ id: "child", agentName: "Content", state: "waiting_review", versionId: "content-v1", output: null }] } });
   });
-  await page.goto("/app/agents/assistant-1");
+  await page.goto("/app/agents/assistant-1?section=chat");
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Draft our launch");
   await page.getByRole("button", { name: "Send message", exact: true }).click();
   const progress = page.getByRole("region", { name: "Agent work", exact: true });

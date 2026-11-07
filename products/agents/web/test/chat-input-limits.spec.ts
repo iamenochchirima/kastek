@@ -23,7 +23,7 @@ test("mock transport: composer submits a long draft intact and preserves it afte
     else { await route.fulfill({ status: 404, json: { error: { message: "Not found" } } }); return; }
     await route.fulfill({ json: data });
   });
-  await page.goto(`/app/agents/${agentId}`);
+  await page.goto(`/app/agents/${agentId}?section=chat`);
   const composer = page.getByRole("textbox", { name: "Message", exact: true }), input = "a".repeat(20000);
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });

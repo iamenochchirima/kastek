@@ -10,7 +10,7 @@ The implementation calls these definitions and instances `procedures`, distinct 
 
 ## Configuration and visibility
 
-Configure → Tools → Workflows selects definitions for one agent. **After-hours support** is the
+Behaviour → Tools → Workflows selects definitions for one agent. **After-hours support** is the
 first definition, `after-hours-assistance` version `1`. Saved configuration contains
 `procedures: [{ id: "after-hours-assistance", version: "1" }]`; the default is an empty list.
 The existing save flow creates the immutable agent version. The per-agent
