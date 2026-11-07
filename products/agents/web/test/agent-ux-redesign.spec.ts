@@ -82,8 +82,11 @@ test("agent menu exposes the job-based sections with Overview by default", async
   await expect(page.getByRole("textbox", { name: "Instructions", exact: true })).toHaveValue("Answer customer questions.");
   await expect(page.getByRole("region", { name: "Human support", exact: true }).locator("details")).not.toHaveAttribute("open", "");
   await menu.getByRole("link", { name: "Chat widget", exact: true }).click();
+  await expect(menu.getByRole("link", { name: "Chat widget", exact: true })).toHaveAttribute("aria-current", "page");
+  expect(await page.locator(".agent-scope-nav a.is-active").innerText()).toBe("Chat widget");
   await expect(page.getByRole("heading", { name: "Chat widget", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Customize widget", exact: true })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("agent-widget-appearance.png"), fullPage: true });
   await menu.getByRole("link", { name: "Deploy", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Deploy", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Customize widget", exact: true })).toBeVisible();
