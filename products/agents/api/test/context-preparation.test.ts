@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { describe, it, expect, vi } from "vitest";
 import type { ProductCapabilityDescriptor } from "@kasitek-labs/contracts";
 import { payloadHas } from "../src/execution/context/evidence-policy";
+import { capabilityDirectory, capabilityExposure } from "../src/execution/context/capability-directory";
+import { createToolCatalog, type ToolCatalogMetadata } from "../src/capabilities/tool-discovery";
 import { ProductRuntime } from "../src/execution/products/product-runtime";
 import { PlatformError, requestDigest } from "../src/contracts/contracts";
 
@@ -67,5 +69,50 @@ describe("context preparation cost guards", () => {
     Object.assign(runtime, { pool: {} as never, authorizeTask: vi.fn(async () => undefined) });
     Object.assign(runtime, { dispatch: vi.fn(async () => { throw new PlatformError("PRODUCT_RESULT_INVALID", 502, "Invalid"); }) });
     await expect(runtime.availableBindings(randomUUID())).rejects.toMatchObject({ code: "PRODUCT_RESULT_INVALID" });
+  });
+});
+
+describe("tool schema exposure", () => {
+  const policy = {
+    modelId: "test/model", revision: "p1", counterRevision: "c1", maxDurationSeconds: 120,
+    contextWindowTokens: 262144, maxInputTokens: 196608, maxOutputTokens: 4096, safetyTokens: 1024,
+    maxMessages: 256, maxTools: 64, maxRequestBytes: 2097152,
+    estimateRequestTokens: (request: { tools?: unknown[] }) => Buffer.byteLength(JSON.stringify(request.tools ?? []), "utf8") / 4,
+  };
+  const definition = (name: string) => ({ type: "function" as const, function: { name, description: `Tool ${name}`,
+    parameters: { type: "object", properties: { id: { type: "string" } }, additionalProperties: false } } });
+  const versions = new Map([["tools.discover", "3"], ["tools.load", "3"]]);
+
+  it("keeps deferred owning-product schemas out of the prompt while naming them in the directory", () => {
+    const catalog = createToolCatalog(
+      [definition("work_read"), definition("t_product")],
+      new Map<string, ToolCatalogMetadata>([
+        ["work_read", { qualifiedName: "runtime:work_read", revision: "r1", schemaLoading: "auto" }],
+        ["t_product", { qualifiedName: "product:growth:tenant:content.posts.list", revision: "r2", schemaLoading: "deferred" }],
+      ]),
+      "3",
+    );
+    const exposure = capabilityExposure(catalog, [], versions, policy as never);
+    const names = exposure.tools.map(tool => tool.function.name);
+    expect(names).toContain("work_read");
+    expect(names).not.toContain("t_product");
+    expect(names).toContain("tools_discover");
+    expect(names).toContain("tools_load");
+    // The directory still advertises the deferred capability by title, purpose and exact handle.
+    const directory = capabilityDirectory({ catalog, tools: exposure.tools, skills: [], specialists: [], policy: policy as never });
+    expect(directory.text).toContain("Content posts list");
+    expect(directory.text).toContain("tool:t_product");
+    expect(directory.text).toContain('"callableNow":false');
+  });
+
+  it("promotes the same product schema when it is marked auto", () => {
+    const catalog = createToolCatalog(
+      [definition("t_product")],
+      new Map<string, ToolCatalogMetadata>([
+        ["t_product", { qualifiedName: "product:growth:tenant:content.posts.list", revision: "r2", schemaLoading: "auto" }],
+      ]),
+      "3",
+    );
+    expect(capabilityExposure(catalog, [], versions, policy as never).tools.map(tool => tool.function.name)).toContain("t_product");
   });
 });

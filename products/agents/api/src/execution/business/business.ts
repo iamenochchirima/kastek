@@ -264,11 +264,14 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     Boolean(task.parent_task_id&&(await pool.query("SELECT 1 FROM agents_platform.task_artifact_transfers WHERE target_task_id=$1 LIMIT 1",[taskId])).rowCount);
   const recoveryTools=sharedProtocol&&toolCalling&&!task.channel_binding&&options.evidence&&hasRetainedRecords?historyToolDefinitions(protocolVersions):[];
   const directoryProtocol=sharedProtocol && protocolVersions.get("tools.discover")==="3";
+  // Deferral keeps owning-product schemas out of every prompt; the capability directory still names them.
+  // Default off: flipping this changes model-visible input and must follow the documented evaluation.
+  const deferredExternalSchemas = process.env.AGENTS_TOOL_SCHEMA_DEFERRAL === "deferred";
   const catalog=sharedProtocol&&toolCalling?createToolCatalog([...directTools,...recoveryTools],new Map<string,ToolCatalogMetadata>([
     ...(directoryProtocol?[...directTools,...recoveryTools].map(tool=>[tool.function.name,{qualifiedName:`runtime:${tool.function.name}`,revision:requestDigest(tool),
       ...toolDescriptorPresentation(builtinToolName(tool.function.name)??tool.function.name),purpose:tool.function.description.slice(0,512)}] as const):[]),
-    ...availableProductBindings.map(binding=>[binding.alias,{qualifiedName:`product:${binding.authority!.destinationProduct}:${binding.authority!.tenantId}:${binding.definition.providerOperation}`,revision:binding.digest,bindingDigest:binding.digest,...(directoryProtocol?capabilityBindingPresentation(binding):{})}] as const),
-    ...execution.connectedBindings.map(binding=>[binding.alias,{qualifiedName:`connection:${binding.connection?.id}:${binding.definition.providerOperation}`,revision:binding.digest,bindingDigest:binding.digest,...(directoryProtocol?capabilityBindingPresentation(binding):{})}] as const),
+    ...availableProductBindings.map(binding=>[binding.alias,{qualifiedName:`product:${binding.authority!.destinationProduct}:${binding.authority!.tenantId}:${binding.definition.providerOperation}`,revision:binding.digest,bindingDigest:binding.digest,...(directoryProtocol?capabilityBindingPresentation(binding):{}),...(deferredExternalSchemas?{schemaLoading:"deferred" as const}:{})}] as const),
+    ...execution.connectedBindings.map(binding=>[binding.alias,{qualifiedName:`connection:${binding.connection?.id}:${binding.definition.providerOperation}`,revision:binding.digest,bindingDigest:binding.digest,...(directoryProtocol?capabilityBindingPresentation(binding):{}),...(deferredExternalSchemas?{schemaLoading:"deferred" as const}:{})}] as const),
   ]),protocolVersions.get("tools.discover")??"1"):undefined;
   const loadedSchemas=catalog?(await pool.query("SELECT output FROM agents_platform.operations WHERE task_id=$1 AND name='tools.load' AND state='completed' ORDER BY started_at,id",[taskId])).rows.map(row=>row.output):[];
   const alwaysAliases=[...recoveryTools.map(tool=>tool.function.name),...directTools.filter(tool=>/^(knowledge_|skills_|agents_|work_|support_|channel_)/.test(tool.function.name)).map(tool=>tool.function.name)];
