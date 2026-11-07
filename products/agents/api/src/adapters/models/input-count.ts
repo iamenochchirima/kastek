@@ -1,6 +1,7 @@
 import { requestDigest } from "../../contracts/contracts";
 import type { AcceptedModelRoute } from "../../contracts/model-bindings";
 import { ProviderTransportError } from "../../contracts/model-transport";
+import { estimatedTokensFromSerialized } from "../../execution/context/serialized-tokens";
 import { googleModelRequestUrl } from "./google-transport";
 
 export interface PreparedInputCount {
@@ -33,7 +34,7 @@ export function prepareInputCount(route: AcceptedModelRoute, payload: Readonly<R
 }
 export async function countPreparedInput(route: AcceptedModelRoute, payload: Readonly<Record<string, unknown>>, fetch: typeof globalThis.fetch): Promise<PreparedInputCount> {
   const prepared = prepareInputCount(route, payload), payloadDigest = requestDigest(JSON.parse(JSON.stringify(payload)));
-  if (!prepared) return { tokens: Buffer.byteLength(JSON.stringify(payload), "utf8"), precision: "serialized_bytes_estimate", revision: "serialized-native-utf8-v1", payloadDigest };
+  if (!prepared) return { tokens: estimatedTokensFromSerialized(Buffer.byteLength(JSON.stringify(payload), "utf8")), precision: "serialized_bytes_estimate", revision: "serialized-native-estimated-tokens-v2", payloadDigest };
   try {
     const response = await fetch(prepared.url, { method: "POST", headers: { "content-type": "application/json", ...prepared.headers }, body: JSON.stringify(prepared.body) });
     if (!response.ok) { await response.body?.cancel(); throw new ProviderTransportError(response.status === 429 ? "MODEL_COUNTER_RATE_LIMITED" : "MODEL_COUNTER_UNAVAILABLE", "rejected", response.status); }
