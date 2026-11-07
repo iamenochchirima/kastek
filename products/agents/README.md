@@ -252,6 +252,9 @@ and public GitHub packages pinned to an exact commit and package path. Knowledge
 PDF, HTML, Markdown, text, JSON and CSV. JSON and CSV are normalized into one retrievable record
 per item or row before approval; guides use the same path in guided creation and Configure. Knowledge
 added from an agent is customer-visible by default; owners can change visibility in Knowledge.
+Customer-channel replies continue the existing conversation without re-greeting and do not mention
+internal evidence, approved knowledge, or a knowledge base. Cited replies stay readable after the
+customer-visible cleanup; withdrawn evidence still hides the message.
 Installing a skill preserves its complete immutable package. Add the selected skill
 and use Save changes to apply it. Owner review checks the exact package digest before execution. Website
 publication permits enabled, reviewed server-curated instruction packages. Private or repository

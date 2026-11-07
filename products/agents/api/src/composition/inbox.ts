@@ -14,6 +14,7 @@ import { verifiedVisitorLineage } from "../product/customer-followup/lineage";
 import { enqueueCustomerFollowup,customerFollowupFailures } from "../product/customer-followup/notifications";
 import { verifySupportStatusFacts,verifyHistoricalSupportStatusEvidence } from '../product/inbox/support-status-evidence';
 import { projectRecipientText, taskRecipientTextScope } from "../execution/context/recipient-text";
+import { publicAnswerText } from "../product/inbox/public-text";
 
 export function composeInbox(pool: Pool, options: { publicOrigin: string; cursorKeys?: CursorKeys; followupEnabled?: boolean; followupAccessEnabled?:boolean; supportStatusEnabled?:boolean; assertServices(configuration: AgentConfiguration): Promise<void> }) {
   const store = new PlatformStore(pool);
@@ -85,7 +86,7 @@ export function composeInbox(pool: Pool, options: { publicOrigin: string; cursor
     async readableOutput(db: Pool | PoolClient, taskId: string, body: string) {
       const task = (await db.query("SELECT output,state FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0];
       if (!task || typeof task.output!=="string" || !["completed", "incomplete"].includes(task.state)) return null;
-      const projected=projectRecipientText(task.output,await taskRecipientTextScope(db,taskId,[task.output]));
+      const projected=publicAnswerText(projectRecipientText(task.output,await taskRecipientTextScope(db,taskId,[task.output])));
       if(projected!==body&&task.output!==body)return null;
       try { return await inspectInboxOutput(async () => { await assertCurrentEvidence(db, taskId, await taskEvidenceManifest(db, taskId), { requireActiveTask: false }); return projected; }); }
       catch (error) { if (error instanceof PlatformError) return null; throw error; }

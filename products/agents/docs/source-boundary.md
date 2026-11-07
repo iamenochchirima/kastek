@@ -1790,7 +1790,12 @@ with explicit question coverage; it does not prove general retrieval recall.
 Each actual retrieval/read operation issues span/hash/date-bound evidence IDs. Customer-visible text
 removes the internal `[E…]` handles: the app renders numbered citations with matching source entries,
 while the website widget and channel deliveries omit them. Stored task output and evidence records
-retain the exact labels for validation, continuation and audit.
+retain the exact labels for validation, continuation and audit. Read-time projection applies the
+same customer-visible cleanup before comparing a stored assistant message, so a cited reply stays
+readable while withdrawn evidence still hides the message. Customer-channel instructions are
+rewritten to remove internal source wording; the runtime also tells the model to continue the
+existing conversation without re-greeting or restarting it, and never to mention approved
+knowledge, an approved encyclopedia, or a knowledge base in customer-visible text.
 Useful tail passages replace prefix context. A bounded continuation reads by
 issued evidence ID and UTF-16 offset. Context snapshots persist exact model tool
 definitions and selected evidence. Immutable dependency graphs preserve all

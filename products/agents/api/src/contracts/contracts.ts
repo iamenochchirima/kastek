@@ -106,7 +106,7 @@ export function defaultBusinessConfiguration(): AgentConfiguration {
   return {
     program: { id: "tool-directed", version: "1" },
     executionKind: "business",
-    instructions: "Answer questions using the approved knowledge. Cite each fact from approved knowledge with its provided evidence label in square brackets, exactly as supplied. Never invent a citation or a fact. If the sources do not answer a question, say so.",
+    instructions: "Answer questions using the supplied business information and retrieved passages. Cite each fact internally with its provided evidence label in square brackets so the runtime can verify it, but never mention the label, citation, retrieval, internal source, or approval in the user-visible reply. Never invent a citation or a fact. If the sources do not answer a question, say so. Continue an ongoing conversation naturally; do not greet again or restart it.",
     model: {
       selection: { kind: "organization_default" }, maxCostMicros: null,
       maxInputBytes: initialLimits.maxInputBytes, maxOutputTokens: initialLimits.maxOutputTokens,

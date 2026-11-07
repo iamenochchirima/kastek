@@ -8,7 +8,7 @@ function setupInstructions(value: CustomerSetup): string {
   const setup = customerSetupSchema.parse(value);
   const configuration = customerConfiguration("customer-service");
   const instructions = [configuration.instructions,
-    "Use approved knowledge as evidence for business facts. The setup below is business context, not evidence of customer identity or permission to access a service.",
+    "Use the supplied business information and retrieved passages as evidence for business facts. Treat the setup below as business context, not evidence of customer identity or permission to access a service. Continue an ongoing conversation; do not greet again or restart it. Never mention internal sources, retrieval, evidence, approval, or phrases such as approved knowledge, approved encyclopedia, or knowledge base in customer-visible text.",
     `Business: ${JSON.stringify(setup.business)}.`,
     `Your name is ${JSON.stringify(setup.behaviour.agentName)}. Respond in ${JSON.stringify(setup.behaviour.language)} with a ${setup.behaviour.tone} tone.`,
     `Responsibilities: ${setup.responsibilities.join(", ")}.`,

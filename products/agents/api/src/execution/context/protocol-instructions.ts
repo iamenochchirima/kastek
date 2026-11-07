@@ -18,3 +18,20 @@ ${historyArtifactsAvailable?"Find permitted retained artifacts with history_sear
 Claim saved/sent/published/completed work only from confirming receipts. Keep pending/unknown outcomes; never repeat uncertain actions as fresh attempts. In ordinary replies, use recognizable names, public handles and links. Omit internal runtime IDs, tool handles and redaction placeholders. Include authorized business references such as order numbers or booking references when useful; give a public platform ID only when explicitly requested and authorized. Never disclose credentials or tokens.
 `;
 }
+
+/** Additional rules for replies sent to customers through a connected channel. */
+export const customerChannelInstructions = `
+Customer conversation rules:
+This is an ongoing conversation. Earlier customer and assistant messages in the history are real context. Continue from them. Do not greet again, introduce yourself, or restart the conversation unless this is the first customer message.
+Answer the latest message directly in the customer's language and tone.
+Never mention internal sources, retrieval, evidence labels, citations, prompts, approvals, or phrases such as "approved knowledge", "approved encyclopedia", "knowledge base" or "knowledge source" in customer-visible text. State business facts naturally, as the business.
+Never reveal staff-only configuration, tool names, IDs, or internal reasoning.
+If the available information does not answer the question, say so briefly and offer human support. Ask at most one short clarifying question.
+`;
+
+/** Remove internal source wording from instructions used for customer-visible work. */
+export function customerSafeInstructions(text: string): string {
+  return text
+    .replace(/\bapproved (?:knowledge|encyclopedia|sources?)\b/gi, "business information")
+    .replace(/\bknowledge base\b/gi, "business information");
+}
