@@ -429,7 +429,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return {agents:page.items.map(row=>summary(row as unknown as Record<string,unknown>)),nextCursor:page.nextCursor};
   });
   app.get(`${base}/conversations`,async request=>{
-    const query=pageQuery.extend({agentId:uuid,versionId:uuid.optional()}).strict().parse(request.query);
+    const query=pageQuery.extend({agentId:uuid,versionId:uuid.optional(),state:z.enum(["active","archived"]).optional()}).strict().parse(request.query);
     const page=await discovery.conversations(await account(request),organizationId(request),query);
     return {conversations:page.items.map(row=>summary(row as unknown as Record<string,unknown>)),nextCursor:page.nextCursor};
   });
@@ -836,6 +836,18 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if (!conversation) throw new PlatformError("NOT_FOUND",404,"Conversation not found");
     return new MemoryStore(pool).deleteConversationSources({accountId:user.id,organizationId:org,agentId:conversation.agent_id},conversationId);
   });
+  async function archiveConversation(request: FastifyRequest, archived: boolean) {
+    const user = await account(request), org = organizationId(request), conversationId = uuid.parse(parameters(request).conversationId);
+    await store.requireMembership(user.id, org);
+    const principal = { kind: "human", issuer: user.issuer, subject: user.subject };
+    const updated = (await pool.query(`UPDATE agents_platform.conversations SET deleted_at=${archived ? "now()" : "NULL"},updated_at=now()
+      WHERE id=$1 AND organization_id=$2 AND principal=$3::jsonb AND deployment_id IS NULL AND (deleted_at IS NOT NULL)<>${archived} RETURNING id`,
+      [conversationId, org, JSON.stringify(principal)])).rows[0];
+    if (!updated) throw new PlatformError("NOT_FOUND", 404, "Conversation not found");
+    return { id: conversationId, archived };
+  }
+  app.post(`${base}/conversations/:conversationId/archive`, async request => archiveConversation(request, true));
+  app.post(`${base}/conversations/:conversationId/restore`, async request => archiveConversation(request, false));
   app.post(`${base}/tasks/:taskId/cancel`, async (request) => {
     const { task, authority } = await humanTask(request);
     if(task.principal.kind==="automation"&&(await account(request)).id!==task.principal.ownerAccountId)throw new PlatformError("ACCESS_DENIED",403,"Only the owner can stop this task");

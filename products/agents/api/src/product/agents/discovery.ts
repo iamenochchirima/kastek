@@ -47,10 +47,11 @@ export class PlatformDiscovery {
       ORDER BY a.created_at DESC,a.id DESC`,[org,cursor.snapshot,cursor.position||null,cursor.id||null,query.limit+1,q,status])).rows as (AgentSummary&{position:string})[];
     return finishPage(rows,query.limit,scope,cursor.snapshot,row=>({position:row.position,id:row.id}));
   }
-  async conversations(user:Account,org:string,query:PageQuery&{agentId:string;versionId?:string}) {
+  async conversations(user:Account,org:string,query:PageQuery&{agentId:string;versionId?:string;state?: "active" | "archived"}) {
     await this.store.getAgent(user.id,org,query.agentId);
     if(query.versionId&&!(await this.pool.query("SELECT id FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 AND id=$3",[org,query.agentId,query.versionId])).rowCount)missing();
-    const scope={kind:"conversations",user:user.id,org,agentId:query.agentId,versionId:query.versionId??null},cursor=readPageCursor(query.cursor,scope);
+    const archived=(query.state??"active")==="archived";
+    const scope={kind:"conversations",user:user.id,org,agentId:query.agentId,versionId:query.versionId??null,state:archived?"archived":"active"},cursor=readPageCursor(query.cursor,scope);
     const principal={kind:"human",issuer:user.issuer,subject:user.subject};
     const rows=(await this.pool.query(`SELECT c.id,c.agent_id AS "agentId",a.name AS "agentName",last.version_id AS "versionId",v.number AS "versionNumber",
       left(regexp_replace(first.input,'[[:cntrl:]]',' ','g'),100) AS title,last.created_at AS "updatedAt",last.state,true AS "canContinue",last.created_at::text AS position
@@ -58,9 +59,9 @@ export class PlatformDiscovery {
       JOIN LATERAL (SELECT t.version_id,t.created_at,t.state FROM agents_platform.tasks t WHERE t.conversation_id=c.id AND t.parent_task_id IS NULL AND t.product='agents' AND t.caller_client_id='agents-execution' AND t.resource_id=$2::text AND t.principal=$3::jsonb AND t.created_at<=$4 ORDER BY t.turn_sequence DESC LIMIT 1) last ON true
       JOIN LATERAL (SELECT t.input FROM agents_platform.tasks t WHERE t.conversation_id=c.id AND t.parent_task_id IS NULL AND t.principal=$3::jsonb ORDER BY t.turn_sequence LIMIT 1) first ON true
       JOIN agents_platform.agent_versions v ON v.id=last.version_id
-      WHERE c.organization_id=$1 AND c.agent_id=$2::uuid AND c.principal=$3::jsonb AND c.deployment_id IS NULL AND c.deleted_at IS NULL
+      WHERE c.organization_id=$1 AND c.agent_id=$2::uuid AND c.principal=$3::jsonb AND c.deployment_id IS NULL AND (c.deleted_at IS NOT NULL)=$9::boolean
       AND ($5::uuid IS NULL OR last.version_id=$5) AND ($6::timestamptz IS NULL OR (last.created_at,c.id)<($6::timestamptz,$7::uuid))
-      ORDER BY last.created_at DESC,c.id DESC LIMIT $8`,[org,query.agentId,JSON.stringify(principal),cursor.snapshot,query.versionId??null,cursor.position||null,cursor.id||null,query.limit+1])).rows as (ConversationSummary&{position:string})[];
+      ORDER BY last.created_at DESC,c.id DESC LIMIT $8`,[org,query.agentId,JSON.stringify(principal),cursor.snapshot,query.versionId??null,cursor.position||null,cursor.id||null,query.limit+1,archived])).rows as (ConversationSummary&{position:string})[];
     for(const row of rows)row.title=row.title.trim()||"Conversation";
     return finishPage(rows,query.limit,scope,cursor.snapshot,row=>({position:row.position,id:row.id}));
   }
