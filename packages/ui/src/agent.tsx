@@ -92,8 +92,23 @@ function useAgentElapsedTime(identity: string, state: string | undefined, elapse
   return available ? active && sample?.key === key ? sample.value : elapsedMs : null;
 }
 
+const citationPattern = /\[(E(?:[a-f0-9]{32}|[0-9]+))\]/g;
+
+/** Citation labels are stable evidence handles; number them for display only. */
+export function citationNumbers(text: string): Map<string, number> {
+  const numbers = new Map<string, number>();
+  for (const match of text.matchAll(citationPattern)) if (!numbers.has(match[1]!)) numbers.set(match[1]!, numbers.size + 1);
+  return numbers;
+}
+
+export function numberedCitations(text: string): string {
+  const numbers = citationNumbers(text);
+  return text.replace(citationPattern, (_match, label: string) => `[${numbers.get(label)}]`);
+}
+
 export function AgentMessageContent({ text, resolveLink, remarkPlugins = [], format = "markdown" }: { text: string; resolveLink?: (href: string) => string | null; remarkPlugins?: React.ComponentProps<typeof ReactMarkdown>["remarkPlugins"]; format?: "markdown" | "plain" }) {
-  if (format === "plain") return <p className="whitespace-pre-wrap break-words text-sm leading-7 [overflow-wrap:anywhere]">{text}</p>;
+  const display = numberedCitations(text);
+  if (format === "plain") return <p className="whitespace-pre-wrap break-words text-sm leading-7 [overflow-wrap:anywhere]">{display}</p>;
   return <div className="agent-message-content min-w-0 break-words text-sm leading-7 [overflow-wrap:anywhere]">
     <ReactMarkdown remarkPlugins={[remarkGfm, ...(remarkPlugins ?? [])]} skipHtml components={{
       p: ({ children }) => <p className="mt-3 first:mt-0">{children}</p>,
@@ -110,7 +125,7 @@ export function AgentMessageContent({ text, resolveLink, remarkPlugins = [], for
       table: ({ children }) => <div className="my-3 max-w-full overflow-x-auto"><table className="w-full text-left text-xs">{children}</table></div>,
       th: ({ children }) => <th className="border-b border-border px-2 py-2 font-medium">{children}</th>,
       td: ({ children }) => <td className="border-b border-border px-2 py-2 align-top">{children}</td>,
-    }}>{text}</ReactMarkdown>
+    }}>{display}</ReactMarkdown>
   </div>;
 }
 

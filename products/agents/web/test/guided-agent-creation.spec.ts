@@ -127,7 +127,6 @@ test("guided setup adds uploaded documents to the agent in one action", async ({
   ]);
   await dialog.getByRole("button", { name: "Upload", exact: true }).click();
   await expect(dialog.getByText("Ready to review")).toHaveCount(3);
-  await dialog.getByLabel("Allow use in public customer replies").check();
   await dialog.getByRole("button", { name: "Use knowledge", exact: true }).click();
   await expect(dialog.getByText("Added", { exact: true })).toHaveCount(3);
   expect(requests.filter(request => request.path === `${base}/knowledge/imports`)).toHaveLength(3);

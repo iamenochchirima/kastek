@@ -53,11 +53,11 @@ async function fixture(page: Page, options: { resume?: boolean; failImport?: boo
 }
 async function create(page: Page) {
   await page.goto("/app/agents");
-  if ((page.viewportSize()?.width ?? 1440) <= 640) await page.getByRole("button", { name: "Agents & history", exact: true }).click();
-  await page.getByRole("button", { name: "Create agent", exact: true }).filter({ visible: true }).click();
+  await page.getByRole("button", { name: "Create agent", exact: true }).filter({ visible: true }).first().click();
   const dialog = page.getByRole("dialog", { name: "Create agent", exact: true });
   await dialog.getByLabel("Business name", { exact: true }).fill("Shop");
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  await dialog.getByLabel(/Answer questions/).check();
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(dialog.getByRole("heading", { name: "Business knowledge", exact: true })).toBeVisible();
   return dialog;
@@ -82,13 +82,12 @@ for (const width of [1440, 768, 390]) test(`create, crawl, review and explicitly
   const imports = calls.filter(call => call.path.endsWith("/crawl/import"));
   expect(imports).toHaveLength(2); expect(imports[1].body).toEqual(imports[0].body); expect(imports[1].body?.pageIds).toEqual(["about"]);
   expect(calls.some(call => call.path.endsWith("/policy"))).toBe(false);
-  await dialog.getByRole("checkbox", { name: "Allow use in public customer replies" }).check();
   await dialog.getByRole("button", { name: "Approve and use" }).click();
   await expect(dialog.getByRole("status")).toHaveText("Website knowledge added");
   expect(calls.filter(call => call.path.endsWith("/policy")).map(call => call.body?.action)).toEqual(["approve", "visibility"]);
   expect(calls.filter(call => call.path === `${base}/agents`)).toHaveLength(1);
 });
-test("existing agent resumes completed crawl and can keep source private", async ({ page }) => {
+test("existing agent resumes completed crawl and publishes approved source", async ({ page }) => {
   const calls = await fixture(page, { resume: true });
   await page.goto("/app/agents/agent?section=configuration");
   await page.getByRole("button", { name: "Import website", exact: true }).click();
@@ -97,7 +96,7 @@ test("existing agent resumes completed crawl and can keep source private", async
   await dialog.getByRole("button", { name: "Import selected (2)" }).click();
   await dialog.getByRole("button", { name: "Approve and use" }).click();
   await expect(dialog.getByRole("status")).toHaveText("Website knowledge added");
-  expect(calls.filter(call => call.path.endsWith("/policy")).map(call => call.body?.action)).toEqual(["approve"]);
+  expect(calls.filter(call => call.path.endsWith("/policy")).map(call => call.body?.action)).toEqual(["approve", "visibility"]);
 });
 test("website import remains optional when crawler is unavailable", async ({ page }) => {
   const calls = await fixture(page, { unavailable: true }); const dialog = await create(page);
@@ -125,28 +124,25 @@ async function openExistingImport(page: Page) {
   await page.getByRole("button", { name: "Import website", exact: true }).click();
   return page.getByRole("dialog", { name: "Import website", exact: true });
 }
-test("reload derives approved private attachment and requires explicit customer authorization", async ({ page }) => {
+test("reload reports an approved private attachment and points to Knowledge", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 950 });
   const calls = await fixture(page, { resume: true, imported: true, approved: true, attached: true });
   const dialog = await openExistingImport(page);
   await expect(dialog.getByRole("status")).toHaveText("Website knowledge added");
-  await expect(dialog.getByText("Private · unavailable to customer channels")).toBeVisible();
+  await expect(dialog.getByText("Private · manage in Knowledge")).toBeVisible();
   expect(calls.some(call => call.path.endsWith("/policy") && call.body)).toBe(false);
   expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("website-private-resume-390.png"), fullPage: true });
-  await dialog.getByRole("button", { name: "Allow customer replies", exact: true }).click();
-  await expect(dialog.getByText("Available to customer channels")).toBeVisible();
-  expect(calls.filter(call => call.path.endsWith("/policy")).map(call => call.body?.action)).toEqual(["visibility"]);
   await page.reload();
   await page.getByRole("button", { name: "Import website", exact: true }).click();
   await expect(dialog.getByRole("status")).toHaveText("Website knowledge added");
 });
-test("resume approved unattached source without approving it again", async ({ page }) => {
+test("resume approved unattached source and publish it without approving again", async ({ page }) => {
   const calls = await fixture(page, { resume: true, imported: true, approved: true });
   const dialog = await openExistingImport(page);
   await dialog.getByRole("button", { name: "Use knowledge", exact: true }).click();
   await expect(dialog.getByRole("status")).toHaveText("Website knowledge added");
-  expect(calls.some(call => call.path.endsWith("/policy") && call.body)).toBe(false);
+  expect(calls.filter(call => call.path.endsWith("/policy")).map(call => call.body?.action)).toEqual(["visibility"]);
 });
 for (const state of ["withdrawn", "missing", "failed"] as const) test(`resume ${state} knowledge without claiming it is usable`, async ({ page }) => {
   await fixture(page, { resume: true, imported: true, approved: true, attached: true, [state]: true });

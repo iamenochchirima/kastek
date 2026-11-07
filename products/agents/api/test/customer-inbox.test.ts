@@ -522,4 +522,14 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const after = await inbox.readVisitor(f.visitor, f.conversation.id, "100"); expect(after.messages.map(row => row.sequence)).toEqual(["101", "102", "103", "104", "105"]);
     expect((await pool.query("SELECT count(*) FROM agents_platform.tasks WHERE organization_id=$1", [f.org.id])).rows[0].count).toBe("0");
   });
+  it("removes internal evidence handles from customer-visible automated replies", async () => {
+    const f = await fixture(), input = await inbox.ingress(f.visitor, f.conversation.id, { requestKey: randomUUID(), body: "Where are you?" });
+    const taskId = input.message.task_id!, output = `We are in Centurion [E${"a".repeat(32)}]. [E2] Open until 16:30.`;
+    await transaction(pool, db => inbox.publishAutomated(db, { taskId, binding: binding(f, input.message.id), output }));
+    const reply = (await inbox.readVisitor(f.visitor, f.conversation.id)).messages.at(-1)!;
+    expect(reply.body).toBe("We are in Centurion. Open until 16:30.");
+    expect(reply.body).not.toMatch(/\[E/u);
+    const stored = (await pool.query("SELECT body FROM agents_platform.customer_messages WHERE id=$1", [reply.id])).rows[0].body;
+    expect(stored).toBe("We are in Centurion. Open until 16:30.");
+  });
 });

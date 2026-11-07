@@ -16,17 +16,29 @@ export function registerKnowledgeRoutes(app: FastifyInstance, options: { knowled
     const scope = await options.resolveScope(request);
     const input = z.discriminatedUnion("kind", [z.strictObject({ ...common, kind: z.literal("upload"), contentType: z.enum(["text/plain", "text/markdown", "text/html", "application/pdf", "application/json", "text/csv"]), contentBase64: z.string().min(4).max(13_981_016) }),
       z.strictObject({ ...common, kind: z.literal("public_url"), url: z.url().max(2048) })]).parse(request.body);
-    if (!options.runtime || !await options.runtime.available()) throw new PlatformError("DOCUMENT_RUNTIME_UNAVAILABLE", 503, "Document processing is unavailable");
-    const { profileRelease } = await options.runtime.profile();
+    const available = options.runtime ? await options.runtime.available() : false;
     let job;
     if (input.kind === "public_url") {
+      if (!available) throw new PlatformError("DOCUMENT_RUNTIME_UNAVAILABLE", 503, "Document processing is unavailable");
+      const { profileRelease } = await options.runtime!.profile();
       const { kind: _kind, ...fields } = input;
       job = await options.knowledge.admitUrl(scope, { ...fields, parserRelease: profileRelease, embeddingRelease: profileRelease });
     } else {
       const content = Buffer.from(input.contentBase64, "base64");
       if (content.toString("base64") !== input.contentBase64) throw new PlatformError("INVALID_INPUT", 400, "File content is invalid");
-      job = await options.knowledge.admitUpload(scope, { operationId: input.operationId, title: input.title, sourceId: input.sourceId,
-        contentType: input.contentType, content, parserRelease: profileRelease, embeddingRelease: profileRelease });
+      const textType = input.contentType === "text/plain" || input.contentType === "text/markdown" || input.contentType === "application/json" || input.contentType === "text/csv" ? input.contentType : null;
+      if (textType && !available) {
+        if (content.byteLength > 262144) throw new PlatformError("DOCUMENT_RUNTIME_UNAVAILABLE", 503, "Document processing is unavailable for files over 256 KB");
+        let text: string;
+        try { text = new TextDecoder("utf-8", { fatal: true }).decode(content); }
+        catch { throw new PlatformError("SOURCE_ENCODING_INVALID", 400, "Use UTF-8 encoded content"); }
+        job = await options.knowledge.admitText(scope, { operationId: input.operationId, title: input.title, sourceId: input.sourceId, text, contentType: textType });
+      } else {
+        if (!available) throw new PlatformError("DOCUMENT_RUNTIME_UNAVAILABLE", 503, "Document processing is unavailable");
+        const { profileRelease } = await options.runtime!.profile();
+        job = await options.knowledge.admitUpload(scope, { operationId: input.operationId, title: input.title, sourceId: input.sourceId,
+          contentType: input.contentType, content, parserRelease: profileRelease, embeddingRelease: profileRelease });
+      }
     }
     return reply.code(202).send({ job });
   });

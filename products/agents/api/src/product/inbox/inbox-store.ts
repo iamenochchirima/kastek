@@ -17,6 +17,7 @@ import {channelToolReviewText,channelToolReviewButtons,assertChannelToolReviewPr
 import { BOOKING_UNCERTAIN_RECEIPT, HANDOFF_RECEIPT } from "./handoff-receipt";
 import { currentHandoff, systemMessageIds, transitionMessages } from "./inbox-presentation";
 import { assertConnectedUncertaintyNotice } from "./connected-uncertainty-notice";
+import { publicAnswerText } from "./public-text";
 import { recordHandoffWaiting, recordMessageHandoffWaiting } from "./support-waiting";
 import type { Receipt } from "./handoff-pending-receipt";
 import { reserveReceipt } from "./handoff-pending-receipt";
@@ -670,15 +671,16 @@ export class InboxStore {
     const prompt=(await db.query(`SELECT r.arguments,r.request_digest,r.binding_digest,o.request FROM agents_platform.channel_outbound o
       JOIN agents_platform.tool_invocation_reviews r ON r.id::text=o.request#>>'{toolReview,id}'
       WHERE o.message_id=$1 AND r.task_id=$2 LIMIT 1`,[message.id,message.task_id])).rows[0];
-    if(prompt){const text=channelToolReviewText(prompt.arguments);return message.body===text&&prompt.request_digest===requestDigest({bindingDigest:prompt.binding_digest,arguments:prompt.arguments})&&prompt.request.toolReview?.requestDigest===prompt.request_digest?text:null;}
-    return this.ports.readableOutput(db,message.task_id,message.body);
+    if(prompt){const text=channelToolReviewText(prompt.arguments);return message.body===text&&prompt.request_digest===requestDigest({bindingDigest:prompt.binding_digest,arguments:prompt.arguments})&&prompt.request.toolReview?.requestDigest===prompt.request_digest?publicAnswerText(text)||null:null;}
+    const output=await this.ports.readableOutput(db,message.task_id,message.body);
+    return output===null?null:publicAnswerText(output)||null;
   }
   async assertConnectedUncertaintyDelivery(db:PoolClient,message:CustomerMessage):Promise<void> {
     const receipt=(await db.query('SELECT operation_id FROM agents_platform.connected_uncertainty_notices WHERE message_id=$1 AND conversation_id=$2',[message.id,message.conversation_id])).rows[0];
     if(!receipt || !await assertConnectedUncertaintyNotice(db,receipt.operation_id,message.id,'send')) throw new PlatformError('CHANNEL_AUTHORITY_CHANGED',403,'Message authority changed');
   }
   async assertPendingReceiptDelivery(db:PoolClient,message:CustomerMessage):Promise<void> {
-    if(await this.readableMessage(db,message)!==message.body)
+    if(await this.readableMessage(db,message)!==publicAnswerText(message.body))
       throw new PlatformError("CHANNEL_AUTHORITY_CHANGED",403,"Message authority changed");
   }
   async publishAutomated(db: PoolClient, input: { taskId: string; binding: ChannelBinding; output: string }): Promise<void> {
@@ -689,8 +691,9 @@ export class InboxStore {
       await db.query("INSERT INTO agents_platform.customer_deliveries(id,conversation_id,task_id,ownership_generation,state,reason) VALUES($1,$2,$3,$4,'suppressed','ownership_changed')", [randomUUID(), row.id, input.taskId, input.binding.ownershipGeneration]);
       await recordEvent(db,input.taskId,`channel:delivery:${input.taskId}`,"channel.delivery",{outcome:"suppressed"}); return;
     }
-    if (!input.output) return;
-    const message = await this.append(db, row, { key: `assistant:${input.taskId}`, digest: requestDigest(input.output), kind: "assistant", body: input.output, taskId: input.taskId });
+    const body = publicAnswerText(input.output);
+    if (!body) return;
+    const message = await this.append(db, row, { key: `assistant:${input.taskId}`, digest: requestDigest(body), kind: "assistant", body, taskId: input.taskId });
     await db.query("INSERT INTO agents_platform.customer_deliveries(id,conversation_id,task_id,message_id,ownership_generation,state) VALUES($1,$2,$3,$4,$5,'published')", [randomUUID(), row.id, input.taskId, message.id, row.ownership_generation]);
     await enqueueChannelMessage(db,row,message);
     await recordEvent(db,input.taskId,`channel:delivery:${input.taskId}`,"channel.delivery",{outcome:"completed"});

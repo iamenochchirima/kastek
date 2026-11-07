@@ -26,7 +26,6 @@ export function KnowledgeUpload({ organizationId, agentId, onComplete, onBusyCha
   const base = organizationPath(organizationId), agentPath = `${base}/agents/${encodeURIComponent(agentId)}`;
   const [entries, setEntries] = useState<Entry[]>([]);
   const [sources, setSources] = useState<KnowledgeSource[]>([]);
-  const [publicReplies, setPublicReplies] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   useEffect(() => { onBusyChange?.(busy); return () => onBusyChange?.(false); }, [busy, onBusyChange]);
@@ -151,21 +150,19 @@ export function KnowledgeUpload({ organizationId, agentId, onComplete, onBusyCha
         const revision = source?.revisions.find(item => item.id === job.revisionId);
         if (!source || !revision) throw new Error("Reload the document and try again.");
         if (revision.state === "withdrawn") throw new Error(`${entry.file.name} was withdrawn.`);
-        if ((revision.state === "candidate" || publicReplies) && !source.canApprove) throw new Error("An owner must approve these documents in Knowledge.");
+        if ((revision.state === "candidate" || source.visibility !== "public") && !source.canApprove) throw new Error("An owner must approve these documents in Knowledge.");
         if (revision.state === "candidate") {
           await api(`${base}/knowledge/sources/${source.id}/policy`, { operationId: entry.approvalOperationId, expectedGeneration: source.generation, action: "approve", revisionId: revision.id });
         }
         revisionIds.push(revision.id);
       }
-      if (publicReplies) {
-        const current = (await api<KnowledgeSources>(`${base}/knowledge/sources`)).sources ?? [];
-        const publish = new Map<string, number>();
-        for (const entry of selected) {
-          const source = current.find(item => item.id === entry.job!.sourceId);
-          if (source && source.visibility !== "public") publish.set(source.id, source.generation);
-        }
-        for (const [id, generation] of publish) await api(`${base}/knowledge/sources/${id}/policy`, { operationId: crypto.randomUUID(), expectedGeneration: generation, action: "visibility", visibility: "public" });
+      const current = (await api<KnowledgeSources>(`${base}/knowledge/sources`)).sources ?? [];
+      const publish = new Map<string, number>();
+      for (const entry of selected) {
+        const source = current.find(item => item.id === entry.job!.sourceId);
+        if (source && source.visibility !== "public") publish.set(source.id, source.generation);
       }
+      for (const [id, generation] of publish) await api(`${base}/knowledge/sources/${id}/policy`, { operationId: crypto.randomUUID(), expectedGeneration: generation, action: "visibility", visibility: "public" });
       await refreshSources();
       agent = (await api<{ agent: Agent }>(agentPath)).agent;
       const configuration = { ...agent.draft, sourceRevisionIds: [...new Set([...(agent.draft.sourceRevisionIds ?? []), ...revisionIds])], tools: [...new Set([...(agent.draft.tools ?? []), "knowledge.search" as const, "knowledge.read" as const])] };
@@ -194,7 +191,6 @@ export function KnowledgeUpload({ organizationId, agentId, onComplete, onBusyCha
         {entry.preview ? <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-border p-3 font-sans text-xs leading-5">{entry.preview.text}</pre> : null}
       </li>;
     })}</ul> : null}
-    <label className="flex items-start gap-2 text-sm"><input className="mt-0.5 size-4 shrink-0 accent-primary" type="checkbox" checked={publicReplies} disabled={busy} onChange={event => setPublicReplies(event.target.checked)} /><span>Allow use in public customer replies</span></label>
     <div className="flex flex-wrap gap-2">
       <Button type="button" disabled={busy || pendingUpload || !entries.some(entry => entry.state === "ready" && !entry.job)} onClick={() => void upload()}>{pendingUpload ? "Processing…" : "Upload"}</Button>
       <Button type="button" disabled={busy || pendingUpload || !ready.length} onClick={() => void addToAgent()}>{busy ? "Saving…" : "Use knowledge"}</Button>

@@ -10,7 +10,10 @@ for(const width of [1440,768,390])test(`mock transport: cited passages and revok
     else{await route.fulfill({status:404,json:{error:{message:"Unconfigured fixture route"}}});return;}
     await route.fulfill({json:body});
   });
-  await page.goto(`/app/tasks/${taskId}`);await page.getByText("View sources",{exact:true}).click();
+  await page.goto(`/app/tasks/${taskId}`);
+  await expect(page.getByText("The finding is supported [1].",{exact:true})).toBeVisible();
+  await expect(page.getByText(`[${label}]`,{exact:false})).toHaveCount(0);
+  await page.getByText("View sources",{exact:true}).click();
   await page.getByText("Research source",{exact:true}).click();
   await expect(page.getByText("The decisive finding appears on the final page. 🧪",{exact:true})).toBeVisible();
   await expect(page.getByText(/Retrieved /)).toBeVisible();await page.getByRole("button",{name:/Activity/}).click();await expect(page.getByText("Outcome unknown",{exact:true})).toBeVisible();await page.getByText("get repository",{exact:true}).click();await page.getByText("get file contents",{exact:true}).click();
@@ -18,8 +21,8 @@ for(const width of [1440,768,390])test(`mock transport: cited passages and revok
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:test.info().outputPath(`citations-${width}.png`),fullPage:true});
   withdrawn=true;const refresh=page.getByRole("button",{name:"Refresh sources",exact:true});await refresh.focus();await expect(refresh).toBeFocused();await page.keyboard.press("Enter");
-  await expect(page.getByText("This response is no longer available.",{exact:true})).toBeVisible();await expect(page.getByText(`The finding is supported [${label}].`,{exact:true})).toHaveCount(0);
-  await expect(page.getByText("The decisive finding appears on the final page. 🧪",{exact:true})).toHaveCount(0);await page.getByRole("button",{name:"Refresh status",exact:true}).click();await expect(page.getByText("This response is no longer available.",{exact:true})).toBeVisible();await expect(page.getByText(`The finding is supported [${label}].`,{exact:true})).toHaveCount(0);expect(errors).toEqual([]);
+  await expect(page.getByText("This response is no longer available.",{exact:true})).toBeVisible();await expect(page.getByText("The finding is supported [1].",{exact:true})).toHaveCount(0);
+  await expect(page.getByText("The decisive finding appears on the final page. 🧪",{exact:true})).toHaveCount(0);await page.getByRole("button",{name:"Refresh status",exact:true}).click();await expect(page.getByText("This response is no longer available.",{exact:true})).toBeVisible();await expect(page.getByText("The finding is supported [1].",{exact:true})).toHaveCount(0);expect(errors).toEqual([]);
 });
 
 test("mock transport: recovery cache cannot display stale derived answers before current-policy reads",async({page})=>{

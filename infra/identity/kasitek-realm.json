@@ -48,14 +48,16 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "http://localhost:3000/api/auth/callback"
+        "http://localhost:3000/api/auth/callback",
+        "https://dev-client.kasitek.co.za/api/auth/callback"
       ],
       "webOrigins": [
-        "http://localhost:3000"
+        "http://localhost:3000",
+        "https://dev-client.kasitek.co.za"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:3000/login",
+        "post.logout.redirect.uris": "http://localhost:3000/login##https://dev-client.kasitek.co.za/login",
         "backchannel.logout.url": "http://localhost:4000/api/auth/backchannel-logout",
         "backchannel.logout.session.required": "true",
         "backchannel.logout.revoke.offline.tokens": "true"
@@ -136,15 +138,17 @@
       "serviceAccountsEnabled": false,
       "fullScopeAllowed": false,
       "redirectUris": [
-        "http://localhost:3100/api/auth/callback"
+        "http://localhost:3100/api/auth/callback",
+        "http://localhost:3150/api/auth/callback"
       ],
       "webOrigins": [
-        "http://localhost:3100"
+        "http://localhost:3100",
+        "http://localhost:3150"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:3100/login",
-        "backchannel.logout.url": "http://localhost:4100/api/auth/backchannel-logout",
+        "post.logout.redirect.uris": "http://localhost:3100/login##http://localhost:3150/login",
+        "backchannel.logout.url": "http://localhost:4150/api/auth/backchannel-logout",
         "backchannel.logout.session.required": "true",
         "backchannel.logout.revoke.offline.tokens": "true"
       },
