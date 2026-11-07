@@ -452,3 +452,23 @@ export async function requestTreeCancellation(pool:Pool,taskId:string):Promise<s
     return requestTreeCancellationInTransaction(db,taskId);
   });
 }
+
+/**
+ * A task that never bound an invocation cannot be settled by its workflow. Settle only stale
+ * accepted/running tasks with no invocation id; anything with an invocation is never touched,
+ * because it may still be preparing or running.
+ */
+export async function reconcileInterruptedPreparations(pool:Pool,staleMs=15*60*1000,limit=50):Promise<number>{
+  if(!Number.isSafeInteger(staleMs)||staleMs<60_000)throw new Error("Preparation staleness must be at least one minute");
+  if(!Number.isSafeInteger(limit)||limit<1||limit>200)throw new Error("Preparation sweep limit must be between 1 and 200");
+  const rows=(await pool.query(`SELECT id FROM agents_platform.tasks
+    WHERE state IN ('accepted','running') AND runtime_invocation_id IS NULL
+      AND updated_at < now() - ($1::int * interval '1 millisecond')
+    ORDER BY updated_at LIMIT $2`,[staleMs,limit])).rows;
+  let settled=0;
+  for(const row of rows){
+    try{await settleTask(pool,row.id as string,{state:"failed",errorCode:"PREPARATION_INTERRUPTED"});settled+=1;}
+    catch{/* A concurrent transition owns this task. */}
+  }
+  return settled;
+}

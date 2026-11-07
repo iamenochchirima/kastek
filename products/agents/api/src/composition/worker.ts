@@ -32,7 +32,7 @@ import { connectionVaultFromEnvironment } from "../infrastructure/vault";
 import { EvidenceStore } from "../execution/context/evidence";
 import { startDispatcher } from "../execution/lifecycle/dispatcher";
 import { dispatchPolicyFromEnvironment } from "../execution/scheduling/dispatch-claims";
-import { WORKFLOW_NAME } from "../execution/lifecycle/execution";
+import { WORKFLOW_NAME, reconcileInterruptedPreparations } from "../execution/lifecycle/execution";
 import { HARNESS_RELEASE, HANDOFF_HARNESS_RELEASE, HANDOFF_WORKFLOW_NAME, ADAPTIVE_HARNESS_RELEASE, ADAPTIVE_WORKFLOW_NAME,LEGACY_ADAPTIVE_HARNESS_RELEASE,LEGACY_ADAPTIVE_WORKFLOW_NAME,SHARED_HARNESS_RELEASE,SHARED_WORKFLOW_NAME } from "../contracts/execution";
 import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 import { createAutomationWorkflow,startAutomationDispatcher } from "../product/automations/automation-runtime";
@@ -136,6 +136,16 @@ async function main(): Promise<void> {
     })().catch(()=>console.error(JSON.stringify({...diagnosticIdentity,event:'connected_uncertain_recovery_failed',code:'CONNECTED_UNCERTAIN_RECOVERY_UNAVAILABLE'})))
       .finally(()=>{uncertainPending=undefined;});
   },1000);uncertainTimer.unref();
+  // A workflow that failed before binding an invocation cannot settle its own task.
+  const preparationSweepMs=Number(process.env.AGENTS_PREPARATION_SWEEP_MS??900000);
+  let preparationPending: Promise<unknown> | undefined;
+  const preparationTimer=setInterval(()=>{
+    if(preparationPending)return;
+    preparationPending=reconcileInterruptedPreparations(pool,Number.isSafeInteger(preparationSweepMs)&&preparationSweepMs>=60000?preparationSweepMs:900000)
+      .then(count=>{if(count)console.info(JSON.stringify({...diagnosticIdentity,event:"preparation_reconciled",count}));})
+      .catch(()=>console.error(JSON.stringify({...diagnosticIdentity,event:"preparation_reconcile_failed"})))
+      .finally(()=>{preparationPending=undefined;});
+  },60000);preparationTimer.unref();
   const modelVault = connectionVaultFromEnvironment();
   const modelProvider = new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined);
   const productRuntime=await createConfiguredProductRuntime(pool,evidence);
@@ -196,7 +206,7 @@ async function main(): Promise<void> {
     if (closing) return;
     closing = true;
     abort.abort();
-    clearInterval(cancellationTimer);clearInterval(uncertainTimer); await Promise.all([cancellationPending,uncertainPending]);
+    clearInterval(cancellationTimer);clearInterval(uncertainTimer);clearInterval(preparationTimer); await Promise.all([cancellationPending,uncertainPending]);
     await Promise.all([dispatcher.stop(),automationDispatcher.stop(),supportDispatcher.stop(),receiptDispatcher.stop(),followupDispatcher?.stop(),ingestionDispatcher?.stop(),documentCleanup,sourceCleanup,memoryCleanup]);
     await new Promise<void>(resolve => {
       const deadline = setTimeout(() => { for (const session of sessions) session.destroy(); }, 10_000);

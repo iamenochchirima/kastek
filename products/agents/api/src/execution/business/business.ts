@@ -548,6 +548,17 @@ export async function awaitBackgroundCompaction(ctx:restate.WorkflowContext,pool
   }
 }
 
+/**
+ * Deterministic preparation failures settle the task; transient ones stay retryable so Restate can
+ * retry without inventing a terminal outcome.
+ */
+export function preparationFailureCode(error: unknown): string | null {
+  if (error instanceof restate.TerminalError) return "PREPARATION_REJECTED";
+  if (error instanceof PlatformError) return error.statusCode < 500 ? error.code : null;
+  if (error instanceof ModelOperationError) return uncertainOperation(error) ? null : error.code;
+  return null;
+}
+
 export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, runtime: {release:string;workflow:string} = {release:HARNESS_RELEASE,workflow:WORKFLOW_NAME}) {
   return restate.workflow({ name: runtime.workflow, options: { workflowRetention: { days: 7 }, journalRetention: { days: 7 } }, handlers: {
     run: async (ctx: restate.WorkflowContext, input: { taskId: string }) => {
@@ -556,15 +567,26 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
       // A process-local registry must be hydrated on replay too; a journaled cache fill would be skipped.
       const runStarted = Date.now();
       const createdRow = (await pool.query(`SELECT created_at FROM agents_platform.tasks WHERE id=$1`, [taskId])).rows[0];
-      await options.product?.prepareExecution?.(taskId);
+      // Hydration must stay unjournaled: a journaled cache fill is skipped on replay. A deterministic
+      // failure here still settles the task, otherwise it stays accepted and blocks the next turn.
+      try {
+        await options.product?.prepareExecution?.(taskId);
+        await ctx.run("bind-invocation", async () => {
+          const updated = await pool.query(`UPDATE agents_platform.tasks SET runtime_invocation_id=$2 WHERE id=$1
+            AND harness_release=$3 AND (runtime_invocation_id IS NULL OR runtime_invocation_id=$2)`, [taskId, ctx.request().id, runtime.release]);
+          if (!updated.rowCount) throw new restate.TerminalError("Runtime identity mismatch", { errorCode: 409 });
+        });
+      } catch (error) {
+        const code = preparationFailureCode(error);
+        if (!code) throw error;
+        // settleTask is idempotent and returns early for terminal tasks, so replay is safe.
+        await settleTask(pool, taskId, { state: "failed", errorCode: code }).catch(() => undefined);
+        console.error(JSON.stringify({ event: "agent.settlement.preparation_failed", taskId, code }));
+        return { state: "failed", errorCode: code } satisfies TaskOutcome;
+      }
       console.info(JSON.stringify({ event: "context.phase", label: "run-start", taskId,
         prepareExecutionMs: Date.now() - runStarted,
         queueMs: createdRow ? runStarted - new Date(createdRow.created_at).getTime() : null }));
-      await ctx.run("bind-invocation", async () => {
-        const updated = await pool.query(`UPDATE agents_platform.tasks SET runtime_invocation_id=$2 WHERE id=$1
-          AND harness_release=$3 AND (runtime_invocation_id IS NULL OR runtime_invocation_id=$2)`, [taskId, ctx.request().id, runtime.release]);
-        if (!updated.rowCount) throw new restate.TerminalError("Runtime identity mismatch", { errorCode: 409 });
-      });
       let outcome: TaskOutcome = { state: "incomplete", errorCode: "EXECUTION_INTERRUPTED" };
       const deliveredInstructionIds=new Set<string>();
       let warnedStall: string | null = null;
