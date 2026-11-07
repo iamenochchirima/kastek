@@ -5,7 +5,7 @@ export function publicAnswerText(text: string): string {
   return text
     .replace(citation, "")
     .replace(/[ \t]+([.,;:!?])/g, "$1")
-    .replace(/[ \t]{2,}/g, " ")
+    .replace(/([^ \t\n])[ \t]{2,}/g, "$1 ")
     .replace(/[ \t]+$/gm, "")
     .trim();
 }

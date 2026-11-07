@@ -4,7 +4,7 @@ import {describe,it,expect} from 'vitest';
 import {websiteWidgetScript} from '../src/adapters/channels/website/widget';
 const {chromium,expect:check}=createRequire(__filename)('../../web/node_modules/@playwright/test');
 const schedule=['| Day | Open from | Close at |','| :--- | :---: | ---: |',...['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map(day=>'| '+day+' | 01:00 am | 02:00 am |'),'| Notes | Left \\| right | `open|close` <img src=x onerror=alert(1)> |'];
-const body = ['## Available tools','', 'Support hours:',...schedule,'', '- **[knowledge_search]** — Search *approved* sources.', '- `enquiry_submit` — Submit details.','', '1. First step','2. Second **bold and *italic*** step','   - Nested item','', '[Safe link](https://example.com/path?q=1)', '[Bad link](javascript:alert(1))','[Data link](data:text/html,hello)','', '\\*literal stars\\* and <img src=x onerror=alert(1)>','', '```js','<script>alert(1)</script>','const long = "'+ 'x'.repeat(160) +'";','```'].join('\n');
+const body = ['## Available tools','', 'Support hours:',...schedule,'', '- **[knowledge_search]** — Search *approved* sources.', '- `enquiry_submit` — Submit details.','', '1. First step','2. Second **bold and *italic*** step','   - Nested item','', '[Safe link](https://example.com/path?q=1)', '[Bad link](javascript:alert(1))','[Data link](data:text/html,hello)','', '\\*literal stars\\* and <img src=x onerror=alert(1)>','','The finding is supported [E'+'a'.repeat(32)+'].','', '```js','<script>alert(1)</script>','const long = "'+ 'x'.repeat(160) +'";','```'].join('\n');
 describe('generated website widget Markdown with controlled HTTP',()=>{
  it('renders reply formatting as safe DOM and keeps visitor text literal at supported widths',async()=>{
   const browser=await chromium.launch({headless:true});
@@ -41,6 +41,7 @@ describe('generated website widget Markdown with controlled HTTP',()=>{
     await check(reply.getByRole('link',{name:'Safe link'})).toHaveAttribute('rel','noopener noreferrer');
     await check(reply.getByRole('link')).toHaveCount(1);
     await check(reply).toContainText('*literal stars*');
+    await check(reply).toContainText('The finding is supported.');await check(reply).not.toContainText('[E');
     await check(reply.locator('img,script,iframe')).toHaveCount(0);
     await check(page.locator('.message[data-author=visitor]')).toContainText('**Keep visitor text literal**');
     await check(page.locator('.message[data-author=visitor] strong')).toHaveCount(1);

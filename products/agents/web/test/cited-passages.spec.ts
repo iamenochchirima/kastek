@@ -16,8 +16,9 @@ for(const width of [1440,768,390])test(`mock transport: cited passages and revok
   await page.getByText("View sources",{exact:true}).click();
   await page.getByText("Research source",{exact:true}).click();
   await expect(page.getByText("The decisive finding appears on the final page. 🧪",{exact:true})).toBeVisible();
-  await expect(page.getByText(/Retrieved /)).toBeVisible();await page.getByRole("button",{name:/Activity/}).click();await expect(page.getByText("Outcome unknown",{exact:true})).toBeVisible();await page.getByText("get repository",{exact:true}).click();await page.getByText("get file contents",{exact:true}).click();
-  await expect(page.getByText("API",{exact:true})).toBeVisible();await expect(page.getByText("MCP",{exact:true})).toBeVisible();
+  await expect(page.getByText(/Retrieved /)).toBeVisible();await page.getByRole("button",{name:/Activity/}).click();await expect(page.getByText("Outcome unknown",{exact:true})).toBeVisible();
+  await page.getByText("Using a tool",{exact:true}).first().click();await expect(page.getByText("API",{exact:true})).toBeVisible();
+  await page.getByText("Using a tool",{exact:true}).last().click();await expect(page.getByText("MCP",{exact:true})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:test.info().outputPath(`citations-${width}.png`),fullPage:true});
   withdrawn=true;const refresh=page.getByRole("button",{name:"Refresh sources",exact:true});await refresh.focus();await expect(refresh).toBeFocused();await page.keyboard.press("Enter");

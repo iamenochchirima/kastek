@@ -286,10 +286,10 @@ or message bodies. No new external analytics producer or Collector configuration
 Website knowledge import is available as an optional creation step and under
 Configure → General → Import website. Owners can enter a bare domain, follow crawl progress,
 select pages, inspect extracted Markdown, and import the selection as one knowledge candidate.
-The next review shows the normalized candidate. **Approve and use** approves the revision and
-attaches it through the normal revision-checked agent configuration API. Public website replies
-require explicit owner authorization through the visibility checkbox or **Allow customer replies**;
-imports otherwise stay private. Closing or reloading resumes the exact persisted import and derives
+The next review shows the normalized candidate. **Approve and use** approves the revision, publishes
+it for customer replies, and attaches it through the normal revision-checked agent configuration API.
+Knowledge added from an agent's document or website flow is customer-visible by default; owners can
+change visibility later in the workspace Knowledge page. Closing or reloading resumes the exact persisted import and derives
 completion from its ready revision, current approval, active source, and saved agent knowledge bindings.
 Approved private sources display their customer-channel restriction. Withdrawn, unavailable, failed and
 cancelled imports remain distinct and can be retried without reporting success. An approved source that
@@ -1787,7 +1787,10 @@ withdrawal and foreign-source denial. Controlled vectors verify the hybrid query
 claiming a new embedding-model quality benchmark. The website fixture verifies a reviewed FAQ
 with explicit question coverage; it does not prove general retrieval recall.
 
-Each actual retrieval/read operation issues span/hash/date-bound evidence IDs.
+Each actual retrieval/read operation issues span/hash/date-bound evidence IDs. Customer-visible text
+removes the internal `[E…]` handles: the app renders numbered citations with matching source entries,
+while the website widget and channel deliveries omit them. Stored task output and evidence records
+retain the exact labels for validation, continuation and audit.
 Useful tail passages replace prefix context. A bounded continuation reads by
 issued evidence ID and UTF-16 offset. Context snapshots persist exact model tool
 definitions and selected evidence. Immutable dependency graphs preserve all
