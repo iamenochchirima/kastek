@@ -306,11 +306,16 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   phase.mark("capabilities");
   const invalidated = (knownGeneration !== undefined && knownGeneration !== memoryFence?.generation) ||
     (knownExpiry !== undefined && Date.now() >= knownExpiry);
-  const prior = (await pool.query(`SELECT t.id,t.input,t.output,t.state,t.turn_sequence::text AS sequence,t.created_at FROM agents_platform.tasks t
+  const priorPredicate=`FROM agents_platform.tasks t
     WHERE t.conversation_id=$1 AND t.turn_sequence<$2 AND t.state IN ${terminalSql}
     AND NOT EXISTS(SELECT 1 FROM agents_platform.context_snapshots c WHERE c.task_id=t.id AND c.memory_scope_id=$3
-      AND c.memory_generation<>$4) ORDER BY t.turn_sequence DESC`,
-  [task.conversation_id, task.turn_sequence, memoryFence?.id ?? null, memoryFence?.generation ?? null])).rows;
+      AND c.memory_generation<>$4)`;
+  const priorParams=[task.conversation_id, task.turn_sequence, memoryFence?.id ?? null, memoryFence?.generation ?? null];
+  const prior = (await pool.query(`SELECT t.id,t.input,t.output,t.state,t.turn_sequence::text AS sequence,t.created_at ${priorPredicate}
+    ORDER BY t.turn_sequence DESC LIMIT $5`, [...priorParams, historyTurnWindow()])).rows;
+  const olderTurns = !task.channel_binding
+    ? Math.max(0, Number((await pool.query(`SELECT count(*)::int AS n ${priorPredicate}`, priorParams)).rows[0]?.n ?? 0) - prior.length)
+    : 0;
   const eligible = options.evidence ? new Set<string>() : undefined;
   let unavailableHistory=0;
   if(options.evidence)for(let offset=0;offset<prior.length;offset+=64){
@@ -323,6 +328,10 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     if(page.length)sources.push({id:"retained-history-index",revision:page.at(-1)!.sequence,kind:"result",content:JSON.stringify({kind:"retained_history_index",totalTurns:indexed.length,
       items:page.map(t=>({taskId:t.id,sequence:t.sequence,createdAt:new Date(t.created_at).toISOString(),topic:fitUtf8(t.input,160),complete:false})),
       olderBeforeSequence:indexed.length>page.length?page[0]!.sequence:null,recovery:"history_search lists older turns; history_read recovers the exact taskId."})});
+  }
+  if(olderTurns>0&&!task.channel_binding&&options.evidence){
+    sources.push({id:"history-window",revision:task.turn_sequence,kind:"result",content:JSON.stringify({kind:"older_history_outside_window",turns:olderTurns,
+      guidance:"Earlier turns are outside the loaded window. Do not invent their content. Use history_search to list older turns and history_read to recover the exact taskId when the current request needs them."})});
   }
   const priorInstructions = task.parent_task_id || !selectedPrior.length ? [] : (await pool.query(`
     SELECT i.task_id,i.instruction FROM agents_platform.orchestration_instructions i
@@ -557,6 +566,17 @@ export async function awaitBackgroundCompaction(ctx:restate.WorkflowContext,pool
  * Deterministic preparation failures settle the task; transient ones stay retryable so Restate can
  * retry without inventing a terminal outcome.
  */
+/**
+ * History preparation must not grow with the conversation. The window bounds the prior-turn query,
+ * the evidence checks it triggers and the organization lock they hold. Active constraints survive
+ * independently through the instruction ledger; older facts remain reachable via history_search.
+ */
+export function historyTurnWindow(env: NodeJS.ProcessEnv = process.env): number {
+  const value = Number(env.AGENTS_HISTORY_TURN_WINDOW ?? 60);
+  if (!Number.isSafeInteger(value)) return 60;
+  return Math.min(200, Math.max(10, value));
+}
+
 export function preparationFailureCode(error: unknown): string | null {
   if (error instanceof restate.TerminalError) return "PREPARATION_REJECTED";
   if (error instanceof PlatformError) return error.statusCode < 500 ? error.code : null;

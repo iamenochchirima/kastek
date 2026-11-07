@@ -142,3 +142,14 @@ describe("optional capability outages", () => {
     expect(degradedBindingObservation(new Error("boom"))).toBe(false);
   });
 });
+
+describe("history preparation window", () => {
+  it("bounds the prior-turn window and clamps operator overrides", async () => {
+    const { historyTurnWindow } = await import("../src/execution/business/business");
+    expect(historyTurnWindow({})).toBe(60);
+    expect(historyTurnWindow({ AGENTS_HISTORY_TURN_WINDOW: "20" })).toBe(20);
+    expect(historyTurnWindow({ AGENTS_HISTORY_TURN_WINDOW: "5" })).toBe(10);
+    expect(historyTurnWindow({ AGENTS_HISTORY_TURN_WINDOW: "5000" })).toBe(200);
+    expect(historyTurnWindow({ AGENTS_HISTORY_TURN_WINDOW: "nonsense" })).toBe(60);
+  });
+});
