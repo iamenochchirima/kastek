@@ -97,13 +97,19 @@ export async function readOrchestrationInstructions(pool: Pool, taskId: string) 
     .map(row => ({ role: "user" as const, content: `Additional instructions for this request:\n${row.instruction}` }));
 }
 
+/** Steering keeps its own received time; the original request time is not a substitute. */
+export function instructionContent(instruction: string, receivedAt: unknown): string {
+  const value = receivedAt instanceof Date ? receivedAt.toISOString() : typeof receivedAt === "string" ? receivedAt : undefined;
+  return `Additional instructions for this request${value ? ` (received ${value})` : ""}:\n${instruction}`;
+}
+
 export async function orchestrationInstructionGroups(pool: Db, taskId: string, excluded: readonly string[], limit = 4) {
   const execution = await loadExecution(pool, taskId);
   if (execution.task.harness_release!=="product-capabilities-v15" && (execution.configuration.program.id !== "tool-directed" || execution.configuration.program.version !== "4")) return [];
   await assertCurrentAuthority(pool, execution);
   const seen = new Set(excluded);
   if((execution.task.execution_policy_version??1)>=2){
-    const rows=(await pool.query(`SELECT i.task_id,i.sequence,i.instruction FROM agents_platform.orchestration_instructions i
+    const rows=(await pool.query(`SELECT i.task_id,i.sequence,i.instruction,i.created_at FROM agents_platform.orchestration_instructions i
       JOIN agents_platform.tasks t ON t.id=i.task_id WHERE t.work_id=$1 AND t.organization_id=$2 AND t.principal=$3::jsonb
         AND t.id=ANY($4::uuid[])
         AND NOT ('instruction:'||i.task_id||':'||i.sequence=ANY($5::text[]))
@@ -114,10 +120,10 @@ export async function orchestrationInstructionGroups(pool: Db, taskId: string, e
             coalesce(c.payload->'primaryInstructionIds','[]'::jsonb) ? ('instruction:'||i.task_id||':'||i.sequence)
             OR (NOT(c.payload ? 'primaryInstructionIds') AND EXISTS(SELECT 1 FROM jsonb_array_elements(coalesce(c.payload->'instructionGroups','[]'::jsonb)) g WHERE g->>'id'='instruction:'||i.task_id||':'||i.sequence))))
       ORDER BY t.turn_sequence,i.sequence LIMIT $6`,[execution.task.work_id??taskId,execution.task.organization_id,JSON.stringify(execution.task.principal),await instructionTaskIds(pool,execution),excluded,limit])).rows;
-    return rows.map(row=>({id:`instruction:${row.task_id}:${row.sequence}`,messages:[{role:"user" as const,content:`Additional instructions for this request:\n${row.instruction}`}]}));
+    return rows.map(row=>({id:`instruction:${row.task_id}:${row.sequence}`,messages:[{role:"user" as const,content:instructionContent(row.instruction,row.created_at)}]}));
   }
-  const rows = (await pool.query("SELECT sequence,instruction FROM agents_platform.orchestration_instructions WHERE task_id=$1 ORDER BY sequence", [taskId])).rows;
-  return rows.map(row => ({ id: `instruction:${taskId}:${row.sequence}`, messages: [{ role: "user" as const, content: `Additional instructions for this request:\n${row.instruction}` }] }))
+  const rows = (await pool.query("SELECT sequence,instruction,created_at FROM agents_platform.orchestration_instructions WHERE task_id=$1 ORDER BY sequence", [taskId])).rows;
+  return rows.map(row => ({ id: `instruction:${taskId}:${row.sequence}`, messages: [{ role: "user" as const, content: instructionContent(row.instruction, row.created_at) }] }))
     .filter(group => !seen.has(group.id)).slice(0, limit);
 }
 
@@ -125,11 +131,11 @@ export async function primaryInstructionContext(pool:Pool,taskId:string,delivere
   const execution=await loadExecution(pool,taskId);await assertCurrentAuthority(pool,execution);
   if(execution.configuration.program.version!=="4"&&execution.task.harness_release!=="product-capabilities-v15")return{pending:[] as {id:string;messages:{role:"user";content:string}[]}[],latest:undefined as {id:string;content:string}|undefined};
   const pending=await orchestrationInstructionGroups(pool,taskId,delivered,1);
-  const row=(await pool.query(`SELECT i.task_id,i.sequence,i.instruction FROM agents_platform.orchestration_instructions i
+  const row=(await pool.query(`SELECT i.task_id,i.sequence,i.instruction,i.created_at FROM agents_platform.orchestration_instructions i
     JOIN agents_platform.tasks t ON t.id=i.task_id WHERE t.work_id=$1 AND t.organization_id=$2 AND t.principal=$3::jsonb
       AND t.id=ANY($4::uuid[]) ORDER BY t.turn_sequence DESC,i.sequence DESC LIMIT 1`,
   [execution.task.work_id??taskId,execution.task.organization_id,JSON.stringify(execution.task.principal),await instructionTaskIds(pool,execution)])).rows[0];
-  return{pending,latest:row?{id:`instruction:${row.task_id}:${row.sequence}`,content:`Latest instructions for this request:\n${row.instruction}`} :undefined};
+  return{pending,latest:row?{id:`instruction:${row.task_id}:${row.sequence}`,content:instructionContent(row.instruction,row.created_at).replace("Additional instructions for this request","Latest instructions for this request")} :undefined};
 }
 
 /** Queued directions remain private to their accepted branch. A delegated brief selects applicable facts. */
