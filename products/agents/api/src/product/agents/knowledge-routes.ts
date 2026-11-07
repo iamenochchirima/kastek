@@ -14,7 +14,7 @@ export function registerKnowledgeRoutes(app: FastifyInstance, options: { knowled
   const common = { operationId: z.string().min(1).max(128), title: z.string().trim().min(1).max(200), sourceId: z.uuid().optional() };
   app.post(`${base}/imports`, { bodyLimit: 14_100_000 }, async (request, reply) => {
     const scope = await options.resolveScope(request);
-    const input = z.discriminatedUnion("kind", [z.strictObject({ ...common, kind: z.literal("upload"), contentType: z.enum(["text/plain", "text/markdown", "text/html", "application/pdf"]), contentBase64: z.string().min(4).max(13_981_016) }),
+    const input = z.discriminatedUnion("kind", [z.strictObject({ ...common, kind: z.literal("upload"), contentType: z.enum(["text/plain", "text/markdown", "text/html", "application/pdf", "application/json", "text/csv"]), contentBase64: z.string().min(4).max(13_981_016) }),
       z.strictObject({ ...common, kind: z.literal("public_url"), url: z.url().max(2048) })]).parse(request.body);
     if (!options.runtime || !await options.runtime.available()) throw new PlatformError("DOCUMENT_RUNTIME_UNAVAILABLE", 503, "Document processing is unavailable");
     const { profileRelease } = await options.runtime.profile();

@@ -43,6 +43,23 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
    expect((await pool.query("SELECT operation_id,revision_id FROM agents_platform.evidence_references WHERE id=$1",[result.passages[0]!.evidenceId])).rows[0]).toMatchObject({operation_id:id,revision_id:f.job.revisionId});
   }
  });
+ it("retrieves normalized JSON records through the real knowledge runtime",async()=>{
+  const account=await platform.ensureAccount({issuer:"http://knowledge/structured",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),org=await platform.createOrganization(account.id,"Sandwich Baron"),scope={organizationId:org.id,accountId:account.id};
+  const menu=JSON.stringify({order_url:"https://sandwichbaronheadoffice.zenfoody.com/newtemplate",categories:[{name:"Sandwiches",category_url:"https://www.sandwichbaron.co.za/sandwiches",items:[{name:"Chicken Mayo",price:{sandwich:"R47",french:"R65",footlong:"R87"}}]}],stores:[{name:"Sandton",weekday:"08:00-16:30",saturday:"08:00-13:30"},{name:"Klerksdorp",weekday:"08:00-16:30",saturday:"08:00-13:30"}]});
+  const job=await knowledge.admitText(scope,{operationId:randomUUID(),title:"Sandwich Baron menu",contentType:"application/json",text:menu});
+  expect(job.state).toBe("ready");expect(job.contentType).toBe("text/markdown");
+  await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"approve",revisionId:job.revisionId});
+  await connectFixtureModel(pool,account.id,org.id);
+  const config=defaultBusinessConfiguration();config.model.maxOutputTokens=1024;config.sourceRevisionIds=[job.revisionId];config.tools=["knowledge.search","knowledge.read"];config.retrievalProfile={kind:"lexical-v1"};
+  const agent=await platform.createAgent({...scope,name:"Sandwich Baron",configuration:config}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
+  const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}},grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read"],sourceRevisionIds:[job.revisionId],maxInputBytes:16384,maxOutputTokens:1024,maxContextTokens:contextGrantCeiling(config),expiresAt:new Date(Date.now()+600000).toISOString(),revokedAt:null});
+  await platform.createGrant({...scope,grant});const {task}=await platform.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Sandwich Baron menu"});
+  for(const [query,expected] of [["How much is the Chicken Mayo footlong?",["Chicken Mayo","price.footlong: R87"]],["What are the Sandton Saturday hours?",["Sandton","saturday: 08:00-13:30"]],["Do you deliver to Klerksdorp?",["Klerksdorp"]]] as const){
+   const id=await operation(task.id,"knowledge.search",{query}),result=await runtime.search(task.id,id,query),text=result.passages.map(passage=>passage.text).join("\n");
+   expect(result.passages.length).toBeGreaterThan(0);expect(text).toContain(expected[0]);
+   for(const fragment of expected.slice(1))expect(text).toContain(fragment);
+  }
+ });
  it("retrieves a decisive tail passage with exact page/span/hash provenance and a serializable citation",async()=>{
   const f=await fixture(),id=await operation(f.task.id),result=await runtime.search(f.task.id,id,"zircon");expect(result.passages).toHaveLength(1);expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThanOrEqual(8192);
   const passage=result.passages[0]!;expect(passage.page).toBe(3);expect(passage.start).toBeGreaterThan(9000);expect(passage.text).toContain("four degrees Celsius");expect(f.text.slice(passage.start,passage.end)).toBe(passage.text);expect(Buffer.byteLength(passage.text)).toBeLessThanOrEqual(1800);expect(passage.text).not.toContain("�");expect(passage.citation).toBe(`[${passage.label}]`);

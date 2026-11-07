@@ -49,6 +49,34 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(Buffer.from(objects.get(textKey)!).toString()).toBe(output.text);
   });
 
+  it("normalizes JSON and CSV uploads into retrievable Markdown records", async () => {
+    const scope = await fixture();
+    const json = await store.admitUpload(scope, { operationId: randomUUID(), title: "Menu", contentType: "application/json",
+      content: Buffer.from(JSON.stringify({ order_url: "https://example.test/order", categories: [{ name: "Sandwiches", items: [{ name: "Chicken Mayo", price: { footlong: "R87" } }] }] })), parserRelease: "document-v1" });
+    expect(json.contentType).toBe("text/markdown");
+    const rawKey = (await pool.query("SELECT raw_key FROM agents_platform.ingestion_jobs WHERE id=$1", [json.id])).rows[0].raw_key as string;
+    const text = Buffer.from(objects.get(rawKey)!).toString("utf8");
+    expect(text).toContain("Chicken Mayo");
+    expect(text).toContain("price.footlong: R87");
+    expect(text).toContain("order_url: https://example.test/order");
+    const csv = await store.admitUpload(scope, { operationId: randomUUID(), title: "Stores", contentType: "text/csv",
+      content: Buffer.from("Name,Phone\nAlberton,011 000 0000\n"), parserRelease: "document-v1" });
+    const csvKey = (await pool.query("SELECT raw_key FROM agents_platform.ingestion_jobs WHERE id=$1", [csv.id])).rows[0].raw_key as string;
+    expect(Buffer.from(objects.get(csvKey)!).toString("utf8")).toContain("### Alberton");
+  });
+
+  it("normalizes inline JSON and CSV text imports", async () => {
+    const scope = await fixture();
+    const json = await store.admitText(scope, { operationId: randomUUID(), title: "Menu", contentType: "application/json",
+      text: JSON.stringify({ categories: [{ name: "Sandwiches", items: [{ name: "Chicken Mayo", price: { footlong: "R87" } }] }] }) });
+    expect(json.state).toBe("ready");
+    expect(json.contentType).toBe("text/markdown");
+    const textKey = (await pool.query("SELECT text_key FROM agents_platform.source_revisions WHERE id=$1", [json.revisionId])).rows[0].text_key as string;
+    expect(Buffer.from(objects.get(textKey)!).toString("utf8")).toContain("price.footlong: R87");
+    const csv = await store.admitText(scope, { operationId: randomUUID(), title: "Stores", contentType: "text/csv", text: "Name,Phone\nAlberton,011 000 0000\n" });
+    expect(csv.state).toBe("ready");
+  });
+
   it("rejects private candidate disclosure and publication by another member or tenant", async () => {
     const owner = await fixture(), member = await fixture(), outsider = await fixture();
     await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'member')", [owner.organizationId, member.accountId]);

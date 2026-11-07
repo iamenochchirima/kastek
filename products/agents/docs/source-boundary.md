@@ -1746,8 +1746,12 @@ pin approved revisions explicitly. The old scalar knowledge API is removed.
 Imports allow 10 MiB raw, 1 MiB extracted text, 200 PDF pages and 1,000 chunks.
 An organization has at most 200 active sources, 100,000 chunks and two physical
 document/query allocations. A version pins at most 20 source revisions. Text,
-Markdown, static HTML and text PDFs are supported; OCR, encrypted PDF, DOCX,
-archives, authenticated crawling and browser rendering are rejected.
+Markdown, static HTML, text PDFs, JSON and CSV are supported; OCR, encrypted PDF, DOCX,
+archives, authenticated crawling and browser rendering are rejected. JSON and CSV uploads are
+normalized at admission into one Markdown block per item or row, using field labels and parent
+values so a single passage carries its own context. The normalized Markdown is the retained source
+body; the original structured file is not kept as a second raw object. Normalization runs before
+the document profile, so the ordinary parse, chunk, embedding and approval path is unchanged.
 
 The document profile runs no-network rootless gVisor with one CPU, 512 MiB,
 no swap, 64 processes and a 60-second stage limit. Release manifests pin the

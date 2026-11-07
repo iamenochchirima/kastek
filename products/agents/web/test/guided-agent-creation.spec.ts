@@ -3,9 +3,13 @@ const base = "/api/organizations/org";
 test.use({ timezoneId: "Africa/Johannesburg" });
 async function fixture(page: Page) {
   const requests: { path: string; body: Record<string, unknown> }[] = [];
-  let draftRevision = 1;
+  let draftRevision = 1, uploads = 0;
   let setup: unknown = null, setupStep: string | null = null, name = "Bicycle shop assistant";
-  const policies: Record<string, unknown>[] = [];
+  const policies: Record<string, unknown>[] = [], sources = new Map<string, { approved: boolean; public: boolean }>();
+  const sourceNumber = (id: string) => id.replace(/^source-/u, "");
+  const source = (id = "source-1") => { const state = sources.get(id) ?? { approved: false, public: false }, number = sourceNumber(id);
+    return { id, organizationId: "org", importerAccountId: "owner", title: `Document ${number}`, kind: "upload", generation: state.public ? 2 : 1, state: "active", visibility: state.public ? "public" : "private", createdAt: "2026-11-07T00:00:00.000Z", canApprove: true, revisions: [{ id: `revision-${number}`, revision: 1, state: state.approved ? "approved" : "candidate", acquiredAt: "2026-11-07T00:00:00.000Z", embeddingRelease: null }] }; };
+  const job = (id = "1") => ({ id: `job-${id}`, sourceId: `source-${id}`, revisionId: `revision-${id}`, revision: 1, acceptedGeneration: 1, state: "ready", parserRelease: "fixture", deadline: "2026-11-07T00:10:00.000Z", contentType: "text/markdown", errorCode: null, createdAt: "2026-11-07T00:00:00.000Z" });
   let configuration = { executionKind: "business", instructions: "Support customers", model: { selection: { kind: "organization_default" } }, tools: ["knowledge.search", "knowledge.read"], sourceRevisionIds: ["existing-source"], capabilities: {businessActions:{enabled:false},delegation:{enabled:false},sandbox:{enabled:false},workflows:{enabled:false},schedules:{enabled:false}} };
   const agent = () => ({ id: "new-agent", name, setup, setupStep, draft: configuration, draftRevision });
   await page.route("**/api/**", async route => {
@@ -18,6 +22,10 @@ async function fixture(page: Page) {
     else if (path.endsWith("/inbox-alerts")) data = { unread: 0, alerts: [] };
     else if (path === `${base}/agents` && req.method() === "POST") {setup=body.setup;name=body.name;data = { agent: agent() };}
     else if (path.endsWith("/website-crawls")) data = { crawls: [], available: true };
+    else if (path === `${base}/knowledge/sources`) data = { sources: [...sources.keys()].map(id => source(id)), imports: [] };
+    else if (path === `${base}/knowledge/imports`) { uploads++; const id = String(uploads); sources.set(`source-${id}`, { approved: false, public: false }); data = { job: job(id) }; }
+    else if (path.startsWith(`${base}/knowledge/imports/`)) { const id = path.split("/").at(-1)!.replace(/^job-/u, ""); data = { job: job(id) }; }
+    else if (path.endsWith("/policy")) { const id = path.split("/").at(-2)!, state = sources.get(id)!; if (body.action === "approve") state.approved = true; if (body.action === "visibility") state.public = true; data = { source: source(id) }; }
     else if (path.endsWith("/configuration")) {expect(body.expectedRevision).toBe(draftRevision);configuration=body.configuration;setup=body.setup ?? setup;setupStep=body.setupStep ?? setupStep;name=body.name;draftRevision++; data = { agent: agent(), deployments: [], snapshot: { id: "version", number: 1, configuration } }; }
     else if (path === `${base}/agents/new-agent`) data = { agent: agent(), deployments: [], versions: [] };
     else if (path.endsWith("/booking-policies")) {
@@ -105,6 +113,32 @@ for (const width of [1440, 768, 390]) test(`guided setup preserves choices and k
   expect(saved.setup).toEqual(expect.objectContaining({ responsibilities: ["answer-questions", "customer-support", "bookings", "enquiries"], channels: ["website", "whatsapp"], supportHours: { timeZone: "Africa/Johannesburg", intervals: [{ day: 1, start: "09:00", end: "12:00" }, { day: 1, start: "13:00", end: "17:00" }] }, booking: { durationMinutes: 45, notes: "Weekdays, 9–5" }, intake: { fields: ["name", "email", "message", "phone"] } }));
   expect(requests.some(request => /connections|deployments|booking-policies/.test(request.path))).toBe(false);
 });
+test("guided setup adds uploaded documents to the agent in one action", async ({ page }) => {
+  const requests = await fixture(page), dialog = await start(page);
+  await dialog.getByLabel("Business name", { exact: true }).fill("Bicycle shop");
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  await dialog.getByLabel(/Answer questions/).check();
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(dialog.getByRole("heading", { name: "Business knowledge" })).toBeVisible();
+  await dialog.getByLabel("Documents").setInputFiles([
+    { name: "menu.json", mimeType: "application/json", buffer: Buffer.from('{"name":"Chicken Mayo","price":"R47"}') },
+    { name: "hours.csv", mimeType: "text/csv", buffer: Buffer.from("Name,Hours\nSandton,08:00-13:30\n") },
+    { name: "contacts.txt", mimeType: "text/plain", buffer: Buffer.from("Head office 011 907 6237") },
+  ]);
+  await dialog.getByRole("button", { name: "Upload", exact: true }).click();
+  await expect(dialog.getByText("Ready to review")).toHaveCount(3);
+  await dialog.getByLabel("Allow use in public customer replies").check();
+  await dialog.getByRole("button", { name: "Use knowledge", exact: true }).click();
+  await expect(dialog.getByText("Added", { exact: true })).toHaveCount(3);
+  expect(requests.filter(request => request.path === `${base}/knowledge/imports`)).toHaveLength(3);
+  expect(requests.filter(request => request.path.endsWith("/policy") && request.body.action === "visibility" && request.body.visibility === "public")).toHaveLength(3);
+  const saved = requests.filter(request => request.path.endsWith("/configuration")).at(-1)!.body;
+  expect(saved.configuration).toEqual(expect.objectContaining({ sourceRevisionIds: expect.arrayContaining(["existing-source", "revision-1", "revision-2", "revision-3"]) }));
+  expect(saved.configuration).toEqual(expect.objectContaining({ tools: expect.arrayContaining(["knowledge.search", "knowledge.read"]) }));
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(dialog.getByRole("heading", { name: "Where will customers use it?" })).toBeVisible();
+});
+
 test("booking-only setup skips knowledge and closing preserves the current step", async ({ page }) => {
   const requests = await fixture(page); let dialog = await start(page);
   await dialog.getByLabel("Business name", { exact: true }).fill("Salon");

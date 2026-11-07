@@ -53,7 +53,7 @@ opaque HTTP-only product session, never a service or model credential.
 - `/app/agents/:agentId/conversations/:conversationId`: authorized conversation history and chat.
 - `/app/inbox`: customer conversations, assignment, human replies and handoff.
 - `/app/customers`: enquiry and contact records, follow-up and activity.
-- `/app/knowledge`: private imports, candidate review, revision approval and withdrawal.
+- `/app/knowledge`: private imports (PDF, HTML, Markdown, text, JSON and CSV), candidate review, revision approval and withdrawal.
 - `/app/connections`: connected provider accounts and selected API/MCP tools. Start or manage an agent's customer-channel connection in that agent's Configure → Channels section.
 - `/app/automations`: pinned UTC/event occurrences and report reviewer controls.
 - `/app/tasks`: authorized tasks, filters and conversation or review links.

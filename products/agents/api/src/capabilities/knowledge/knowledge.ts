@@ -6,6 +6,7 @@ import { assertIngestionPublication,SOURCE_LIMITS,sourceChunkSchema,textDigest,t
 import { transaction } from "../../infrastructure/database";
 import { PrivateObjectStore } from "../../infrastructure/object-store";
 import { writeSourceObject } from "./source-objects";
+import { convertStructuredSource } from "./structured-source";
 import { assertMcpJobAuthority } from "../../infrastructure/mcp-job-authority";
 import { isProductResourceScope, requireProductResourceAccess, resourceAccountId, resourceService, resourceOwnership, resourceMatchesScope,
   knowledgeJobScope, type PersonalResourceScope, type ProductResourceScope } from "../products/resource-scope";
@@ -53,17 +54,20 @@ export class KnowledgeStore {
   }
 
   /** Plain UTF-8 text needs no executable document parser; sealing and review stay shared. */
-  async admitText(scope: KnowledgeScope, raw: { operationId: string; title: string; text: string; contentType?: "text/plain" | "text/markdown"; sourceId?: string }): Promise<IngestionJobDTO> {
+  async admitText(scope: KnowledgeScope, raw: { operationId: string; title: string; text: string; contentType?: "text/plain" | "text/markdown" | "application/json" | "text/csv"; sourceId?: string }): Promise<IngestionJobDTO> {
     if (!this.objects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE", 503, "Private storage is unavailable");
     const input = z.strictObject({ operationId: z.string().min(1).max(128), title: z.string().trim().min(1).max(200),
       text: z.string().min(1).refine(value => value.trim().length > 0 && Buffer.byteLength(value, "utf8") <= 262144),
-      contentType: z.enum(["text/plain", "text/markdown"]).default("text/plain"), sourceId: z.uuid().optional() }).parse(raw);
-    const bytes = Buffer.from(input.text, "utf8"), rawDigest = textDigest(bytes), parserRelease = "inline-text-v1";
+      contentType: z.enum(["text/plain", "text/markdown", "application/json", "text/csv"]).default("text/plain"), sourceId: z.uuid().optional() }).parse(raw);
+    const text = input.contentType === "application/json" || input.contentType === "text/csv"
+      ? convertStructuredSource(input.contentType, Buffer.from(input.text, "utf8")) : input.text;
+    const contentType = input.contentType === "application/json" || input.contentType === "text/csv" ? "text/markdown" : input.contentType;
+    const bytes = Buffer.from(text, "utf8"), rawDigest = textDigest(bytes), parserRelease = "inline-text-v1";
     const admitted = await this.admit(scope, { operationId: input.operationId, title: input.title, sourceId: input.sourceId,
-      contentType: input.contentType, rawDigest, rawBytes: bytes.length, parserRelease, kind: "upload" }, requestDigest({ ...input, parserRelease, rawDigest }), false);
+      contentType, rawDigest, rawBytes: bytes.length, parserRelease, kind: "upload" }, requestDigest({ ...input, parserRelease, rawDigest }), false);
     if (admitted.state === "ready") return jobDTO(admitted);
     if (["failed", "cancelled"].includes(admitted.state)) throw new PlatformError("INGESTION_INVALIDATED", 409, "The source import is unavailable");
-    await writeSourceObject(this.pool, this.objects, { jobId: admitted.id, key: admitted.raw_key, bytes, contentType: input.contentType, kind: "raw" });
+    await writeSourceObject(this.pool, this.objects, { jobId: admitted.id, key: admitted.raw_key, bytes, contentType, kind: "raw" });
     await transaction(this.pool, async db => {
       await requireKnowledgeMember(db, scope, isProductResourceScope(scope));
       await assertMcpJobAuthority(db,{mcp_connection_id:admitted.mcp_connection_id,organization_id:admitted.organization_id,importer_account_id:admitted.importer_account_id});
@@ -71,28 +75,31 @@ export class KnowledgeStore {
       if (!changed.rowCount) throw new PlatformError("INGESTION_INVALIDATED", 409, "The source import changed before sealing");
     });
     const chunks: SourceChunk[] = []; let offset = 0;
-    while (offset < input.text.length) {
-      const content = fitUtf8(input.text.slice(offset), 384), end = offset + content.length;
+    while (offset < text.length) {
+      const content = fitUtf8(text.slice(offset), 384), end = offset + content.length;
       const chunkDigest=requestDigest({revisionId:admitted.revision_id,ordinal:chunks.length,release:"source-chunk-v1"});
       const chunkId=`${chunkDigest.slice(0,8)}-${chunkDigest.slice(8,12)}-5${chunkDigest.slice(13,16)}-a${chunkDigest.slice(17,20)}-${chunkDigest.slice(20,32)}`;
       chunks.push({ id: chunkId, revisionId: admitted.revision_id, ordinal: chunks.length, start: offset, end,
         page: 1, section: null, text: content, digest: textDigest(content), tokens: Buffer.byteLength(content, "utf8") });
       offset = end;
     }
-    await this.publishExtraction(admitted.id, { text: input.text, chunks, normalizerRelease: "utf8-verbatim-v1", acquiredAt: new Date(admitted.created_at).toISOString() });
+    await this.publishExtraction(admitted.id, { text, chunks, normalizerRelease: "utf8-verbatim-v1", acquiredAt: new Date(admitted.created_at).toISOString() });
     return this.getJob(scope, admitted.id);
   }
 
   async admitUpload(scope: KnowledgeScope, raw: { operationId: string; title: string; contentType: string; content: Uint8Array; parserRelease: string; embeddingRelease?: string; sourceId?: string }): Promise<IngestionJobDTO> {
     if (!this.objects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE", 503, "Private storage is unavailable");
     const input = z.strictObject({ operationId: z.string().min(1).max(128), title: z.string().trim().min(1).max(200),
-      contentType: z.enum(["text/plain", "text/markdown", "text/html", "application/pdf"]), content: z.instanceof(Uint8Array),
+      contentType: z.enum(["text/plain", "text/markdown", "text/html", "application/pdf", "application/json", "text/csv"]), content: z.instanceof(Uint8Array),
       parserRelease: z.string().min(1).max(128), embeddingRelease: z.string().min(1).max(256).optional(), sourceId: z.uuid().optional() }).parse(raw);
     if (!input.content.byteLength || input.content.byteLength > SOURCE_LIMITS.rawBytes) throw new PlatformError("SOURCE_SIZE_INVALID", 413, "File exceeds the import limit");
     const rawDigest = textDigest(input.content), digest = requestDigest({ ...input, content: undefined, rawDigest });
-    const admitted = await this.admit(scope, { ...input, rawDigest, rawBytes: input.content.byteLength, kind: "upload" }, digest);
+    const content = input.contentType === "application/json" || input.contentType === "text/csv"
+      ? Buffer.from(convertStructuredSource(input.contentType, input.content), "utf8") : input.content;
+    const contentType = input.contentType === "application/json" || input.contentType === "text/csv" ? "text/markdown" : input.contentType;
+    const admitted = await this.admit(scope, { ...input, contentType, rawDigest: textDigest(content), rawBytes: content.byteLength, kind: "upload" }, digest);
     if (["cancelled", "failed", "ready"].includes(admitted.state)) return jobDTO(admitted);
-    await writeSourceObject(this.pool,this.objects,{jobId:admitted.id,key:admitted.raw_key,bytes:input.content,contentType:input.contentType,kind:"raw"});
+    await writeSourceObject(this.pool,this.objects,{jobId:admitted.id,key:admitted.raw_key,bytes:content,contentType,kind:"raw"});
     const current = await transaction(this.pool, async db => {
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [scope.organizationId]);
       const row = (await db.query(`SELECT j.*,s.state AS source_state,s.generation AS current_generation FROM agents_platform.ingestion_jobs j
