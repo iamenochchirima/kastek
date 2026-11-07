@@ -153,3 +153,13 @@ describe("history preparation window", () => {
     expect(historyTurnWindow({ AGENTS_HISTORY_TURN_WINDOW: "nonsense" })).toBe(60);
   });
 });
+
+describe("memory recall coverage", () => {
+  it("discloses truncated recall instead of implying completeness", async () => {
+    const { memoryRecallCoverage } = await import("../src/execution/business/business");
+    expect(memoryRecallCoverage(100, null)).toBeNull();
+    const truncated = memoryRecallCoverage(100, 100);
+    expect(truncated?.content).toContain("memory_recall_truncated");
+    expect(truncated?.content).toContain("memory_search");
+  });
+});

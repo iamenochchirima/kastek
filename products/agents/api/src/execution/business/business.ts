@@ -292,6 +292,8 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       ...(expiries.length ? { expiresAt: Math.min(...expiries) } : {}) };
     sources.push(...memories.map(item => ({ id: item.id, revision: item.revision, kind: "memory" as const, content: item.content,
       memoryAssertion:{...item.assertion,origin:item.origin,reviewStatus:"accepted" as const,verified:false as const,updatedAt:item.updatedAt,expiresAt:item.expiresAt} })));
+    const coverage=memoryRecallCoverage(memories.length,selected.nextOffset);
+    if(coverage)sources.push(coverage);
   }
   const skills = !config.skillIds.length ? [] : (task.product !== "agents" || task.principal.kind === "automation" || isCustomerPrincipal(task.principal)) ?
     await loadSkillRevisions(pool,task.organization_id,execution.agentId,config.skillIds) :
@@ -571,6 +573,14 @@ export async function awaitBackgroundCompaction(ctx:restate.WorkflowContext,pool
  * the evidence checks it triggers and the organization lock they hold. Active constraints survive
  * independently through the instruction ledger; older facts remain reachable via history_search.
  */
+/** Recall truncation is disclosed rather than presented as the whole memory. */
+export function memoryRecallCoverage(shown: number, nextOffset: number | null) {
+  if (nextOffset === null) return null;
+  return { id: "memory-recall-coverage", revision: shown, kind: "result" as const, content: JSON.stringify({
+    kind: "memory_recall_truncated", loadedMemories: shown, nextOffset,
+    guidance: "More accepted memories exist than were loaded into this request. Do not assume an older standing preference is absent; call memory_search when the request depends on one." }) };
+}
+
 export function historyTurnWindow(env: NodeJS.ProcessEnv = process.env): number {
   const value = Number(env.AGENTS_HISTORY_TURN_WINDOW ?? 60);
   if (!Number.isSafeInteger(value)) return 60;
