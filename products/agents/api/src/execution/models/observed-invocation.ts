@@ -69,6 +69,8 @@ export async function invokeObservedTaskModel(input: TaskModelInvocation, depend
         ...(response ? { outcome: response.finishReason === "stop" ? "completed" : response.finishReason === "length" ? "truncated" : response.finishReason === "refusal" ? "refused" : "tool_calls" } as const : failed!),
         durationMs: Math.max(0, performance.now() - started), firstVisibleTokenStatus: firstVisibleTokenMs === undefined ? "unavailable" : "observed",
         ...(firstVisibleTokenMs === undefined ? {} : { firstVisibleTokenMs }), queueStatus: "unavailable",
+        // A buffered provider returns everything at the end; the UI reads that as a hang.
+        incrementalOutput: firstVisibleTokenMs === undefined ? null : firstVisibleTokenMs < Math.max(1, performance.now() - started) * 0.8,
         usageStatus: usage ? "observed" : "unavailable",
         inputTokens: valid(usage?.inputTokens), outputTokens: valid(usage?.outputTokens), cacheReadTokens: valid(usage?.cachedInputTokens),
         cacheWriteTokens: valid(usage?.cacheWriteTokens), reasoningTokens: valid(usage?.reasoningTokens),

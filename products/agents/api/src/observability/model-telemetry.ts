@@ -22,6 +22,7 @@ export const modelInvocationEventSchema = z.strictObject({
   streamErrorKind:modelStreamErrorKindSchema.optional(),providerErrorCode:z.number().int().min(100).max(599).optional(),
   durationMs: elapsed, firstVisibleTokenMs: elapsed.optional(),
   firstVisibleTokenStatus: z.enum(["observed", "unavailable"]),
+  incrementalOutput: z.boolean().nullable().optional(),
   queueStatus: z.enum(["unavailable", "observed"]), queueMs: elapsed.optional(),
   usageStatus: z.enum(["observed", "unavailable"]),
   inputTokens: count.optional(), outputTokens: count.optional(), cacheReadTokens: count.optional(),
