@@ -480,6 +480,11 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return { agent: dto(await creationOperations.profile({ accountId: (await account(request)).id,
       organizationId: organizationId(request) }, uuid.parse(parameters(request).agentId), input)) };
   });
+  app.put(`${base}/agents/:agentId/capabilities`, async (request) => {
+    const result = await creationOperations.setCapabilities({ accountId: (await account(request)).id,
+      organizationId: organizationId(request) }, uuid.parse(parameters(request).agentId), request.body);
+    return { agent: dto(result.agent), snapshot: dto(result.snapshot) };
+  });
   app.post(`${base}/agents/:agentId/configuration`, async request => {
     const result = await creationOperations.save({ accountId: (await account(request)).id,
       organizationId: organizationId(request) }, uuid.parse(parameters(request).agentId), request.body);
