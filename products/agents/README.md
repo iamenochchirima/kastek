@@ -240,8 +240,8 @@ The conditional appointment step binds an authorized Google or Microsoft calenda
 Every runnable business agent opens with an agent-scoped menu: **Overview**, **Conversations**,
 **Capabilities**, **Training data**, **Behaviour**, **Chat widget**, **Deploy** and **Settings**.
 **Overview** is the agent home with customer-conversation metrics, setup progress and recent
-activity. The organization Assistant opens from the sidebar Assistant entry as a chat, history, settings
-and channels panel. **Behaviour** can explicitly enable adaptive
+activity. The Ask AI panel opens from the sidebar Ask AI entry as a chat, history, settings and
+channels panel; its organization-assistant agent stays outside the agent directory. **Behaviour** can explicitly enable adaptive
 coordination and select published specialists. Chat and task activity show model-authored work
 progress alongside actual child task states. Active root tasks accept queued instructions;
 child tasks link to their own exact-effect reviews. The controlled API/runtime and responsive

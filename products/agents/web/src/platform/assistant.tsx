@@ -62,7 +62,7 @@ export function MemberChannelsPanel({ agentPath, ready }: { agentPath: string | 
     finally { setBusy(null); }
   }
   async function updateLink(link: MemberLink, action: "confirm" | "revoke") {
-    const accepted = await confirm(action === "confirm" ? { title: "Link this account?", description: `${link.senderLabel ?? "Unknown sender"} on ${channelName(link.kind)} will access your assistant in ${organizationName}.`, confirmLabel: "Confirm account" } : { title: "Unlink account?", description: `${link.senderLabel ?? channelName(link.kind)} will lose private assistant access.`, confirmLabel: "Unlink", variant: "destructive" });
+    const accepted = await confirm(action === "confirm" ? { title: "Link this account?", description: `${link.senderLabel ?? "Unknown sender"} on ${channelName(link.kind)} will access Ask AI in ${organizationName}.`, confirmLabel: "Confirm account" } : { title: "Unlink account?", description: `${link.senderLabel ?? channelName(link.kind)} will lose private Ask AI access.`, confirmLabel: "Unlink", variant: "destructive" });
     if (!accepted) return;
     setBusy(link.id);
     try {
@@ -76,7 +76,7 @@ export function MemberChannelsPanel({ agentPath, ready }: { agentPath: string | 
     <p className="text-sm text-muted-foreground">Private access to {organizationName}</p>
     <ErrorMessage value={error} />
     {error ? <Button variant="outline" onClick={() => setGeneration(value => value + 1)}>Retry accounts</Button> : !data ? <Loading /> : <>
-      {data.enabled === false ? <p className="text-sm text-muted-foreground">Private messaging unavailable</p> : !ready ? <p className="text-sm text-muted-foreground">Configure the assistant before linking an account.</p> : null}
+      {data.enabled === false ? <p className="text-sm text-muted-foreground">Private messaging unavailable</p> : !ready ? <p className="text-sm text-muted-foreground">Configure Ask AI before linking an account.</p> : null}
       {data.connections.length === 0 ? <p className="text-sm text-muted-foreground">No messaging connections available</p> : <div className="flex flex-wrap gap-2">{data.connections.map(connection => <Button key={connection.id} variant="outline" disabled={!ready || data.enabled === false || busy !== null || data.links.some(link => link.connectionId === connection.id && ["pending", "active"].includes(link.state))} onClick={() => void pair(connection.id)}>{busy === connection.id ? "Preparing…" : `Link ${connection.label || channelName(connection.kind)}`}</Button>)}</div>}
       {challenge && !challengeConsumed ? <div className="space-y-2 rounded-md border border-border p-4" role="status">
         {challengeExpired ? <p className="text-sm">Pairing code expired. Link the account again.</p> : <>

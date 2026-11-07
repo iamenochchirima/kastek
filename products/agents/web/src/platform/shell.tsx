@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, NavLink, Navigate, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Robot01Icon, DashboardSquare01Icon, Task01Icon, BookOpen01Icon, Plug01Icon, CalendarClockIcon, Settings01Icon, Menu01Icon, Logout01Icon, SidebarLeft01Icon, InboxIcon, UserGroupIcon } from "@hugeicons/core-free-icons";
+import { Robot01Icon, AiChat02Icon, DashboardSquare01Icon, Task01Icon, BookOpen01Icon, Plug01Icon, CalendarClockIcon, Settings01Icon, Menu01Icon, Logout01Icon, SidebarLeft01Icon, InboxIcon, UserGroupIcon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,7 +69,7 @@ export function WorkspaceShell() {
     </div>
     {session?.organizations.length ? <select aria-label="Workspace" className="workspace-select" value={organizationId} onChange={event => event.target.value === "new" ? setWorkspaceOpen(true) : selectWorkspace(event.target.value)}>{session.organizations.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}<option value="new">Create workspace</option></select> : null}
     <nav aria-label="Main navigation" className="workspace-navigation">{([
-      ["/app/overview", "Overview", DashboardSquare01Icon], ["assistant", "Assistant", Robot01Icon], ["/app/agents", "Agents", Robot01Icon], ["/app/inbox", "Inbox", InboxIcon], ["/app/customers", "Customers", UserGroupIcon], ["/app/tasks", "Tasks", Task01Icon], ["/app/knowledge", "Knowledge", BookOpen01Icon], ["/app/connections", "Connections", Plug01Icon], ["/app/automations", "Automations", CalendarClockIcon], ["/app/settings", "Settings", Settings01Icon],
+      ["/app/overview", "Overview", DashboardSquare01Icon], ["assistant", "Ask AI", AiChat02Icon], ["/app/agents", "Agents", Robot01Icon], ["/app/inbox", "Inbox", InboxIcon], ["/app/customers", "Customers", UserGroupIcon], ["/app/tasks", "Tasks", Task01Icon], ["/app/knowledge", "Knowledge", BookOpen01Icon], ["/app/connections", "Connections", Plug01Icon], ["/app/automations", "Automations", CalendarClockIcon], ["/app/settings", "Settings", Settings01Icon],
     ] as const).map(([path, label, icon]) => path === "assistant"
       ? <button key={String(path)} type="button" aria-label={label} title={label} aria-current={assistantOpen ? "page" : undefined} onClick={() => { setNavigationOpen(false); setAssistantOpen(true); }} className={`workspace-nav-link ${assistantOpen ? "is-active" : ""}`}><HugeiconsIcon icon={icon} size={18} strokeWidth={1.6} aria-hidden="true" /><span>{String(label)}</span></button>
       : <NavLink key={String(path)} to={String(path)} aria-label={label} title={label} onClick={() => setNavigationOpen(false)} className={({ isActive }) => `workspace-nav-link ${isActive ? "is-active" : ""}`}><HugeiconsIcon icon={icon} size={18} strokeWidth={1.6} aria-hidden="true" /><span>{String(label)}</span></NavLink>)}</nav>

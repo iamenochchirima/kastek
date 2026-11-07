@@ -193,8 +193,8 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
       <button
         ref={trigger}
         type="button"
-        aria-label="Open assistant"
-        title="Open assistant"
+        aria-label="Open Ask AI"
+        title="Open Ask AI"
         onClick={() => { if (suppressClickRef.current) { suppressClickRef.current = false; return; } onOpenChange(true); }}
         onPointerDown={event => {
           if (event.button !== 0) return;
@@ -227,14 +227,14 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
           tabIndex={-1}
           role="dialog"
           aria-modal="true"
-          aria-label="Assistant"
+          aria-label="Ask AI"
           style={{ width: `min(${width}px, 100vw)` }}
           className={cn("fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l border-border bg-background shadow-2xl", resizing && "select-none")}
         >
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label="Resize assistant panel"
+            aria-label="Resize Ask AI panel"
             className="absolute inset-y-0 -left-2 z-10 hidden w-4 cursor-ew-resize touch-none sm:block"
             onPointerDown={beginResize}
             onPointerMove={moveResize}
@@ -243,19 +243,19 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
           />
           <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
             <div className="flex min-w-0 items-center gap-2">
-              <Button variant="ghost" size="icon" className="h-8 w-8 sm:hidden" onClick={() => setMobileNavigationOpen(true)} aria-label="Open assistant navigation" aria-expanded={mobileNavigationOpen}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 sm:hidden" onClick={() => setMobileNavigationOpen(true)} aria-label="Open Ask AI navigation" aria-expanded={mobileNavigationOpen}>
                 <PiSidebarSimple size={16} aria-hidden="true" />
               </Button>
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                 <HugeiconsIcon icon={AiChat02Icon} size={16} aria-hidden="true" />
               </span>
               <div className="min-w-0">
-                <h2 className="truncate text-sm font-semibold">{assistant?.agent?.name ?? "Assistant"}</h2>
-                <p className="truncate text-[11px] text-muted-foreground">{ready ? "Your workspace assistant" : "Setup required"}</p>
+                <h2 className="truncate text-sm font-semibold">Ask AI</h2>
+                <p className="truncate text-[11px] text-muted-foreground">{ready ? "Your workspace AI" : "Setup required"}</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={close} aria-label="Close assistant">
+              <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={close} aria-label="Close Ask AI">
                 <HugeiconsIcon icon={Cancel01Icon} size={18} aria-hidden="true" />
               </Button>
             </div>
@@ -304,7 +304,7 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
                   onBack={() => setView("chat")}
                   onNew={() => openChat(null)}
                   onOpen={id => openChat(id)}
-                /> : loaded ? <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} /> : <div className="flex flex-1 items-center justify-center gap-2 p-6 text-sm text-muted-foreground" role="status">Loading assistant…</div>
+                /> : loaded ? <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} /> : <div className="flex flex-1 items-center justify-center gap-2 p-6 text-sm text-muted-foreground" role="status">Loading Ask AI…</div>
               ) : null}
               {view === "settings" ? (
                 <AssistantSettings organizationId={organizationId} assistant={assistant} loaded={loaded} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} onBack={() => setView("chat")} />
@@ -332,7 +332,7 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
                   initialConversationId={activeConversationId ?? undefined}
                   onConversationReady={id => setActiveConversationId(id)}
                   cancellable
-                /> : loaded ? <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} /> : <div className="flex flex-1 items-center justify-center gap-2 p-6 text-sm text-muted-foreground" role="status">Loading assistant…</div>
+                /> : loaded ? <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} /> : <div className="flex flex-1 items-center justify-center gap-2 p-6 text-sm text-muted-foreground" role="status">Loading Ask AI…</div>
               ) : null}
             </div>
           </div>
@@ -367,10 +367,10 @@ function AssistantNavigation({ expanded, view, organizationId, agentId, selected
   }, [expanded, organizationId, agentId]);
   const actionClass = (active = false) =>
     cn("flex h-9 items-center rounded-md text-sm transition-colors hover:bg-muted", expanded ? "w-full gap-2 px-2.5" : "w-9 justify-center", active && "bg-muted text-foreground");
-  return <nav aria-label="Assistant navigation" className={cn("flex shrink-0 flex-col border-r border-border bg-card/30 p-2 transition-[width]", expanded ? "w-56" : "w-14")}>
+  return <nav aria-label="Ask AI navigation" className={cn("flex shrink-0 flex-col border-r border-border bg-card/30 p-2 transition-[width]", expanded ? "w-56" : "w-14")}>
     <div className={cn("mb-2 flex items-center", expanded ? "justify-between px-1" : "justify-center")}>
-      <span className={cn("text-sm font-semibold", !expanded && "sr-only")}>Assistant</span>
-      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onToggle} aria-label={expanded ? "Collapse assistant navigation" : "Expand assistant navigation"}>
+      <span className={cn("text-sm font-semibold", !expanded && "sr-only")}>Ask AI</span>
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onToggle} aria-label={expanded ? "Collapse Ask AI navigation" : "Expand Ask AI navigation"}>
         <PiSidebarSimple size={16} aria-hidden="true" className={cn("transition-transform", expanded && "rotate-180")} />
       </Button>
     </div>
@@ -414,20 +414,20 @@ function AssistantSetupSection({ organizationId, assistant, isOwner, onUpdate, o
     try {
       const result = await api<Assistant>(`${organizationPath(organizationId)}/assistant/repair`, {});
       onUpdate(result);
-      toast.success("Assistant ready to configure");
+      toast.success("Ask AI ready to configure");
     } catch (cause) { setError(message(cause)); }
     finally { setBusy(false); }
   }
   const agentPath = assistant?.agent ? `/app/agents/${encodeURIComponent(assistant.agent.id)}` : null;
-  if (!assistant) return <p className="p-6 text-sm text-muted-foreground" role="status">Loading assistant…</p>;
+  if (!assistant) return <p className="p-6 text-sm text-muted-foreground" role="status">Loading Ask AI…</p>;
   return <div className="space-y-3 p-6 text-sm">
-    <p className="font-medium">{assistant.state === "deleted" ? "Assistant removed" : assistant.state === "draft" ? "Configuration required" : "Assistant needs setup"}</p>
-    {assistant.state === "draft" ? <p className="text-muted-foreground">Configure the assistant before chatting.</p> : null}
+    <p className="font-medium">{assistant.state === "deleted" ? "Ask AI removed" : assistant.state === "draft" ? "Configuration required" : "Ask AI needs setup"}</p>
+    {assistant.state === "draft" ? <p className="text-muted-foreground">Configure Ask AI before chatting.</p> : null}
     {error ? <p role="alert" className="text-destructive">{error}</p> : null}
     <div className="flex flex-wrap gap-2">
       {agentPath ? <>
-        {assistant.state === "configured" ? null : isOwner ? <Button asChild size="sm"><Link to={`${agentPath}?section=configuration`} onClick={onNavigate}>Configure</Link></Button> : <p className="text-muted-foreground">Ask an owner to configure the assistant.</p>}
-      </> : isOwner ? <Button size="sm" disabled={busy} onClick={() => void repair()}>{busy ? "Preparing…" : assistant.state === "deleted" ? "Restore assistant" : "Set up assistant"}</Button> : <p className="text-muted-foreground">Ask an owner to set up the assistant.</p>}
+        {assistant.state === "configured" ? null : isOwner ? <Button asChild size="sm"><Link to={`${agentPath}?section=configuration`} onClick={onNavigate}>Configure</Link></Button> : <p className="text-muted-foreground">Ask an owner to configure Ask AI.</p>}
+      </> : isOwner ? <Button size="sm" disabled={busy} onClick={() => void repair()}>{busy ? "Preparing…" : assistant.state === "deleted" ? "Restore Ask AI" : "Set up Ask AI"}</Button> : <p className="text-muted-foreground">Ask an owner to set up Ask AI.</p>}
     </div>
   </div>;
 }
@@ -620,7 +620,7 @@ function AssistantSettings({ organizationId, assistant, loaded, isOwner, onUpdat
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack} aria-label="Back to chat">
           <PiArrowLeft size={16} aria-hidden="true" />
         </Button>
-        <h3 className="flex-1 text-sm font-semibold">Assistant settings</h3>
+        <h3 className="flex-1 text-sm font-semibold">Ask AI settings</h3>
       </div>
       <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={onUpdate} onNavigate={onNavigate} />
     </div>;
@@ -631,16 +631,16 @@ function AssistantSettings({ organizationId, assistant, loaded, isOwner, onUpdat
       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack} aria-label="Back to chat">
         <PiArrowLeft size={16} aria-hidden="true" />
       </Button>
-      <h3 className="flex-1 text-sm font-semibold">Assistant settings</h3>
+      <h3 className="flex-1 text-sm font-semibold">Ask AI settings</h3>
     </div>
     <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-      <section aria-label="Assistant profile" className="flex items-center gap-3">
+      <section aria-label="Ask AI profile" className="flex items-center gap-3">
         <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
           {assistant.agent.name.slice(0, 1).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{assistant.agent.name}</p>
-          <p className="text-xs text-muted-foreground">Workspace system assistant · {assistant.state === "configured" ? "Ready" : "Needs setup"}</p>
+          <p className="text-xs text-muted-foreground">Workspace AI · {assistant.state === "configured" ? "Ready" : "Needs setup"}</p>
         </div>
       </section>
       <section aria-label="Model" className="space-y-2">
