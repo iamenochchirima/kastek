@@ -353,6 +353,7 @@ test("support hours save directly from General and survive reload", async ({page
   await page.goto(`/app/agents/${agentId}?section=configuration`);
   const support = page.getByRole("region", {name:"Human support",exact:true});
   await expect(support).toBeVisible();
+  await support.locator("summary").click();
   await expect(page.getByRole("button",{name:"Save changes",exact:true})).toBeDisabled();
   await expect(support.getByLabel("Friday closes",{exact:true})).toHaveValue("16:00");
   await support.getByLabel("Monday opens",{exact:true}).fill("930");
@@ -364,6 +365,7 @@ test("support hours save directly from General and survive reload", async ({page
   expect(state.saves[0]).not.toHaveProperty("setup");
   expect(state.saves[0]).toMatchObject({expectedRevision:1,configuration:{instructions:"Answer customer questions.",supportHours:{timeZone:"Africa/Johannesburg",intervals:[{day:1,start:"09:30",end:"18:00"},{day:5,start:"09:00",end:"16:00"}]}}});
   await page.reload();
+  await support.locator("summary").click();
   await expect(support.getByLabel("Monday opens",{exact:true})).toHaveValue("09:30");
   await expect(support.getByLabel("Monday closes",{exact:true})).toHaveValue("18:00");
   await expect(support.getByLabel("Friday closes",{exact:true})).toHaveValue("16:00");
@@ -372,6 +374,7 @@ test("support hours save directly from General and survive reload", async ({page
 test("invalid support hours block saving and failed saves preserve edits", async ({page}) => {
   const state = await fixture(page, false, false, false, "configured");
   await page.goto(`/app/agents/${agentId}?section=configuration`);
+  await page.getByRole("region",{name:"Human support",exact:true}).locator("summary").click();
   const opens=page.getByLabel("Monday opens",{exact:true}), closes=page.getByLabel("Monday closes",{exact:true});
   await opens.fill("25:00");
   await page.getByRole("button",{name:"Save changes",exact:true}).click();
@@ -401,6 +404,7 @@ test("missing support hours stay unset until explicitly configured", async ({pag
   await fixture(page,false,false,false,"missing");
   await page.goto(`/app/agents/${agentId}?section=configuration`);
   await expect(page.getByRole("button",{name:"Save changes",exact:true})).toBeDisabled();
+  await page.getByRole("region",{name:"Human support",exact:true}).locator("summary").click();
   await expect(page.getByLabel("Monday opens",{exact:true})).toHaveCount(0);
   await page.getByRole("button",{name:"Set support hours",exact:true}).click();
   await expect(page.getByLabel("Monday opens",{exact:true})).toHaveValue("09:00");
@@ -412,6 +416,7 @@ for(const width of [1440,768,390]) for(const theme of ["light","dark"] as const)
   await fixture(page,false,false,false,"configured");
   await page.goto(`/app/agents/${agentId}?section=configuration`);
   await expect(page.getByRole("region",{name:"Human support",exact:true})).toBeVisible();
+  await page.getByRole("region",{name:"Human support",exact:true}).locator("summary").click();
   await expect(page.getByLabel("Monday opens",{exact:true})).toHaveValue("09:00");
   await expect(page.getByRole("link",{name:"Manage model providers",exact:true})).toHaveCount(1);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -432,6 +437,7 @@ for(const width of [1440,768,390]) for(const theme of ["light","dark"] as const)
 test("loading valid history clears stale support-hour errors", async ({page}) => {
   await fixture(page,false,false,false,"configured");
   await page.goto(`/app/agents/${agentId}?section=configuration`);
+  await page.getByRole("region",{name:"Human support",exact:true}).locator("summary").click();
   await page.getByLabel("Monday opens",{exact:true}).fill("invalid");
   await page.getByRole("button",{name:"Save changes",exact:true}).click();
   await expect(page.getByText("Enter valid support days, hours and timezone.", {exact:true})).toBeVisible();

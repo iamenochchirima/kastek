@@ -220,3 +220,13 @@
   .agent-settings-danger { flex-direction: column; }
   .agent-capability-actions { grid-column: 1 / -1; }
 }
+
+/* Optional support hours stay collapsed until the owner opens them. */
+.agent-support-disclosure > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; font-size: 15px; font-weight: 600; }
+.agent-support-disclosure > summary::-webkit-details-marker { display: none; }
+.agent-support-disclosure > summary::before { content: "›"; flex: none; color: var(--muted-foreground); font-size: 18px; line-height: 1; transition: transform .15s ease; }
+.agent-support-disclosure[open] > summary::before { transform: rotate(90deg); }
+.agent-support-disclosure > summary > span:first-child { flex: 1; min-width: 0; }
+.agent-support-state { color: var(--muted-foreground); font-size: 12px; font-weight: 400; }
+.agent-support-state[data-state="set"] { color: var(--success); }
+.agent-support-body { padding-top: 16px; }

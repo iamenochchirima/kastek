@@ -80,6 +80,7 @@ test("agent menu exposes the job-based sections with Overview by default", async
   await expect(page.getByText("Menu and prices", { exact: true })).toBeVisible();
   await menu.getByRole("link", { name: "Behaviour", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Instructions", exact: true })).toHaveValue("Answer customer questions.");
+  await expect(page.getByRole("region", { name: "Human support", exact: true }).locator("details")).not.toHaveAttribute("open", "");
   await menu.getByRole("link", { name: "Chat widget", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Chat widget", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Customize widget", exact: true })).toBeVisible();

@@ -68,7 +68,7 @@ export function AgentEditor() {
   }
   const [error, setError] = useState("");
   const [supportHoursError, setSupportHoursError] = useState("");
-  const supportSection = useRef<HTMLElement>(null);
+  const supportSection = useRef<HTMLDetailsElement>(null);
   const [busy, setBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false), [deleteBusy, setDeleteBusy] = useState(false), [deleteError, setDeleteError] = useState("");
   const deleted = useRef(false);
@@ -109,6 +109,7 @@ export function AgentEditor() {
     setSupportHoursError("Enter valid support days, hours and timezone.");
     goSection("behaviour");
     requestAnimationFrame(() => {
+      if (supportSection.current) supportSection.current.open = true;
       supportSection.current?.scrollIntoView({ block: "center" });
       supportSection.current?.querySelector<HTMLInputElement>('[aria-invalid="true"]')?.focus();
     });
@@ -209,9 +210,13 @@ export function AgentEditor() {
           {agent.setup && configuration.instructions.includes("The setup below is business context") ? <details className="agent-instructions-disclosure" onInvalid={event => { event.currentTarget.open = true; }}><summary>Instructions</summary><label className="agent-instructions block space-y-2 text-sm font-medium"><span className="sr-only">Instructions</span><Textarea required maxLength={8_000} rows={7} value={configuration.instructions} onChange={event => setConfiguration({ ...configuration, instructions: event.target.value })} /><span aria-hidden="true" className="agent-instructions-count">{configuration.instructions.length.toLocaleString()} / 8,000</span></label></details> : <label className="agent-instructions block space-y-2 text-sm font-medium">Instructions<Textarea required maxLength={8_000} rows={7} value={configuration.instructions} onChange={event => setConfiguration({ ...configuration, instructions: event.target.value })} /><span aria-hidden="true" className="agent-instructions-count">{configuration.instructions.length.toLocaleString()} / 8,000</span></label>}
         </section>
         <section className="agent-config-panel agent-config-memory"><h2>Memory</h2><AgentMemory agentId={agent.id} enabled={agent.draft.memory?.enabled ?? false} /></section>
-        {agent.setup?.responsibilities.includes("customer-support") || configuration.supportHours || configuration.tools?.some(tool => tool.startsWith("support.") || tool === "channel.request_handoff") ? <section className="agent-config-panel agent-config-support" aria-label="Human support" ref={supportSection}>
-          <h2>Human support</h2>
-          {configuration.supportHours ? <SupportHoursFields value={configuration.supportHours} onChange={supportHours => { setConfiguration({ ...configuration, supportHours }); setSupportHoursError(""); }} error={supportHoursError || undefined} /> : <Button type="button" size="sm" variant="outline" onClick={() => setConfiguration({ ...configuration, supportHours: agent.setup?.supportHours ?? defaultSupportHours() })}>Set support hours</Button>}
+        {agent.setup?.responsibilities.includes("customer-support") || configuration.supportHours || configuration.tools?.some(tool => tool.startsWith("support.") || tool === "channel.request_handoff") ? <section className="agent-config-panel agent-config-support" aria-label="Human support">
+          <details className="agent-support-disclosure" ref={supportSection}>
+            <summary><span>Human support</span><span className="agent-support-state" data-state={configuration.supportHours ? "set" : "unset"}>{configuration.supportHours ? "Configured" : "Not set"}</span></summary>
+            <div className="agent-support-body">
+              {configuration.supportHours ? <SupportHoursFields value={configuration.supportHours} onChange={supportHours => { setConfiguration({ ...configuration, supportHours }); setSupportHoursError(""); }} error={supportHoursError || undefined} /> : <Button type="button" size="sm" variant="outline" onClick={() => setConfiguration({ ...configuration, supportHours: agent.setup?.supportHours ?? defaultSupportHours() })}>Set support hours</Button>}
+            </div>
+          </details>
         </section> : null}
         <section className="agent-config-panel agent-config-model"><h2>Model</h2><AgentModel key={`${organizationId}:${agent.id}`} organizationId={organizationId} agentId={agent.id} configuration={configuration} onChange={setConfiguration} /></section>
         {configuration.capabilities.sandbox.enabled || searchParams.get("setup") === "analysis" ? <section className="agent-config-panel"><AnalysisConfiguration configuration={configuration} onChange={setConfiguration} /></section> : null}
