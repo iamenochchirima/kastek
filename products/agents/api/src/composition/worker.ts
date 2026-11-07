@@ -33,6 +33,7 @@ import { EvidenceStore } from "../execution/context/evidence";
 import { startDispatcher } from "../execution/lifecycle/dispatcher";
 import { dispatchPolicyFromEnvironment } from "../execution/scheduling/dispatch-claims";
 import { WORKFLOW_NAME, reconcileInterruptedPreparations } from "../execution/lifecycle/execution";
+import { createMaintenanceLoop } from "./maintenance-loop";
 import { HARNESS_RELEASE, HANDOFF_HARNESS_RELEASE, HANDOFF_WORKFLOW_NAME, ADAPTIVE_HARNESS_RELEASE, ADAPTIVE_WORKFLOW_NAME,LEGACY_ADAPTIVE_HARNESS_RELEASE,LEGACY_ADAPTIVE_WORKFLOW_NAME,SHARED_HARNESS_RELEASE,SHARED_WORKFLOW_NAME } from "../contracts/execution";
 import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 import { createAutomationWorkflow,startAutomationDispatcher } from "../product/automations/automation-runtime";
@@ -118,12 +119,11 @@ async function main(): Promise<void> {
   const followups = followupConfig && followupSender ? new CustomerFollowupNotifications(pool,(message,beforeAttempt)=>followupSender.send(message,beforeAttempt),followupConfig.publicUrl) : undefined;
   const supportWaiting = new SupportWaitingService(pool,(db,input)=>inbox.publishWaitingNotice(db,input));
   const channelServices=composeChannels(pool,inbox,process.env.AGENTS_PUBLIC_URL??"http://localhost:3100",abort.signal);
-  let cancellationPending: Promise<unknown> | undefined;
-  const cancellationTimer = setInterval(() => {
-    if(!cancellationPending) cancellationPending=(async()=>{await inbox.drainCancellations();await publishCustomerTimeoutBatch(pool,20,code=>console.error(JSON.stringify({...diagnosticIdentity,event:"customer_timeout_notice_failed",code})));await channelServices.delivery.drain();})()
-      .catch(()=>console.error(JSON.stringify({...diagnosticIdentity,event:"channel_maintenance_failed",code:"CHANNEL_MAINTENANCE_UNAVAILABLE"})))
-      .finally(()=>{cancellationPending=undefined;});
-  },1000); cancellationTimer.unref();
+  // Independent maintenance loops: a slow provider send must not postpone cancellation or timeout work.
+  const fail=(code:string)=>()=>console.error(JSON.stringify({...diagnosticIdentity,event:"channel_maintenance_failed",code}));
+  const cancellationMaintenance=createMaintenanceLoop(()=>inbox.drainCancellations(),fail("CANCELLATION_DRAIN_UNAVAILABLE"));
+  const timeoutMaintenance=createMaintenanceLoop(()=>publishCustomerTimeoutBatch(pool,20,code=>console.error(JSON.stringify({...diagnosticIdentity,event:"customer_timeout_notice_failed",code}))),fail("TIMEOUT_NOTICE_UNAVAILABLE"));
+  const deliveryMaintenance=createMaintenanceLoop(()=>channelServices.delivery.drain(),fail("DELIVERY_DRAIN_UNAVAILABLE"));
   let uncertainPending: Promise<unknown> | undefined;
   const uncertainTimer=setInterval(()=>{
     if(process.env.AGENTS_CONNECTED_UNCERTAIN_RECOVERY!=='false' && !uncertainPending)uncertainPending=(async()=>{
@@ -206,7 +206,7 @@ async function main(): Promise<void> {
     if (closing) return;
     closing = true;
     abort.abort();
-    clearInterval(cancellationTimer);clearInterval(uncertainTimer);clearInterval(preparationTimer); await Promise.all([cancellationPending,uncertainPending]);
+    cancellationMaintenance.stop();timeoutMaintenance.stop();deliveryMaintenance.stop();clearInterval(uncertainTimer);clearInterval(preparationTimer); await Promise.all([cancellationMaintenance.pending(),timeoutMaintenance.pending(),deliveryMaintenance.pending(),uncertainPending]);
     await Promise.all([dispatcher.stop(),automationDispatcher.stop(),supportDispatcher.stop(),receiptDispatcher.stop(),followupDispatcher?.stop(),ingestionDispatcher?.stop(),documentCleanup,sourceCleanup,memoryCleanup]);
     await new Promise<void>(resolve => {
       const deadline = setTimeout(() => { for (const session of sessions) session.destroy(); }, 10_000);
