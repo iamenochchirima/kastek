@@ -20,7 +20,7 @@ export const agentSections = [
   ["overview", "Overview", PiSquaresFour],
   ["conversations", "Conversations", PiChatCircle],
   ["capabilities", "Capabilities", PiLightning],
-  ["knowledge", "Knowledge", PiBookOpen],
+  ["knowledge", "Training data", PiBookOpen],
   ["behaviour", "Behaviour", PiSlidersHorizontal],
   ["widget", "Chat widget", PiChatTeardrop],
   ["deploy", "Deploy", PiRocketLaunch],

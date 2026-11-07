@@ -238,7 +238,7 @@ Automations and Settings. Creation exposes one customer-service offering with se
 responsibilities.
 The conditional appointment step binds an authorized Google or Microsoft calendar policy.
 Every runnable business agent opens with an agent-scoped menu: **Overview**, **Conversations**,
-**Capabilities**, **Knowledge**, **Behaviour**, **Chat widget**, **Deploy** and **Settings**.
+**Capabilities**, **Training data**, **Behaviour**, **Chat widget**, **Deploy** and **Settings**.
 **Overview** is the agent home with customer-conversation metrics, setup progress and recent
 activity. The organization Assistant opens from the sidebar Assistant entry as a chat, history, settings
 and channels panel. **Behaviour** can explicitly enable adaptive
@@ -754,7 +754,7 @@ depth are explicit caller options, not subscription limits imposed by this adapt
 Agent creation now uses guided customer-service setup: business, responsibilities, conditional
 knowledge, channels, operating preferences and review/test. Website import appears when answering
 questions or handling support is selected. Existing eligible agents expose the same import flow
-under Knowledge → Import website. Enter a domain, wait for the crawl, select pages and
+under Training data → Import website. Enter a domain, wait for the crawl, select pages and
 review their content, then import the selection. The existing isolated document pipeline prepares
 a private candidate. Review it and choose **Approve and use** to attach it to the agent. Enable
 **Allow use in public website replies** when the source may be used by website visitors.

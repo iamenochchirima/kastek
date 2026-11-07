@@ -423,7 +423,7 @@ for(const width of [1440,768,390]) for(const theme of ["light","dark"] as const)
   await page.getByLabel("Monday opens",{exact:true}).focus();
   await page.screenshot({path:test.info().outputPath(`agent-general-${width}-${theme}.png`),fullPage:true});
   if(width<=640)await page.getByRole("button",{name:"Agent menu",exact:true}).click();
-  await page.getByRole("link",{name:"Knowledge",exact:true}).filter({visible:true}).last().click();
+  await page.getByRole("link",{name:"Training data",exact:true}).filter({visible:true}).last().click();
   await expect(page.getByRole("button",{name:"Import website",exact:true})).toBeVisible();
   if(width<=640)await page.getByRole("button",{name:"Agent menu",exact:true}).click();
   await page.getByRole("link",{name:"Settings",exact:true}).filter({visible:true}).last().click();

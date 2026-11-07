@@ -25,7 +25,7 @@ export function AgentSetupProgress({ organizationId, agentId, draftRevision }: {
       const channelDone = readiness.channels.some(channel => channel.state === "connected");
       setSteps([
         { id: "profile", label: "Profile", done: true, section: "settings", action: "Review profile" },
-        { id: "knowledge", label: "Knowledge", done: knowledgeDone, section: "knowledge", action: "Add knowledge" },
+        { id: "knowledge", label: "Training data", done: knowledgeDone, section: "knowledge", action: "Add training data" },
         { id: "model", label: "Model", done: readiness.requirements.model?.state === "ready", section: "behaviour", action: "Choose model" },
         { id: "capabilities", label: "Capabilities", done: capabilitiesDone, section: "capabilities", action: "Finish capability setup" },
         { id: "channel", label: "Channel", done: channelDone, section: "deploy", action: "Connect a channel" },

@@ -284,7 +284,7 @@ or message bodies. No new external analytics producer or Collector configuration
 
 
 Website knowledge import is available as an optional creation step and under
-Knowledge → Import website. Owners can enter a bare domain, follow crawl progress,
+Training data → Import website. Owners can enter a bare domain, follow crawl progress,
 select pages, inspect extracted Markdown, and import the selection as one knowledge candidate.
 The next review shows the normalized candidate. **Approve and use** approves the revision, publishes
 it for customer replies, and attaches it through the normal revision-checked agent configuration API.

@@ -61,7 +61,7 @@ test("agent menu exposes the job-based sections with Overview by default", async
   await fixture(page);
   await page.goto(`/app/agents/${agentId}`);
   const menu = page.getByRole("navigation", { name: "Agent sections" });
-  for (const name of ["Overview", "Conversations", "Capabilities", "Knowledge", "Behaviour", "Chat widget", "Deploy", "Settings"]) await expect(menu.getByRole("link", { name, exact: true })).toBeVisible();
+  for (const name of ["Overview", "Conversations", "Capabilities", "Training data", "Behaviour", "Chat widget", "Deploy", "Settings"]) await expect(menu.getByRole("link", { name, exact: true })).toBeVisible();
   await expect(menu.getByRole("link", { name: "Overview", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
   await expect(page.getByText("Conversations", { exact: true }).first()).toBeVisible();
@@ -75,8 +75,8 @@ test("agent menu exposes the job-based sections with Overview by default", async
   await expect(page.getByRole("heading", { name: "Capabilities", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Answer questions", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
-  await menu.getByRole("link", { name: "Knowledge", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Knowledge", exact: true })).toBeVisible();
+  await menu.getByRole("link", { name: "Training data", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Training data", exact: true })).toBeVisible();
   await expect(page.getByText("Menu and prices", { exact: true })).toBeVisible();
   await menu.getByRole("link", { name: "Behaviour", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Instructions", exact: true })).toHaveValue("Answer customer questions.");

@@ -24,8 +24,8 @@ export function SourceConfiguration({ sources, configuration, onChange, action }
   const missingIds = ids.filter(id => !sources.some(source => source.revisions.some(revision => revision.id === id)));
   const visibleSources = sources.filter(source => source.state === "active" && source.revisions.some(revision => revision.state === "approved") || source.revisions.some(revision => ids.includes(revision.id)));
   return <div className="agent-knowledge-section">
-    <div className="agent-knowledge-heading"><h2>Knowledge</h2>{action}</div>
-    {!visibleSources.length && !missingIds.length ? <p className="agent-knowledge-empty">No approved sources. <Link className="underline underline-offset-4" to="/app/knowledge">Manage knowledge</Link></p> :
+    <div className="agent-knowledge-heading"><h2>Training data</h2>{action}</div>
+    {!visibleSources.length && !missingIds.length ? <p className="agent-knowledge-empty">No approved sources. <Link className="underline underline-offset-4" to="/app/knowledge">Manage sources</Link></p> :
     <div className="agent-knowledge-table-wrap"><table className="agent-knowledge-table"><thead><tr><th scope="col">Source</th><th scope="col">Status</th><th scope="col">Revision</th></tr></thead><tbody>
     {visibleSources.map(source => {
       const revisions = source.revisions.filter(revision => revision.state === "approved").sort((a, b) => b.revision - a.revision);
