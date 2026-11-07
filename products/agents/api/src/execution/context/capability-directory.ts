@@ -19,7 +19,10 @@ export function capabilityExposure(catalog: ToolCatalog, receipts: readonly unkn
   const selected: string[] = [];
   const empty = footprint(policy, []);
   const controls = progressiveModelTools(catalog, [], [], versions);
-  const schemaAllowance = footprint(policy, controls) - empty + Math.floor(Math.min(policy.maxInputTokens, policy.maxRequestBytes) / 5);
+  // The allowance is a token quantity. One fifteenth of the input allowance is the previous
+  // byte-denominated fifth at the measured ~3 bytes per token, so the promoted schema surface is
+  // unchanged by the counter correction.
+  const schemaAllowance = footprint(policy, controls) - empty + Math.floor(policy.maxInputTokens / 15);
   if (entries.every(entry => entry.schemaLoading !== "deferred")) {
     const all = progressiveModelTools(catalog, receipts, entries.map(entry => entry.alias), versions);
     if (all.length <= policy.maxTools && footprint(policy, all) - empty <= schemaAllowance)

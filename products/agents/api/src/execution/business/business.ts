@@ -25,6 +25,7 @@ import { isCustomerPrincipal,PlatformError,requestDigest,terminalTaskStates } fr
 import type { DependencyManifest } from "../../contracts/source-contracts";
 import { selectedProductContextText } from "../products/product-information";
 import type { TaskRecord } from "../../contracts/records";
+import { estimatedTokensFromSerialized } from "../context/serialized-tokens";
 import { buildContext,prepareCompaction,type ContextGroup,type ContextSource,type ContextModelPolicy,type RequestTimeContext } from "../context/context";
 import { loadContinuation } from "../context/continuation";
 import { workContinuationGroups } from "../lifecycle/work-continuation";
@@ -82,11 +83,14 @@ import { instructionHead } from "../context/request-manifest";
 import { HANDOFF_RECEIPT_DEADLINE_MS, type HandoffFeedbackRequest } from "../../contracts/channel";
 function contextModelPolicy(execution: Execution, role: "primary" | "compaction" = "primary", privateCosts: Map<string, number> = new Map(), packingOverhead = 0): ContextModelPolicy {
   const route = execution.models[role], policy = route.policy;
-  return { modelId: route.binding.modelId, revision: policy.digest, counterRevision: packingOverhead ? `serialized-utf8-estimate-v1-native-${packingOverhead}` : "serialized-utf8-estimate-v1",
+  return { modelId: route.binding.modelId, revision: policy.digest, counterRevision: packingOverhead ? `serialized-utf8-estimate-v2-native-${packingOverhead}` : "serialized-utf8-estimated-tokens-v2",
     maxDurationSeconds: policy.maxCallDurationMs / 1000, contextWindowTokens: policy.contextTokens,
     maxInputTokens: policy.maxInputTokens, maxOutputTokens: policy.maxOutputTokens, safetyTokens: policy.safetyTokens,
     maxMessages: policy.maxMessages, maxTools: policy.maxTools, maxRequestBytes: policy.maxRequestBytes,
-    estimateRequestTokens: request => packingOverhead + Buffer.byteLength(JSON.stringify(request), "utf8") + request.messages.reduce((sum, message) => sum + (message.role === "assistant" ? privateCosts.get(requestDigest(message)) ?? 0 : 0), 0) };
+    estimateRequestTokens: request => {
+      const serialized = Buffer.byteLength(JSON.stringify(request), "utf8") + request.messages.reduce((sum, message) => sum + (message.role === "assistant" ? privateCosts.get(requestDigest(message)) ?? 0 : 0), 0);
+      return estimatedTokensFromSerialized(serialized, packingOverhead);
+    } };
 }
 export function accountedModelTokens(value: ModelResponse, reserved: number): number {
   return value.usage.observed === true && Number.isSafeInteger(value.usage.inputTokens) && Number.isSafeInteger(value.usage.outputTokens)
