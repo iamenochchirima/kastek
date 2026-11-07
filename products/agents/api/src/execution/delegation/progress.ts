@@ -127,15 +127,33 @@ export async function orchestrationInstructionGroups(pool: Db, taskId: string, e
     .filter(group => !seen.has(group.id)).slice(0, limit);
 }
 
+export const ACTIVE_INSTRUCTION_LIMIT = 24;
+export interface InstructionRow { task_id:string; sequence:number|string; instruction:string; created_at:unknown }
+/**
+ * Delivered instructions stay applicable until superseded. Only the newest bounded window enters the
+ * prompt; omissions are counted so the caller can disclose them instead of silently dropping them.
+ */
+export function retainedInstructionGroups(rows: readonly InstructionRow[], pendingIds: ReadonlySet<string>, limit = ACTIVE_INSTRUCTION_LIMIT){
+  const omittedActive=Math.max(0,rows.length-limit);
+  const kept=rows.slice(omittedActive);
+  return { omittedActive, retained: kept
+    .filter(row=>!pendingIds.has(`instruction:${row.task_id}:${row.sequence}`))
+    .map(row=>({id:`instruction:${row.task_id}:${row.sequence}`,messages:[{role:"user" as const,content:instructionContent(row.instruction,row.created_at)}]})) };
+}
 export async function primaryInstructionContext(pool:Pool,taskId:string,delivered:readonly string[]){
   const execution=await loadExecution(pool,taskId);await assertCurrentAuthority(pool,execution);
-  if(execution.configuration.program.version!=="4"&&execution.task.harness_release!=="product-capabilities-v15")return{pending:[] as {id:string;messages:{role:"user";content:string}[]}[],latest:undefined as {id:string;content:string}|undefined};
+  if(execution.configuration.program.version!=="4"&&execution.task.harness_release!=="product-capabilities-v15")
+    return{pending:[] as {id:string;messages:{role:"user";content:string}[]}[],retained:[] as {id:string;messages:{role:"user";content:string}[]}[],omittedActive:0,latest:undefined as {id:string;content:string}|undefined};
   const pending=await orchestrationInstructionGroups(pool,taskId,delivered,1);
-  const row=(await pool.query(`SELECT i.task_id,i.sequence,i.instruction,i.created_at FROM agents_platform.orchestration_instructions i
+  const rows=(await pool.query(`SELECT i.task_id,i.sequence,i.instruction,i.created_at FROM agents_platform.orchestration_instructions i
     JOIN agents_platform.tasks t ON t.id=i.task_id WHERE t.work_id=$1 AND t.organization_id=$2 AND t.principal=$3::jsonb
-      AND t.id=ANY($4::uuid[]) ORDER BY t.turn_sequence DESC,i.sequence DESC LIMIT 1`,
-  [execution.task.work_id??taskId,execution.task.organization_id,JSON.stringify(execution.task.principal),await instructionTaskIds(pool,execution)])).rows[0];
-  return{pending,latest:row?{id:`instruction:${row.task_id}:${row.sequence}`,content:instructionContent(row.instruction,row.created_at).replace("Additional instructions for this request","Latest instructions for this request")} :undefined};
+      AND t.id=ANY($4::uuid[]) AND i.state='active' ORDER BY t.turn_sequence,i.sequence`,
+  [execution.task.work_id??taskId,execution.task.organization_id,JSON.stringify(execution.task.principal),await instructionTaskIds(pool,execution)])).rows;
+  const pendingIds=new Set(pending.map(group=>group.id));
+  const {retained,omittedActive}=retainedInstructionGroups(rows,pendingIds);
+  const latestRow=rows.at(-1);
+  return{pending,retained,omittedActive,
+    latest:latestRow?{id:`instruction:${latestRow.task_id}:${latestRow.sequence}`,content:instructionContent(latestRow.instruction,latestRow.created_at).replace("Additional instructions for this request","Latest instructions for this request")} :undefined};
 }
 
 /** Queued directions remain private to their accepted branch. A delegated brief selects applicable facts. */

@@ -350,16 +350,21 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   }
   const modernInstructions=(task.execution_policy_version??1)>=2&&(sharedProtocol||!task.parent_task_id&&config.program.version==="4");
   const instructionContext=modernInstructions?await primaryInstructionContext(pool,taskId,deliveredInstructionIds):undefined;
+  let omittedInstructionNotice="";
   if(modernInstructions){
     for(let index=active.length-1;index>=0;index--)if(active[index]!.id.startsWith("instruction:"))active.splice(index,1);
     active.push(...instructionContext!.pending);
+    // Delivered directions remain applicable until superseded, so they stay in every build.
+    for(const group of instructionContext!.retained)if(!active.some(existing=>existing.id===group.id))active.push(group);
+    if(instructionContext!.omittedActive>0)
+      omittedInstructionNotice=`\n${instructionContext!.omittedActive} earlier instructions remain active but are omitted here for space. Ask the user which still apply before assuming they no longer matter.`;
   }else if(String(config.program.version)==="4"&&!task.parent_task_id){
     active.push(...await orchestrationInstructionGroups(pool,taskId,[...omitted,...active.map(group=>group.id)]));
   }
   const latestInstruction=instructionContext?.latest;
   const latestInPending=latestInstruction&&instructionContext!.pending.some(group=>group.id===latestInstruction.id);
   if(latestInstruction&&!latestInPending)active.push({id:latestInstruction.id,messages:[{role:"user",content:latestInstruction.content}]});
-  const primaryInstructionIds=instructionContext?[...instructionContext.pending.map(group=>group.id),...(latestInstruction&&!latestInPending?[latestInstruction.id]:[])]:[];
+  const primaryInstructionIds=instructionContext?[...instructionContext.pending.map(group=>group.id),...instructionContext.retained.map(group=>group.id),...(latestInstruction&&!latestInPending?[latestInstruction.id]:[])]:[];
   const workInstructions=!modernInstructions&&task.prior_task_id?(await pool.query(`SELECT i.instruction FROM agents_platform.orchestration_instructions i JOIN agents_platform.tasks t ON t.id=i.task_id WHERE t.work_id=$1 AND t.id<>$2 AND t.organization_id=$3 AND t.principal=$4::jsonb AND t.conversation_id=$5 AND t.parent_task_id IS NULL ORDER BY t.turn_sequence,i.sequence`,[task.work_id,taskId,task.organization_id,JSON.stringify(task.principal),task.conversation_id])).rows:[];
   const needsContinuation=Boolean(summary)&&!invalidated;
   const supplied=needsContinuation&&options.evidence?await options.evidence.suppliedEvidence(taskId,8):{items:[],omittedCount:0};
@@ -381,7 +386,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const originatingRequest=sharedProtocol&&task.parent_task_id?await originatingRequestContext(pool,task):undefined;
   const memberContext=await memberIdentityContext(pool,task);
   const channelSafeInstructions = task.channel_binding ? customerSafeInstructions(config.instructions) : config.instructions;
-  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: channelSafeInstructions+memberContext+outcomeGuidance+recoveryInstructions+procedureInstructions+(directory?"\n"+directory.text:"")+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":"")+(task.channel_binding?customerChannelInstructions:""), compactContinuation: (task.execution_policy_version??1)>=2, ...(originatingRequest?{originatingRequest,currentInputOrigin:"coordinator" as const}:{}), currentInput: [task.input,...(selectedProductContext?[selectedProductContextText(selectedProductContext.reference)]:[]),...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
+  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: channelSafeInstructions+memberContext+outcomeGuidance+recoveryInstructions+procedureInstructions+(directory?"\n"+directory.text:"")+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":"")+(task.channel_binding?customerChannelInstructions:"")+omittedInstructionNotice, compactContinuation: (task.execution_policy_version??1)>=2, ...(originatingRequest?{originatingRequest,currentInputOrigin:"coordinator" as const}:{}), currentInput: [task.input,...(selectedProductContext?[selectedProductContextText(selectedProductContext.reference)]:[]),...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
     summary: invalidated ? undefined : summary, sources,
     skills: loadedSkills.sources, skillCatalog: loadedSkills.catalog,
     tools: modelTools, model: execution.models.primary.binding.modelId, modelPolicy: contextModelPolicy(execution, "primary", await nativeContextCosts(pool, execution), packingOverhead), maxInputTokens: execution.models.primary.policy.maxInputTokens, maxOutputTokens: execution.models.primary.policy.maxOutputTokens };
