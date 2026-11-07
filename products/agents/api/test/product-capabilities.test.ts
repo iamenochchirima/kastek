@@ -184,3 +184,15 @@ describe("direct private product writes", () => {
   expect(dispatch.mock.calls.map(call=>call[4])).toEqual(["review"]);
  });
 });
+
+describe("descriptor memoisation", () => {
+ it("reuses a pinned descriptor and still rejects a binding whose digest does not match its content", () => {
+  const { bindings } = fixture(), binding = bindings[0]!;
+  const first = productDescriptor(binding), second = productDescriptor(binding);
+  expect(second).toEqual(first);
+  expect(second).toBe(first);
+  // capabilityBindingSchema verifies digest === requestDigest(content) before the memo is consulted.
+  const tampered = { ...binding, policy: { ...binding.policy, effect: "authorized_write" as const } };
+  expect(() => productDescriptor(tampered)).toThrow();
+ });
+});

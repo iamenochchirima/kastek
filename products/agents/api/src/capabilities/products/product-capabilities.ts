@@ -57,8 +57,18 @@ export function registerProductManifest(input:ProductCapabilityManifest):Product
 }
 function deepFreeze(value:unknown):void{if(value&&typeof value==="object"){Object.values(value).forEach(deepFreeze);Object.freeze(value);}}
 function invalid(){return new PlatformError("PRODUCT_MANIFEST_INVALID",409,"The installed product capability release does not match");}
+const descriptorMemo=new Map<string,ProductCapabilityDescriptor>();
+const DESCRIPTOR_MEMO_LIMIT=1024;
+/** Descriptors are immutable for a pinned manifest and binding digest; validation still runs on a miss. */
+function memoDescriptor(key:string,compute:()=>ProductCapabilityDescriptor):ProductCapabilityDescriptor{
+  const hit=descriptorMemo.get(key);if(hit)return hit;
+  const value=compute();
+  if(descriptorMemo.size>=DESCRIPTOR_MEMO_LIMIT){const oldest=descriptorMemo.keys().next().value;if(oldest!==undefined)descriptorMemo.delete(oldest);}
+  descriptorMemo.set(key,value);return value;
+}
 export function productDescriptor(binding:CapabilityBinding):ProductCapabilityDescriptor {
   const parsed=capabilityBindingSchema.parse(binding),authority=parsed.authority;if(!authority)throw invalid();
+  return memoDescriptor(`${authority.manifestDigest}:${parsed.digest}`,()=>{
   const metadata=binding.definition.product;
   if(!metadata)throw invalid();
   const descriptor={operation:binding.definition.providerOperation,revision:metadata.revision,description:binding.definition.description,inputSchema:binding.definition.inputSchema,outputSchema:binding.definition.outputSchema,handlerRef:metadata.handlerRef,requiredAuthority:metadata.requiredAuthority,evidence:metadata.evidence,policy:binding.policy,limits:binding.limits} as ProductCapabilityDescriptor;
@@ -66,6 +76,7 @@ export function productDescriptor(binding:CapabilityBinding):ProductCapabilityDe
   if(!manifest||!manifest.operations.some(value=>canonicalJson(value)===canonicalJson(descriptor))||manifest.product!==authority.destinationProduct||binding.catalog.digest!==authority.manifestDigest||requestDigest(descriptor)!==authority.descriptorDigest||descriptor.handlerRef!==authority.handlerRef||(manifest&&canonicalJson(manifest.adapter)!==canonicalJson(binding.adapter))||canonicalJson(descriptor.policy)!==canonicalJson(binding.policy)||canonicalJson(descriptor.limits)!==canonicalJson(binding.limits)||requestDigest(descriptor.inputSchema)!==binding.definition.inputDigest||requestDigest(descriptor.outputSchema)!==requestDigest(binding.definition.outputSchema)||descriptor.description!==binding.definition.description)throw invalid();
   const installed=productAdapterRegistry.resolve(binding);if(!installed.handlers.includes(descriptor.handlerRef))throw invalid();
   return descriptor;
+  });
 }
 export function assertProductBindings(bindings:readonly CapabilityBinding[]):void {
   if(bindings.length>64||new Set(bindings.map(binding=>binding.alias)).size!==bindings.length)throw invalid();

@@ -8,6 +8,7 @@ import { registerProductAdapter,registerRetainedProductAdapter,registerProductMa
 import { registerProductPorts } from "../../infrastructure/product-ports";
 import type { ProductContextDependency } from "../../infrastructure/product-ports";
 import { loadExecution,assertCurrentAuthority,transaction } from "../lifecycle/execution";
+import type { Execution } from "../../contracts/execution";
 import { inspectionAuthority } from "../context/evidence-policy";
 import { EvidenceStore } from "../context/evidence";
 import { narrowProductInformation } from "../../contracts/product-information";
@@ -18,6 +19,20 @@ import { projectProductReferences, resolveProductReferences } from "./product-re
 const sourceSchema=z.strictObject({id:z.string().min(1).max(1024),revision:z.string().regex(/^[a-f0-9]{64}$/),title:z.string().min(1).max(512),text:z.string().min(1).max(8192),acquiredAt:z.iso.datetime({offset:true}),continuation:z.string().max(2048).nullable(),route:z.string().max(2048).refine(value=>value.startsWith("/")&&!value.startsWith("//")&&!/[\x00-\x20\x7f]/.test(value)).optional()});
 const accessSchema=z.strictObject({version:z.literal("1"),reference:z.string().min(1).max(1024),scopeReference:z.string().min(1).max(1024),resultDigest:z.string().regex(/^[a-f0-9]{64}$/)});
 const reviewSchema=z.strictObject({id:z.string().min(1).max(256),product:z.string().min(1).max(128),taskId:z.uuid(),operationId:z.string().min(1).max(256),payloadDigest:z.string().regex(/^[a-f0-9]{64}$/),state:z.enum(["proposed","approved","saved","rejected","expired","uncertain"]),expiresAt:z.iso.datetime({offset:true})});
+const AVAILABILITY_CONCURRENCY = 8;
+/** Bounded concurrency that preserves input order and surfaces the first rejection. */
+async function mapBounded<T, R>(items: readonly T[], limit: number, run: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, limit), items.length) }, async () => {
+    for (;;) {
+      const index = next++;
+      if (index >= items.length) return;
+      results[index] = await run(items[index]!, index);
+    }
+  }));
+  return results;
+}
 export interface ProductRuntimePort {
   prepareExecution?(taskId:string):Promise<void>;
   authorizeTask(taskId:string):Promise<void>;
@@ -101,8 +116,12 @@ export class ProductRuntime implements ProductRuntimePort {
       if(source.task.id!==consumer.task.id)await this.originAuthority(dependency.product,consumer.task.id,db);
     }});
   }
-  private async scope(db:Pool|PoolClient,taskId:string,binding?:CapabilityBinding){
-    const execution=await loadExecution(db,taskId);await inspectionAuthority(db,execution);
+  /**
+   * `preloaded` is a per-pass observation: callers that already ran inspectionAuthority may reuse the
+   * execution they loaded. Current tenant/feature state is still read for every binding.
+   */
+  private async scope(db:Pool|PoolClient,taskId:string,binding?:CapabilityBinding,preloaded?:Execution){
+    const execution=preloaded??await loadExecution(db,taskId);if(!preloaded)await inspectionAuthority(db,execution);
     const s=(await db.query("SELECT p.*,n.revoked_at,f.enabled FROM agents_platform.tasks t JOIN agents_platform.product_task_contexts p ON p.task_id=t.root_task_id JOIN agents_platform.product_execution_tenants n ON n.product=p.product AND n.tenant_id=p.tenant_id JOIN agents_platform.product_execution_features f ON f.product=p.product AND f.tenant_id=p.tenant_id AND f.feature_id=p.feature_id WHERE t.id=$1",[taskId])).rows[0];
     if(!s||s.revoked_at||!s.enabled||execution.task.principal.kind!=="human")throw denied();
     if(binding){assertProductBindings([binding]);const a=binding.authority!;
@@ -110,8 +129,8 @@ export class ProductRuntime implements ProductRuntimePort {
         (s.client_id??null)!==(a.originClientId??null))throw denied();}
     return {execution,scope:s};
   }
-  private async dispatch(db:Pool|PoolClient,taskId:string,operationId:string,binding:CapabilityBinding,control:ProductCapabilityInvocation["control"],input:unknown,review?:ProductReviewReference,signal?:AbortSignal,originAuthorized=false,effectObservation=false):Promise<ProductCapabilityResult>{
-    const {execution,scope}=await this.scope(db,taskId,binding);if(["invoke","prepare","commit"].includes(control))await assertCurrentAuthority(db,execution);if(!originAuthorized)await this.originAuthority(execution.task.product,taskId,db);const p=execution.task.principal;if(p.kind!=="human")throw denied();
+  private async dispatch(db:Pool|PoolClient,taskId:string,operationId:string,binding:CapabilityBinding,control:ProductCapabilityInvocation["control"],input:unknown,review?:ProductReviewReference,signal?:AbortSignal,originAuthorized=false,effectObservation=false,preloaded?:Execution):Promise<ProductCapabilityResult>{
+    const {execution,scope}=await this.scope(db,taskId,binding,preloaded);if(["invoke","prepare","commit"].includes(control))await assertCurrentAuthority(db,execution);if(!originAuthorized)await this.originAuthority(execution.task.product,taskId,db);const p=execution.task.principal;if(p.kind!=="human")throw denied();
     const modelOrigin=execution.task.parent_task_id?await loadExecution(db,execution.task.root_task_id):execution;
     const accessRequired=requiresProductAccess(binding);
     const information=execution.task.harness_release==="product-capabilities-v15"||accessRequired?executionProductInformation(execution,scope,modelOrigin.models):undefined;
@@ -149,11 +168,19 @@ export class ProductRuntime implements ProductRuntimePort {
     return {reference,dependency:{kind:"product_context",product:execution.task.product,tenantId:information.origin.tenantId,
       taskId,referenceDigest:requestDigest(reference),information}};
   }
+  /**
+   * Availability is a per-pass authority observation, never cached across turns. Calls run with bounded
+   * concurrency, and results keep the configured binding order.
+   */
   async availableBindings(taskId:string):Promise<CapabilityBinding[]>{
-    await this.authorizeTask(taskId);const execution=await loadExecution(this.pool,taskId),available:CapabilityBinding[]=[];
-    for(const binding of execution.configuration.productBindings)try{if(binding.policy.effect==="reviewed_write"&&!productEffectProjection(binding))continue;const result=await this.dispatch(this.pool,taskId,"availability:"+randomUUID(),binding,"authorize",{},undefined,undefined,true);if((result.value as {authorized?:boolean})?.authorized===true)available.push(binding);}
-    catch(error){if(!(error instanceof PlatformError)||![403,404].includes(error.statusCode))throw error;}
-    return available;
+    await this.authorizeTask(taskId);const execution=await loadExecution(this.pool,taskId);
+    const candidates=execution.configuration.productBindings.filter(binding=>!(binding.policy.effect==="reviewed_write"&&!productEffectProjection(binding)));
+    const observed=await mapBounded(candidates,AVAILABILITY_CONCURRENCY,async binding=>{
+      try{const result=await this.dispatch(this.pool,taskId,"availability:"+randomUUID(),binding,"authorize",{},undefined,undefined,true,false,execution);
+        return (result.value as {authorized?:boolean})?.authorized===true ? binding : undefined;}
+      catch(error){if(error instanceof PlatformError&&[403,404].includes(error.statusCode))return undefined;throw error;}
+    });
+    return observed.filter((binding):binding is CapabilityBinding=>binding!==undefined);
   }
   async projectForModel(taskId:string,operationId:string,binding:CapabilityBinding,output:unknown):Promise<unknown>{
     const projected=productModelResult(binding,output,taskId,operationId);

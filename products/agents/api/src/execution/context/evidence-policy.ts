@@ -388,7 +388,9 @@ export function payloadHas(value: unknown, text: string, label: string, remainin
     return false;
   }
   if (Array.isArray(value)) return value.some(item => payloadHas(item, text, label, remainingDecodes));
-  if (value && typeof value === "object") return Object.values(value).some(item => payloadHas(item, text, label, remainingDecodes));
+  // Tool schemas and the discovery catalogue never carry evidence passages; walking them is pure cost.
+  if (value && typeof value === "object") return Object.entries(value).some(([key, item]) =>
+    key !== "catalog" && key !== "tools" && payloadHas(item, text, label, remainingDecodes));
   return false;
 }
 export function memoryVisible(value:unknown,id:string,content:string):boolean{

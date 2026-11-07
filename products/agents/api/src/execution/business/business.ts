@@ -202,10 +202,21 @@ async function originatingRequestContext(pool: Pool, task: TaskRecord): Promise<
   return {id:"originating-user-request",revision:requestDigest(origin.input),kind:"request",content:origin.input};
 }
 
+/** Structured preparation timing. Emitted only; it never gates behaviour, so replay stays identical. */
+function phaseTimer(taskId: string, step: number, label: string) {
+  const started = Date.now();
+  let last = started;
+  const phases: Record<string, number> = {};
+  const mark = (name: string) => { const now = Date.now(); phases[name] = now - last; last = now; };
+  return { mark, finish: (extra: Record<string, unknown> = {}) => console.info(JSON.stringify({
+    event: "context.phase", label, taskId, step, totalMs: Date.now() - started, phases, ...extra })) };
+}
+
 async function buildSnapshot(pool: Pool, taskId: string, step: number, working: ContextGroup[], summary: ContextSource | undefined,
   omitted: string[], options: BusinessOptions, initialKnowledge?: KnowledgeObservation, knownGeneration?: number, knownExpiry?: number, executionObservation?: string, packingOverhead = 0, deliveredInstructionIds: readonly string[] = []): Promise<{ snapshot?: Snapshot; history: ContextGroup[]; working: ContextGroup[];
     memoryFence?: MemoryFence; invalidated: boolean; needsCompaction: boolean; backgroundCompactionRequested?:boolean }> {
   const execution = await loadExecution(pool, taskId), task = execution.task, config = execution.configuration;
+  const phase = phaseTimer(taskId, step, "snapshot");
   const protocolVersions=protocolToolVersions(execution.toolBindings);
   if(task.product!=="agents"){
     if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
@@ -215,6 +226,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const snapshotId = `context:${taskId}:${step}`;
   const recorded = (await pool.query("SELECT * FROM agents_platform.context_snapshots WHERE id=$1 AND task_id=$2",[snapshotId,taskId])).rows[0];
   if (recorded) {
+    phase.mark("prepare");
     const snapshot: Snapshot = {id:snapshotId,...recorded.payload,digest:recorded.digest,historyCutoff:recorded.history_cutoff,
       memoryFence:recorded.memory_scope_id ? {id:recorded.memory_scope_id,generation:Number(recorded.memory_generation),expiresAt:recorded.payload.memoryExpiresAt}:undefined};
     if (options.evidence) {
@@ -222,6 +234,8 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       await options.evidence.supplyContext(taskId,snapshotId,recorded.payload.evidenceIds ?? [],recorded.payload.continuationEvidenceIds ?? []);
       snapshot.evidenceManifest=await options.evidence.taskManifest(taskId);
     }
+    phase.mark("evidence");
+    phase.finish({ replay: true });
     return {snapshot,history:[],working:[...working,...(recorded.payload.instructionGroups??[]).filter((group:ContextGroup)=>!omitted.includes(group.id)&&!working.some(existing=>existing.id===group.id))],memoryFence:snapshot.memoryFence,invalidated:false,needsCompaction:false,backgroundCompactionRequested:recorded.payload.backgroundCompactionRequested===true};
   }
   const sources: ContextSource[] = initialKnowledge?.passages.map(passage => ({ id: passage.sourceId ?? passage.evidenceId,
@@ -229,6 +243,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     content: `[${passage.label}] ${passage.title} (${passage.acquiredAt})\n${passage.text}` })) ?? [];
   if(config.productBindings.length&&!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
   const availableProductBindings=config.productBindings.length?await options.product!.availableBindings(taskId):[];
+  phase.mark("bindings");
   const memoryGrant = config.memory.enabled && task.principal.kind === "human"
     ? (await pool.query("SELECT operations FROM agents_platform.execution_grants WHERE id=$1", [task.grant_id])).rows[0] : undefined;
   const memoryOperations: string[] = Array.isArray(memoryGrant?.operations) ? memoryGrant.operations : [];
@@ -281,6 +296,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     while(offset!==undefined){const page=await discoverSpecialists(pool,taskId,{offset});specialists.push(...page.specialists);offset=page.nextOffset??undefined;}
   }
   const directory=catalog&&directoryProtocol?capabilityDirectory({catalog,tools:modelTools,skills:loadedSkills.catalog,specialists,unavailableTools:config.productBindings.length-availableProductBindings.length,policy:contextModelPolicy(execution,"primary",new Map(),packingOverhead)}):undefined;
+  phase.mark("capabilities");
   const invalidated = (knownGeneration !== undefined && knownGeneration !== memoryFence?.generation) ||
     (knownExpiry !== undefined && Date.now() >= knownExpiry);
   const prior = (await pool.query(`SELECT t.id,t.input,t.output,t.state,t.turn_sequence::text AS sequence,t.created_at FROM agents_platform.tasks t
@@ -394,6 +410,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   if (built.status === "compaction_required" || (!sharedProtocol && built.estimatedTokens >= execution.models.primary.policy.compactAtTokens && totalGroups > 2)) {
     return { history, working: active, memoryFence, invalidated, needsCompaction: true };
   }
+  phase.mark("assemble");
   const selectedContinuation=built.continuation;
   const previousSize=sharedProtocol?(await pool.query("SELECT payload->>'estimatedTokens' AS tokens FROM agents_platform.context_snapshots WHERE task_id=$1 AND step>=0 AND step<$2 ORDER BY step DESC LIMIT 1",[taskId,step])).rows[0]:undefined;
   const mandatory=sharedProtocol?buildContext({...input,history:[],summary:undefined,sources:[],workingGroups:active.filter(group=>group.id.startsWith("instruction:"))}).estimatedTokens:0;
@@ -407,6 +424,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     ...(task.channel_binding?{channelHistoryGroupIds:built.historyGroupIds}:{}), estimatedTokens: built.estimatedTokens,...(sharedProtocol?{compactionForecast:forecast,backgroundCompactionRequested:forecast.requested&&totalGroups>2}:{}), memoryExpiresAt: memoryFence?.expiresAt, evidenceIds: [...new Set([...built.sourceReferences.flatMap(reference=>reference.evidenceId?[reference.evidenceId]:[]),...active.flatMap(group=>group.evidenceIds??[])])] }, JSON.stringify(built.sourceReferences),
     memoryFence?.id ?? null, memoryFence?.generation ?? null, task.history_cutoff ?? "0"])).rows[0];
   const saved = row ? undefined : (await pool.query("SELECT * FROM agents_platform.context_snapshots WHERE id=$1", [id])).rows[0];
+  phase.mark("insert");
   const snapshot: Snapshot = saved ? { id, ...saved.payload, digest: saved.digest, historyCutoff: saved.history_cutoff,
     memoryFence: saved.memory_scope_id ? { id: saved.memory_scope_id, generation: Number(saved.memory_generation), expiresAt: saved.payload.memoryExpiresAt } : undefined } :
     { id, instructionHead:preparedInstructionHead,...(catalog?{catalog}:{}), ...(modernInstructions?{primaryInstructionIds}:{}), messages: built.messages, tools: modelTools, digest: built.digest, estimatedTokens: built.estimatedTokens, memoryFence, historyCutoff: task.history_cutoff ?? "0" };
@@ -418,6 +436,8 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     snapshot.evidenceManifest = await options.evidence.taskManifest(taskId);
   }
   await event(pool, taskId, id, "context.prepared", { snapshotId: id, estimatedTokens: snapshot.estimatedTokens, compacted: Boolean(summary) });
+  phase.mark("evidence");
+  phase.finish({ replay: false, tools: modelTools.length, catalogEntries: catalog?.entries.length ?? 0 });
   return { snapshot, history, working: active, memoryFence: snapshot.memoryFence, invalidated, needsCompaction: false,
     backgroundCompactionRequested:sharedProtocol&&forecast.requested&&totalGroups>2 };
 }
@@ -526,7 +546,12 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
       if (ctx.key !== input.taskId) throw new restate.TerminalError("Task identity mismatch", { errorCode: 400 });
       const taskId = input.taskId;
       // A process-local registry must be hydrated on replay too; a journaled cache fill would be skipped.
+      const runStarted = Date.now();
+      const createdRow = (await pool.query(`SELECT created_at FROM agents_platform.tasks WHERE id=$1`, [taskId])).rows[0];
       await options.product?.prepareExecution?.(taskId);
+      console.info(JSON.stringify({ event: "context.phase", label: "run-start", taskId,
+        prepareExecutionMs: Date.now() - runStarted,
+        queueMs: createdRow ? runStarted - new Date(createdRow.created_at).getTime() : null }));
       await ctx.run("bind-invocation", async () => {
         const updated = await pool.query(`UPDATE agents_platform.tasks SET runtime_invocation_id=$2 WHERE id=$1
           AND harness_release=$3 AND (runtime_invocation_id IS NULL OR runtime_invocation_id=$2)`, [taskId, ctx.request().id, runtime.release]);
