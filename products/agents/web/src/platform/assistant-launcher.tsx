@@ -635,11 +635,9 @@ function AssistantSettings({ organizationId, assistant, loaded, isOwner, onUpdat
     </div>
     <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
       <section aria-label="Ask AI profile" className="flex items-center gap-3">
-        <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
-          {assistant.agent.name.slice(0, 1).toUpperCase()}
-        </span>
+        <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">A</span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">{assistant.agent.name}</p>
+          <p className="truncate text-sm font-semibold">Ask AI</p>
           <p className="text-xs text-muted-foreground">Workspace AI · {assistant.state === "configured" ? "Ready" : "Needs setup"}</p>
         </div>
       </section>
