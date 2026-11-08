@@ -180,3 +180,11 @@ test("clicking outside minimizes the Ask AI panel", async ({ page }) => {
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Ask AI", exact: true })).toBeVisible();
 });
+
+test("renders the glowy Ask AI launcher", async ({ page }) => {
+  await launcher(page);
+  await page.goto("/app/overview");
+  await expect(page.getByRole("button", { name: "Open Ask AI", exact: true })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("ask-ai-launcher.png") });
+  await page.getByRole("button", { name: "Open Ask AI", exact: true }).screenshot({ path: test.info().outputPath("ask-ai-launcher-button.png") });
+});
