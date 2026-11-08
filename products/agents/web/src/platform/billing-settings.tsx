@@ -17,7 +17,7 @@ type Invoice = {
   product: string | null;
 };
 
-type Plan = {
+export type Plan = {
   key: string;
   name: string;
   description: string | null;
@@ -68,7 +68,7 @@ type Usage = {
   }>;
 };
 
-type Billing = {
+export type Billing = {
   configured: boolean;
   account: {
     account?: { currency?: string; billing_email?: string };
@@ -95,7 +95,7 @@ type Billing = {
   }>;
 };
 
-function money(amountMinor: string | number | null, currency: string) {
+export function money(amountMinor: string | number | null, currency: string) {
   if (amountMinor === null) return "—";
   return new Intl.NumberFormat("en-ZA", {
     style: "currency",
@@ -104,7 +104,7 @@ function money(amountMinor: string | number | null, currency: string) {
   }).format(Number(amountMinor) / 100);
 }
 
-function usd(microUsd: string | number | null | undefined) {
+export function usd(microUsd: string | number | null | undefined) {
   if (microUsd == null) return "—";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -147,7 +147,7 @@ function statusLabel(value: string | null | undefined) {
   return value.replaceAll("_", " ").toLowerCase().replace(/^\w/, (letter) => letter.toUpperCase());
 }
 
-function useBillingData(organizationId: string) {
+export function useBillingData(organizationId: string) {
   const [data, setData] = useState<Billing | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
