@@ -229,6 +229,21 @@ export class BillingClient {
     return result;
   }
 
+  async usageSummary(
+    tenantId: string,
+    range?: { from?: Date; to?: Date },
+  ): Promise<Record<string, unknown>> {
+    const query = new URLSearchParams({
+      product: this.config.product,
+      tenantId,
+    });
+    if (range?.from) query.set("from", range.from.toISOString());
+    if (range?.to) query.set("to", range.to.toISOString());
+    return this.json<Record<string, unknown>>(
+      await this.request("GET", `/internal/usage?${query}`),
+    );
+  }
+
   async cancelSubscription(
     tenantId: string,
     subscriptionId: string,

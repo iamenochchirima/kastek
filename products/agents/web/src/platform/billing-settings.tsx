@@ -27,6 +27,16 @@ type Plan = {
   checkoutReady: boolean;
 };
 
+type Usage = {
+  from: string;
+  to: string;
+  creditsUsed: string;
+  operations: string;
+  daily: Array<{ date: string; creditsUsed: string; operations: string }>;
+  breakdown: Array<{ meterKey: string; creditsUsed: string; operations: string }>;
+  credits: { balance: string; reserved: string; available: string };
+};
+
 type Billing = {
   configured: boolean;
   account: {
@@ -46,6 +56,7 @@ type Billing = {
   } | null;
   invoices: Invoice[];
   plans: Plan[];
+  usage?: Usage | null;
 };
 
 function money(amountMinor: string | number | null, currency: string) {
@@ -204,6 +215,51 @@ export function BillingSettings({ organizationId }: { organizationId: string }) 
                   </div>
                 ))}
               </div>
+            </div>
+          ) : null}
+
+          {data.usage ? (
+            <div>
+              <h3 className="mb-2 text-sm font-medium">Usage</h3>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-border p-3">
+                  <p className="settings-label">AI usage used</p>
+                  <p className="settings-value">{usd(data.usage.creditsUsed)}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="settings-label">Operations</p>
+                  <p className="settings-value">{Number(data.usage.operations).toLocaleString()}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="settings-label">Period</p>
+                  <p className="settings-value">{date(data.usage.from)} – {date(data.usage.to)}</p>
+                </div>
+              </div>
+              {data.usage.daily.length ? (
+                <div className="mt-3 overflow-x-auto rounded-lg border border-border">
+                  <table className="w-full min-w-[420px] text-left text-sm">
+                    <thead className="border-b border-border text-xs text-muted-foreground">
+                      <tr><th className="px-3 py-2 font-medium">Day</th><th className="px-3 py-2 text-right font-medium">AI usage</th><th className="px-3 py-2 text-right font-medium">Operations</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {data.usage.daily.slice(-14).map((day) => (
+                        <tr key={day.date}>
+                          <td className="px-3 py-2 text-muted-foreground">{date(day.date)}</td>
+                          <td className="px-3 py-2 text-right">{usd(day.creditsUsed)}</td>
+                          <td className="px-3 py-2 text-right text-muted-foreground">{Number(day.operations).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+              {data.usage.breakdown.length ? (
+                <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                  {data.usage.breakdown.map((item) => (
+                    <span key={item.meterKey}>{item.meterKey.replaceAll("_", " ")}: {usd(item.creditsUsed)}</span>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
 
