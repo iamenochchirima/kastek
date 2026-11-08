@@ -951,7 +951,12 @@ function ProductManager({
 
   function entries(plan: Plan, kind: "feature" | "limit") {
     return (plan.entitlements ?? [])
-      .filter((item) => item.kind === kind && (kind === "limit" || item.value === true))
+      .filter(
+        (item) =>
+          item.kind === kind &&
+          (kind === "limit" || item.value === true) &&
+          !(kind === "limit" && item.key === "limit.agent_tokens"),
+      )
       .sort(
         (left, right) =>
           (left.displayGroup ?? "").localeCompare(right.displayGroup ?? "") ||

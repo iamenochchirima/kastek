@@ -49,7 +49,6 @@ function PlanCard({
   const features = planFeatures(plan);
   const agentLimit = limitValue(plan, "limit.agent_count");
   const channelLimit = limitValue(plan, "limit.agent_channels");
-  const tokenLimit = limitValue(plan, "limit.agent_tokens");
   return (
     <article className={`relative flex h-full flex-col rounded-2xl border bg-card p-5 shadow-[var(--shadow-panel)] ${current ? "border-primary/50 ring-1 ring-primary/20" : recommended ? "border-primary/35" : "border-border"}`}>
       {recommended && !current ? (
@@ -76,7 +75,6 @@ function PlanCard({
         {agentLimit !== undefined ? <span className="rounded-full border border-border bg-secondary/40 px-2.5 py-1 text-xs text-foreground">{limitLabel(agentLimit, "agents", "Agents")}</span> : null}
         {channelLimit !== undefined ? <span className="rounded-full border border-border bg-secondary/40 px-2.5 py-1 text-xs text-foreground">{limitLabel(channelLimit, "channels", "Channels")}</span> : null}
         <span className="rounded-full border border-border bg-secondary/40 px-2.5 py-1 text-xs text-foreground">{usd(plan.creditsPerPeriod)} AI usage</span>
-        {tokenLimit !== undefined ? <span className="rounded-full border border-border bg-secondary/40 px-2.5 py-1 text-xs text-foreground">{limitLabel(tokenLimit, "tokens", "Tokens")}</span> : null}
       </div>
 
       <div className="mt-5 border-t border-border pt-4">
@@ -160,7 +158,7 @@ export function UpgradePage() {
           <section className="mt-6 overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-panel)]">
             <div className="border-b border-border p-5">
               <h2 className="text-base font-semibold text-foreground">Compare plans</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Agents, channels, AI usage and token allowances.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Agents, channels and AI usage.</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-left text-sm">
@@ -175,7 +173,6 @@ export function UpgradePage() {
                   <tr><td className="px-5 py-3 text-muted-foreground">AI usage</td>{plans.map((plan) => <td key={plan.key} className="px-5 py-3 text-foreground">{usd(plan.creditsPerPeriod)}</td>)}</tr>
                   <tr><td className="px-5 py-3 text-muted-foreground">Agents</td>{plans.map((plan) => <td key={plan.key} className="px-5 py-3 text-foreground">{limitLabel(limitValue(plan, "limit.agent_count"), "agents", "—")}</td>)}</tr>
                   <tr><td className="px-5 py-3 text-muted-foreground">Channels</td>{plans.map((plan) => <td key={plan.key} className="px-5 py-3 text-foreground">{limitLabel(limitValue(plan, "limit.agent_channels"), "channels", "—")}</td>)}</tr>
-                  <tr><td className="px-5 py-3 text-muted-foreground">Tokens</td>{plans.map((plan) => <td key={plan.key} className="px-5 py-3 text-foreground">{limitLabel(limitValue(plan, "limit.agent_tokens"), "tokens", "—")}</td>)}</tr>
                   <tr><td className="px-5 py-3 text-muted-foreground">Features</td>{plans.map((plan) => <td key={plan.key} className="px-5 py-3 text-muted-foreground">{planFeatures(plan).map((feature) => feature.name).join(", ") || "Agents workspace"}</td>)}</tr>
                 </tbody>
               </table>
