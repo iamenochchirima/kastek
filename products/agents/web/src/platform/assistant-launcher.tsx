@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { AiChat02Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { SparklesIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { Link } from "react-router-dom";
 import { PiArchive, PiArrowLeft, PiChatCircle, PiGear, PiLinkSimple, PiMagnifyingGlass, PiPlus, PiPushPin, PiPushPinFill, PiSidebarSimple } from "react-icons/pi";
 import { toast } from "sonner";
@@ -24,6 +24,16 @@ const WIDTH_KEY_PREFIX = "agents.assistant.panelWidth";
 const PINS_KEY_PREFIX = "agents.assistant.pins";
 const LAUNCHER_SIZE = 56;
 const DRAG_THRESHOLD = 4;
+
+function AskMark({ size = 24, className = "" }: { size?: number; className?: string }) {
+  const fontSize = Math.max(6.5, size * 0.36);
+  return <span aria-hidden="true" className={cn("relative grid place-items-center", className)} style={{ width: size, height: size }}>
+    <svg viewBox="0 0 32 32" className="absolute inset-0 h-full w-full" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+      <path d="M5 5h22a3 3 0 0 1 3 3v11a3 3 0 0 1-3 3H14l-5 4v-4H5a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z" />
+    </svg>
+    <span style={{ fontSize, fontWeight: 700, lineHeight: 1, marginTop: -size * 0.06, letterSpacing: "-.02em" }}>ask</span>
+  </span>;
+}
 
 function readWidth(storageKey: string): number {
   try {
@@ -241,7 +251,7 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
           className="pointer-events-none absolute -inset-6 rounded-[48%] opacity-75 blur-[4px] motion-safe:animate-[assistant-wave-secondary_7s_ease-in-out_infinite]"
           style={{ background: "radial-gradient(ellipse at 72% 22%, rgba(129,140,248,.88), transparent 42%), radial-gradient(ellipse at 28% 78%, rgba(14,165,233,.78), transparent 48%)" }}
         />
-        <HugeiconsIcon icon={AiChat02Icon} size={24} aria-hidden="true" className="relative z-10 drop-shadow-[0_1px_3px_rgba(0,0,0,.4)]" />
+        <AskMark size={24} className="relative z-10 drop-shadow-[0_1px_3px_rgba(0,0,0,.4)]" />
       </button>
     </div> : null}
     {open ? createPortal(
@@ -272,7 +282,7 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
                 <PiSidebarSimple size={16} aria-hidden="true" />
               </Button>
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-                <HugeiconsIcon icon={AiChat02Icon} size={16} aria-hidden="true" />
+                <HugeiconsIcon icon={SparklesIcon} size={16} aria-hidden="true" />
               </span>
               <div className="min-w-0">
                 <h2 className="truncate text-sm font-semibold">Ask AI</h2>
