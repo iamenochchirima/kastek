@@ -39,9 +39,9 @@ export async function generateConversationTitle(options: {
   const grant = {
     id: `conversation-title:${row.conversation_id}`,
     maxInputBytes: Math.min(configuration.model.maxInputBytes, 8_192),
-    maxOutputTokens: Math.min(configuration.model.maxOutputTokens, 1_024),
-    maxContextTokens: Math.min(contextGrantCeiling(configuration), 16_384),
-    rootTokenLimit: 16_384,
+    maxOutputTokens: Math.min(configuration.model.maxOutputTokens, 4_096),
+    maxContextTokens: Math.min(contextGrantCeiling(configuration), 32_768),
+    rootTokenLimit: 32_768,
   };
   const routes = await transaction(options.pool, db => resolveAcceptedModelRoutes(db, {
     organizationId: row.organization_id, agentId: row.agent_id, product: "agents",
