@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { PiArrowClockwise as RefreshCw, PiWallet as Wallet } from "react-icons/pi";
+import { PiArrowClockwise as RefreshCw } from "react-icons/pi";
 import { Button } from "@/components/ui/button";
 import { api, organizationPath } from "./api";
 import "./management.css";
@@ -80,6 +80,11 @@ type Billing = {
   invoices: Invoice[];
   plans: Plan[];
   usage?: Usage | null;
+  snapshot?: {
+    plan?: { key: string; name: string; version: number } | null;
+    subscription?: { status: string; currentPeriodEnd: string | null } | null;
+    meters?: Record<string, { used: string; limit: string | null }>;
+  } | null;
 };
 
 function money(amountMinor: string | number | null, currency: string) {
@@ -401,12 +406,41 @@ export function BillingSettings({
   );
 }
 
+function UsageBars({ daily }: { daily: Usage["daily"] }) {
+  const rows = daily.slice(-30);
+  const max = Math.max(...rows.map((day) => Number(day.creditsUsed)), 1);
+  if (!rows.length) return <p className="mt-4 text-sm text-muted-foreground">No usage in this period.</p>;
+  return (
+    <div className="mt-5 flex h-44 items-end gap-1 overflow-x-auto rounded-lg border border-border bg-background/40 p-4">
+      {rows.map((day) => {
+        const value = Number(day.creditsUsed);
+        return (
+          <div
+            key={day.date}
+            className="flex h-full min-w-2 flex-1 items-end"
+            title={`${date(day.date)} · ${usd(day.creditsUsed)} · ${Number(day.operations).toLocaleString()} operations`}
+          >
+            <div
+              className="w-full rounded-t bg-primary/80 transition-colors hover:bg-primary"
+              style={{ height: `${Math.max(value > 0 ? 4 : 0, (value / max) * 100)}%` }}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function UsageSettings({ organizationId }: { organizationId: string }) {
   const { data, error } = useBillingData(organizationId);
   const usage = data?.usage;
   const account = data?.account;
-  const daily = usage?.daily ?? [];
-  const breakdown = usage?.breakdown ?? [];
+  const subscription =
+    account?.subscriptions?.find((item) => item.product === "agents") ??
+    account?.subscriptions?.[0];
+  const tokenMeter = data?.snapshot?.meters?.agent_tokens;
+  const totalAiUsage = usage ? Number(usage.creditsUsed) + Number(usage.credits.available) : 0;
+  const usedPercent = totalAiUsage > 0 ? Math.min(100, Math.round((Number(usage!.creditsUsed) / totalAiUsage) * 100)) : 0;
 
   return (
     <div className="space-y-5">
@@ -414,97 +448,90 @@ export function UsageSettings({ organizationId }: { organizationId: string }) {
       {!data && !error ? <p className="text-sm text-muted-foreground">Loading usage…</p> : null}
       {!usage ? null : (
         <>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-panel)]">
+              <p className="text-xs text-muted-foreground">AI usage</p>
+              <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{usd(usage.creditsUsed)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">in the last 30 days</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-panel)]">
+              <p className="text-xs text-muted-foreground">Operations</p>
+              <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{Number(usage.operations).toLocaleString()}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Recorded workspace activity</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-panel)]">
+              <p className="text-xs text-muted-foreground">Tokens</p>
+              <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{tokenMeter ? Number(tokenMeter.used).toLocaleString() : "—"}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Accounted model tokens</p>
+            </div>
+          </div>
+
           <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-base font-semibold text-foreground">AI usage</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {date(usage.from)} – {date(usage.to)}
-                </p>
+                <h2 className="text-base font-semibold text-foreground">AI usage and limits</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{subscription?.planName ?? data.snapshot?.plan?.name ?? "Free workspace"} · {subscription?.currentPeriodEnd ? `Renews ${date(subscription.currentPeriodEnd)}` : "No renewal date"}</p>
               </div>
-              <Wallet className="size-5 text-primary" />
+              <p className="text-sm font-medium text-foreground">{usd(usage.credits.available)} available</p>
             </div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-lg border border-border bg-secondary/20 p-4">
-                <p className="text-xs text-muted-foreground">Used</p>
-                <p className="mt-1 text-xl font-semibold text-foreground">{usd(usage.creditsUsed)}</p>
+            <div className="mt-5 rounded-lg border border-border bg-background/40 p-4">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="font-medium text-foreground">AI usage</span>
+                <span className="text-muted-foreground">{usd(usage.creditsUsed)} used</span>
               </div>
-              <div className="rounded-lg border border-border bg-secondary/20 p-4">
-                <p className="text-xs text-muted-foreground">Available</p>
-                <p className="mt-1 text-xl font-semibold text-foreground">{usd(usage.credits?.available ?? account?.credits?.available)}</p>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-secondary">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${usedPercent}%` }} />
               </div>
-              <div className="rounded-lg border border-border bg-secondary/20 p-4">
-                <p className="text-xs text-muted-foreground">Operations</p>
-                <p className="mt-1 text-xl font-semibold text-foreground">{Number(usage.operations).toLocaleString()}</p>
-              </div>
+              <p className="mt-2 text-xs text-muted-foreground">{usd(usage.credits.reserved)} reserved</p>
             </div>
           </section>
 
           <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
-            <h2 className="text-base font-semibold text-foreground">Daily usage</h2>
-            {daily.length ? (
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Daily AI usage</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{date(usage.from)} – {date(usage.to)}</p>
+            </div>
+            <UsageBars daily={usage.daily} />
+          </section>
+
+          <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
+            <h2 className="text-base font-semibold text-foreground">Usage by meter</h2>
+            {usage.breakdown.length ? (
               <div className="mt-4 overflow-x-auto rounded-lg border border-border">
-                <table className="w-full min-w-[420px] text-left text-sm">
+                <table className="w-full min-w-[520px] text-left text-sm">
                   <thead className="border-b border-border text-xs text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2 font-medium">Day</th>
-                      <th className="px-3 py-2 text-right font-medium">AI usage</th>
-                      <th className="px-3 py-2 text-right font-medium">Operations</th>
-                    </tr>
+                    <tr><th className="px-3 py-2 font-medium">Meter</th><th className="px-3 py-2 text-right font-medium">Operations</th><th className="px-3 py-2 text-right font-medium">AI usage</th></tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {daily.slice(-30).map((day) => (
-                      <tr key={day.date}>
-                        <td className="px-3 py-2 text-muted-foreground">{date(day.date)}</td>
-                        <td className="px-3 py-2 text-right">{usd(day.creditsUsed)}</td>
-                        <td className="px-3 py-2 text-right text-muted-foreground">{Number(day.operations).toLocaleString()}</td>
+                    {usage.breakdown.map((item) => (
+                      <tr key={item.meterKey}>
+                        <td className="px-3 py-2 font-medium capitalize text-foreground">{item.meterKey.replaceAll("_", " ")}</td>
+                        <td className="px-3 py-2 text-right text-muted-foreground">{Number(item.operations).toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-foreground">{usd(item.creditsUsed)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            ) : (
-              <p className="mt-3 text-sm text-muted-foreground">No usage in this period.</p>
-            )}
+            ) : <p className="mt-3 text-sm text-muted-foreground">No usage in this period.</p>}
           </section>
 
-          <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
-            <h2 className="text-base font-semibold text-foreground">Usage by meter</h2>
-            {breakdown.length ? (
-              <div className="mt-4 divide-y divide-border">
-                {breakdown.map((item) => (
-                  <div key={item.meterKey} className="flex flex-wrap items-center justify-between gap-3 py-2 text-sm">
-                    <span className="font-medium capitalize text-foreground">{item.meterKey.replaceAll("_", " ")}</span>
-                    <span className="text-muted-foreground">{usd(item.creditsUsed)} · {Number(item.operations).toLocaleString()} operations</span>
+          {usage.grants?.length ? (
+            <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-base font-semibold text-foreground">AI usage grants</h2>
+                <span className="text-xs text-muted-foreground">{usd(usage.credits.available)} available</span>
+              </div>
+              <div className="mt-3 divide-y divide-border">
+                {usage.grants.slice(0, 5).map((grant) => (
+                  <div key={grant.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                    <div><p className="font-medium capitalize text-foreground">{grant.source.replaceAll("_", " ")}</p><p className="text-xs text-muted-foreground">{grant.endsAt ? `Expires ${date(grant.endsAt)}` : "No expiry"}</p></div>
+                    <span className="text-foreground">{usd(grant.remainingAmount)}</span>
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="mt-3 text-sm text-muted-foreground">No metered usage in this period.</p>
-            )}
-          </section>
-
-          <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
-            <h2 className="text-base font-semibold text-foreground">AI usage grants</h2>
-            {usage.grants?.length ? (
-              <div className="mt-4 divide-y divide-border">
-                {usage.grants.slice(0, 10).map((grant) => (
-                  <div key={grant.id} className="flex flex-wrap items-center justify-between gap-3 py-2 text-sm">
-                    <div>
-                      <p className="font-medium capitalize text-foreground">{grant.source.replaceAll("_", " ")}</p>
-                      <p className="text-xs text-muted-foreground">{grant.reference ?? grant.id}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium text-foreground">{usd(grant.remainingAmount)} remaining</p>
-                      <p className="text-xs text-muted-foreground">{grant.endsAt ? `Expires ${date(grant.endsAt)}` : "No expiry"}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-3 text-sm text-muted-foreground">No grants.</p>
-            )}
-          </section>
+            </section>
+          ) : null}
         </>
       )}
     </div>

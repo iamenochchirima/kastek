@@ -38,10 +38,11 @@ export function registerBillingRoutes(
         : {};
     const currency =
       typeof accountRecord.currency === "string" ? accountRecord.currency : undefined;
-    const [invoices, plans, usage] = await Promise.all([
+    const [invoices, plans, usage, snapshot] = await Promise.all([
       client.invoices(scope.organizationId),
       client.plans(currency),
       client.usageSummary(scope.organizationId).catch(() => null),
+      client.snapshot(scope.organizationId).catch(() => null),
     ]);
     return {
       configured: true,
@@ -70,6 +71,7 @@ export function registerBillingRoutes(
           })),
       })),
       usage,
+      snapshot,
     };
   });
 
