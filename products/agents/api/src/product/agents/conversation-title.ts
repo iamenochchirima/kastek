@@ -6,7 +6,7 @@ import { contextGrantCeiling, executionModelLayers } from "../../execution/model
 import { transaction } from "../../infrastructure/database";
 import type { ModelProviderStore } from "../model-providers/store";
 
-const titlePrompt = "Create a short title for this conversation. Reply with only the title, using 3 to 6 words. Describe the user's request, not the assistant's reply. Use the user's language. Do not use quotes, markdown, or ending punctuation.";
+const titlePrompt = "Write a short chat title for this exchange. Use 3 to 6 words in title case. Describe the topic, not the greeting or the assistant's answer. Return only the title, without quotes or ending punctuation. Examples: \"Refund for damaged order\", \"Weekend platter ideas\", \"Facebook page connection\".";
 
 /** Model output is untrusted; only a plain, bounded title reaches storage. */
 export function sanitizeConversationTitle(value: string): string {
@@ -26,8 +26,8 @@ export async function generateConversationTitle(options: {
   taskId: string;
 }): Promise<string | null> {
   if (process.env.NODE_ENV === "test" || process.env.AGENTS_CONVERSATION_TITLES === "false") return null;
-  const row = (await options.pool.query<{ turn_sequence: string; product: string; organization_id: string; conversation_id: string; agent_id: string; title: string | null; version_id: string; input: string }>(`
-    SELECT t.turn_sequence,t.product,t.organization_id,t.conversation_id,t.version_id,t.input,c.agent_id,c.title
+  const row = (await options.pool.query<{ turn_sequence: string; product: string; organization_id: string; conversation_id: string; agent_id: string; title: string | null; version_id: string; input: string; output: string | null }>(`
+    SELECT t.turn_sequence,t.product,t.organization_id,t.conversation_id,t.version_id,t.input,t.output,c.agent_id,c.title
     FROM agents_platform.tasks t
     JOIN agents_platform.conversations c ON c.id=t.conversation_id AND c.organization_id=t.organization_id
     WHERE t.id=$1 AND t.parent_task_id IS NULL AND c.deleted_at IS NULL AND c.deployment_id IS NULL
@@ -50,8 +50,8 @@ export async function generateConversationTitle(options: {
   }));
   const response = await dispatchBoundModel({
     pool: options.pool, providerStore: options.providers, accepted: routes.primary,
-    messages: [{ role: "system", content: titlePrompt }, { role: "user", content: row.input.slice(0, 2_000) }],
-    maxRequestBytes: 8_192, deadlineAt: Date.now() + 15_000,
+    messages: [{ role: "system", content: titlePrompt }, { role: "user", content: `Customer: ${row.input.slice(0, 2_000)}${row.output ? `\n\nAssistant: ${row.output.slice(0, 1_500)}` : ""}` }],
+    maxRequestBytes: 12_288, deadlineAt: Date.now() + 20_000,
   });
   const title = sanitizeConversationTitle(response.message.content ?? "");
   if (!title) return null;
