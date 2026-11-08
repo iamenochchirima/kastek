@@ -39,7 +39,7 @@ export async function generateConversationTitle(options: {
   const grant = {
     id: `conversation-title:${row.conversation_id}`,
     maxInputBytes: Math.min(configuration.model.maxInputBytes, 8_192),
-    maxOutputTokens: Math.min(configuration.model.maxOutputTokens, 64),
+    maxOutputTokens: Math.min(configuration.model.maxOutputTokens, 1_024),
     maxContextTokens: Math.min(contextGrantCeiling(configuration), 16_384),
     rootTokenLimit: 16_384,
   };
