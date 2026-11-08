@@ -36,6 +36,9 @@ type Entitlement = {
   kind?: "feature" | "limit" | "meter";
   name?: string;
   description?: string | null;
+  unit?: string | null;
+  displayGroup?: string | null;
+  displayOrder?: number;
 };
 type Plan = {
   key: string;
@@ -49,6 +52,7 @@ type Plan = {
   amountMinor: string;
   creditsPerPeriod: string | null;
   checkoutReady: boolean;
+  entitlements?: Entitlement[];
 };
 type Version = Plan & {
   activeSubscriptions?: number;
@@ -290,7 +294,16 @@ export function BillingCatalogManager({
         </TabsContent>
 
         <TabsContent value="offerings" className="mt-4">
-          <ProductManager products={products} onSaved={() => router.refresh()} onError={fail} />
+          <ProductManager
+            products={products}
+            plans={plans}
+            onSelectPlan={(planKey) => {
+              setTab("plans");
+              void loadPlan(planKey);
+            }}
+            onSaved={() => router.refresh()}
+            onError={fail}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -923,14 +936,40 @@ function CapabilityManager({
 
 function ProductManager({
   products,
+  plans,
+  onSelectPlan,
   onSaved,
   onError,
 }: {
   products: Product[];
+  plans: Plan[];
+  onSelectPlan: (planKey: string) => void;
   onSaved: () => void;
   onError: (reason: unknown) => void;
 }) {
   const [saving, setSaving] = useState(false);
+
+  function entries(plan: Plan, kind: "feature" | "limit") {
+    return (plan.entitlements ?? [])
+      .filter((item) => item.kind === kind && (kind === "limit" || item.value === true))
+      .sort(
+        (left, right) =>
+          (left.displayGroup ?? "").localeCompare(right.displayGroup ?? "") ||
+          (left.displayOrder ?? 0) - (right.displayOrder ?? 0) ||
+          (left.name ?? left.key).localeCompare(right.name ?? right.key),
+      );
+  }
+
+  function limitText(value: unknown, unit: string | null | undefined) {
+    const number =
+      typeof value === "number"
+        ? value
+        : typeof value === "string" && /^\d+$/.test(value)
+          ? Number(value)
+          : null;
+    if (number !== null) return `${number.toLocaleString()}${unit ? ` ${unit}` : ""}`;
+    return typeof value === "string" ? value : "Included";
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -952,18 +991,58 @@ function ProductManager({
     }
   }
   return (
-    <div className="grid gap-6 xl:grid-cols-2">
-      <section className="v-card p-[var(--density-card-padding)]">
-        <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Offerings</h2>
-        <div className="mt-4 divide-y divide-line">
-          {products.map((product) => (
-            <div key={product.key} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
-              <div><p className="font-medium text-foreground">{product.name}</p><p className="text-xs text-muted-foreground">{product.key}</p></div>
-              <Badge variant={product.active ? "success" : "secondary"}>{product.active ? "active" : "inactive"}</Badge>
-            </div>
-          ))}
-        </div>
-      </section>
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="space-y-4">
+        {products.map((product) => {
+          const productPlans = plans.filter((plan) => plan.product === product.key);
+          return (
+            <section key={product.key} className="v-card p-[var(--density-card-padding)]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">{product.name}</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">{product.key}</p>
+                  {product.description ? <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{product.description}</p> : null}
+                </div>
+                <Badge variant={product.active ? "success" : "secondary"}>{product.active ? "active" : "inactive"}</Badge>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {productPlans.map((plan) => (
+                  <button
+                    key={plan.key}
+                    type="button"
+                    onClick={() => onSelectPlan(plan.key)}
+                    className="flex flex-col rounded-lg border border-line bg-background/40 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium text-foreground">{plan.name}</p>
+                        <p className="text-xs text-muted-foreground">{plan.key}</p>
+                      </div>
+                      <Badge variant={statusVariant(plan.status)}>{plan.status}</Badge>
+                    </div>
+                    <p className="mt-3 text-sm font-medium text-foreground">{money(plan.amountMinor, plan.currency)} <span className="text-xs font-normal text-muted-foreground">/ month</span></p>
+                    <p className="mt-1 text-xs text-muted-foreground">{usd(plan.creditsPerPeriod)} AI usage</p>
+                    {plan.description ? <p className="mt-3 text-xs leading-5 text-muted-foreground">{plan.description}</p> : null}
+                    <div className="mt-3 space-y-2 border-t border-line pt-3">
+                      {entries(plan, "feature").map((feature) => (
+                        <p key={feature.key} className="flex items-start gap-2 text-xs text-muted-foreground"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />{feature.name}</p>
+                      ))}
+                      {entries(plan, "limit").length ? (
+                        <div className="space-y-1 border-t border-line pt-2">
+                          {entries(plan, "limit").map((limit) => (
+                            <p key={limit.key} className="flex items-start justify-between gap-3 text-xs"><span className="text-muted-foreground">{limit.name}</span><span className="shrink-0 font-medium text-foreground">{limitText(limit.value, limit.unit)}</span></p>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </button>
+                ))}
+                {!productPlans.length ? <p className="text-sm text-muted-foreground">No plans</p> : null}
+              </div>
+            </section>
+          );
+        })}
+      </div>
       <form className="v-card space-y-3 p-[var(--density-card-padding)]" onSubmit={submit}>
         <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Create or update offering</h2>
         <FormField id="product-key" label="Key" required><Input id="product-key" name="key" placeholder="growth" required /></FormField>
