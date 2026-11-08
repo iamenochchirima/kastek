@@ -16,10 +16,11 @@ docker build -f infra/backend/Dockerfile \
 | --- | --- | --- | --- | --- |
 | `@kasitek/growth-core` / `products/growth/api` | `node dist/bootstrap.js` | Same command, `KASITEK_PROCESS=analytics-publisher` | `/health` | Apply reviewed Growth database migrations as a separate release job; the image includes API SQL but no Prisma CLI. |
 | `@kasitek/agency-tenants` / `products/agency/api` | `node dist/bootstrap.js` | Same command, `KASITEK_PROCESS=analytics-publisher` | `/health` | Existing startup runner applies the packaged `migrations/` with its database lock. |
+| `@kasitek/billing` / `services/billing` | `node dist/api-main.js` | `node dist/worker-main.js` | `/health/ready` | Run `node dist/migrate-main.js`, then `node dist/seed-main.js` once before API and worker. |
 | `@kasitek/analytics` / `services/analytics` | `node dist/api-main.js` | `node dist/worker-main.js` | `/health/ready` | Run `node dist/migrate-main.js` once before API and worker. |
 | `@kasitek/operations` / `services/operations` | `node dist/api-main.js` | `node dist/worker-main.js` | `/health/ready` | Run `node dist/migrate-main.js` once before API and worker. |
 
-Analytics and Operations must override the default image command. Workers without an HTTP
+Billing, Analytics and Operations must override the default image command. Workers without an HTTP
 listener use process and queue monitoring rather than the API health path. Set service-specific
 environment variables in the hosting provider, never Docker build arguments. The runtime runs
 as `node`; persistent mounts must be writable by that user.

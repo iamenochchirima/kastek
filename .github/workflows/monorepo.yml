@@ -40,6 +40,7 @@ jobs:
             'agents': ('products/agents/', 'pnpm --filter @kasitek/agents build && pnpm --filter @kasitek/agent-platform build'),
             'agency': ('products/agency/', 'pnpm --filter @kasitek/agency-tenants build && pnpm --filter tenant-portal build'),
             'analytics': ('services/analytics/', 'pnpm --filter @kasitek/analytics build'),
+            'billing': ('services/billing/', 'pnpm --filter @kasitek/billing build'),
             'labs-site': ('apps/labs-site/', 'pnpm --filter labs build'),
             'admin-site': ('apps/admin-site/', 'pnpm --filter @kasitek/admin-site build'),
           }

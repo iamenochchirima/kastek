@@ -8,6 +8,7 @@ ARG SERVICE_PATH=products/growth/api
 RUN case "$SERVICE_PACKAGE:$SERVICE_PATH" in \
       @kasitek/growth-core:products/growth/api|\
       @kasitek/agency-tenants:products/agency/api|\
+      @kasitek/billing:services/billing|\
       @kasitek/analytics:services/analytics|\
       @kasitek/operations:services/operations) ;; \
       *) echo 'Unsupported backend package/path pair' >&2; exit 1 ;; \
