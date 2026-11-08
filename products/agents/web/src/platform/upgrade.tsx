@@ -6,7 +6,6 @@ import {
   money,
   usd,
   useBillingData,
-  type Billing,
   type Plan,
 } from "./billing-settings";
 import "./management.css";

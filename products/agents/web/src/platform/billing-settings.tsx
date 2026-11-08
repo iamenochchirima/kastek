@@ -114,28 +114,6 @@ export function usd(microUsd: string | number | null | undefined) {
   }).format(Number(microUsd) / 1_000_000);
 }
 
-function formatLimit(value: unknown, unit: string | null) {
-  const number =
-    typeof value === "number"
-      ? value
-      : typeof value === "string" && /^\d+$/.test(value)
-        ? Number(value)
-        : null;
-  if (number !== null) return `${number.toLocaleString()}${unit ? ` ${unit}` : ""}`;
-  return typeof value === "string" ? value : "Included";
-}
-
-function entitlementList(plan: Plan, kind: "feature" | "limit") {
-  return (plan.entitlements ?? [])
-    .filter((item) => item.kind === kind && (kind === "limit" || item.value === true))
-    .sort(
-      (left, right) =>
-        (left.displayGroup ?? "").localeCompare(right.displayGroup ?? "") ||
-        left.displayOrder - right.displayOrder ||
-        left.name.localeCompare(right.name),
-    );
-}
-
 function date(value: string | null) {
   return value
     ? new Date(value).toLocaleDateString("en-ZA", { dateStyle: "medium" })
@@ -226,20 +204,13 @@ export function useBillingData(organizationId: string) {
   return { data, error, notice, checkoutBusy, startCheckout, refresh };
 }
 
-export function BillingSettings({
-  organizationId,
-  view = "billing",
-}: {
-  organizationId: string;
-  view?: "billing" | "plans";
-}) {
-  const { data, error, notice, checkoutBusy, startCheckout, refresh } = useBillingData(organizationId);
+export function BillingSettings({ organizationId }: { organizationId: string }) {
+  const { data, error, notice, refresh } = useBillingData(organizationId);
   const account = data?.account;
   const subscription =
     account?.subscriptions?.find((item) => item.product === "agents") ??
     account?.subscriptions?.[0];
   const invoices = data?.invoices ?? account?.invoices ?? [];
-  const plans = data?.plans ?? [];
 
   return (
     <div className="space-y-5">
@@ -284,9 +255,7 @@ export function BillingSettings({
                     {usd(account?.credits?.reserved)} reserved
                   </p>
                 </div>
-                {view === "billing" ? (
-                  <Button asChild variant="outline" size="sm"><Link to="/app/upgrade">Change plan</Link></Button>
-                ) : null}
+                <Button asChild variant="outline" size="sm"><Link to="/app/upgrade">Change plan</Link></Button>
               </div>
             </div>
             <div className="grid gap-3 p-5 sm:grid-cols-3">
@@ -307,67 +276,6 @@ export function BillingSettings({
           </section>
 
           <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
-            <div>
-              <h2 className="text-base font-semibold text-foreground">Plans</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Choose the Agents plan for this workspace.</p>
-            </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {plans.map((plan) => {
-                const current = plan.key === subscription?.planKey;
-                return (
-                  <article key={plan.key} className={`flex flex-col rounded-lg border p-4 ${current ? "border-primary/40 bg-primary/5" : "border-border bg-secondary/10"}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="text-sm font-semibold text-foreground">{plan.name}</h3>
-                      </div>
-                      {current ? <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs text-primary">Current</span> : null}
-                    </div>
-                    <p className="mt-4 text-2xl font-semibold tracking-tight text-foreground">{money(plan.amountMinor, plan.currency)}</p>
-                    <p className="text-xs text-muted-foreground">per month</p>
-                    <p className="mt-3 text-sm text-muted-foreground">{usd(plan.creditsPerPeriod)} AI usage</p>
-                    <div className="mt-4 space-y-3 border-t border-border pt-4">
-                      {entitlementList(plan, "feature").map((feature) => (
-                        <div key={feature.key} className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
-                          <span>{feature.name}</span>
-                        </div>
-                      ))}
-                      {entitlementList(plan, "limit").length ? (
-                        <div className="space-y-1.5 border-t border-border pt-3">
-                          <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Limits</p>
-                          {entitlementList(plan, "limit").map((limit) => (
-                            <div key={limit.key} className="flex items-start justify-between gap-3 text-sm">
-                              <span className="text-muted-foreground">{limit.name}</span>
-                              <span className="shrink-0 font-medium text-foreground">{formatLimit(limit.value, limit.unit)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                    {plan.description ? (
-                      <p className="mt-4 border-t border-border pt-3 text-xs leading-5 text-muted-foreground">{plan.description}</p>
-                    ) : null}
-                    <div className="mt-auto pt-4">
-                      {plan.checkoutReady && !current ? (
-                        <Button
-                          size="sm"
-                          className="w-full"
-                          disabled={Boolean(checkoutBusy)}
-                          onClick={() => void startCheckout(plan.key)}
-                        >
-                          {checkoutBusy === plan.key ? "Opening…" : "Upgrade"}
-                        </Button>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">{current ? "Current plan" : plan.checkoutReady ? "Unavailable" : "Checkout unavailable"}</p>
-                      )}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-
-          {view === "billing" ? <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
             <h2 className="text-base font-semibold text-foreground">Invoices</h2>
             <p className="mt-1 text-sm text-muted-foreground">Your billing documents.</p>
             {invoices.length ? (
@@ -396,9 +304,9 @@ export function BillingSettings({
             ) : (
               <p className="mt-4 text-sm text-muted-foreground">No invoices yet</p>
             )}
-          </section> : null}
+          </section>
 
-          {view === "billing" && account?.issues?.length ? (
+          {account?.issues?.length ? (
             <section className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5">
               <h2 className="text-sm font-semibold text-amber-700">Open billing issues</h2>
               <div className="mt-2 space-y-1 text-sm text-amber-700">
