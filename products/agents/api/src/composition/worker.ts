@@ -21,12 +21,12 @@ import { QueryEmbeddingService } from "../capabilities/knowledge/query-embedding
 import { resourceBackends } from "./resource-backends";
 import { createSandboxExecutor } from "../capabilities/sandbox/sandbox-executor";
 import { capabilityBindingSchema } from "../contracts/capability-catalog";
-import { PlatformError,connectedToolAuthorityIds } from "../contracts/contracts";
-import { TaskArtifactStore } from "../execution/artifacts/task-artifacts";
+import { PlatformError,connectedToolAuthorityIds } from "../contracts/contracts";import { TaskArtifactStore } from "../execution/artifacts/task-artifacts";
 import { createBusinessWorkflow, type BusinessOptions } from "../execution/business/business";
 import { createContextCompactionWorkflow } from "../execution/context/compaction-workflow";
 import { createSupportStatusWorkflow,SUPPORT_STATUS_WORKFLOW } from '../execution/business/support-status-business';
 import { ModelProviderStore } from "../product/model-providers/store";
+import { generateConversationTitle } from "../product/agents/conversation-title";
 import { ModelCredentialVault } from "../infrastructure/model-credential-vault";
 import { connectionVaultFromEnvironment } from "../infrastructure/vault";
 import { EvidenceStore } from "../execution/context/evidence";
@@ -170,7 +170,10 @@ async function main(): Promise<void> {
     product:productRuntime,
     readRetainedArtifact: (taskId,originTaskId,artifactId)=>artifacts.readRetainedForTask(taskId,originTaskId,artifactId),artifacts,
     actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output),
-    executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews,bookings };
+    executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews,bookings,
+    onSettled: taskId => generateConversationTitle({ pool, providers: modelProvider, taskId })
+      .catch(error => console.error(JSON.stringify({ ...diagnosticIdentity, event: "conversation.title.failed", taskId,
+        code: error instanceof PlatformError ? error.code : "TITLE_GENERATION_FAILED" }))) };
   const workflow = createBusinessWorkflow(pool, workflowOptions);
   const handoffWorkflow = createBusinessWorkflow(pool, {...workflowOptions,
     settleHandoffReceipt:(taskId,candidate,definitiveFailure)=>settleReceipt(pool,taskId,candidate?{text:candidate}:null,HANDOFF_RECEIPT,

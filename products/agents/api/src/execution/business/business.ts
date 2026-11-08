@@ -119,6 +119,7 @@ export interface BusinessOptions {
   settleHandoffReceipt?:(taskId:string,candidate:string|null,definitiveFailure:boolean)=>Promise<unknown>;
   selectReportArtifact?:(taskId:string,name:string,generatedOutput:string)=>Promise<{id:string}>;
   executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]}|{skillId:string;path:string;inputArtifactIds?:string[]})=>Promise<unknown>;
+  onSettled?: (taskId: string) => Promise<unknown> | unknown;
 }
 import { operation, uncertainOperation, type Result } from "../lifecycle/durable-operation";
 export { operation } from "../lifecycle/durable-operation";
@@ -1271,6 +1272,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
         if(settled.state==="uncertain")outcome={state:"uncertain",errorCode:settled.code??"COMPACTION_OUTCOME_UNCERTAIN"};
       }
       await ctx.run("settle-task", () => settleTask(pool, taskId, outcome));
+      void Promise.resolve(options.onSettled?.(taskId)).catch(() => undefined);
       return outcome;
     },
     capacity:async(ctx:restate.WorkflowSharedContext,input:{requestId:string;generation:number})=>{

@@ -132,6 +132,8 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     const last=await get(`${f.base}/tasks?agentId=${f.agent}&state=completed&limit=100&cursor=${tasks.body.nextCursor}`,f.cookie);expect(last.body.tasks).toHaveLength(5);expect(new Set([...tasks.body.tasks,...last.body.tasks].map(x=>x.id)).size).toBe(105);
     expect((await get(`${f.base}/tasks?state=made-up`,f.cookie)).status).toBe(400);
     const conversations=await get(`${f.base}/conversations?agentId=${f.agent}`,f.cookie);expect(conversations.body.conversations[0].title).toBe("First <script> input text");
+    await pool.query("UPDATE agents_platform.conversations SET title='Model generated title' WHERE id=$1",[seeded.conversation]);
+    const titled=await get(`${f.base}/conversations?agentId=${f.agent}`,f.cookie);expect(titled.body.conversations.find((row:{id:string})=>row.id===seeded.conversation).title).toBe("Model generated title");
     await pool.query("UPDATE agents_platform.conversations SET deleted_at=now() WHERE id=$1",[seeded.conversation]);
     expect((await get(`${f.base}/conversations?agentId=${f.agent}`,f.cookie)).body.conversations).toEqual([]);
     expect((await get(path,f.cookie)).body.tasks[0]).toMatchObject({input:"[Deleted conversation]",output:null});

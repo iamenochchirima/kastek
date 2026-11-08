@@ -54,7 +54,7 @@ export class PlatformDiscovery {
     const scope={kind:"conversations",user:user.id,org,agentId:query.agentId,versionId:query.versionId??null,state:archived?"archived":"active"},cursor=readPageCursor(query.cursor,scope);
     const principal={kind:"human",issuer:user.issuer,subject:user.subject};
     const rows=(await this.pool.query(`SELECT c.id,c.agent_id AS "agentId",a.name AS "agentName",last.version_id AS "versionId",v.number AS "versionNumber",
-      left(regexp_replace(first.input,'[[:cntrl:]]',' ','g'),100) AS title,last.created_at AS "updatedAt",last.state,true AS "canContinue",last.created_at::text AS position
+      COALESCE(NULLIF(btrim(c.title),''),left(regexp_replace(first.input,'[[:cntrl:]]',' ','g'),100)) AS title,last.created_at AS "updatedAt",last.state,true AS "canContinue",last.created_at::text AS position
       FROM agents_platform.conversations c JOIN agents_platform.agents a ON a.id=c.agent_id
       JOIN LATERAL (SELECT t.version_id,t.created_at,t.state FROM agents_platform.tasks t WHERE t.conversation_id=c.id AND t.parent_task_id IS NULL AND t.product='agents' AND t.caller_client_id='agents-execution' AND t.resource_id=$2::text AND t.principal=$3::jsonb AND t.created_at<=$4 ORDER BY t.turn_sequence DESC LIMIT 1) last ON true
       JOIN LATERAL (SELECT t.input FROM agents_platform.tasks t WHERE t.conversation_id=c.id AND t.parent_task_id IS NULL AND t.principal=$3::jsonb ORDER BY t.turn_sequence LIMIT 1) first ON true

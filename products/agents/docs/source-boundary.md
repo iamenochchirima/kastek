@@ -1796,6 +1796,9 @@ readable while withdrawn evidence still hides the message. Customer-channel inst
 rewritten to remove internal source wording; the runtime also tells the model to continue the
 existing conversation without re-greeting or restarting it, and never to mention approved
 knowledge, an approved encyclopedia, or a knowledge base in customer-visible text.
+Internal conversation titles are generated from the first user message through the agent's
+authorized model route, bounded to 120 characters. Generation is best-effort; failures keep the
+first-line fallback in the Conversations list.
 Useful tail passages replace prefix context. A bounded continuation reads by
 issued evidence ID and UTF-16 offset. Context snapshots persist exact model tool
 definitions and selected evidence. Immutable dependency graphs preserve all
