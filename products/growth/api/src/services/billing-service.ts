@@ -94,10 +94,16 @@ export async function ensureBillingAccount(
   config: BillingServiceConfig,
   orgId: string,
 ): Promise<{ accountId: string; revision: string }> {
-  const org = await pool.query<{ name: string; email: string | null }>(
-    `SELECT o.name, u.email
+  const org = await pool.query<{
+    name: string;
+    email: string | null;
+    issuer: string | null;
+    subject: string | null;
+  }>(
+    `SELECT o.name, u.email, ei.issuer, ei.subject
        FROM "Organization" o
        JOIN "User" u ON u.id=o."ownerId"
+       LEFT JOIN "ExternalIdentity" ei ON ei."userId"=u.id
       WHERE o.id=$1`,
     [orgId],
   );
@@ -118,6 +124,8 @@ export async function ensureBillingAccount(
       tenantId: orgId,
       name: org.rows[0].name,
       billingEmail: email,
+      ownerIssuer: org.rows[0].issuer,
+      ownerSubject: org.rows[0].subject,
     },
   );
   const result = await json<{
@@ -326,13 +334,14 @@ export async function serviceCredits(
 export async function serviceUsage(
   config: BillingServiceConfig,
   orgId: string,
+  from?: Date,
+  to?: Date,
 ): Promise<Record<string, unknown>> {
+  const query = new URLSearchParams({ product: "growth", tenantId: orgId });
+  if (from) query.set("from", from.toISOString());
+  if (to) query.set("to", to.toISOString());
   return json<Record<string, unknown>>(
-    await request(
-      config,
-      "GET",
-      `/internal/usage?product=growth&tenantId=${encodeURIComponent(orgId)}`,
-    ),
+    await request(config, "GET", `/internal/usage?${query}`),
   );
 }
 

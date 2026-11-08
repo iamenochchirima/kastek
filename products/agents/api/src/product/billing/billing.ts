@@ -21,8 +21,13 @@ export async function ensureAgentsBillingAccount(
   client: BillingClient,
   organizationId: string,
 ): Promise<void> {
-  const row = await pool.query<{ name: string; email: string | null }>(
-    `SELECT o.name, a.email
+  const row = await pool.query<{
+    name: string;
+    email: string | null;
+    issuer: string | null;
+    subject: string | null;
+  }>(
+    `SELECT o.name, a.email, a.issuer, a.subject
        FROM agents_platform.organizations o
        JOIN agents_platform.memberships m
          ON m.organization_id=o.id AND m.role='owner' AND m.revoked_at IS NULL
@@ -43,6 +48,8 @@ export async function ensureAgentsBillingAccount(
     tenantId: organizationId,
     name: row.rows[0].name,
     billingEmail: email,
+    ownerIssuer: row.rows[0].issuer,
+    ownerSubject: row.rows[0].subject,
   });
 }
 

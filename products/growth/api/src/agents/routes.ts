@@ -16,6 +16,7 @@ import { GrowthAgentReviewStore } from "./reviews.js";
 import { ensureGrowthAgentSetup } from "./setup.js";
 import { enqueueGrowthAgentCommand } from "./analytics.js";
 import { requireAdmin } from "../services/orgs.js";
+import { recordMeterUsage } from "../services/billing.js";
 function contract<T>(run: () => T): T {
   try { return run(); } catch (error) {
     if (error instanceof GrowthAgentContractError) throw new ApiError(400, "agent_request_invalid", "Check the request fields");
@@ -58,6 +59,52 @@ function page(request: FastifyRequest, fields: string[]) {
 export interface GrowthAgentRouteOptions extends GrowthAgentTransport {
   resolveScope?: (request: FastifyRequest) => Promise<GrowthAgentScope>;
 }
+const TERMINAL_TASK_STATES = new Set([
+  "completed",
+  "incomplete",
+  "failed",
+  "cancelled",
+  "uncertain",
+  "refused",
+]);
+
+async function recordAgentTaskUsage(
+  core: CoreContext,
+  orgId: string,
+  result: unknown,
+): Promise<void> {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return;
+  const task = (result as { task?: unknown }).task;
+  if (!task || typeof task !== "object" || Array.isArray(task)) return;
+  const record = task as {
+    id?: unknown;
+    state?: unknown;
+    runtime?: { usage?: { accountedTokens?: unknown } };
+  };
+  if (typeof record.id !== "string" || !TERMINAL_TASK_STATES.has(String(record.state ?? "")))
+    return;
+  const tokens = record.runtime?.usage?.accountedTokens;
+  if (typeof tokens !== "number" || !Number.isFinite(tokens) || tokens <= 0) return;
+  try {
+    await recordMeterUsage(
+      core.pool,
+      orgId,
+      "growth_agent_tokens",
+      Math.max(1, Math.round(tokens)),
+      "growth_agent_task",
+      record.id,
+      `growth:agent-task:${record.id}:tokens`,
+    );
+  } catch (error) {
+    console.error({
+      event: "billing.usage.growth_agent_task_failed",
+      orgId,
+      taskId: record.id,
+      error: error instanceof Error ? error.message : "unknown",
+    });
+  }
+}
+
 export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContext, options: GrowthAgentRouteOptions = {}): void {
   const client = new GrowthAgentClient(core.config, options), reviews = new GrowthAgentReviewStore(core);
   async function scope(request: FastifyRequest): Promise<GrowthAgentScope> {
@@ -88,6 +135,7 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
       featureId: acknowledged.task?.featureId ?? acknowledged.conversation?.featureId ?? (input as { featureId?: GrowthAgentFeatureId }).featureId ?? null,
       conversationId: acknowledged.task?.conversationId ?? acknowledged.conversation?.id ?? (input as { conversationId?: string }).conversationId ?? null,
       taskId: acknowledged.task?.id ?? (input as { taskId?: string }).taskId ?? null, outcome: "accepted", failureCode: null });
+    await recordAgentTaskUsage(core, auth.tenantId, result);
     return result;
   }
   const id = (request: FastifyRequest, name: string) => string((request.params as Record<string, unknown>)[name], name);

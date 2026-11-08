@@ -203,6 +203,8 @@ export async function buildApi(
         tenantId: text(body.tenantId, "Tenant id", 256),
         name: text(body.name, "Account name", 200),
         billingEmail: text(body.billingEmail, "Billing email", 320),
+        ownerIssuer: optionalText(body.ownerIssuer, 255),
+        ownerSubject: optionalText(body.ownerSubject, 255),
         currency: optionalText(body.currency, 3) ?? undefined,
         metadata: jsonObject(body.metadata),
       },
@@ -251,8 +253,11 @@ export async function buildApi(
     const { product } = await productRequest(request as RawBodyRequest);
     const query = parseTenantQuery(request.query);
     if (query.product !== product) bad("Request product does not match authority");
+    const raw = request.query as { from?: unknown; to?: unknown };
+    const from = raw.from ? dateValue(raw.from, "Usage range start") : undefined;
+    const to = raw.to ? dateValue(raw.to, "Usage range end") : undefined;
     const { account } = await getAccountForTenant(pool, product, query.tenantId);
-    return usageSummary(pool, account.id, product);
+    return usageSummary(pool, account.id, product, { from, to });
   });
 
   app.get("/internal/plans", async (request) => {
@@ -669,6 +674,8 @@ export async function buildApi(
         tenantId: text(body.tenantId, "Tenant id", 256),
         name: text(body.name, "Account name", 200),
         billingEmail: text(body.billingEmail, "Billing email", 320),
+        ownerIssuer: optionalText(body.ownerIssuer, 255),
+        ownerSubject: optionalText(body.ownerSubject, 255),
         currency: optionalText(body.currency, 3) ?? undefined,
         metadata: jsonObject(body.metadata),
       },

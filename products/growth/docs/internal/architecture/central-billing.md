@@ -64,6 +64,22 @@ issue instead of silently replacing the payer.
 One billing account can hold subscriptions for Growth, Agents, and Agency. Invoices remain
 per subscription in v1 and are grouped by product in product billing surfaces.
 
+## Account linking
+
+A billing account links to one active product workspace per product. Growth and Agents can share
+one payer account when both of these match:
+
+- the workspace owner's shared OIDC issuer and subject;
+- the normalized verified billing email.
+
+When both match, `POST /internal/accounts/ensure` attaches the new product organization to the
+existing account in the background and assigns that product's free plan if needed. A second
+workspace for a product that is already linked to the account is rejected; it needs a different
+billing email and account. Different identity or email means a separate account. Team members do
+not create or link billing accounts; only the workspace owner's billing identity is used.
+
+Agency workspace linking is deferred with the Agency commercial workstream.
+
 ## Currency, tax, and Paystack
 
 The service charges in the plan version currency. ZAR is the default. Monthly billing is the only
@@ -142,7 +158,10 @@ Agents and Agency limits that do not yet have product guards are seeded as `disp
 
 ## AI usage credits
 
-AI usage is denominated in USD internally. Ledger amounts are micro-USD: `$5.00` is stored as
+AI usage is denominated in USD internally. Growth workspace agents settle under the
+`growth_agent_tokens` meter; standalone Agents settles under `agent_tokens`. Both use the same
+micro-USD ledger and credit price of 2 micro-USD per accounted token. Growth forwards a terminal
+agent task's accounted tokens through `BillingUsageOutbox` once, keyed by task ID. Ledger amounts are micro-USD: `$5.00` is stored as
 `5,000,000`. Customers see dollar amounts, not an opaque credit count. Plan credit allowances,
 usage prices, grants, balances, and refunds all use the same micro-USD unit.
 
@@ -286,5 +305,5 @@ credit grants, and transitions expired trials and grace periods. Agency usage ou
 | Rollback | Disable checkout by retiring the affected plan versions. Restore the previous active version where a rollback is needed. Billing data remains in the service database. Removing product billing variables disables billing; it does not restore local billing. |
 | Analytics and logs | Structured worker and request logs; no card data or full webhook payloads in logs. Usage forwarding failures remain in outboxes with retry state. |
 | Documentation | This page, `services/billing/README.md`, `ARCHITECTURE.md`, and product billing support runbooks. |
-| Validation | Billing typecheck/build and 13/13 integration tests; Growth typecheck/build and 180 passing tests; Agents, Agency, Admin, Growth web, Agents web, and Agency web typecheck/build; fresh billing migrate and seed; boundary check; Paystack sandbox plans published and Growth Entry checkout completed with paid invoice, active subscription and USD 5.00 AI usage. |
+| Validation | Billing typecheck/build and 15/15 integration tests; Growth typecheck/build and 180 passing tests; Agents, Agency, Admin, Growth web, Agents web, and Agency web typecheck/build; fresh billing migrate and seed; boundary check; Paystack sandbox plans published and Growth Entry checkout completed with paid invoice, active subscription and USD 5.00 AI usage. |
 | Open decisions | Live Paystack keys and a public webhook URL, a USD-capable provider, self-serve top-ups, Agents and Agency product guards for currently display-only limits, and custom-work invoice migration. |

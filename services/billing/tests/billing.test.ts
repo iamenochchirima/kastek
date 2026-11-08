@@ -1234,6 +1234,150 @@ test("scheduled plan versions activate when their effective date passes", { skip
   assert.deepEqual(row.rows[0], { status: "active", active: true });
 });
 
+test("accounts auto-link by shared owner identity and email", { skip }, async () => {
+  const owner = {
+    ownerIssuer: "https://identity.example.test/realms/kasitek",
+    ownerSubject: "owner-link-1",
+  };
+  const growthBody = {
+    product: "growth",
+    tenantId: "org-link-growth",
+    name: "Linked Growth",
+    billingEmail: "linked@example.test",
+    ...owner,
+  };
+  const growth = await app.inject({
+    method: "POST",
+    url: "/internal/accounts/ensure",
+    headers: productHeaders("POST", "/internal/accounts/ensure", growthBody),
+    payload: growthBody,
+  });
+  assert.equal(growth.statusCode, 200, growth.body);
+  const accountId = growth.json().accountId as string;
+
+  const agentsBody = {
+    product: "agents",
+    tenantId: "agents-link",
+    name: "Linked Agents",
+    billingEmail: "linked@example.test",
+    ...owner,
+  };
+  const agents = await app.inject({
+    method: "POST",
+    url: "/internal/accounts/ensure",
+    headers: productHeaders("POST", "/internal/accounts/ensure", agentsBody, "agents"),
+    payload: agentsBody,
+  });
+  assert.equal(agents.statusCode, 200, agents.body);
+  assert.equal(agents.json().accountId, accountId);
+
+  const links = await pool.query<{ product: string }>(
+    `SELECT product FROM billing.account_links
+      WHERE billing_account_id=$1 AND status='active' ORDER BY product`,
+    [accountId],
+  );
+  assert.deepEqual(links.rows.map((row) => row.product), ["agents", "growth"]);
+  const subscriptions = await pool.query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM billing.subscriptions
+      WHERE billing_account_id=$1 AND status='active'`,
+    [accountId],
+  );
+  assert.equal(subscriptions.rows[0]?.count, "2");
+
+  const secondGrowthBody = {
+    product: "growth",
+    tenantId: "org-link-growth-2",
+    name: "Second Linked Growth",
+    billingEmail: "linked@example.test",
+    ...owner,
+  };
+  const secondGrowth = await app.inject({
+    method: "POST",
+    url: "/internal/accounts/ensure",
+    headers: productHeaders("POST", "/internal/accounts/ensure", secondGrowthBody),
+    payload: secondGrowthBody,
+  });
+  assert.equal(secondGrowth.statusCode, 409, secondGrowth.body);
+
+  const differentEmailBody = {
+    product: "growth",
+    tenantId: "org-link-growth-3",
+    name: "Different Email Growth",
+    billingEmail: "other-linked@example.test",
+    ...owner,
+  };
+  const differentEmail = await app.inject({
+    method: "POST",
+    url: "/internal/accounts/ensure",
+    headers: productHeaders("POST", "/internal/accounts/ensure", differentEmailBody),
+    payload: differentEmailBody,
+  });
+  assert.equal(differentEmail.statusCode, 200, differentEmail.body);
+  assert.notEqual(differentEmail.json().accountId, accountId);
+
+  const differentIdentityBody = {
+    product: "agents",
+    tenantId: "agents-link-other-owner",
+    name: "Other Owner Agents",
+    billingEmail: "linked@example.test",
+    ownerIssuer: owner.ownerIssuer,
+    ownerSubject: "owner-link-2",
+  };
+  const differentIdentity = await app.inject({
+    method: "POST",
+    url: "/internal/accounts/ensure",
+    headers: productHeaders("POST", "/internal/accounts/ensure", differentIdentityBody, "agents"),
+    payload: differentIdentityBody,
+  });
+  assert.equal(differentIdentity.statusCode, 200, differentIdentity.body);
+  assert.notEqual(differentIdentity.json().accountId, accountId);
+});
+
+test("usage summary aggregates daily debits and grants for the product", { skip }, async () => {
+  const accountBody = {
+    product: "growth",
+    tenantId: "org-usage-report",
+    name: "Usage Report",
+    billingEmail: "usage-report@example.test",
+  };
+  const ensured = await app.inject({
+    method: "POST",
+    url: "/internal/accounts/ensure",
+    headers: productHeaders("POST", "/internal/accounts/ensure", accountBody),
+    payload: accountBody,
+  });
+  assert.equal(ensured.statusCode, 200, ensured.body);
+  const accountId = ensured.json().accountId as string;
+  await pool.query(
+    `INSERT INTO billing.usage_events(
+       id, billing_account_id, product, tenant_id, meter_key, quantity,
+       occurred_at, source_type, source_id, idempotency_key, credits_charged
+     ) VALUES
+       ('use_report_1',$1,'growth','org-usage-report','campaign_recipients',10,
+        '2026-11-01T10:00:00Z','campaign','one','usage-report-1',100),
+       ('use_report_2',$1,'growth','org-usage-report','campaign_recipients',20,
+        '2026-11-02T10:00:00Z','campaign','two','usage-report-2',200)`,
+    [accountId],
+  );
+  const response = await app.inject({
+    method: "GET",
+    url: "/internal/usage?product=growth&tenantId=org-usage-report&from=2026-11-01T00:00:00.000Z&to=2026-11-03T00:00:00.000Z",
+    headers: productHeaders("GET", "/internal/usage"),
+  });
+  assert.equal(response.statusCode, 200, response.body);
+  const body = response.json();
+  assert.equal(body.creditsUsed, "300");
+  assert.equal(body.operations, "2");
+  assert.deepEqual(body.daily, [
+    { date: "2026-11-01", creditsUsed: "100", operations: "1" },
+    { date: "2026-11-02", creditsUsed: "200", operations: "1" },
+  ]);
+  assert.deepEqual(body.breakdown, [
+    { meterKey: "campaign_recipients", creditsUsed: "300", operations: "2" },
+  ]);
+  assert.equal(body.credits.currency, "USD");
+});
+
 test("invalid webhook signature is rejected", { skip }, async () => {
   const response = await app.inject({
     method: "POST",

@@ -49,12 +49,12 @@ export function registerBillingServiceRoutes(
     const days = range === "7d" ? 7 : range === "30d" ? 30 : range === "90d" ? 90 : null;
     if (days == null)
       throw new ApiError(400, "bad_request", "Usage range must be 7d, 30d, or 90d");
-    const [snapshot, usage] = await Promise.all([
-      getBillingSnapshot(context.pool, service, org),
-      serviceUsage(service, org),
-    ]);
     const now = new Date();
     const start = new Date(now.getTime() - days * 86_400_000);
+    const [snapshot, usage] = await Promise.all([
+      getBillingSnapshot(context.pool, service, org),
+      serviceUsage(service, org, start, now),
+    ]);
     const recent = Array.isArray(usage.recent)
       ? (usage.recent as Array<Record<string, unknown>>).slice(0, 20).map((item) => ({
           id: String(item.id ?? ""),
@@ -71,21 +71,43 @@ export function registerBillingServiceRoutes(
           createdAt: String(item.occurredAt ?? now.toISOString()),
         }))
       : [];
+    const daily = Array.isArray(usage.daily)
+      ? (usage.daily as Array<Record<string, unknown>>).map((item) => ({
+          date: String(item.date ?? ""),
+          creditsUsed: numberValue(item.creditsUsed),
+          operations: numberValue(item.operations),
+        }))
+      : [];
+    const previousDaily = Array.isArray(usage.previousDaily)
+      ? (usage.previousDaily as Array<Record<string, unknown>>).map((item) => ({
+          date: String(item.date ?? ""),
+          creditsUsed: numberValue(item.creditsUsed),
+          operations: numberValue(item.operations),
+        }))
+      : [];
+    const breakdown = Array.isArray(usage.breakdown)
+      ? (usage.breakdown as Array<Record<string, unknown>>).map((item) => ({
+          key: String(item.meterKey ?? ""),
+          creditsUsed: numberValue(item.creditsUsed),
+          operations: numberValue(item.operations),
+        }))
+      : [];
+    const creditSummary = (usage.credits ?? {}) as Record<string, unknown>;
     return {
-      rangeStart: start.toISOString(),
-      rangeEnd: now.toISOString(),
+      rangeStart: String(usage.from ?? start.toISOString()),
+      rangeEnd: String(usage.to ?? now.toISOString()),
       timezone: "UTC",
       granularity: "day",
-      daily: [],
-      previousDaily: [],
+      daily,
+      previousDaily,
       credits: {
-        used: 0,
-        balance: numberValue(snapshot.credits.balance),
-        reserved: numberValue(snapshot.credits.reserved),
-        available: numberValue(snapshot.credits.available),
+        used: numberValue(usage.creditsUsed),
+        balance: numberValue(creditSummary.balance ?? snapshot.credits.balance),
+        reserved: numberValue(creditSummary.reserved ?? snapshot.credits.reserved),
+        available: numberValue(creditSummary.available ?? snapshot.credits.available),
       },
-      operations: 0,
-      breakdown: [],
+      operations: numberValue(usage.operations),
+      breakdown,
       meters: billing.METERS.map((definition) => ({
         key: definition.key,
         name: definition.name,
@@ -106,6 +128,18 @@ export function registerBillingServiceRoutes(
       getBillingSnapshot(context.pool, service, org),
       serviceCredits(service, org),
     ]);
+    const grants = Array.isArray(credits.grants)
+      ? (credits.grants as Array<Record<string, unknown>>).map((grant) => ({
+          id: String(grant.id ?? ""),
+          source: String(grant.source ?? ""),
+          amount: numberValue(grant.amount),
+          remainingAmount: numberValue(grant.remainingAmount ?? grant.remaining),
+          startsAt: String(grant.startsAt ?? new Date().toISOString()),
+          endsAt: grant.endsAt ? String(grant.endsAt) : null,
+          reason: null,
+          reference: grant.reference ? String(grant.reference) : null,
+        }))
+      : [];
     const ledger = Array.isArray(credits.ledger)
       ? (credits.ledger as Array<Record<string, unknown>>).map((entry) => ({
           id: String(entry.id ?? ""),
@@ -126,7 +160,7 @@ export function registerBillingServiceRoutes(
         balance: numberValue(snapshot.credits.balance),
         reservedBalance: numberValue(snapshot.credits.reserved),
         availableBalance: numberValue(snapshot.credits.available),
-        grants: [],
+        grants,
         ledger,
       },
       usage: [],

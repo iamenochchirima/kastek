@@ -106,6 +106,9 @@ export interface BillingAccountEnsureInput {
   tenantId: string;
   name: string;
   billingEmail: string;
+  /** Shared OIDC issuer and subject for the workspace owner. */
+  ownerIssuer?: string | null;
+  ownerSubject?: string | null;
   currency?: string;
   metadata?: Record<string, unknown>;
 }

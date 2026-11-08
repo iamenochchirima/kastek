@@ -71,7 +71,12 @@ Admin endpoints: `GET /admin/catalog`, `POST /admin/products`, `POST /admin/capa
 `PUT /admin/plan-versions/:id/entitlements`, `POST /admin/plan-versions/:id/schedule`,
 `POST /admin/plan-versions/:id/publish`, and `POST /admin/plan-versions/:id/retire`.
 
-## Payer identity
+## Account linking and payer identity
+
+A billing account may link to one active workspace per product. Growth and Agents auto-link when
+the workspace owner's shared OIDC issuer/subject and normalized verified billing email both match.
+A second workspace for an already-linked product needs a different billing email and account.
+Different identity or email stays separate; Agency workspace linking is deferred.
 
 Checkout uses `billing.accounts.billing_email`, not the product user's email. The account stores
 the provider customer code after the first successful payment. A different customer code on a
@@ -113,8 +118,9 @@ limits, current-month meter usage, credit balance, revision, and expiry. It is s
 BILLING_TEST_DATABASE_URL=postgresql://.../kasitek_billing_test pnpm test:billing
 ```
 
-The integration fixture covers signed product authority, free-plan assignment, checkout,
-VAT invoice math, AI usage debit, recurring charge visibility, full-refund credit revocation,
-amount mismatch reconciliation, dynamic plan publication, plan-version pinning, display-only
-limit validation, and invalid webhook signatures. It uses a local fake Paystack HTTP server; no
+The integration fixture covers signed product authority, free-plan assignment, cross-product
+account linking, checkout, VAT invoice math, AI usage debit and daily usage aggregation,
+recurring charge visibility, full-refund credit revocation, amount mismatch reconciliation,
+dynamic plan publication, plan-version pinning, trial administration, display-only limit
+validation, and invalid webhook signatures. It uses a local fake Paystack HTTP server; no
 real payment is made.

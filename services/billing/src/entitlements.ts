@@ -298,34 +298,130 @@ export async function usageSummary(
   pool: Pool,
   accountId: string,
   product: BillingProduct,
+  range?: { from?: Date; to?: Date },
 ): Promise<{
+  from: string;
+  to: string;
   meters: Array<{ meterKey: string; quantity: string; creditsCharged: string }>;
+  daily: Array<{ date: string; creditsUsed: string; operations: string }>;
+  previousDaily: Array<{ date: string; creditsUsed: string; operations: string }>;
+  breakdown: Array<{ meterKey: string; creditsUsed: string; operations: string }>;
+  creditsUsed: string;
+  operations: string;
+  credits: Awaited<ReturnType<typeof getCreditSummary>>;
+  grants: Array<Record<string, unknown>>;
   recent: Array<Record<string, unknown>>;
 }> {
-  const meters = await pool.query<{
-    meter_key: string;
-    quantity: string;
-    credits_charged: string;
-  }>(
-    `SELECT meter_key, SUM(quantity)::text AS quantity, SUM(credits_charged)::text AS credits_charged
-       FROM billing.usage_events
-      WHERE billing_account_id=$1 AND product=$2
-        AND occurred_at>=date_trunc('month', now())
-      GROUP BY meter_key ORDER BY meter_key`,
-    [accountId, product],
+  const to = range?.to ?? new Date();
+  const from =
+    range?.from ??
+    new Date(to.getTime() - 30 * 86_400_000);
+  if (from > to) bad("Usage range start must be before its end");
+  const duration = to.getTime() - from.getTime();
+  const previousTo = new Date(from.getTime());
+  const previousFrom = new Date(from.getTime() - duration);
+  const dailyQuery = async (start: Date, end: Date) =>
+    pool.query<{ date: string; credits_used: string; operations: string }>(
+      `SELECT to_char(date_trunc('day', occurred_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS date,
+              COALESCE(SUM(credits_charged),0)::text AS credits_used,
+              count(*)::text AS operations
+         FROM billing.usage_events
+        WHERE billing_account_id=$1 AND product=$2
+          AND occurred_at >= $3 AND occurred_at <= $4
+        GROUP BY 1 ORDER BY 1`,
+      [accountId, product, start, end],
+    );
+  const [daily, previousDaily, meters, breakdown, recent, grants] =
+    await Promise.all([
+      dailyQuery(from, to),
+      dailyQuery(previousFrom, previousTo),
+      pool.query<{
+        meter_key: string;
+        quantity: string;
+        credits_charged: string;
+      }>(
+        `SELECT meter_key, SUM(quantity)::text AS quantity,
+                SUM(credits_charged)::text AS credits_charged
+           FROM billing.usage_events
+          WHERE billing_account_id=$1 AND product=$2
+            AND occurred_at >= date_trunc('month', now())
+          GROUP BY meter_key ORDER BY meter_key`,
+        [accountId, product],
+      ),
+      pool.query<{
+        meter_key: string;
+        credits_used: string;
+        operations: string;
+      }>(
+        `SELECT meter_key, COALESCE(SUM(credits_charged),0)::text AS credits_used,
+                count(*)::text AS operations
+           FROM billing.usage_events
+          WHERE billing_account_id=$1 AND product=$2
+            AND occurred_at >= $3 AND occurred_at <= $4
+          GROUP BY meter_key ORDER BY meter_key`,
+        [accountId, product, from, to],
+      ),
+      pool.query(
+        `SELECT id, meter_key, quantity::text, credits_charged::text,
+                occurred_at, source_type, source_id
+           FROM billing.usage_events
+          WHERE billing_account_id=$1 AND product=$2
+            AND occurred_at >= $3 AND occurred_at <= $4
+          ORDER BY occurred_at DESC LIMIT 50`,
+        [accountId, product, from, to],
+      ),
+      pool.query(
+        `SELECT g.id, g.source, g.amount::text, g.remaining::text,
+                g.starts_at, g.ends_at, g.reference
+           FROM billing.credit_grants g
+           JOIN billing.credit_accounts c ON c.id=g.account_id
+          WHERE c.billing_account_id=$1 AND g.product_key=$2
+          ORDER BY g.created_at DESC LIMIT 100`,
+        [accountId, product],
+      ),
+    ]);
+  const creditsUsed = daily.rows.reduce(
+    (total, row) => total + BigInt(row.credits_used),
+    0n,
   );
-  const recent = await pool.query(
-    `SELECT id, meter_key, quantity::text, credits_charged::text, occurred_at, source_type, source_id
-       FROM billing.usage_events
-      WHERE billing_account_id=$1 AND product=$2
-      ORDER BY occurred_at DESC LIMIT 50`,
-    [accountId, product],
+  const operations = daily.rows.reduce(
+    (total, row) => total + BigInt(row.operations),
+    0n,
   );
   return {
+    from: from.toISOString(),
+    to: to.toISOString(),
     meters: meters.rows.map((row) => ({
       meterKey: row.meter_key,
       quantity: row.quantity,
       creditsCharged: row.credits_charged,
+    })),
+    daily: daily.rows.map((row) => ({
+      date: row.date,
+      creditsUsed: row.credits_used,
+      operations: row.operations,
+    })),
+    previousDaily: previousDaily.rows.map((row) => ({
+      date: row.date,
+      creditsUsed: row.credits_used,
+      operations: row.operations,
+    })),
+    breakdown: breakdown.rows.map((row) => ({
+      meterKey: row.meter_key,
+      creditsUsed: row.credits_used,
+      operations: row.operations,
+    })),
+    creditsUsed: creditsUsed.toString(),
+    operations: operations.toString(),
+    credits: await getCreditSummary(pool, accountId),
+    grants: grants.rows.map((row) => ({
+      id: row.id,
+      source: row.source,
+      amount: row.amount,
+      remainingAmount: row.remaining,
+      startsAt: row.starts_at,
+      endsAt: row.ends_at,
+      reference: row.reference,
     })),
     recent: recent.rows.map((row) => ({
       id: row.id,
