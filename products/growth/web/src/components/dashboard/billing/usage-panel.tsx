@@ -194,6 +194,7 @@ export function UsagePanel({
   }
 
   const tokenMeter = data?.meters.find((meter) => meter.key === "growth_agent_tokens");
+  const modelRequests = (data?.models ?? []).reduce((sum, item) => sum + item.requests, 0);
   const limitedMeters = data?.meters.filter((meter) => meter.limit !== null && meter.limit > 0) ?? [];
   const totalAiUsage = data ? data.credits.used + data.credits.available : 0;
   const usedPercent = totalAiUsage > 0 ? Math.min(100, Math.round((data!.credits.used / totalAiUsage) * 100)) : 0;
@@ -215,7 +216,7 @@ export function UsagePanel({
           <>
             <div className="grid gap-3 sm:grid-cols-3">
               <MetricCard icon={Wallet} label="AI usage" value={formatUsd(data.credits.used)} detail={`in the ${rangeLabel(range).toLowerCase()}`} />
-              <MetricCard icon={Activity} label="Operations" value={data.operations.toLocaleString()} detail="Recorded workspace activity" />
+              <MetricCard icon={Activity} label="Model requests" value={modelRequests.toLocaleString()} detail="Across all models" />
               <MetricCard icon={BarChart3} label="Tokens" value={tokenMeter ? tokenMeter.used.toLocaleString() : "—"} detail="Accounted model tokens" />
             </div>
 
@@ -278,6 +279,45 @@ export function UsagePanel({
                   </table>
                 </div>
               ) : <p className="mt-3 text-sm text-muted-foreground">No usage in this period.</p>}
+            </section>
+
+            <section className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-panel)] sm:p-7">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-foreground">Usage by model</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Includes free models and zero-cost requests.</p>
+                </div>
+                <span className="text-xs text-muted-foreground">{data.models?.length ?? 0} models</span>
+              </div>
+              {data.models?.length ? (
+                <div className="mt-4 overflow-x-auto rounded-lg border border-border">
+                  <table className="w-full min-w-[620px] text-left text-sm">
+                    <thead className="border-b border-border text-xs text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2 font-medium">Model</th>
+                        <th className="px-3 py-2 text-right font-medium">Requests</th>
+                        <th className="px-3 py-2 text-right font-medium">Input</th>
+                        <th className="px-3 py-2 text-right font-medium">Output</th>
+                        <th className="px-3 py-2 text-right font-medium">AI usage</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {data.models.map((item) => (
+                        <tr key={`${item.provider}:${item.model}`}>
+                          <td className="px-3 py-2">
+                            <p className="font-medium text-foreground">{item.model}</p>
+                            <p className="text-xs text-muted-foreground">{item.provider}</p>
+                          </td>
+                          <td className="px-3 py-2 text-right text-muted-foreground">{item.requests.toLocaleString()}</td>
+                          <td className="px-3 py-2 text-right text-muted-foreground">{item.inputTokens.toLocaleString()}</td>
+                          <td className="px-3 py-2 text-right text-muted-foreground">{item.outputTokens.toLocaleString()}</td>
+                          <td className="px-3 py-2 text-right text-foreground">{formatUsd(item.creditsUsed)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <p className="mt-3 text-sm text-muted-foreground">No model usage recorded.</p>}
             </section>
 
             {credits?.account.grants.length ? (

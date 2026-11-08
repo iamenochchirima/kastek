@@ -44,6 +44,56 @@ export function registerBillingRoutes(
       client.usageSummary(scope.organizationId).catch(() => null),
       client.snapshot(scope.organizationId).catch(() => null),
     ]);
+    const modelUsage = usage
+      ? (
+          await options.pool.query<{
+            provider: string;
+            model: string;
+            requests: string;
+            input_tokens: string;
+            output_tokens: string;
+            cost_micros: string;
+          }>(
+            `SELECT
+               COALESCE(r.routes->(CASE WHEN o.kind='compaction' THEN 'compaction' ELSE 'primary' END)->'binding'->>'providerId','unknown') AS provider,
+               COALESCE(r.routes->(CASE WHEN o.kind='compaction' THEN 'compaction' ELSE 'primary' END)->'binding'->>'modelId','unknown') AS model,
+               count(*)::text AS requests,
+               COALESCE(SUM(
+                 CASE WHEN o.output->'usage'->>'observed'='true'
+                      AND jsonb_typeof(o.output->'usage'->'inputTokens')='number'
+                      THEN (o.output->'usage'->>'inputTokens')::bigint ELSE 0 END
+               ),0)::text AS input_tokens,
+               COALESCE(SUM(
+                 CASE WHEN o.output->'usage'->>'observed'='true'
+                      AND jsonb_typeof(o.output->'usage'->'outputTokens')='number'
+                      THEN (o.output->'usage'->>'outputTokens')::bigint ELSE 0 END
+               ),0)::text AS output_tokens,
+               COALESCE(SUM(CASE WHEN c.state='settled' THEN c.actual_micros ELSE 0 END),0)::text AS cost_micros
+             FROM agents_platform.tasks t
+             JOIN agents_platform.operations o
+               ON o.task_id=t.id AND o.kind IN ('model','compaction')
+             JOIN agents_platform.task_model_routes r ON r.task_id=t.id
+             LEFT JOIN agents_platform.model_cost_reservations c
+               ON c.operation_id=o.id AND c.task_id=t.id
+             WHERE t.organization_id=$1 AND t.product='agents'
+               AND o.completed_at >= $2 AND o.completed_at <= $3
+             GROUP BY 1,2
+             ORDER BY count(*) DESC, model`,
+            [
+              scope.organizationId,
+              String((usage as Record<string, unknown>).from),
+              String((usage as Record<string, unknown>).to),
+            ],
+          )
+        ).rows.map((row) => ({
+          provider: row.provider,
+          model: row.model,
+          requests: Number(row.requests),
+          inputTokens: Number(row.input_tokens),
+          outputTokens: Number(row.output_tokens),
+          costMicros: Number(row.cost_micros),
+        }))
+      : [];
     return {
       configured: true,
       account,
@@ -72,6 +122,7 @@ export function registerBillingRoutes(
       })),
       usage,
       snapshot,
+      modelUsage,
     };
   });
 

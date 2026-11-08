@@ -79,7 +79,15 @@ async function recordAgentTaskUsage(
   const record = task as {
     id?: unknown;
     state?: unknown;
-    runtime?: { usage?: { accountedTokens?: unknown } };
+    runtime?: {
+      model?: { id?: unknown; provider?: unknown };
+      usage?: {
+        accountedTokens?: unknown;
+        inputTokens?: unknown;
+        outputTokens?: unknown;
+        modelCalls?: unknown;
+      };
+    };
   };
   if (typeof record.id !== "string" || !TERMINAL_TASK_STATES.has(String(record.state ?? "")))
     return;
@@ -94,6 +102,16 @@ async function recordAgentTaskUsage(
       "growth_agent_task",
       record.id,
       `growth:agent-task:${record.id}:tokens`,
+      {
+        model: typeof record.runtime?.model?.id === "string" ? record.runtime.model.id : null,
+        provider:
+          typeof record.runtime?.model?.provider === "string"
+            ? record.runtime.model.provider
+            : null,
+        inputTokens: record.runtime?.usage?.inputTokens ?? null,
+        outputTokens: record.runtime?.usage?.outputTokens ?? null,
+        modelCalls: record.runtime?.usage?.modelCalls ?? null,
+      },
     );
   } catch (error) {
     console.error({

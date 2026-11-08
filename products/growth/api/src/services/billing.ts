@@ -156,18 +156,29 @@ export async function recordMeterUsage(
   sourceType: string,
   sourceId: string,
   idempotencyKey: string,
+  metadata?: Record<string, unknown>,
 ): Promise<boolean> {
   const inserted = await pool.query(
     `INSERT INTO "BillingUsageOutbox"(
-       id, "orgId", "meterKey", quantity, "sourceType", "sourceId", "idempotencyKey"
-     ) VALUES($1,$2,$3,$4,$5,$6,$7)
+       id, "orgId", "meterKey", quantity, "sourceType", "sourceId",
+       "idempotencyKey", metadata
+     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
      ON CONFLICT ("idempotencyKey") DO NOTHING`,
-    [createId(), orgId, key, quantity, sourceType, sourceId, idempotencyKey],
+    [
+      createId(),
+      orgId,
+      key,
+      quantity,
+      sourceType,
+      sourceId,
+      idempotencyKey,
+      JSON.stringify(metadata ?? {}),
+    ],
   );
   if (inserted.rowCount) {
     const row = await pool.query<UsageOutboxRow>(
       `SELECT id, "orgId", "meterKey", quantity, "sourceType", "sourceId",
-              "idempotencyKey", attempts
+              "idempotencyKey", attempts, metadata
          FROM "BillingUsageOutbox"
         WHERE "idempotencyKey"=$1 AND "deliveredAt" IS NULL`,
       [idempotencyKey],
@@ -186,6 +197,7 @@ export interface UsageOutboxRow {
   sourceId: string;
   idempotencyKey: string;
   attempts: number;
+  metadata: Record<string, unknown>;
 }
 
 export async function forwardUsageRow(
@@ -201,6 +213,7 @@ export async function forwardUsageRow(
       sourceType: row.sourceType,
       sourceId: row.sourceId,
       idempotencyKey: row.idempotencyKey,
+      metadata: row.metadata,
     });
     await pool.query(
       `UPDATE "BillingUsageOutbox"
@@ -234,7 +247,7 @@ export async function forwardPendingUsage(
 ): Promise<number> {
   const rows = await pool.query<UsageOutboxRow>(
     `SELECT id, "orgId", "meterKey", quantity, "sourceType", "sourceId",
-            "idempotencyKey", attempts
+            "idempotencyKey", attempts, metadata
        FROM "BillingUsageOutbox"
       WHERE "deliveredAt" IS NULL AND "nextAttemptAt" <= NOW()
       ORDER BY "createdAt" LIMIT $1`,

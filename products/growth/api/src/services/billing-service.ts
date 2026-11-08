@@ -381,6 +381,7 @@ export async function recordServiceUsage(
     sourceType: string;
     sourceId: string;
     idempotencyKey: string;
+    metadata?: Record<string, unknown>;
   },
 ): Promise<void> {
   await json(
@@ -392,6 +393,7 @@ export async function recordServiceUsage(
       sourceType: input.sourceType,
       sourceId: input.sourceId,
       idempotencyKey: input.idempotencyKey,
+      metadata: input.metadata,
     }),
   );
 }

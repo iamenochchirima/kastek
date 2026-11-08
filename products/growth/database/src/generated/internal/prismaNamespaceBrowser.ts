@@ -2189,6 +2189,7 @@ export const BillingUsageOutboxScalarFieldEnum = {
   quantity: 'quantity',
   sourceType: 'sourceType',
   sourceId: 'sourceId',
+  metadata: 'metadata',
   idempotencyKey: 'idempotencyKey',
   attempts: 'attempts',
   nextAttemptAt: 'nextAttemptAt',

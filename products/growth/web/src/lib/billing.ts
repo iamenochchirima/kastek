@@ -196,6 +196,15 @@ export type BillingUsageBreakdown = {
   operations: number;
 };
 
+export type BillingModelUsage = {
+  provider: string;
+  model: string;
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  creditsUsed: number;
+};
+
 export type BillingUsage = {
   rangeStart: string;
   rangeEnd: string;
@@ -211,6 +220,7 @@ export type BillingUsage = {
   };
   operations: number;
   breakdown: BillingUsageBreakdown[];
+  models: BillingModelUsage[];
   meters: MeterUsage[];
   recent: CreditUsageEvent[];
 };

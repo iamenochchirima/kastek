@@ -2728,6 +2728,7 @@ model BillingUsageOutbox {
   quantity       Int
   sourceType     String
   sourceId       String
+  metadata       Json         @default("{}")
   idempotencyKey String       @unique
   attempts       Int          @default(0)
   nextAttemptAt  DateTime     @default(now())

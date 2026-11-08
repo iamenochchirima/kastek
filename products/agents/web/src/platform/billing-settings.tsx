@@ -85,6 +85,14 @@ type Billing = {
     subscription?: { status: string; currentPeriodEnd: string | null } | null;
     meters?: Record<string, { used: string; limit: string | null }>;
   } | null;
+  modelUsage?: Array<{
+    provider: string;
+    model: string;
+    requests: number;
+    inputTokens: number;
+    outputTokens: number;
+    costMicros: number;
+  }>;
 };
 
 function money(amountMinor: string | number | null, currency: string) {
@@ -96,7 +104,7 @@ function money(amountMinor: string | number | null, currency: string) {
   }).format(Number(amountMinor) / 100);
 }
 
-function usd(microUsd: string | null | undefined) {
+function usd(microUsd: string | number | null | undefined) {
   if (microUsd == null) return "—";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -439,6 +447,7 @@ export function UsageSettings({ organizationId }: { organizationId: string }) {
     account?.subscriptions?.find((item) => item.product === "agents") ??
     account?.subscriptions?.[0];
   const tokenMeter = data?.snapshot?.meters?.agent_tokens;
+  const modelRequests = (data?.modelUsage ?? []).reduce((sum, item) => sum + item.requests, 0);
   const totalAiUsage = usage ? Number(usage.creditsUsed) + Number(usage.credits.available) : 0;
   const usedPercent = totalAiUsage > 0 ? Math.min(100, Math.round((Number(usage!.creditsUsed) / totalAiUsage) * 100)) : 0;
 
@@ -455,9 +464,9 @@ export function UsageSettings({ organizationId }: { organizationId: string }) {
               <p className="mt-1 text-xs text-muted-foreground">in the last 30 days</p>
             </div>
             <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-panel)]">
-              <p className="text-xs text-muted-foreground">Operations</p>
-              <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{Number(usage.operations).toLocaleString()}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Recorded workspace activity</p>
+              <p className="text-xs text-muted-foreground">Model requests</p>
+              <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{modelRequests.toLocaleString()}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Across all models</p>
             </div>
             <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-panel)]">
               <p className="text-xs text-muted-foreground">Tokens</p>
@@ -514,6 +523,45 @@ export function UsageSettings({ organizationId }: { organizationId: string }) {
                 </table>
               </div>
             ) : <p className="mt-3 text-sm text-muted-foreground">No usage in this period.</p>}
+          </section>
+
+          <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-foreground">Usage by model</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Includes free models and zero-cost requests.</p>
+              </div>
+              <span className="text-xs text-muted-foreground">{(data.modelUsage ?? []).length} models</span>
+            </div>
+            {data.modelUsage?.length ? (
+              <div className="mt-4 overflow-x-auto rounded-lg border border-border">
+                <table className="w-full min-w-[620px] text-left text-sm">
+                  <thead className="border-b border-border text-xs text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Model</th>
+                      <th className="px-3 py-2 text-right font-medium">Requests</th>
+                      <th className="px-3 py-2 text-right font-medium">Input</th>
+                      <th className="px-3 py-2 text-right font-medium">Output</th>
+                      <th className="px-3 py-2 text-right font-medium">Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {data.modelUsage.map((item) => (
+                      <tr key={`${item.provider}:${item.model}`}>
+                        <td className="px-3 py-2">
+                          <p className="font-medium text-foreground">{item.model}</p>
+                          <p className="text-xs text-muted-foreground">{item.provider}</p>
+                        </td>
+                        <td className="px-3 py-2 text-right text-muted-foreground">{item.requests.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-muted-foreground">{item.inputTokens.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-muted-foreground">{item.outputTokens.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-foreground">{usd(item.costMicros)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : <p className="mt-3 text-sm text-muted-foreground">No model usage recorded.</p>}
           </section>
 
           {usage.grants?.length ? (

@@ -306,6 +306,14 @@ export async function usageSummary(
   daily: Array<{ date: string; creditsUsed: string; operations: string }>;
   previousDaily: Array<{ date: string; creditsUsed: string; operations: string }>;
   breakdown: Array<{ meterKey: string; creditsUsed: string; operations: string }>;
+  models: Array<{
+    provider: string;
+    model: string;
+    requests: string;
+    inputTokens: string;
+    outputTokens: string;
+    creditsUsed: string;
+  }>;
   creditsUsed: string;
   operations: string;
   credits: Awaited<ReturnType<typeof getCreditSummary>>;
@@ -331,7 +339,7 @@ export async function usageSummary(
         GROUP BY 1 ORDER BY 1`,
       [accountId, product, start, end],
     );
-  const [daily, previousDaily, meters, breakdown, recent, grants] =
+  const [daily, previousDaily, meters, breakdown, models, recent, grants] =
     await Promise.all([
       dailyQuery(from, to),
       dailyQuery(previousFrom, previousTo),
@@ -359,6 +367,36 @@ export async function usageSummary(
           WHERE billing_account_id=$1 AND product=$2
             AND occurred_at >= $3 AND occurred_at <= $4
           GROUP BY meter_key ORDER BY meter_key`,
+        [accountId, product, from, to],
+      ),
+      pool.query<{
+        provider: string;
+        model: string;
+        requests: string;
+        input_tokens: string;
+        output_tokens: string;
+        credits_used: string;
+      }>(
+        `SELECT COALESCE(metadata->>'provider','Unknown') AS provider,
+                COALESCE(metadata->>'model','Unknown') AS model,
+                COALESCE(SUM(
+                  CASE WHEN jsonb_typeof(metadata->'modelCalls')='number'
+                       THEN (metadata->>'modelCalls')::numeric ELSE 1 END
+                ),0)::text AS requests,
+                COALESCE(SUM(
+                  CASE WHEN jsonb_typeof(metadata->'inputTokens')='number'
+                       THEN (metadata->>'inputTokens')::bigint ELSE 0 END
+                ),0)::text AS input_tokens,
+                COALESCE(SUM(
+                  CASE WHEN jsonb_typeof(metadata->'outputTokens')='number'
+                       THEN (metadata->>'outputTokens')::bigint ELSE 0 END
+                ),0)::text AS output_tokens,
+                COALESCE(SUM(credits_charged),0)::text AS credits_used
+           FROM billing.usage_events
+          WHERE billing_account_id=$1 AND product=$2
+            AND occurred_at >= $3 AND occurred_at <= $4
+            AND metadata ? 'model'
+          GROUP BY 1,2 ORDER BY credits_used DESC, provider, model`,
         [accountId, product, from, to],
       ),
       pool.query(
@@ -410,6 +448,14 @@ export async function usageSummary(
       meterKey: row.meter_key,
       creditsUsed: row.credits_used,
       operations: row.operations,
+    })),
+    models: models.rows.map((row) => ({
+      provider: row.provider,
+      model: row.model,
+      requests: row.requests,
+      inputTokens: row.input_tokens,
+      outputTokens: row.output_tokens,
+      creditsUsed: row.credits_used,
     })),
     creditsUsed: creditsUsed.toString(),
     operations: operations.toString(),

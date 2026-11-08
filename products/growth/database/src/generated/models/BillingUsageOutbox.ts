@@ -75,6 +75,7 @@ export type BillingUsageOutboxCountAggregateOutputType = {
   quantity: number
   sourceType: number
   sourceId: number
+  metadata: number
   idempotencyKey: number
   attempts: number
   nextAttemptAt: number
@@ -135,6 +136,7 @@ export type BillingUsageOutboxCountAggregateInputType = {
   quantity?: true
   sourceType?: true
   sourceId?: true
+  metadata?: true
   idempotencyKey?: true
   attempts?: true
   nextAttemptAt?: true
@@ -238,6 +240,7 @@ export type BillingUsageOutboxGroupByOutputType = {
   quantity: number
   sourceType: string
   sourceId: string
+  metadata: runtime.JsonValue
   idempotencyKey: string
   attempts: number
   nextAttemptAt: Date
@@ -277,6 +280,7 @@ export type BillingUsageOutboxWhereInput = {
   quantity?: Prisma.IntFilter<"BillingUsageOutbox"> | number
   sourceType?: Prisma.StringFilter<"BillingUsageOutbox"> | string
   sourceId?: Prisma.StringFilter<"BillingUsageOutbox"> | string
+  metadata?: Prisma.JsonFilter<"BillingUsageOutbox">
   idempotencyKey?: Prisma.StringFilter<"BillingUsageOutbox"> | string
   attempts?: Prisma.IntFilter<"BillingUsageOutbox"> | number
   nextAttemptAt?: Prisma.DateTimeFilter<"BillingUsageOutbox"> | Date | string
@@ -294,6 +298,7 @@ export type BillingUsageOutboxOrderByWithRelationInput = {
   quantity?: Prisma.SortOrder
   sourceType?: Prisma.SortOrder
   sourceId?: Prisma.SortOrder
+  metadata?: Prisma.SortOrder
   idempotencyKey?: Prisma.SortOrder
   attempts?: Prisma.SortOrder
   nextAttemptAt?: Prisma.SortOrder
@@ -315,6 +320,7 @@ export type BillingUsageOutboxWhereUniqueInput = Prisma.AtLeast<{
   quantity?: Prisma.IntFilter<"BillingUsageOutbox"> | number
   sourceType?: Prisma.StringFilter<"BillingUsageOutbox"> | string
   sourceId?: Prisma.StringFilter<"BillingUsageOutbox"> | string
+  metadata?: Prisma.JsonFilter<"BillingUsageOutbox">
   attempts?: Prisma.IntFilter<"BillingUsageOutbox"> | number
   nextAttemptAt?: Prisma.DateTimeFilter<"BillingUsageOutbox"> | Date | string
   deliveredAt?: Prisma.DateTimeNullableFilter<"BillingUsageOutbox"> | Date | string | null
@@ -331,6 +337,7 @@ export type BillingUsageOutboxOrderByWithAggregationInput = {
   quantity?: Prisma.SortOrder
   sourceType?: Prisma.SortOrder
   sourceId?: Prisma.SortOrder
+  metadata?: Prisma.SortOrder
   idempotencyKey?: Prisma.SortOrder
   attempts?: Prisma.SortOrder
   nextAttemptAt?: Prisma.SortOrder
@@ -355,6 +362,7 @@ export type BillingUsageOutboxScalarWhereWithAggregatesInput = {
   quantity?: Prisma.IntWithAggregatesFilter<"BillingUsageOutbox"> | number
   sourceType?: Prisma.StringWithAggregatesFilter<"BillingUsageOutbox"> | string
   sourceId?: Prisma.StringWithAggregatesFilter<"BillingUsageOutbox"> | string
+  metadata?: Prisma.JsonWithAggregatesFilter<"BillingUsageOutbox">
   idempotencyKey?: Prisma.StringWithAggregatesFilter<"BillingUsageOutbox"> | string
   attempts?: Prisma.IntWithAggregatesFilter<"BillingUsageOutbox"> | number
   nextAttemptAt?: Prisma.DateTimeWithAggregatesFilter<"BillingUsageOutbox"> | Date | string
@@ -370,6 +378,7 @@ export type BillingUsageOutboxCreateInput = {
   quantity: number
   sourceType: string
   sourceId: string
+  metadata?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   idempotencyKey: string
   attempts?: number
   nextAttemptAt?: Date | string
@@ -387,6 +396,7 @@ export type BillingUsageOutboxUncheckedCreateInput = {
   quantity: number
   sourceType: string
   sourceId: string
+  metadata?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   idempotencyKey: string
   attempts?: number
   nextAttemptAt?: Date | string
@@ -402,6 +412,7 @@ export type BillingUsageOutboxUpdateInput = {
   quantity?: Prisma.IntFieldUpdateOperationsInput | number
   sourceType?: Prisma.StringFieldUpdateOperationsInput | string
   sourceId?: Prisma.StringFieldUpdateOperationsInput | string
+  metadata?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   attempts?: Prisma.IntFieldUpdateOperationsInput | number
   nextAttemptAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -419,6 +430,7 @@ export type BillingUsageOutboxUncheckedUpdateInput = {
   quantity?: Prisma.IntFieldUpdateOperationsInput | number
   sourceType?: Prisma.StringFieldUpdateOperationsInput | string
   sourceId?: Prisma.StringFieldUpdateOperationsInput | string
+  metadata?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   attempts?: Prisma.IntFieldUpdateOperationsInput | number
   nextAttemptAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -435,6 +447,7 @@ export type BillingUsageOutboxCreateManyInput = {
   quantity: number
   sourceType: string
   sourceId: string
+  metadata?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   idempotencyKey: string
   attempts?: number
   nextAttemptAt?: Date | string
@@ -450,6 +463,7 @@ export type BillingUsageOutboxUpdateManyMutationInput = {
   quantity?: Prisma.IntFieldUpdateOperationsInput | number
   sourceType?: Prisma.StringFieldUpdateOperationsInput | string
   sourceId?: Prisma.StringFieldUpdateOperationsInput | string
+  metadata?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   attempts?: Prisma.IntFieldUpdateOperationsInput | number
   nextAttemptAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -466,6 +480,7 @@ export type BillingUsageOutboxUncheckedUpdateManyInput = {
   quantity?: Prisma.IntFieldUpdateOperationsInput | number
   sourceType?: Prisma.StringFieldUpdateOperationsInput | string
   sourceId?: Prisma.StringFieldUpdateOperationsInput | string
+  metadata?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   attempts?: Prisma.IntFieldUpdateOperationsInput | number
   nextAttemptAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -492,6 +507,7 @@ export type BillingUsageOutboxCountOrderByAggregateInput = {
   quantity?: Prisma.SortOrder
   sourceType?: Prisma.SortOrder
   sourceId?: Prisma.SortOrder
+  metadata?: Prisma.SortOrder
   idempotencyKey?: Prisma.SortOrder
   attempts?: Prisma.SortOrder
   nextAttemptAt?: Prisma.SortOrder
@@ -591,6 +607,7 @@ export type BillingUsageOutboxCreateWithoutOrgInput = {
   quantity: number
   sourceType: string
   sourceId: string
+  metadata?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   idempotencyKey: string
   attempts?: number
   nextAttemptAt?: Date | string
@@ -606,6 +623,7 @@ export type BillingUsageOutboxUncheckedCreateWithoutOrgInput = {
   quantity: number
   sourceType: string
   sourceId: string
+  metadata?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   idempotencyKey: string
   attempts?: number
   nextAttemptAt?: Date | string
@@ -651,6 +669,7 @@ export type BillingUsageOutboxScalarWhereInput = {
   quantity?: Prisma.IntFilter<"BillingUsageOutbox"> | number
   sourceType?: Prisma.StringFilter<"BillingUsageOutbox"> | string
   sourceId?: Prisma.StringFilter<"BillingUsageOutbox"> | string
+  metadata?: Prisma.JsonFilter<"BillingUsageOutbox">
   idempotencyKey?: Prisma.StringFilter<"BillingUsageOutbox"> | string
   attempts?: Prisma.IntFilter<"BillingUsageOutbox"> | number
   nextAttemptAt?: Prisma.DateTimeFilter<"BillingUsageOutbox"> | Date | string
@@ -666,6 +685,7 @@ export type BillingUsageOutboxCreateManyOrgInput = {
   quantity: number
   sourceType: string
   sourceId: string
+  metadata?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   idempotencyKey: string
   attempts?: number
   nextAttemptAt?: Date | string
@@ -681,6 +701,7 @@ export type BillingUsageOutboxUpdateWithoutOrgInput = {
   quantity?: Prisma.IntFieldUpdateOperationsInput | number
   sourceType?: Prisma.StringFieldUpdateOperationsInput | string
   sourceId?: Prisma.StringFieldUpdateOperationsInput | string
+  metadata?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   attempts?: Prisma.IntFieldUpdateOperationsInput | number
   nextAttemptAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -696,6 +717,7 @@ export type BillingUsageOutboxUncheckedUpdateWithoutOrgInput = {
   quantity?: Prisma.IntFieldUpdateOperationsInput | number
   sourceType?: Prisma.StringFieldUpdateOperationsInput | string
   sourceId?: Prisma.StringFieldUpdateOperationsInput | string
+  metadata?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   attempts?: Prisma.IntFieldUpdateOperationsInput | number
   nextAttemptAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -711,6 +733,7 @@ export type BillingUsageOutboxUncheckedUpdateManyWithoutOrgInput = {
   quantity?: Prisma.IntFieldUpdateOperationsInput | number
   sourceType?: Prisma.StringFieldUpdateOperationsInput | string
   sourceId?: Prisma.StringFieldUpdateOperationsInput | string
+  metadata?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   attempts?: Prisma.IntFieldUpdateOperationsInput | number
   nextAttemptAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -729,6 +752,7 @@ export type BillingUsageOutboxSelect<ExtArgs extends runtime.Types.Extensions.In
   quantity?: boolean
   sourceType?: boolean
   sourceId?: boolean
+  metadata?: boolean
   idempotencyKey?: boolean
   attempts?: boolean
   nextAttemptAt?: boolean
@@ -746,6 +770,7 @@ export type BillingUsageOutboxSelectCreateManyAndReturn<ExtArgs extends runtime.
   quantity?: boolean
   sourceType?: boolean
   sourceId?: boolean
+  metadata?: boolean
   idempotencyKey?: boolean
   attempts?: boolean
   nextAttemptAt?: boolean
@@ -763,6 +788,7 @@ export type BillingUsageOutboxSelectUpdateManyAndReturn<ExtArgs extends runtime.
   quantity?: boolean
   sourceType?: boolean
   sourceId?: boolean
+  metadata?: boolean
   idempotencyKey?: boolean
   attempts?: boolean
   nextAttemptAt?: boolean
@@ -780,6 +806,7 @@ export type BillingUsageOutboxSelectScalar = {
   quantity?: boolean
   sourceType?: boolean
   sourceId?: boolean
+  metadata?: boolean
   idempotencyKey?: boolean
   attempts?: boolean
   nextAttemptAt?: boolean
@@ -789,7 +816,7 @@ export type BillingUsageOutboxSelectScalar = {
   updatedAt?: boolean
 }
 
-export type BillingUsageOutboxOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "orgId" | "meterKey" | "quantity" | "sourceType" | "sourceId" | "idempotencyKey" | "attempts" | "nextAttemptAt" | "deliveredAt" | "lastError" | "createdAt" | "updatedAt", ExtArgs["result"]["billingUsageOutbox"]>
+export type BillingUsageOutboxOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "orgId" | "meterKey" | "quantity" | "sourceType" | "sourceId" | "metadata" | "idempotencyKey" | "attempts" | "nextAttemptAt" | "deliveredAt" | "lastError" | "createdAt" | "updatedAt", ExtArgs["result"]["billingUsageOutbox"]>
 export type BillingUsageOutboxInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   org?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
 }
@@ -812,6 +839,7 @@ export type $BillingUsageOutboxPayload<ExtArgs extends runtime.Types.Extensions.
     quantity: number
     sourceType: string
     sourceId: string
+    metadata: runtime.JsonValue
     idempotencyKey: string
     attempts: number
     nextAttemptAt: Date
@@ -1249,6 +1277,7 @@ export interface BillingUsageOutboxFieldRefs {
   readonly quantity: Prisma.FieldRef<"BillingUsageOutbox", 'Int'>
   readonly sourceType: Prisma.FieldRef<"BillingUsageOutbox", 'String'>
   readonly sourceId: Prisma.FieldRef<"BillingUsageOutbox", 'String'>
+  readonly metadata: Prisma.FieldRef<"BillingUsageOutbox", 'Json'>
   readonly idempotencyKey: Prisma.FieldRef<"BillingUsageOutbox", 'String'>
   readonly attempts: Prisma.FieldRef<"BillingUsageOutbox", 'Int'>
   readonly nextAttemptAt: Prisma.FieldRef<"BillingUsageOutbox", 'DateTime'>

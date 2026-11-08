@@ -94,6 +94,16 @@ export function registerBillingServiceRoutes(
           operations: numberValue(item.operations),
         }))
       : [];
+    const models = Array.isArray(usage.models)
+      ? (usage.models as Array<Record<string, unknown>>).map((item) => ({
+          provider: String(item.provider ?? "Unknown"),
+          model: String(item.model ?? "Unknown"),
+          requests: numberValue(item.requests),
+          inputTokens: numberValue(item.inputTokens),
+          outputTokens: numberValue(item.outputTokens),
+          creditsUsed: numberValue(item.creditsUsed),
+        }))
+      : [];
     const creditSummary = (usage.credits ?? {}) as Record<string, unknown>;
     return {
       rangeStart: String(usage.from ?? start.toISOString()),
@@ -110,6 +120,7 @@ export function registerBillingServiceRoutes(
       },
       operations: numberValue(usage.operations),
       breakdown,
+      models,
       meters: billing.METERS.map((definition) => ({
         key: definition.key,
         name: definition.name,
