@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { PiWallet as Wallet } from "react-icons/pi";
+import { PiArrowClockwise as RefreshCw, PiWallet as Wallet } from "react-icons/pi";
 import { Button } from "@/components/ui/button";
 import { api, organizationPath } from "./api";
 import "./management.css";
@@ -27,29 +27,41 @@ type Plan = {
   checkoutReady: boolean;
 };
 
+type Subscription = {
+  id: string;
+  product: string;
+  planKey: string;
+  planName: string;
+  status: string;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+};
+
 type Usage = {
   from: string;
   to: string;
   creditsUsed: string;
   operations: string;
   daily: Array<{ date: string; creditsUsed: string; operations: string }>;
+  previousDaily: Array<{ date: string; creditsUsed: string; operations: string }>;
   breakdown: Array<{ meterKey: string; creditsUsed: string; operations: string }>;
   credits: { balance: string; reserved: string; available: string };
+  grants: Array<{
+    id: string;
+    source: string;
+    amount: string;
+    remainingAmount: string;
+    startsAt: string;
+    endsAt: string | null;
+    reference: string | null;
+  }>;
 };
 
 type Billing = {
   configured: boolean;
   account: {
     account?: { currency?: string; billing_email?: string };
-    subscriptions?: Array<{
-      id: string;
-      product: string;
-      planKey: string;
-      planName: string;
-      status: string;
-      currentPeriodEnd: string | null;
-      cancelAtPeriodEnd: boolean;
-    }>;
+    subscriptions?: Subscription[];
     credits?: { balance: string; reserved: string; available: string };
     invoices?: Invoice[];
     issues?: Array<{ id: string; issueType: string; status: string; createdAt: string }>;
@@ -79,15 +91,32 @@ function usd(microUsd: string | null | undefined) {
 }
 
 function date(value: string | null) {
-  return value ? new Date(value).toLocaleDateString("en-ZA", { dateStyle: "medium" }) : "—";
+  return value
+    ? new Date(value).toLocaleDateString("en-ZA", { dateStyle: "medium" })
+    : "—";
 }
 
-export function BillingSettings({ organizationId }: { organizationId: string }) {
+function statusLabel(value: string | null | undefined) {
+  if (!value) return "No active plan";
+  return value.replaceAll("_", " ").toLowerCase().replace(/^\w/, (letter) => letter.toUpperCase());
+}
+
+function useBillingData(organizationId: string) {
   const [data, setData] = useState<Billing | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [checkoutBusy, setCheckoutBusy] = useState("");
   const verified = useRef(false);
+
+  async function refresh() {
+    setError("");
+    try {
+      const result = await api<Billing>(`${organizationPath(organizationId)}/billing`);
+      setData(result);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Billing could not be loaded");
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -148,6 +177,11 @@ export function BillingSettings({ organizationId }: { organizationId: string }) 
     }
   }
 
+  return { data, error, notice, checkoutBusy, startCheckout, refresh };
+}
+
+export function BillingSettings({ organizationId }: { organizationId: string }) {
+  const { data, error, notice, checkoutBusy, startCheckout, refresh } = useBillingData(organizationId);
   const account = data?.account;
   const subscription =
     account?.subscriptions?.find((item) => item.product === "agents") ??
@@ -156,117 +190,110 @@ export function BillingSettings({ organizationId }: { organizationId: string }) 
   const plans = data?.plans ?? [];
 
   return (
-    <section className="settings-group" aria-labelledby="settings-billing">
-      <h2 id="settings-billing" className="settings-heading">
-        <Wallet size={16} strokeWidth={1.7} aria-hidden="true" />
-        Billing
-      </h2>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      {notice ? <p className="text-sm text-emerald-600">{notice}</p> : null}
-      {!data ? (
-        !error ? <p className="text-sm text-muted-foreground">Loading billing…</p> : null
-      ) : !data.configured ? (
-        <p className="text-sm text-muted-foreground">Billing is not configured.</p>
-      ) : (
-        <div className="space-y-5">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border border-border p-3">
-              <p className="settings-label">Plan</p>
-              <p className="settings-value">{subscription?.planName ?? "No active plan"}</p>
-              {subscription ? <p className="text-xs capitalize text-muted-foreground">{subscription.status.replaceAll("_", " ")}</p> : null}
-            </div>
-            <div className="rounded-lg border border-border p-3">
-              <p className="settings-label">Renews</p>
-              <p className="settings-value">{subscription?.cancelAtPeriodEnd ? `Ends ${date(subscription.currentPeriodEnd)}` : date(subscription?.currentPeriodEnd ?? null)}</p>
-            </div>
-            <div className="rounded-lg border border-border p-3">
-              <p className="settings-label">AI usage available</p>
-              <p className="settings-value">{usd(account?.credits?.available)}</p>
-              <p className="text-xs text-muted-foreground">{usd(account?.credits?.reserved)} reserved</p>
-            </div>
-          </div>
+    <div className="space-y-5">
+      {error ? <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
+      {notice ? <p className="rounded-lg border border-primary/25 bg-primary/5 p-3 text-sm text-primary">{notice}</p> : null}
+      {!data && !error ? <p className="text-sm text-muted-foreground">Loading billing…</p> : null}
+      {data && !data.configured ? (
+        <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
+          <p className="text-sm text-muted-foreground">Billing is not configured.</p>
+        </section>
+      ) : null}
 
-          {plans.length ? (
+      {data?.configured ? (
+        <>
+          <section className="overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-panel)]">
+            <div className="flex flex-wrap items-start justify-between gap-5 border-b border-border bg-gradient-to-br from-primary/10 via-card to-card p-5">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-primary">Current plan</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <h2 className="text-2xl font-semibold tracking-[-0.03em] text-foreground">
+                    {subscription?.planName ?? "Free workspace"}
+                  </h2>
+                  <span className="rounded-full border border-border bg-background px-2 py-0.5 text-xs capitalize text-muted-foreground">
+                    {statusLabel(subscription?.status)}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {subscription?.cancelAtPeriodEnd
+                    ? `Access ends ${date(subscription.currentPeriodEnd)}`
+                    : subscription?.currentPeriodEnd
+                      ? `Renews ${date(subscription.currentPeriodEnd)}`
+                      : "No renewal date"}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-background/60 p-4 text-right">
+                <p className="text-xs text-muted-foreground">AI usage available</p>
+                <p className="mt-1 text-2xl font-semibold text-foreground">
+                  {usd(account?.credits?.available)}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {usd(account?.credits?.reserved)} reserved
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-3 p-5 sm:grid-cols-3">
+              <div className="rounded-lg border border-border bg-secondary/20 p-4">
+                <p className="text-xs text-muted-foreground">Billing email</p>
+                <p className="mt-1 break-all text-sm font-medium text-foreground">{account?.account?.billing_email ?? "—"}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-secondary/20 p-4">
+                <p className="text-xs text-muted-foreground">AI usage used</p>
+                <p className="mt-1 text-lg font-semibold text-foreground">{usd(data.usage?.creditsUsed)}</p>
+              </div>
+              <div className="flex items-end justify-end">
+                <Button type="button" variant="outline" size="sm" onClick={() => void refresh()}>
+                  <RefreshCw className="size-3.5" />Refresh
+                </Button>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
             <div>
-              <h3 className="mb-2 text-sm font-medium">Plans</h3>
-              <div className="divide-y divide-border rounded-lg border border-border">
-                {plans.map((plan) => (
-                  <div key={plan.key} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 text-sm">
-                    <div>
-                      <p className="font-medium">{plan.name}</p>
-                      {plan.description ? <p className="text-xs text-muted-foreground">{plan.description}</p> : null}
-                    </div>
-                    <div className="flex flex-wrap items-center justify-end gap-3 text-right">
+              <h2 className="text-base font-semibold text-foreground">Plans</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Choose the Agents plan for this workspace.</p>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {plans.map((plan) => {
+                const current = plan.key === subscription?.planKey;
+                return (
+                  <article key={plan.key} className={`flex flex-col rounded-lg border p-4 ${current ? "border-primary/40 bg-primary/5" : "border-border bg-secondary/10"}`}>
+                    <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p>{money(plan.amountMinor, plan.currency)} / month</p>
-                        <p className="text-xs text-muted-foreground">{usd(plan.creditsPerPeriod)} AI usage</p>
+                        <h3 className="text-sm font-semibold text-foreground">{plan.name}</h3>
+                        {plan.description ? <p className="mt-1 text-xs text-muted-foreground">{plan.description}</p> : null}
                       </div>
-                      {plan.checkoutReady && plan.key !== subscription?.planKey ? (
+                      {current ? <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs text-primary">Current</span> : null}
+                    </div>
+                    <p className="mt-4 text-2xl font-semibold tracking-tight text-foreground">{money(plan.amountMinor, plan.currency)}</p>
+                    <p className="text-xs text-muted-foreground">per month</p>
+                    <p className="mt-3 text-sm text-muted-foreground">{usd(plan.creditsPerPeriod)} AI usage</p>
+                    <div className="mt-auto pt-4">
+                      {plan.checkoutReady && !current ? (
                         <Button
                           size="sm"
-                          variant="outline"
+                          className="w-full"
                           disabled={Boolean(checkoutBusy)}
                           onClick={() => void startCheckout(plan.key)}
                         >
                           {checkoutBusy === plan.key ? "Opening…" : "Upgrade"}
                         </Button>
-                      ) : null}
+                      ) : (
+                        <p className="text-xs text-muted-foreground">{current ? "Current plan" : plan.checkoutReady ? "Unavailable" : "Checkout unavailable"}</p>
+                      )}
                     </div>
-                  </div>
-                ))}
-              </div>
+                  </article>
+                );
+              })}
             </div>
-          ) : null}
+          </section>
 
-          {data.usage ? (
-            <div>
-              <h3 className="mb-2 text-sm font-medium">Usage</h3>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-lg border border-border p-3">
-                  <p className="settings-label">AI usage used</p>
-                  <p className="settings-value">{usd(data.usage.creditsUsed)}</p>
-                </div>
-                <div className="rounded-lg border border-border p-3">
-                  <p className="settings-label">Operations</p>
-                  <p className="settings-value">{Number(data.usage.operations).toLocaleString()}</p>
-                </div>
-                <div className="rounded-lg border border-border p-3">
-                  <p className="settings-label">Period</p>
-                  <p className="settings-value">{date(data.usage.from)} – {date(data.usage.to)}</p>
-                </div>
-              </div>
-              {data.usage.daily.length ? (
-                <div className="mt-3 overflow-x-auto rounded-lg border border-border">
-                  <table className="w-full min-w-[420px] text-left text-sm">
-                    <thead className="border-b border-border text-xs text-muted-foreground">
-                      <tr><th className="px-3 py-2 font-medium">Day</th><th className="px-3 py-2 text-right font-medium">AI usage</th><th className="px-3 py-2 text-right font-medium">Operations</th></tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {data.usage.daily.slice(-14).map((day) => (
-                        <tr key={day.date}>
-                          <td className="px-3 py-2 text-muted-foreground">{date(day.date)}</td>
-                          <td className="px-3 py-2 text-right">{usd(day.creditsUsed)}</td>
-                          <td className="px-3 py-2 text-right text-muted-foreground">{Number(day.operations).toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-              {data.usage.breakdown.length ? (
-                <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                  {data.usage.breakdown.map((item) => (
-                    <span key={item.meterKey}>{item.meterKey.replaceAll("_", " ")}: {usd(item.creditsUsed)}</span>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div>
-            <h3 className="mb-2 text-sm font-medium">Invoices</h3>
+          <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
+            <h2 className="text-base font-semibold text-foreground">Invoices</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Your billing documents.</p>
             {invoices.length ? (
-              <div className="overflow-x-auto rounded-lg border border-border">
+              <div className="mt-4 overflow-x-auto rounded-lg border border-border">
                 <table className="w-full min-w-[520px] text-left text-sm">
                   <thead className="border-b border-border text-xs text-muted-foreground">
                     <tr>
@@ -279,25 +306,142 @@ export function BillingSettings({ organizationId }: { organizationId: string }) 
                   <tbody className="divide-y divide-border">
                     {invoices.map((invoice) => (
                       <tr key={invoice.invoiceNumber}>
-                        <td className="px-3 py-2 font-mono text-xs">{invoice.invoiceNumber}</td>
-                        <td className="px-3 py-2 text-muted-foreground">{date(invoice.issuedAt)}</td>
-                        <td className="px-3 py-2 text-right">{money(invoice.totalMinor, invoice.currency)}</td>
-                        <td className="px-3 py-2 text-right capitalize text-muted-foreground">{invoice.status.replaceAll("_", " ")}</td>
+                        <td className="px-3 py-3 font-mono text-xs">{invoice.invoiceNumber}</td>
+                        <td className="px-3 py-3 text-muted-foreground">{date(invoice.issuedAt)}</td>
+                        <td className="px-3 py-3 text-right">{money(invoice.totalMinor, invoice.currency)}</td>
+                        <td className="px-3 py-3 text-right capitalize text-muted-foreground">{invoice.status.replaceAll("_", " ")}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No invoices yet</p>
+              <p className="mt-4 text-sm text-muted-foreground">No invoices yet</p>
             )}
-          </div>
+          </section>
 
           {account?.issues?.length ? (
-            <p className="text-sm text-amber-600">{account.issues.length} billing issue{account.issues.length === 1 ? "" : "s"} need attention.</p>
+            <section className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5">
+              <h2 className="text-sm font-semibold text-amber-700">Open billing issues</h2>
+              <div className="mt-2 space-y-1 text-sm text-amber-700">
+                {account.issues.map((issue) => (
+                  <p key={issue.id}>{issue.issueType.replaceAll("_", " ")} · {date(issue.createdAt)}</p>
+                ))}
+              </div>
+            </section>
           ) : null}
-        </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+export function UsageSettings({ organizationId }: { organizationId: string }) {
+  const { data, error } = useBillingData(organizationId);
+  const usage = data?.usage;
+  const account = data?.account;
+  const daily = usage?.daily ?? [];
+  const breakdown = usage?.breakdown ?? [];
+
+  return (
+    <div className="space-y-5">
+      {error ? <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
+      {!data && !error ? <p className="text-sm text-muted-foreground">Loading usage…</p> : null}
+      {!usage ? null : (
+        <>
+          <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-foreground">AI usage</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {date(usage.from)} – {date(usage.to)}
+                </p>
+              </div>
+              <Wallet className="size-5 text-primary" />
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-border bg-secondary/20 p-4">
+                <p className="text-xs text-muted-foreground">Used</p>
+                <p className="mt-1 text-xl font-semibold text-foreground">{usd(usage.creditsUsed)}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-secondary/20 p-4">
+                <p className="text-xs text-muted-foreground">Available</p>
+                <p className="mt-1 text-xl font-semibold text-foreground">{usd(usage.credits?.available ?? account?.credits?.available)}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-secondary/20 p-4">
+                <p className="text-xs text-muted-foreground">Operations</p>
+                <p className="mt-1 text-xl font-semibold text-foreground">{Number(usage.operations).toLocaleString()}</p>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
+            <h2 className="text-base font-semibold text-foreground">Daily usage</h2>
+            {daily.length ? (
+              <div className="mt-4 overflow-x-auto rounded-lg border border-border">
+                <table className="w-full min-w-[420px] text-left text-sm">
+                  <thead className="border-b border-border text-xs text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Day</th>
+                      <th className="px-3 py-2 text-right font-medium">AI usage</th>
+                      <th className="px-3 py-2 text-right font-medium">Operations</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {daily.slice(-30).map((day) => (
+                      <tr key={day.date}>
+                        <td className="px-3 py-2 text-muted-foreground">{date(day.date)}</td>
+                        <td className="px-3 py-2 text-right">{usd(day.creditsUsed)}</td>
+                        <td className="px-3 py-2 text-right text-muted-foreground">{Number(day.operations).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">No usage in this period.</p>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
+            <h2 className="text-base font-semibold text-foreground">Usage by meter</h2>
+            {breakdown.length ? (
+              <div className="mt-4 divide-y divide-border">
+                {breakdown.map((item) => (
+                  <div key={item.meterKey} className="flex flex-wrap items-center justify-between gap-3 py-2 text-sm">
+                    <span className="font-medium capitalize text-foreground">{item.meterKey.replaceAll("_", " ")}</span>
+                    <span className="text-muted-foreground">{usd(item.creditsUsed)} · {Number(item.operations).toLocaleString()} operations</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">No metered usage in this period.</p>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
+            <h2 className="text-base font-semibold text-foreground">AI usage grants</h2>
+            {usage.grants?.length ? (
+              <div className="mt-4 divide-y divide-border">
+                {usage.grants.slice(0, 10).map((grant) => (
+                  <div key={grant.id} className="flex flex-wrap items-center justify-between gap-3 py-2 text-sm">
+                    <div>
+                      <p className="font-medium capitalize text-foreground">{grant.source.replaceAll("_", " ")}</p>
+                      <p className="text-xs text-muted-foreground">{grant.reference ?? grant.id}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-foreground">{usd(grant.remainingAmount)} remaining</p>
+                      <p className="text-xs text-muted-foreground">{grant.endsAt ? `Expires ${date(grant.endsAt)}` : "No expiry"}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">No grants.</p>
+            )}
+          </section>
+        </>
       )}
-    </section>
+    </div>
   );
 }
