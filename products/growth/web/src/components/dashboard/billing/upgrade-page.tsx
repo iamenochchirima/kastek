@@ -157,9 +157,6 @@ export function UpgradePage({
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <h3 className="text-base font-semibold text-foreground">{plan.name}</h3>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {plan.description ?? `${formatPrice(plan.amountMinor, plan.currency)} / month`}
-                          </p>
                         </div>
                         {isCurrent ? <Badge variant="secondary">Current</Badge> : null}
                       </div>
@@ -204,6 +201,9 @@ export function UpgradePage({
                         </p>
                       </div>
 
+                      {plan.description ? (
+                        <p className="mt-4 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">{plan.description}</p>
+                      ) : null}
                       <div className="mt-auto space-y-2 pt-5">
                         <Button asChild variant="ghost" className="w-full"><Link to={`/upgrade/${encodeURIComponent(plan.key)}`}>View plan details</Link></Button>
                         <CheckoutButton

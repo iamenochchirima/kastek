@@ -12,6 +12,7 @@ import { Login, Signup } from "@/platform/login";
 import { AgentDirectory, AgentWelcome } from "@/platform/agent-directory";
 import { TasksPage } from "@/platform/tasks";
 import { SettingsPage } from "@/platform/settings";
+import { UpgradePage } from "@/platform/upgrade";
 import { ConnectionsPage } from "@/platform/connections";
 import { CustomersPage } from "@/platform/customer-records";
 import { InboxPage } from "@/platform/inbox";
@@ -54,6 +55,7 @@ export const router = createBrowserRouter([
     { path: "inbox", Component: InboxPage },
     { path: "customers", Component: CustomersPage },
     { path: "settings", Component: SettingsPage },
+    { path: "upgrade", Component: UpgradePage },
     { path: "knowledge", Component: KnowledgePage },
     { path: "connections", Component: ConnectionsPage },
     { path: "automations", Component: AutomationsPage },

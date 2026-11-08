@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { PiArrowClockwise as RefreshCw, PiWallet as Wallet } from "react-icons/pi";
 import { Button } from "@/components/ui/button";
 import { api, organizationPath } from "./api";
@@ -212,7 +213,13 @@ function useBillingData(organizationId: string) {
   return { data, error, notice, checkoutBusy, startCheckout, refresh };
 }
 
-export function BillingSettings({ organizationId }: { organizationId: string }) {
+export function BillingSettings({
+  organizationId,
+  view = "billing",
+}: {
+  organizationId: string;
+  view?: "billing" | "plans";
+}) {
   const { data, error, notice, checkoutBusy, startCheckout, refresh } = useBillingData(organizationId);
   const account = data?.account;
   const subscription =
@@ -254,14 +261,19 @@ export function BillingSettings({ organizationId }: { organizationId: string }) 
                       : "No renewal date"}
                 </p>
               </div>
-              <div className="rounded-lg border border-border bg-background/60 p-4 text-right">
-                <p className="text-xs text-muted-foreground">AI usage available</p>
-                <p className="mt-1 text-2xl font-semibold text-foreground">
-                  {usd(account?.credits?.available)}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {usd(account?.credits?.reserved)} reserved
-                </p>
+              <div className="flex flex-col items-end gap-3">
+                <div className="rounded-lg border border-border bg-background/60 p-4 text-right">
+                  <p className="text-xs text-muted-foreground">AI usage available</p>
+                  <p className="mt-1 text-2xl font-semibold text-foreground">
+                    {usd(account?.credits?.available)}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {usd(account?.credits?.reserved)} reserved
+                  </p>
+                </div>
+                {view === "billing" ? (
+                  <Button asChild variant="outline" size="sm"><Link to="/app/upgrade">Change plan</Link></Button>
+                ) : null}
               </div>
             </div>
             <div className="grid gap-3 p-5 sm:grid-cols-3">
@@ -294,7 +306,6 @@ export function BillingSettings({ organizationId }: { organizationId: string }) 
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <h3 className="text-sm font-semibold text-foreground">{plan.name}</h3>
-                        {plan.description ? <p className="mt-1 text-xs text-muted-foreground">{plan.description}</p> : null}
                       </div>
                       {current ? <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs text-primary">Current</span> : null}
                     </div>
@@ -320,6 +331,9 @@ export function BillingSettings({ organizationId }: { organizationId: string }) 
                         </div>
                       ) : null}
                     </div>
+                    {plan.description ? (
+                      <p className="mt-4 border-t border-border pt-3 text-xs leading-5 text-muted-foreground">{plan.description}</p>
+                    ) : null}
                     <div className="mt-auto pt-4">
                       {plan.checkoutReady && !current ? (
                         <Button
@@ -340,7 +354,7 @@ export function BillingSettings({ organizationId }: { organizationId: string }) 
             </div>
           </section>
 
-          <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
+          {view === "billing" ? <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
             <h2 className="text-base font-semibold text-foreground">Invoices</h2>
             <p className="mt-1 text-sm text-muted-foreground">Your billing documents.</p>
             {invoices.length ? (
@@ -369,9 +383,9 @@ export function BillingSettings({ organizationId }: { organizationId: string }) 
             ) : (
               <p className="mt-4 text-sm text-muted-foreground">No invoices yet</p>
             )}
-          </section>
+          </section> : null}
 
-          {account?.issues?.length ? (
+          {view === "billing" && account?.issues?.length ? (
             <section className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5">
               <h2 className="text-sm font-semibold text-amber-700">Open billing issues</h2>
               <div className="mt-2 space-y-1 text-sm text-amber-700">
