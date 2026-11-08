@@ -5,6 +5,7 @@ import { requireMember } from "../services/orgs.js";
 import * as billing from "../services/billing.js";
 import { ApiError } from "../error.js";
 import {
+  billingAccountCurrency,
   billingPlan,
   billingPlans,
   cancelServiceSubscription,
@@ -129,51 +130,70 @@ export function registerBillingServiceRoutes(
         ledger,
       },
       usage: [],
-      referral: null,
     };
   });
 
   app.get("/api/billing/plans", async (request) => {
-    await access(request);
-    const plans = await billingPlans(service);
+    const { org } = await access(request);
+    const currency = await billingAccountCurrency(service, org).catch(() => null);
+    const plans = await billingPlans(service, currency ?? undefined);
     return {
       plans: plans.map((plan) => ({
         key: plan.key,
         productKey: plan.product,
         name: plan.name,
+        description: plan.description ?? null,
         interval: "MONTHLY",
         currency: plan.currency,
         amountMinor: numberValue(plan.amountMinor),
         creditsPerPeriod:
           plan.creditsPerPeriod == null ? null : numberValue(plan.creditsPerPeriod),
         checkoutReady: plan.checkoutReady,
+        highlights: plan.entitlements
+          .filter(
+            (item) =>
+              item.visibleToCustomer &&
+              item.kind === "feature" &&
+              item.value === true,
+          )
+          .slice(0, 6)
+          .map((item) => item.name),
       })),
     };
   });
 
   app.get("/api/billing/plans/:planKey", async (request) => {
-    await access(request);
+    const { org } = await access(request);
+    const currency = await billingAccountCurrency(service, org).catch(() => null);
     const plan = await billingPlan(
       service,
       (request.params as { planKey: string }).planKey,
+      currency ?? undefined,
     );
     return {
       key: plan.key,
       productKey: plan.product,
       name: plan.name,
+      description: plan.description ?? null,
       interval: "MONTHLY",
       currency: plan.currency,
       amountMinor: numberValue(plan.amountMinor),
       creditsPerPeriod:
         plan.creditsPerPeriod == null ? null : numberValue(plan.creditsPerPeriod),
       checkoutReady: plan.checkoutReady,
-      entitlements: plan.entitlements.map((item) => ({
-        key: item.key,
-        name: item.name,
-        description: item.description,
-        kind: item.kind === "meter" ? "limit" : item.kind,
-        value: item.value,
-      })),
+      entitlements: plan.entitlements
+        .filter((item) => item.visibleToCustomer)
+        .map((item) => ({
+          key: item.key,
+          name: item.name,
+          description: item.description,
+          kind: item.kind === "meter" ? "limit" : item.kind,
+          value: item.value,
+          unit: item.unit,
+          displayGroup: item.displayGroup,
+          displayOrder: item.displayOrder,
+          metadata: item.metadata,
+        })),
     };
   });
 

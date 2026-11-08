@@ -20,6 +20,7 @@ import {
   Star,
   Megaphone,
   MessageSquare,
+  CreditCard,
 } from "lucide-react";
 import {
   Dialog,
@@ -53,6 +54,7 @@ const workspaceItems = [
   ["/voice", "Voice", Mic, "voice"],
   ["/reviews", "Reputation", Star, "reviews"],
   ["/adcreative", "Ad creatives", Megaphone, "adcreative"],
+  ["/billing", "Billing", CreditCard, "billing"],
   ["/settings", "Settings", Settings, "settings"],
 ] as const;
 export function AgencyShell({
@@ -126,7 +128,7 @@ export function AgencyShell({
       : workspaceItems
           .filter(
             ([, , , key]) =>
-              features[key] &&
+              (key === "billing" || features[key]) &&
               hasAnyTenantRole(user?.roles, [...TENANT_ROUTE_ACCESS[key]]),
           )
           .map(([path, name, icon]) => ({ path, name, icon }));

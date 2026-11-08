@@ -171,6 +171,42 @@ export async function activateCheckout(
         periodEnd,
       ],
     );
+    if (verification.customerId) {
+      const account = await client.query<{ provider_customer_id: string | null }>(
+        `SELECT provider_customer_id FROM billing.accounts WHERE id=$1 FOR UPDATE`,
+        [current.billing_account_id],
+      );
+      if (account.rows[0] && !account.rows[0].provider_customer_id) {
+        await client.query(
+          `UPDATE billing.accounts
+              SET provider_customer_id=$2, updated_at=now() WHERE id=$1`,
+          [current.billing_account_id, verification.customerId],
+        );
+      } else if (
+        account.rows[0] &&
+        account.rows[0].provider_customer_id !== verification.customerId
+      ) {
+        await client.query(
+          `INSERT INTO billing.reconciliation_issues(
+             id, fingerprint, billing_account_id, provider, resource_type,
+             resource_id, issue_type, details
+           ) VALUES($1,$2,$3,$4,'account',$3,'provider_customer_mismatch',$5)
+           ON CONFLICT (fingerprint) DO UPDATE SET
+             details=EXCLUDED.details, status='open', updated_at=now()`,
+          [
+            `rci_${randomUUID()}`,
+            `${provider.name}:account:${current.billing_account_id}:provider_customer_mismatch`,
+            current.billing_account_id,
+            provider.name,
+            JSON.stringify({
+              existingCustomerId: account.rows[0].provider_customer_id,
+              receivedCustomerId: verification.customerId,
+              checkoutReference: current.reference,
+            }),
+          ],
+        );
+      }
+    }
     const invoice = await createInvoiceTx(
       client,
       {
@@ -282,13 +318,13 @@ export async function assignPlan(
     reason: string;
   },
 ): Promise<SubscriptionRow> {
-  const plan = await getActivePlanVersion(pool, input.planKey);
   return transaction(pool, async (client) => {
-    const account = await client.query<{ id: string }>(
-      `SELECT id FROM billing.accounts WHERE id=$1 FOR UPDATE`,
+    const account = await client.query<{ id: string; currency: string }>(
+      `SELECT id, currency FROM billing.accounts WHERE id=$1 FOR UPDATE`,
       [input.accountId],
     );
     if (!account.rows[0]) missing("Billing account not found");
+    const plan = await getActivePlanVersion(client, input.planKey, account.rows[0].currency);
     const status = input.status ?? "active";
     const start = input.periodStart ?? new Date();
     const end =

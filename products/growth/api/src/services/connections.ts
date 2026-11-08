@@ -3,6 +3,7 @@ import { epochMicros } from '../analytics/facts.js';
 import { ApiError } from '../error.js';
 import * as sql from '../integrations/connection-sql.js';
 import * as permissions from '../integrations/connection-permissions.js';
+import { resourceLimit } from './billing.js';
 import * as analytics from '../integrations/connection-analytics.js';
 import type { Metadata } from '../integrations/provider-permissions.js';
 type State = analytics.ConnectionState;
@@ -65,7 +66,7 @@ export async function syncOrgConnections(pool: Pool, orgId: string): Promise<voi
         await analytics.lifecycle(tx, orgId, next, analytics.lifecycleAction(next.status));
     if (old.health_status !== next.health_status || old.credential_status !== next.credential_status || old.webhook_status !== next.webhook_status || old.last_checked_at?.toISOString() !== next.last_checked_at?.toISOString())
         await analytics.health(tx, orgId, next, next.health_status === 'HEALTHY');
-} await analytics.manifest(tx, orgId, after.length); }); }
+} const channelLimit = await resourceLimit(pool, orgId, 'limit.connected_channels'); if (channelLimit != null && after.filter(v => v.status === 'CONNECTED').length > channelLimit) throw new ApiError(403, 'forbidden', 'This workspace has reached its connected channel limit'); await analytics.manifest(tx, orgId, after.length); }); }
 function camelRow(row: Record<string, unknown>): ExternalConnection { return Object.fromEntries(Object.entries(row).map(([key, value]) => [key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase()), value])) as unknown as ExternalConnection; }
 export function sanitizeConnectionMetadata(metadata: Metadata): Metadata { if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata))
     return metadata; const safe = { ...metadata }; for (const key of ['permissions', 'scope', 'scopes', 'tasks', 'permissionsInspected', 'capabilityChecks', 'tokenType', 'dpopPrivateKey', 'dpopAuthorizationNonce'])

@@ -14,6 +14,7 @@ import { getPlanEntitlements, getPlanVersionById } from "./catalog.js";
 import { creditCost, debitCreditsTx, getCreditSummary } from "./credits.js";
 import { transaction } from "./db.js";
 import { currentSubscription } from "./subscriptions.js";
+import { listInvoices } from "./invoices.js";
 import {
   bad,
   bigValue,
@@ -105,7 +106,7 @@ export async function resolveEntitlementSnapshot(
       limit: limit == null ? null : String(limit),
     };
   }
-  const credits = await getCreditSummary(pool, accountId, account.currency);
+  const credits = await getCreditSummary(pool, accountId);
   const issuedAt = new Date();
   const expiresAt = new Date(issuedAt.getTime() + config.snapshotTtlSeconds * 1000);
   return {
@@ -242,7 +243,7 @@ export async function recordUsage(
         `SELECT credits_charged::text FROM billing.usage_events WHERE idempotency_key=$1`,
         [idempotencyKey],
       );
-      const credits = await getCreditSummary(client, account.id, account.currency);
+      const credits = await getCreditSummary(client, account.id);
       return {
         accepted: true,
         duplicate: true,
@@ -282,7 +283,7 @@ export async function recordUsage(
         if (charged > 0n) await bumpEntitlementRevision(client, account.id);
       }
     }
-    const credits = await getCreditSummary(client, account.id, account.currency);
+    const credits = await getCreditSummary(client, account.id);
     return {
       accepted: true,
       duplicate: false,
@@ -358,6 +359,14 @@ export async function accountSummary(
       WHERE s.billing_account_id=$1 ORDER BY s.created_at DESC`,
     [accountId],
   );
+  const issues = await pool.query(
+    `SELECT id, provider, resource_type, resource_id, issue_type, status,
+            details, created_at, updated_at
+       FROM billing.reconciliation_issues
+      WHERE billing_account_id=$1 AND status='open'
+      ORDER BY created_at DESC LIMIT 50`,
+    [accountId],
+  );
   return {
     account: {
       ...account,
@@ -383,7 +392,19 @@ export async function accountSummary(
       cancelAtPeriodEnd: row.cancel_at_period_end,
       provider: row.provider,
     })),
-    credits: await getCreditSummary(pool, accountId, account.currency),
+    invoices: await listInvoices(pool, accountId),
+    issues: issues.rows.map((row) => ({
+      id: row.id,
+      provider: row.provider,
+      resourceType: row.resource_type,
+      resourceId: row.resource_id,
+      issueType: row.issue_type,
+      status: row.status,
+      details: row.details,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    })),
+    credits: await getCreditSummary(pool, accountId),
   };
 }
 

@@ -5,7 +5,7 @@ sidebar_label: Paystack billing
 
 # Paystack Billing Runbook
 
-> **Moved:** Paystack checkout, webhooks, subscriptions, invoices, credits, and reconciliation now
+> **Moved:** Paystack checkout, webhooks, subscriptions, invoices, AI usage, and reconciliation now
 > belong to [`services/billing/`](../../../../services/billing/README.md). Growth no longer handles
 > Paystack callbacks or stores subscription billing tables.
 

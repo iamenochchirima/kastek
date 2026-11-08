@@ -8,7 +8,9 @@ export default async function BillingAdminPage() {
   const actor = await requireAdminSession();
   const catalog = await billingJson<{
     products?: unknown[];
+    capabilities?: unknown[];
     plans?: unknown[];
+    versions?: unknown[];
     entitlements?: unknown[];
     accessDefinitions?: unknown[];
   }>(actor, "GET", "/admin/catalog");
@@ -16,11 +18,13 @@ export default async function BillingAdminPage() {
     <div className="admin-page">
       <AdminPageHeader
         title="Workspace billing"
-        description="Manage catalog pricing, Paystack mappings, capabilities, and credit controls."
+        description="Manage plans, versions, capabilities, entitlements, and credit controls."
       />
       <BillingCatalogManager
         products={(catalog.products ?? []) as never[]}
+        capabilities={(catalog.capabilities ?? []) as never[]}
         plans={(catalog.plans ?? []) as never[]}
+        versions={(catalog.versions ?? []) as never[]}
         entitlements={(catalog.entitlements ?? []) as never[]}
         accessDefinitions={(catalog.accessDefinitions ?? []) as never[]}
       />

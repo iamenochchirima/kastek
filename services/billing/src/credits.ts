@@ -238,7 +238,7 @@ export async function debitCreditsTx(
 export async function getCreditSummary(
   pool: Pool | PoolClient,
   billingAccountId: string,
-  currency = "ZAR",
+  currency = "USD",
 ): Promise<BillingCreditSummary> {
   const row = await pool.query<{ balance: string; reserved_balance: string }>(
     `SELECT balance::text, reserved_balance::text

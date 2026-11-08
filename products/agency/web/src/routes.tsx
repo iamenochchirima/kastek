@@ -80,6 +80,7 @@ const others = [
   ["/reviews", "reviews"],
   ["/adcreative", "adcreative"],
   ["/settings", "settings"],
+  ["/billing", "billing"],
   ["/client", "client-home"],
   ["/client/leads", "client-leads"],
   ["/client/conversations", "client-conversations"],

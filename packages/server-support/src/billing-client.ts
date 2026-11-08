@@ -262,19 +262,25 @@ export class BillingClient {
     return result;
   }
 
-  async plans(): Promise<BillingPlanSummary[]> {
+  async plans(currency?: string): Promise<BillingPlanSummary[]> {
+    const query = currency
+      ? `?currency=${encodeURIComponent(currency.toUpperCase())}`
+      : "";
     return (
       await this.json<{ plans: BillingPlanSummary[] }>(
-        await this.request("GET", "/internal/plans"),
+        await this.request("GET", `/internal/plans${query}`),
       )
     ).plans;
   }
 
-  async plan(planKey: string): Promise<BillingPlanSummary> {
+  async plan(planKey: string, currency?: string): Promise<BillingPlanSummary> {
+    const query = currency
+      ? `?currency=${encodeURIComponent(currency.toUpperCase())}`
+      : "";
     return this.json<BillingPlanSummary>(
       await this.request(
         "GET",
-        `/internal/plans/${encodeURIComponent(planKey)}`,
+        `/internal/plans/${encodeURIComponent(planKey)}${query}`,
       ),
     );
   }

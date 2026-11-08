@@ -55,6 +55,7 @@ import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 import { pageQuery, cursorKeysFromEnvironment, readPageCursor, finishPage } from "../infrastructure/read-pages";
 import { PlatformDiscovery } from "../product/agents/discovery";
 import { registerKnowledgeRoutes } from "../product/agents/knowledge-routes";
+import { registerBillingRoutes } from "../product/billing/routes";
 import { WebsiteCrawlStore, startWebsiteCrawlDispatcher } from "../product/agents/website-crawls";
 import { registerWebsiteCrawlRoutes, websiteCrawlOperations } from "../product/agents/website-crawl-routes";
 import { registerAgentsMcp } from "../product/mcp/server";
@@ -331,8 +332,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     try {await initializeDefaultModel?.({accountId,organizationId});}
     catch(error) {app.log.warn({event:"agents.default_model.initialization_failed",organizationId,code:error instanceof PlatformError?error.code:"MODEL_DEFAULT_UNAVAILABLE"},"Managed model initialization unavailable");}
   }
-  registerModelProviderRoutes(app, { store: modelProviders, resolveScope });
-  registerModelProviderDependencyRoutes(app, { pool, resolveScope });
+  registerBillingRoutes(app, { pool, resolveScope });
+  registerModelProviderRoutes(app, { store: modelProviders, resolveScope });  registerModelProviderDependencyRoutes(app, { pool, resolveScope });
   registerModelPolicyRoutes(app, { store: modelProviders, resolveScope });
   registerProviderRoutes(app,{providers,resolveScope,resolveCallbackAccount:async request=>(await account(request)).id});
   registerCustomerRecordRoutes(app,{store:new CustomerRecordStore(pool),resolveScope});

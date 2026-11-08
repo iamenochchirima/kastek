@@ -5,6 +5,7 @@ import { activateCheckout } from "./subscriptions.js";
 import { expireTrialsAndGrace, reconcileSubscription } from "./subscriptions.js";
 import { expireCreditGrants } from "./credits.js";
 import { retryFailedWebhooks } from "./webhooks.js";
+import { activateDueScheduledPlanVersions } from "./catalog.js";
 import type { BillingProvider } from "./paystack.js";
 import type { CheckoutRow } from "./types.js";
 import { jsonObject } from "./util.js";
@@ -41,6 +42,7 @@ export async function runWorker(
           config.reconciliationBatchSize,
         );
         const lifecycle = await expireTrialsAndGrace(pool, config);
+        const scheduledPlans = await activateDueScheduledPlanVersions(pool);
         const checkouts = await reconcilePendingCheckouts(
           pool,
           config,
@@ -57,6 +59,7 @@ export async function runWorker(
           expiredCredits,
           trialsExpired: lifecycle.trialsExpired,
           graceExpired: lifecycle.graceExpired,
+          scheduledPlans,
           checkouts,
           subscriptions,
           durationMs: Date.now() - started,

@@ -10,6 +10,7 @@ import "./management.css";
 import "./workspace-surfaces.css";
 import { ModelProvidersSettings } from "./model-providers";
 import { McpAccess } from "./mcp-access";
+import { BillingSettings } from "./billing-settings";
 
 export function SettingsPage() {
   const { session, organizationId, createWorkspace, selectWorkspace, logout } = useWorkspace();
@@ -49,6 +50,7 @@ export function SettingsPage() {
       </div>
     </section>
     <ModelProvidersSettings key={organizationId} organizationId={organizationId} owner={workspace?.role === "owner"} />
+    <BillingSettings key={`billing-${organizationId}`} organizationId={organizationId} />
     <McpAccess key={organizationId} organizationId={organizationId} />
     <section className="settings-group" aria-labelledby="settings-appearance">
       <h2 id="settings-appearance" className="settings-heading"><Palette size={16} strokeWidth={1.7} aria-hidden="true" />Appearance</h2>

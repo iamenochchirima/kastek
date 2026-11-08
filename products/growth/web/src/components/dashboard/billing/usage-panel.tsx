@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import type { BillingCredits, BillingUsage, BillingUsageDay, MeterUsage } from "@/lib/billing";
 import { fetchBillingUsage } from "@/lib/billing-client";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
-import { Activity, BarChart3, Coins, RefreshCw, type LucideIcon } from "lucide-react";
+import { Activity, BarChart3, RefreshCw, Wallet, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 type UsageRange = "7d" | "30d" | "90d";
@@ -26,6 +26,16 @@ function formatDate(value: string | null, dateStyle: "short" | "medium" = "mediu
 function formatChartDate(value: string) {
   const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T12:00:00`) : new Date(value);
   return date.toLocaleDateString("en-ZA", { day: "numeric", month: "short" });
+}
+
+function formatUsd(microUsd: number | null | undefined) {
+  if (microUsd == null) return "—";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(microUsd / 1_000_000);
 }
 
 function formatAction(key: string) {
@@ -87,13 +97,13 @@ function UsageChart({ data }: { data: BillingUsage }) {
   return (
     <div className="relative mt-5 overflow-hidden rounded-xl border border-border bg-background/40 p-3 sm:p-5">
       <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-2"><span className="size-2 rounded-full bg-[var(--chart-1)]" />{metric === "operations" ? "Workspace operations" : "AI credits"}</span>
-        <span className="ml-auto font-medium text-foreground">{max.toLocaleString()} peak</span>
+        <span className="inline-flex items-center gap-2"><span className="size-2 rounded-full bg-[var(--chart-1)]" />{metric === "operations" ? "Workspace operations" : "AI usage"}</span>
+        <span className="ml-auto font-medium text-foreground">{metric === "operations" ? max.toLocaleString() : formatUsd(max)} peak</span>
       </div>
-      <svg className="h-auto w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${data.granularity === "day" ? "Daily" : "Weekly"} ${metric === "operations" ? "workspace operations" : "AI credits"}`}>
+      <svg className="h-auto w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${data.granularity === "day" ? "Daily" : "Weekly"} ${metric === "operations" ? "workspace operations" : "AI usage"}`}>
         {tickValues.map((value, index) => {
           const y = top + (index / Math.max(tickValues.length - 1, 1)) * chartHeight;
-          return <g key={`${value}-${index}`}><line x1={left} x2={width - right} y1={y} y2={y} stroke="var(--border)" strokeDasharray="3 5" /><text x={left - 10} y={y + 4} fill="var(--muted-foreground)" fontSize="11" textAnchor="end">{value.toLocaleString()}</text></g>;
+          return <g key={`${value}-${index}`}><line x1={left} x2={width - right} y1={y} y2={y} stroke="var(--border)" strokeDasharray="3 5" /><text x={left - 10} y={y + 4} fill="var(--muted-foreground)" fontSize="11" textAnchor="end">{metric === "operations" ? value.toLocaleString() : formatUsd(value)}</text></g>;
         })}
         {activePoint ? <line x1={activePoint.x} x2={activePoint.x} y1={top} y2={top + chartHeight} stroke="var(--chart-1)" strokeDasharray="3 4" strokeOpacity="0.6" /> : null}
         {points.map((point, index) => point.value > 0 ? <rect key={point.day.date} x={point.barX} y={point.barY} width={barWidth} height={point.barHeight} rx="4" fill="var(--chart-1)" fillOpacity={activeIndex === index ? "1" : "0.9"} /> : null)}
@@ -103,7 +113,7 @@ function UsageChart({ data }: { data: BillingUsage }) {
           return point ? <text key={point.day.date} x={point.x} y={height - 8} fill="var(--muted-foreground)" fontSize="11" textAnchor={index === 0 ? "start" : index === points.length - 1 ? "end" : "middle"}>{formatChartDate(point.day.date)}</text> : null;
         })}
       </svg>
-      {activePoint ? <div className="pointer-events-none absolute top-14 z-10 min-w-[150px] -translate-x-1/2 rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg" style={{ left: `${(activePoint.x / width) * 100}%` }}><p className="font-medium text-foreground">{formatDate(activePoint.day.date)}</p><p className="mt-1 text-muted-foreground">{activePoint.day.operations.toLocaleString()} operations</p><p className="text-muted-foreground">{activePoint.day.creditsUsed.toLocaleString()} credits</p></div> : null}
+      {activePoint ? <div className="pointer-events-none absolute top-14 z-10 min-w-[150px] -translate-x-1/2 rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg" style={{ left: `${(activePoint.x / width) * 100}%` }}><p className="font-medium text-foreground">{formatDate(activePoint.day.date)}</p><p className="mt-1 text-muted-foreground">{activePoint.day.operations.toLocaleString()} operations</p><p className="text-muted-foreground">{formatUsd(activePoint.day.creditsUsed)} AI usage</p></div> : null}
     </div>
   );
 }
@@ -207,7 +217,7 @@ export function UsagePanel({
           <PageHeader>
             <PageHeaderContent>
               <PageHeaderTitle>Usage</PageHeaderTitle>
-              <PageHeaderDescription>Credits and workspace activity.</PageHeaderDescription>
+              <PageHeaderDescription>AI usage and workspace activity.</PageHeaderDescription>
             </PageHeaderContent>
           </PageHeader>
         ) : null}
@@ -216,7 +226,7 @@ export function UsagePanel({
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-primary">Activity</p>
             <h2 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-foreground">Usage overview</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Workspace activity, credits, and limits.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Workspace activity, AI usage, and limits.</p>
           </div>
         </div>
 
@@ -224,10 +234,10 @@ export function UsagePanel({
         {data ? (
           <>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard icon={Coins} label="Credits used" value={data.credits.used.toLocaleString()} detail={`in the last ${range.replace("d", " days")}`} />
-              <MetricCard icon={BarChart3} label="Available credits" value={data.credits.available.toLocaleString()} detail={`${data.credits.reserved.toLocaleString()} reserved`} />
+              <MetricCard icon={Wallet} label="AI usage" value={formatUsd(data.credits.used)} detail={`in the last ${range.replace("d", " days")}`} />
+              <MetricCard icon={BarChart3} label="Available AI usage" value={formatUsd(data.credits.available)} detail={`${formatUsd(data.credits.reserved)} reserved`} />
               <MetricCard icon={Activity} label="Operations" value={data.operations.toLocaleString()} detail="Recorded workspace activity" />
-              <MetricCard icon={RefreshCw} label="Daily average" value={averageDaily.toLocaleString()} detail={data.operations > 0 ? "Operations per period day" : "Credits per period day"} />
+              <MetricCard icon={RefreshCw} label="Daily average" value={data.operations > 0 ? averageDaily.toLocaleString() : formatUsd(averageDaily)} detail={data.operations > 0 ? "Operations per period day" : "AI usage per period day"} />
             </div>
 
             <section className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-panel)] sm:p-7">
@@ -239,8 +249,8 @@ export function UsagePanel({
               <UsageChart data={data} />
               <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
                 <span>Operations <strong className="ml-1 font-semibold text-foreground">{data.operations.toLocaleString()}</strong></span>
-                <span>Credits used <strong className="ml-1 font-semibold text-foreground">{data.credits.used.toLocaleString()}</strong></span>
-                <span>Peak day <strong className="ml-1 font-semibold text-foreground">{peakDay ? `${formatDate(peakDay.date, "short")} · ${peakValue.toLocaleString()} ${chartUsesOperations ? "operations" : "credits"}` : "—"}</strong></span>
+                <span>AI usage <strong className="ml-1 font-semibold text-foreground">{formatUsd(data.credits.used)}</strong></span>
+                <span>Peak day <strong className="ml-1 font-semibold text-foreground">{peakDay ? `${formatDate(peakDay.date, "short")} · ${chartUsesOperations ? peakValue.toLocaleString() : formatUsd(peakValue)} ${chartUsesOperations ? "operations" : "AI usage"}` : "—"}</strong></span>
               </div>
             </section>
 
@@ -251,23 +261,23 @@ export function UsagePanel({
 
             <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
               <section className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-panel)] sm:p-7">
-                <h2 className="text-base font-semibold text-foreground">Credit usage</h2>
+                <h2 className="text-base font-semibold text-foreground">AI usage</h2>
                 <div className="mt-5 space-y-4">
                   {data.breakdown.length ? data.breakdown.map((item) => (
                     <div key={item.key}>
-                      <div className="flex items-center justify-between gap-4 text-sm"><span className="font-medium text-foreground">{formatAction(item.key)}</span><span className="text-muted-foreground">{item.creditsUsed.toLocaleString()}</span></div>
+                      <div className="flex items-center justify-between gap-4 text-sm"><span className="font-medium text-foreground">{formatAction(item.key)}</span><span className="text-muted-foreground">{formatUsd(item.creditsUsed)}</span></div>
                       <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full bg-primary/80" style={{ width: `${Math.max(3, (item.creditsUsed / breakdownMax) * 100)}%` }} /></div>
                       <p className="mt-1 text-xs text-muted-foreground">{item.operations.toLocaleString()} operations</p>
                     </div>
-                  )) : <p className="text-sm text-muted-foreground">No credit usage in this period</p>}
+                  )) : <p className="text-sm text-muted-foreground">No AI usage in this period</p>}
                 </div>
               </section>
 
               <section className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-panel)] sm:p-7">
-                <div className="flex items-center justify-between gap-3"><h2 className="text-base font-semibold text-foreground">Credit grants</h2><span className="text-xs text-muted-foreground">{credits?.account.availableBalance.toLocaleString() ?? data.credits.available.toLocaleString()} available</span></div>
+                <div className="flex items-center justify-between gap-3"><h2 className="text-base font-semibold text-foreground">AI usage grants</h2><span className="text-xs text-muted-foreground">{formatUsd(credits?.account.availableBalance ?? data.credits.available)} available</span></div>
                 <div className="mt-4 divide-y divide-border">
                   {credits?.account.grants.length ? credits.account.grants.slice(0, 5).map((grant) => (
-                    <div key={grant.id} className="flex items-center justify-between gap-3 py-3 text-sm"><div><p className="font-medium text-foreground">{formatAction(grant.source)}</p><p className="mt-1 text-xs text-muted-foreground">{grant.remainingAmount.toLocaleString()} remaining</p></div><span className="text-right text-xs text-muted-foreground">{grant.endsAt ? `Expires ${formatDate(grant.endsAt, "short")}` : "No expiry"}</span></div>
+                    <div key={grant.id} className="flex items-center justify-between gap-3 py-3 text-sm"><div><p className="font-medium text-foreground">{formatAction(grant.source)}</p><p className="mt-1 text-xs text-muted-foreground">{formatUsd(grant.remainingAmount)} remaining</p></div><span className="text-right text-xs text-muted-foreground">{grant.endsAt ? `Expires ${formatDate(grant.endsAt, "short")}` : "No expiry"}</span></div>
                   )) : <p className="py-3 text-sm text-muted-foreground">No active grants</p>}
                 </div>
               </section>
@@ -277,7 +287,7 @@ export function UsagePanel({
               <h2 className="text-base font-semibold text-foreground">Recent activity</h2>
               {data.recent.length ? (
                 <div className="mt-4 divide-y divide-border">
-                  {data.recent.slice(0, 10).map((event) => <div key={event.id} className="flex flex-col gap-2 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{formatAction(event.actionKey)}</p><p className="mt-1 text-xs text-muted-foreground">{event.model ?? event.provider ?? "Workspace action"} · {formatDate(event.createdAt, "short")}</p></div><span className="font-medium text-foreground">−{event.creditsCharged.toLocaleString()}</span></div>)}
+                  {data.recent.slice(0, 10).map((event) => <div key={event.id} className="flex flex-col gap-2 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{formatAction(event.actionKey)}</p><p className="mt-1 text-xs text-muted-foreground">{event.model ?? event.provider ?? "Workspace action"} · {formatDate(event.createdAt, "short")}</p></div><span className="font-medium text-foreground">−{formatUsd(event.creditsCharged)}</span></div>)}
                 </div>
               ) : <p className="mt-4 text-sm text-muted-foreground">No usage recorded</p>}
             </section>

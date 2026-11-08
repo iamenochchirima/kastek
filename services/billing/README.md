@@ -37,6 +37,7 @@ never falls back to a test key.
 ## Money and tax
 
 All amounts are integer minor units. ZAR is the default and monthly is the only enabled interval.
+AI usage is denominated in USD and stored as micro-USD; customers see dollar amounts.
 
 Plan versions declare `taxInclusive` and `taxRateBps` (1,500 = 15% VAT):
 
@@ -45,6 +46,36 @@ Plan versions declare `taxInclusive` and `taxRateBps` (1,500 = 15% VAT):
 
 Paystack receives the gross total. The invoice stores net, VAT, and gross separately. Invoice
 numbers use the `billing.invoice_number_seq` sequence, not provider references.
+
+Paystack South Africa settles ZAR only. USD plan versions can be stored, but checkout needs a
+USD-capable provider.
+
+## Dynamic catalog
+
+`002_dynamic_catalog.sql` adds capability metadata and the plan-version lifecycle.
+
+- Capabilities declare `kind`, `value_type`, unit, display group/order, customer visibility, and
+  `implementation_status` (`implemented`, `product_pending`, `display_only`).
+- Plan versions move through `draft`, `scheduled`, `active`, and `retired`.
+- Published versions are immutable. A subscription keeps its `plan_version_id`, so publishing a
+  new version does not change an existing subscriber.
+- A unique partial index enforces one active version per plan and currency.
+- Publish rejects an unimplemented limit unless its entitlement metadata marks it `display_only`.
+- An entitlement-only change may reuse a Paystack plan code. A price, currency, or interval change
+  requires a new code.
+- Seeding creates defaults only for missing plan keys and never overwrites admin edits.
+
+Admin endpoints: `GET /admin/catalog`, `POST /admin/products`, `POST /admin/capabilities`,
+`POST /admin/plans`, `GET /admin/plans/:planKey`, `POST /admin/plans/:planKey/versions`,
+`POST /admin/plans/:planKey/clone`, `PUT /admin/plan-versions/:id`,
+`PUT /admin/plan-versions/:id/entitlements`, `POST /admin/plan-versions/:id/schedule`,
+`POST /admin/plan-versions/:id/publish`, and `POST /admin/plan-versions/:id/retire`.
+
+## Payer identity
+
+Checkout uses `billing.accounts.billing_email`, not the product user's email. The account stores
+the provider customer code after the first successful payment. A different customer code on a
+later verified payment is recorded as a reconciliation issue rather than overwriting the payer.
 
 ## Product authority
 
@@ -83,6 +114,7 @@ BILLING_TEST_DATABASE_URL=postgresql://.../kasitek_billing_test pnpm test:billin
 ```
 
 The integration fixture covers signed product authority, free-plan assignment, checkout,
-VAT invoice math, usage debit, recurring charge visibility, full-refund credit revocation,
-amount mismatch reconciliation, and invalid webhook signatures. It uses a local fake Paystack
-HTTP server; no real payment is made.
+VAT invoice math, AI usage debit, recurring charge visibility, full-refund credit revocation,
+amount mismatch reconciliation, dynamic plan publication, plan-version pinning, display-only
+limit validation, and invalid webhook signatures. It uses a local fake Paystack HTTP server; no
+real payment is made.

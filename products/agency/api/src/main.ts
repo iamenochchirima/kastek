@@ -7,9 +7,11 @@ import {buildApp} from './app.js';
 import {routes} from './routes.js';
 import {runAnalyticsPublisher,type Log} from './analytics-publisher.js';
 import {runAnalyticsBackfill} from './analytics-backfill.js';
-export function processWorkers(mode:string|undefined):('publisher'|'backfill')[]|null {
- if(mode==='analytics-publisher')return ['publisher','backfill'];
+import {runBillingUsageForwarder} from './billing-usage.js';
+export function processWorkers(mode:string|undefined):('publisher'|'backfill'|'billing')[]|null {
+ if(mode==='analytics-publisher')return ['publisher','backfill','billing'];
  if(mode==='analytics-backfill-worker')return ['backfill'];
+ if(mode==='billing-usage-worker')return ['billing'];
  return null;
 }
 export async function start(runtime?:{shutdownTelemetry():Promise<void>}):Promise<void> {
@@ -35,7 +37,7 @@ export async function start(runtime?:{shutdownTelemetry():Promise<void>}):Promis
   if(workers) {
    const log:Log={info:(fields,message)=>console.info(JSON.stringify({level:'info',...fields,message})),warn:(fields,message)=>console.warn(JSON.stringify({level:'warn',...fields,message})),error:(fields,message)=>console.error(JSON.stringify({level:'error',...fields,message}))};
    ready=true;
-   workerTask=Promise.all(workers.map(worker=>resultSpan('worker',worker==='publisher'?'analytics_publisher':'analytics_backfill',()=>worker==='publisher'?runAnalyticsPublisher(pool,process.env,log,abort.signal):runAnalyticsBackfill(pool,process.env,log,abort.signal)))).then(()=>{});
+   workerTask=Promise.all(workers.map(worker=>resultSpan('worker',worker==='publisher'?'analytics_publisher':worker==='backfill'?'analytics_backfill':'agency_billing_usage',()=>worker==='publisher'?runAnalyticsPublisher(pool,process.env,log,abort.signal):worker==='backfill'?runAnalyticsBackfill(pool,process.env,log,abort.signal):runBillingUsageForwarder(pool,process.env,log,abort.signal)))).then(()=>{});
    try {await workerTask;}finally{await shutdown();}
    return;
   }

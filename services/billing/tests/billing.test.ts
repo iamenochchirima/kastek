@@ -12,6 +12,7 @@ import { createAdminAuthority } from "@kasitek-labs/server-support/admin-authori
 import { loadConfig } from "../src/config.js";
 import { buildApi } from "../src/api.js";
 import { expireTrialsAndGrace } from "../src/subscriptions.js";
+import { activateDueScheduledPlanVersions } from "../src/catalog.js";
 import type { BillingConfig } from "../src/config.js";
 import { createPool } from "../src/db.js";
 import { migrate } from "../src/migrate-main.js";
@@ -28,6 +29,7 @@ const PAYSTACK_SECRET = "sk_test_billing_fixture";
 interface FakeTransaction {
   amount: number;
   currency: string;
+  email: string;
   customer: string;
   subscription: string;
   periodStart: string;
@@ -80,6 +82,7 @@ class FakePaystack {
       this.transactions.set(body.reference, {
         amount: body.amount,
         currency: body.currency,
+        email: body.email,
         customer: "CUS_TEST",
         subscription: `SUB_${body.reference}`,
         periodStart: "2026-12-01T00:00:00.000Z",
@@ -257,6 +260,14 @@ test("account, free plan, checkout, tax invoice, usage, renewal and refund", { s
     payload: planBody,
   });
   assert.equal(plan.statusCode, 200, plan.body);
+  const planVersionId = plan.json().versionId as string;
+  const published = await app.inject({
+    method: "POST",
+    url: `/admin/plan-versions/${planVersionId}/publish`,
+    headers: adminHeaders("POST", `/admin/plan-versions/${planVersionId}/publish`, {}),
+    payload: {},
+  });
+  assert.equal(published.statusCode, 200, published.body);
 
   const accountBody = {
     product: "growth",
@@ -527,6 +538,14 @@ test("VAT-exclusive plan charges gross and splits the invoice", { skip }, async 
     payload: planBody,
   });
   assert.equal(plan.statusCode, 200, plan.body);
+  const planVersionId = plan.json().versionId as string;
+  const published = await app.inject({
+    method: "POST",
+    url: `/admin/plan-versions/${planVersionId}/publish`,
+    headers: adminHeaders("POST", `/admin/plan-versions/${planVersionId}/publish`, {}),
+    payload: {},
+  });
+  assert.equal(published.statusCode, 200, published.body);
   const accountBody = {
     product: "growth",
     tenantId: "org-exclusive",
@@ -693,6 +712,418 @@ test("product authority replay is rejected", { skip }, async () => {
     payload: body,
   });
   assert.equal(second.statusCode, 401, second.body);
+});
+
+test("dynamic plan versions are published and existing subscriptions stay pinned", { skip }, async () => {
+  const planBody = {
+    product: "growth",
+    key: "growth-dynamic",
+    name: "Dynamic Growth",
+    description: "Dynamic plan fixture",
+    amountMinor: "45000",
+    currency: "ZAR",
+    taxInclusive: true,
+    taxRateBps: 1500,
+    creditsPerPeriod: "1000000",
+    paystackPlanCode: "PLN_DYNAMIC",
+    active: true,
+    entitlements: [
+      { key: "feature.inbox.access", value: true },
+      { key: "limit.team_seats", value: 2 },
+    ],
+  };
+  const created = await app.inject({
+    method: "POST",
+    url: "/admin/plans",
+    headers: adminHeaders("POST", "/admin/plans", planBody),
+    payload: planBody,
+  });
+  assert.equal(created.statusCode, 200, created.body);
+  const v1 = created.json().versionId as string;
+  const publishedV1 = await app.inject({
+    method: "POST",
+    url: `/admin/plan-versions/${v1}/publish`,
+    headers: adminHeaders("POST", `/admin/plan-versions/${v1}/publish`, {}),
+    payload: {},
+  });
+  assert.equal(publishedV1.statusCode, 200, publishedV1.body);
+
+  const activate = async (tenantId: string) => {
+    const accountBody = {
+      product: "growth",
+      tenantId,
+      name: `Dynamic ${tenantId}`,
+      billingEmail: `${tenantId}@example.test`,
+    };
+    await app.inject({
+      method: "POST",
+      url: "/internal/accounts/ensure",
+      headers: productHeaders("POST", "/internal/accounts/ensure", accountBody),
+      payload: accountBody,
+    });
+    const checkoutBody = {
+      product: "growth",
+      tenantId,
+      planKey: "growth-dynamic",
+      email: `${tenantId}@example.test`,
+      idempotencyKey: `checkout-${tenantId}`,
+      returnUrl: "http://localhost:3000/billing?payment=complete",
+    };
+    const checkout = await app.inject({
+      method: "POST",
+      url: "/internal/checkout",
+      headers: productHeaders("POST", "/internal/checkout", checkoutBody),
+      payload: checkoutBody,
+    });
+    assert.equal(checkout.statusCode, 200, checkout.body);
+    const reference = checkout.json().reference as string;
+    const verified = await app.inject({
+      method: "POST",
+      url: `/internal/checkout/${reference}/verify`,
+      headers: productHeaders("POST", `/internal/checkout/${reference}/verify`, { tenantId }),
+      payload: { tenantId },
+    });
+    assert.equal(verified.statusCode, 200, verified.body);
+    return reference;
+  };
+  await activate("org-dynamic-v1");
+  const pinned = await pool.query<{ plan_version_id: string }>(
+    `SELECT s.plan_version_id FROM billing.subscriptions s
+      JOIN billing.accounts a ON a.id=s.billing_account_id
+     WHERE a.billing_email='org-dynamic-v1@example.test' AND s.status='active'`,
+  );
+  assert.equal(pinned.rows[0]?.plan_version_id, v1);
+
+  const version = await app.inject({
+    method: "POST",
+    url: "/admin/plans/growth-dynamic/versions",
+    headers: adminHeaders("POST", "/admin/plans/growth-dynamic/versions", {}),
+    payload: {},
+  });
+  assert.equal(version.statusCode, 200, version.body);
+  const v2 = version.json().versionId as string;
+  const entitlements = await app.inject({
+    method: "PUT",
+    url: `/admin/plan-versions/${v2}/entitlements`,
+    headers: adminHeaders("PUT", `/admin/plan-versions/${v2}/entitlements`, {
+      entitlements: [{ key: "limit.team_seats", value: 4 }],
+    }),
+    payload: { entitlements: [{ key: "limit.team_seats", value: 4 }] },
+  });
+  assert.equal(entitlements.statusCode, 200, entitlements.body);
+  const publishedV2 = await app.inject({
+    method: "POST",
+    url: `/admin/plan-versions/${v2}/publish`,
+    headers: adminHeaders("POST", `/admin/plan-versions/${v2}/publish`, {}),
+    payload: {},
+  });
+  assert.equal(publishedV2.statusCode, 200, publishedV2.body);
+
+  await activate("org-dynamic-v2");
+  const subscriptions = await pool.query<{ email: string; plan_version_id: string }>(
+    `SELECT a.billing_email AS email, s.plan_version_id FROM billing.subscriptions s
+      JOIN billing.accounts a ON a.id=s.billing_account_id
+     WHERE a.billing_email IN ('org-dynamic-v1@example.test','org-dynamic-v2@example.test')
+       AND s.status='active' ORDER BY a.billing_email`,
+  );
+  assert.deepEqual(
+    Object.fromEntries(subscriptions.rows.map((row) => [row.email, row.plan_version_id])),
+    {
+      "org-dynamic-v1@example.test": v1,
+      "org-dynamic-v2@example.test": v2,
+    },
+  );
+  const snapshots = await Promise.all(
+    ["org-dynamic-v1", "org-dynamic-v2"].map((tenantId) =>
+      app.inject({
+        method: "GET",
+        url: `/internal/entitlements?product=growth&tenantId=${tenantId}`,
+        headers: productHeaders("GET", "/internal/entitlements"),
+      }),
+    ),
+  );
+  assert.equal(snapshots[0]!.json().snapshot.features["feature.inbox.access"], true);
+  assert.equal(snapshots[1]!.json().snapshot.features["feature.inbox.access"], undefined);
+  assert.equal(snapshots[1]!.json().snapshot.limits["limit.team_seats"], 4);
+
+  const noCode = {
+    product: "growth",
+    key: "growth-no-code",
+    name: "No Code",
+    amountMinor: "1000",
+    currency: "ZAR",
+    taxInclusive: true,
+    taxRateBps: 1500,
+    creditsPerPeriod: "0",
+    paystackPlanCode: null,
+    active: true,
+    entitlements: [{ key: "feature.inbox.access", value: true }],
+  };
+  const draft = await app.inject({
+    method: "POST",
+    url: "/admin/plans",
+    headers: adminHeaders("POST", "/admin/plans", noCode),
+    payload: noCode,
+  });
+  assert.equal(draft.statusCode, 200, draft.body);
+  const publishNoCode = await app.inject({
+    method: "POST",
+    url: `/admin/plan-versions/${draft.json().versionId}/publish`,
+    headers: adminHeaders("POST", `/admin/plan-versions/${draft.json().versionId}/publish`, {}),
+    payload: {},
+  });
+  assert.equal(publishNoCode.statusCode, 400, publishNoCode.body);
+});
+
+test("publish rejects unimplemented hard limits and accepts display-only limits", { skip }, async () => {
+  const planBody = {
+    product: "agents",
+    key: "agents-display-limit",
+    name: "Agents display limit",
+    amountMinor: "0",
+    currency: "ZAR",
+    taxInclusive: true,
+    taxRateBps: 1500,
+    creditsPerPeriod: "0",
+    paystackPlanCode: null,
+    entitlements: [
+      {
+        key: "limit.agent_count",
+        value: 1,
+        metadata: { enforcement: "hard" },
+      },
+    ],
+  };
+  const created = await app.inject({
+    method: "POST",
+    url: "/admin/plans",
+    headers: adminHeaders("POST", "/admin/plans", planBody),
+    payload: planBody,
+  });
+  assert.equal(created.statusCode, 200, created.body);
+  const v1 = created.json().versionId as string;
+  const failed = await app.inject({
+    method: "POST",
+    url: `/admin/plan-versions/${v1}/publish`,
+    headers: adminHeaders("POST", `/admin/plan-versions/${v1}/publish`, {}),
+    payload: {},
+  });
+  assert.equal(failed.statusCode, 409, failed.body);
+
+  const versionBody = {
+    entitlements: [
+      {
+        key: "limit.agent_count",
+        value: 1,
+        metadata: { enforcement: "display_only" },
+      },
+    ],
+  };
+  const version = await app.inject({
+    method: "POST",
+    url: "/admin/plans/agents-display-limit/versions",
+    headers: adminHeaders("POST", "/admin/plans/agents-display-limit/versions", versionBody),
+    payload: versionBody,
+  });
+  assert.equal(version.statusCode, 200, version.body);
+  const v2 = version.json().versionId as string;
+  const published = await app.inject({
+    method: "POST",
+    url: `/admin/plan-versions/${v2}/publish`,
+    headers: adminHeaders("POST", `/admin/plan-versions/${v2}/publish`, {}),
+    payload: {},
+  });
+  assert.equal(published.statusCode, 200, published.body);
+});
+
+test("checkout uses the account billing email and one provider customer", { skip }, async () => {
+  const planBody = {
+    product: "growth",
+    key: "growth-payer",
+    name: "Growth payer",
+    amountMinor: "1000",
+    currency: "ZAR",
+    taxInclusive: true,
+    taxRateBps: 1500,
+    creditsPerPeriod: "0",
+    paystackPlanCode: "PLN_PAYER_GROWTH",
+    entitlements: [],
+  };
+  const created = await app.inject({
+    method: "POST",
+    url: "/admin/plans",
+    headers: adminHeaders("POST", "/admin/plans", planBody),
+    payload: planBody,
+  });
+  assert.equal(created.statusCode, 200, created.body);
+  const publish = await app.inject({
+    method: "POST",
+    url: `/admin/plan-versions/${created.json().versionId}/publish`,
+    headers: adminHeaders("POST", `/admin/plan-versions/${created.json().versionId}/publish`, {}),
+    payload: {},
+  });
+  assert.equal(publish.statusCode, 200, publish.body);
+
+  const accountBody = {
+    product: "growth",
+    tenantId: "org-payer",
+    name: "Payer Workspace",
+    billingEmail: "payer@example.test",
+  };
+  const ensured = await app.inject({
+    method: "POST",
+    url: "/internal/accounts/ensure",
+    headers: productHeaders("POST", "/internal/accounts/ensure", accountBody),
+    payload: accountBody,
+  });
+  assert.equal(ensured.statusCode, 200, ensured.body);
+  const accountId = ensured.json().accountId as string;
+  const linkBody = { product: "agents", tenantId: "agents-payer", role: "payer" };
+  const linked = await app.inject({
+    method: "POST",
+    url: `/admin/accounts/${accountId}/links`,
+    headers: adminHeaders("POST", `/admin/accounts/${accountId}/links`, linkBody),
+    payload: linkBody,
+  });
+  assert.equal(linked.statusCode, 200, linked.body);
+
+  const agentsPlanBody = {
+    product: "agents",
+    key: "agents-payer",
+    name: "Agents payer",
+    amountMinor: "2000",
+    currency: "ZAR",
+    taxInclusive: true,
+    taxRateBps: 1500,
+    creditsPerPeriod: "0",
+    paystackPlanCode: "PLN_PAYER_AGENTS",
+    entitlements: [],
+  };
+  const agentsPlan = await app.inject({
+    method: "POST",
+    url: "/admin/plans",
+    headers: adminHeaders("POST", "/admin/plans", agentsPlanBody),
+    payload: agentsPlanBody,
+  });
+  assert.equal(agentsPlan.statusCode, 200, agentsPlan.body);
+  const agentsPublish = await app.inject({
+    method: "POST",
+    url: `/admin/plan-versions/${agentsPlan.json().versionId}/publish`,
+    headers: adminHeaders("POST", `/admin/plan-versions/${agentsPlan.json().versionId}/publish`, {}),
+    payload: {},
+  });
+  assert.equal(agentsPublish.statusCode, 200, agentsPublish.body);
+
+  const checkout = async (
+    product: "growth" | "agents",
+    tenantId: string,
+    planKey: string,
+    email: string,
+  ) => {
+    const body = {
+      product,
+      tenantId,
+      planKey,
+      email,
+      idempotencyKey: `payer-${product}`,
+      returnUrl: "http://localhost:3000/billing?payment=complete",
+    };
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/checkout",
+      headers: productHeaders("POST", "/internal/checkout", body, product),
+      payload: body,
+    });
+    assert.equal(response.statusCode, 200, response.body);
+    const reference = response.json().reference as string;
+    const verified = await app.inject({
+      method: "POST",
+      url: `/internal/checkout/${reference}/verify`,
+      headers: productHeaders(
+        "POST",
+        `/internal/checkout/${reference}/verify`,
+        { tenantId },
+        product,
+      ),
+      payload: { tenantId },
+    });
+    assert.equal(verified.statusCode, 200, verified.body);
+    return reference;
+  };
+  const growthReference = await checkout(
+    "growth",
+    "org-payer",
+    "growth-payer",
+    "individual@example.test",
+  );
+  const agentsReference = await checkout(
+    "agents",
+    "agents-payer",
+    "agents-payer",
+    "another-individual@example.test",
+  );
+  assert.equal(fake.transactions.get(growthReference)?.email, "payer@example.test");
+  assert.equal(fake.transactions.get(agentsReference)?.email, "payer@example.test");
+
+  const account = await pool.query<{
+    provider_customer_id: string | null;
+    billing_email: string;
+  }>(
+    `SELECT provider_customer_id, billing_email FROM billing.accounts WHERE id=$1`,
+    [accountId],
+  );
+  assert.equal(account.rows[0]?.billing_email, "payer@example.test");
+  assert.equal(account.rows[0]?.provider_customer_id, "CUS_TEST");
+  const subscriptions = await pool.query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM billing.subscriptions
+      WHERE billing_account_id=$1 AND status='active'`,
+    [accountId],
+  );
+  assert.equal(subscriptions.rows[0]?.count, "2");
+});
+
+test("scheduled plan versions activate when their effective date passes", { skip }, async () => {
+  const planBody = {
+    product: "growth",
+    key: "growth-scheduled",
+    name: "Growth scheduled",
+    amountMinor: "0",
+    currency: "ZAR",
+    taxInclusive: true,
+    taxRateBps: 1500,
+    creditsPerPeriod: "0",
+    paystackPlanCode: null,
+    entitlements: [],
+  };
+  const created = await app.inject({
+    method: "POST",
+    url: "/admin/plans",
+    headers: adminHeaders("POST", "/admin/plans", planBody),
+    payload: planBody,
+  });
+  assert.equal(created.statusCode, 200, created.body);
+  const versionId = created.json().versionId as string;
+  const effectiveFrom = new Date(Date.now() + 86_400_000).toISOString();
+  const scheduled = await app.inject({
+    method: "POST",
+    url: `/admin/plan-versions/${versionId}/schedule`,
+    headers: adminHeaders("POST", `/admin/plan-versions/${versionId}/schedule`, { effectiveFrom }),
+    payload: { effectiveFrom },
+  });
+  assert.equal(scheduled.statusCode, 200, scheduled.body);
+  assert.equal(scheduled.json().status, "scheduled");
+
+  await pool.query(
+    `UPDATE billing.plan_versions
+        SET effective_from=now()-interval '1 second' WHERE id=$1`,
+    [versionId],
+  );
+  assert.ok((await activateDueScheduledPlanVersions(pool)) >= 1);
+  const row = await pool.query<{ status: string; active: boolean }>(
+    `SELECT status, active FROM billing.plan_versions WHERE id=$1`,
+    [versionId],
+  );
+  assert.deepEqual(row.rows[0], { status: "active", active: true });
 });
 
 test("invalid webhook signature is rejected", { skip }, async () => {

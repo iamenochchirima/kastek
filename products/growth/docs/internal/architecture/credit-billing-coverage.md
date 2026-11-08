@@ -22,11 +22,9 @@ audit, pricing approval, or claim that the TypeScript service has been deployed.
 
 The 2026-09-10 findings below describe the retired Agents implementation. The platform reset
 removed its Temporal worker and Growth credit calls. The new Agents product owns bounded
-execution reservations and usage accounting independently of Growth; commercial integration
-remains separate work. See the [current Agents implementation](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/source-boundary.md).
-Growth still owns its existing credit ledger operations in
-[`credits.ts`](https://github.com/Kasitek-Labs/kastek/blob/main/products/growth/api/src/services/credits.ts). Their presence alone does not establish
-active customer-usage charging.
+execution reservations and usage accounting independently of Growth. Central commercial billing
+now settles model and product usage through the billing service; see the
+[central billing architecture](./central-billing.md).
 
 The current Growth assistant uses shared execution model accounting. The removed direct ideas/caption
 path is historical. A new retail credit conversion is separate from execution usage settlement.

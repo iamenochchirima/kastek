@@ -106,6 +106,7 @@ export async function ensureAccount(
         revision: existing.rows[0].entitlements_revision,
       };
 
+    const currency = (input.currency ?? config.defaultCurrency).toUpperCase();
     const accountId = `acct_${randomUUID()}`;
     await client.query(
       `INSERT INTO billing.accounts(
@@ -114,7 +115,7 @@ export async function ensureAccount(
       [
         accountId,
         name,
-        (input.currency ?? config.defaultCurrency).toUpperCase(),
+        currency,
         config.taxRateBps,
         email,
         JSON.stringify(input.metadata ?? {}),
@@ -130,7 +131,7 @@ export async function ensureAccount(
     const freePlanKey = config.freePlans[product];
     if (freePlanKey) {
       try {
-        const plan = await getActivePlanVersion(client, freePlanKey);
+        const plan = await getActivePlanVersion(client, freePlanKey, currency);
         if (plan.product_key !== product)
           throw new Error(`Free plan ${freePlanKey} belongs to ${plan.product_key}`);
         const subscriptionId = `sub_${randomUUID()}`;

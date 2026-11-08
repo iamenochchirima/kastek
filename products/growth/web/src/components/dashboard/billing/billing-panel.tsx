@@ -1,7 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PaymentReturnStatus } from "@/components/dashboard/billing/payment-return-status";
-import { ReferralRewardsCard } from "@/components/dashboard/billing/referral-rewards-card";
 import { SubscriptionActionButton } from "@/components/dashboard/billing/subscription-action-button";
 import type { AvailablePlan, BillingCredits, BillingSummary, ProductAccess } from "@/lib/billing";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
@@ -22,6 +21,11 @@ function productStateLabel(product: ProductAccess) {
 function formatPrice(amountMinor: number | null, currency: string) {
   if (amountMinor === null) return "Contact sales";
   return new Intl.NumberFormat("en-ZA", { style: "currency", currency, maximumFractionDigits: 0 }).format(amountMinor / 100);
+}
+
+function formatUsd(microUsd: number | null | undefined) {
+  if (microUsd == null) return "—";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(microUsd / 1_000_000);
 }
 
 function formatDate(value: string | null) {
@@ -98,7 +102,7 @@ export function BillingPanel({
                           ? subscriptions[0].cancelAtPeriodEnd
                             ? `Access ends ${formatDate(subscriptions[0].currentPeriodEnd) ?? "at the end of the billing period"}.`
                             : `Renews ${formatDate(subscriptions[0].currentPeriodEnd) ?? "at the end of the billing period"}.`
-                          : "Choose a plan when your workspace needs more credits."}
+                          : "Choose a plan when your workspace needs more access and AI usage."}
                       </p>
                     </div>
                     <Button asChild><Link to="/upgrade">Change plan</Link></Button>
@@ -106,15 +110,15 @@ export function BillingPanel({
                 </div>
 
                 {subscriptions.length ? (
-                  <div className="grid gap-3 p-5 sm:grid-cols-3 sm:p-7">
+                  <div className="grid gap-3 p-5 sm:grid-cols-4 sm:p-7">
                     {subscriptions.map((product) => {
                       const plan = matchingPlan(planResponse.plans, product);
                       return (
                         <div key={product.key} className="rounded-xl border border-border bg-secondary/20 p-4">
-                          <p className="text-xs text-muted-foreground">Plan price</p>
+                          <p className="text-xs text-muted-foreground">{product.name}</p>
                           <p className="mt-1 text-lg font-semibold text-foreground">
-                            {plan ? formatPrice(plan.amountMinor, plan.currency) : "—"}
-                            <span className="ml-1 text-xs font-normal text-muted-foreground">/ month</span>
+                            {plan ? formatPrice(plan.amountMinor, plan.currency) : product.planName ?? "—"}
+                            {plan ? <span className="ml-1 text-xs font-normal text-muted-foreground">/ month</span> : null}
                           </p>
                         </div>
                       );
@@ -122,6 +126,10 @@ export function BillingPanel({
                     <div className="rounded-xl border border-border bg-secondary/20 p-4">
                       <p className="text-xs text-muted-foreground">Billing status</p>
                       <p className="mt-1 text-lg font-semibold text-foreground">{formatStatus(subscriptions[0].subscriptionStatus ?? "ACTIVE")}</p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-secondary/20 p-4">
+                      <p className="text-xs text-muted-foreground">AI usage available</p>
+                      <p className="mt-1 text-lg font-semibold text-foreground">{formatUsd(billingCredits?.account.availableBalance)}</p>
                     </div>
                     <div className="rounded-xl border border-border bg-secondary/20 p-4">
                       <p className="text-xs text-muted-foreground">Next date</p>
@@ -148,10 +156,6 @@ export function BillingPanel({
               </MotionReveal>
             ) : null}
 
-            <MotionReveal delay={0.1}>
-              <ReferralRewardsCard referral={billingCredits?.referral ?? null} />
-            </MotionReveal>
-
             <MotionReveal delay={0.12}>
               <section className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-panel)] sm:p-7">
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -177,7 +181,7 @@ export function BillingPanel({
                         {summary.invoices.map((invoice) => (
                           <tr key={invoice.invoiceNumber}>
                             <td className="py-4 font-mono text-xs text-foreground">{invoice.invoiceNumber}</td>
-                            <td className="py-4 text-muted-foreground">{invoice.planName}</td>
+                            <td className="py-4 text-muted-foreground">{invoice.productName} · {invoice.planName}</td>
                             <td className="py-4 text-muted-foreground">{formatDate(invoice.issuedAt) ?? "—"}</td>
                             <td className="py-4 text-right font-medium text-foreground">{formatPrice(invoice.amountMinor, invoice.currency)}</td>
                             <td className="py-4 text-right"><Badge variant="outline">{formatStatus(invoice.status)}</Badge></td>

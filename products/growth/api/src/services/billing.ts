@@ -10,6 +10,7 @@ import {
   getBillingSnapshot,
   invalidateBillingSnapshot,
   recordServiceUsage,
+  serviceAccount,
   serviceInvoices,
   type BillingServiceConfig,
 } from "./billing-service.js";
@@ -96,6 +97,35 @@ export async function meterLimit(
   const snapshot = await getBillingSnapshot(pool, serviceConfig(), orgId);
   const limit = snapshot.meters[key]?.limit;
   return limit == null ? null : BigInt(limit);
+}
+
+
+export async function resourceLimit(
+  pool: Pool,
+  orgId: string,
+  key: string,
+): Promise<number | null> {
+  const snapshot = await getBillingSnapshot(pool, serviceConfig(), orgId);
+  const value = snapshot.limits[key];
+  if (value === null || value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export async function requireResourceLimit(
+  pool: Pool,
+  orgId: string,
+  key: string,
+  current: number,
+  increment = 1,
+): Promise<void> {
+  const limit = await resourceLimit(pool, orgId, key);
+  if (limit != null && current + increment > limit)
+    throw new ApiError(
+      403,
+      "forbidden",
+      `This workspace has reached its ${key.replace("limit.", "").replaceAll("_", " ")} limit`,
+    );
 }
 
 export async function requireMeterAvailable(
@@ -231,9 +261,10 @@ export async function getBillingSummary(
   orgId: string,
 ): Promise<Record<string, unknown>> {
   const config = serviceConfig();
-  const [snapshot, invoices] = await Promise.all([
+  const [snapshot, invoices, account] = await Promise.all([
     getBillingSnapshot(pool, config, orgId),
     serviceInvoices(config, orgId),
+    serviceAccount(config, orgId),
   ]);
   const features = CAPABILITIES.map((definition) => ({
     key: definition.key,
@@ -259,35 +290,94 @@ export async function getBillingSummary(
     if (typeof value === "number" || (typeof value === "string" && /^\d+$/.test(value)))
       limits[key] = numberValue(value);
   }
-  const subscription = snapshot.subscription;
-  const products = [
-    {
-      key: "growth",
+  const productDefinitions: Record<
+    string,
+    { name: string; description: string }
+  > = {
+    growth: {
       name: "KasiTek Growth",
-      description: "Customer conversations, campaigns, content, bookings, and workspace agents.",
-      hasAccess: snapshot.access !== "none",
-      state: snapshot.access === "none" ? "upgrade_required" : "enabled",
-      planName: snapshot.plan?.name ?? null,
-      subscriptionStatus: subscription?.status ?? null,
-      subscriptionId: subscription?.id ?? null,
-      currentPeriodStart: subscription?.currentPeriodStart ?? null,
-      currentPeriodEnd: subscription?.currentPeriodEnd ?? null,
-      trialEndsAt: subscription?.trialEndsAt ?? null,
-      cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
-      usage,
-      limits,
+      description:
+        "Customer conversations, campaigns, content, bookings, and workspace agents.",
     },
-  ];
-  const invoiceItems = invoices.map((invoice) => ({
-    invoiceNumber: invoice.invoiceNumber,
-    productName: "KasiTek Growth",
-    planName: invoicePlanName(invoice),
-    status: invoice.status,
-    currency: invoice.currency,
-    amountMinor: numberValue(invoice.totalMinor),
-    issuedAt: invoice.issuedAt,
-    paidAt: invoice.paidAt,
-  }));
+    agents: {
+      name: "KasiTek Agents",
+      description: "Standalone customer-service agents and channels.",
+    },
+    agency: {
+      name: "KasiTek Agency",
+      description: "Partner workspaces, client agents, and reporting.",
+    },
+  };
+  const accountSubscriptions = Array.isArray(account.subscriptions)
+    ? (account.subscriptions as Array<Record<string, unknown>>).filter((item) =>
+        ["trialing", "active", "past_due", "grace"].includes(
+          String(item.status ?? ""),
+        ),
+      )
+    : [];
+  const products = accountSubscriptions.length
+    ? accountSubscriptions.map((item) => {
+        const key = String(item.product ?? "growth");
+        const definition = productDefinitions[key] ?? {
+          name: key,
+          description: null,
+        };
+        const isGrowth = key === "growth";
+        return {
+          key,
+          name: definition.name,
+          description: definition.description,
+          hasAccess: isGrowth
+            ? snapshot.access !== "none"
+            : ["trialing", "active", "past_due", "grace"].includes(
+                String(item.status ?? ""),
+              ),
+          state:
+            isGrowth && snapshot.access === "none"
+              ? "upgrade_required"
+              : "enabled",
+          planName: String(item.planName ?? ""),
+          subscriptionStatus: item.status ? String(item.status) : null,
+          subscriptionId: String(item.id),
+          currentPeriodStart: item.currentPeriodStart ?? null,
+          currentPeriodEnd: item.currentPeriodEnd ?? null,
+          trialEndsAt: item.trialEndsAt ?? null,
+          cancelAtPeriodEnd: item.cancelAtPeriodEnd === true,
+          usage: isGrowth ? usage : {},
+          limits: isGrowth ? limits : {},
+        };
+      })
+    : [
+        {
+          key: "growth",
+          name: productDefinitions.growth!.name,
+          description: productDefinitions.growth!.description,
+          hasAccess: snapshot.access !== "none",
+          state: snapshot.access === "none" ? "upgrade_required" : "enabled",
+          planName: snapshot.plan?.name ?? null,
+          subscriptionStatus: snapshot.subscription?.status ?? null,
+          subscriptionId: snapshot.subscription?.id ?? null,
+          currentPeriodStart: snapshot.subscription?.currentPeriodStart ?? null,
+          currentPeriodEnd: snapshot.subscription?.currentPeriodEnd ?? null,
+          trialEndsAt: snapshot.subscription?.trialEndsAt ?? null,
+          cancelAtPeriodEnd: snapshot.subscription?.cancelAtPeriodEnd ?? false,
+          usage,
+          limits,
+        },
+      ];
+  const invoiceItems = invoices.map((invoice) => {
+    const product = invoice.lines[0]?.product ?? "growth";
+    return {
+      invoiceNumber: invoice.invoiceNumber,
+      productName: productDefinitions[product]?.name ?? product,
+      planName: invoicePlanName(invoice),
+      status: invoice.status,
+      currency: invoice.currency,
+      amountMinor: numberValue(invoice.totalMinor),
+      issuedAt: invoice.issuedAt,
+      paidAt: invoice.paidAt,
+    };
+  });
   const payments = invoiceItems
     .filter((invoice) => invoice.status === "paid")
     .map((invoice) => ({

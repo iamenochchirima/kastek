@@ -58,6 +58,7 @@ export const TENANT_ROUTE_ACCESS = {
   reviews: REPUTATION_ROLES,
   adcreative: CONTENT_ROLES,
   settings: SETTINGS_ROLES,
+  billing: SETTINGS_ROLES,
 } as const;
 
 export function hasAnyTenantRole(userRoles: string[] | undefined, allowedRoles: string[]) {

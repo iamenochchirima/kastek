@@ -239,14 +239,14 @@ export async function customerOverview(
     const account = credits.credits as Record<string, unknown> | undefined;
     sections.push({
       id: "credits",
-      title: "Credits",
+      title: "AI usage",
       status: "available",
       nextCursor: null,
       records: account
         ? [
             {
               id,
-              label: "Central billing credits",
+              label: "Central billing AI usage (micro-USD)",
               state: "persisted",
               facts: [
                 fact("balance", account.balance),
@@ -260,7 +260,7 @@ export async function customerOverview(
   } catch {
     sections.push({
       id: "credits",
-      title: "Credits",
+      title: "AI usage",
       status: "unavailable",
       nextCursor: null,
       records: [],

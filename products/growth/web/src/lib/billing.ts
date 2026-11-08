@@ -91,11 +91,13 @@ export type AvailablePlan = {
   key: string;
   productKey: string;
   name: string;
+  description: string | null;
   interval: "MONTHLY";
   currency: string;
   amountMinor: number | null;
   creditsPerPeriod: number | null;
   checkoutReady: boolean;
+  highlights: string[];
 };
 
 export type PlanEntitlement = {
@@ -104,6 +106,10 @@ export type PlanEntitlement = {
   description: string | null;
   kind: "feature" | "limit";
   value: unknown;
+  unit: string | null;
+  displayGroup: string | null;
+  displayOrder: number;
+  metadata: Record<string, unknown>;
 };
 
 export type AvailablePlanDetails = AvailablePlan & {
@@ -158,43 +164,9 @@ export type CreditUsageEvent = {
   createdAt: string;
 };
 
-export type ReferralHistoryItem = {
-  id: string;
-  status: string;
-  refereeOrgName: string;
-  attributedAt: string;
-  attributionExpiresAt: string | null;
-  qualifiedAt: string | null;
-  awardedAt: string | null;
-  reversedAt: string | null;
-};
-
-export type ReferralSummary = {
-  code: string;
-  status: string;
-  disabledAt: string | null;
-  disabledReason: string | null;
-  redemptionCount: number;
-  attributedCount: number;
-  maxRedemptions: number | null;
-  shareUrl: string;
-  referrerRewardCredits: number;
-  refereeRewardCredits: number;
-  rewardExpiryDays: number;
-  attributionWindowDays: number;
-  pendingCount: number;
-  qualifiedCount: number;
-  awardedCount: number;
-  expiredCount: number;
-  rejectedCount: number;
-  reversedCount: number;
-  recent: ReferralHistoryItem[];
-};
-
 export type BillingCredits = {
   account: CreditAccount;
   usage: CreditUsageEvent[];
-  referral: ReferralSummary;
 };
 
 export type BillingUsageDay = {

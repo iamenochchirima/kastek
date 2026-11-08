@@ -23,6 +23,16 @@ function formatPrice(amountMinor: number | null, currency: string) {
   }).format(amountMinor / 100);
 }
 
+function formatAiUsage(microUsd: number | null) {
+  if (microUsd === null) return "—";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(microUsd / 1_000_000);
+}
+
 function formatStatus(status: string | null) {
   if (!status) return "No active plan";
   return status.replaceAll("_", " ").toLowerCase().replace(/^\w/, (letter) => letter.toUpperCase());
@@ -45,7 +55,7 @@ export function UpgradePage({
         <PageHeader>
           <PageHeaderContent>
             <PageHeaderTitle>Choose a plan</PageHeaderTitle>
-            <PageHeaderDescription>Upgrade your workspace with more access and credits.</PageHeaderDescription>
+            <PageHeaderDescription>Upgrade your workspace with more access and AI usage.</PageHeaderDescription>
           </PageHeaderContent>
           <Button asChild variant="outline" size="sm">
             <Link to="/billing">
@@ -92,7 +102,7 @@ export function UpgradePage({
                         <div>
                           <h3 className="text-base font-semibold text-foreground">{plan.name}</h3>
                           <p className="mt-1 text-sm text-muted-foreground">
-                            {formatPrice(plan.amountMinor, plan.currency)} / month
+                            {plan.description ?? `${formatPrice(plan.amountMinor, plan.currency)} / month`}
                           </p>
                         </div>
                         {isCurrent ? <Badge variant="secondary">Current</Badge> : null}
@@ -108,15 +118,21 @@ export function UpgradePage({
                       </div>
 
                       <div className="mt-5 flex items-center justify-between gap-3 border-y border-border py-3">
-                        <p className="text-sm text-muted-foreground">Monthly credits</p>
+                        <p className="text-sm text-muted-foreground">Monthly AI usage</p>
                         <p className="text-sm font-semibold text-foreground">
-                          {plan.creditsPerPeriod === null ? "—" : plan.creditsPerPeriod.toLocaleString()}
+                          {formatAiUsage(plan.creditsPerPeriod)}
                         </p>
                       </div>
 
                       <ul className="mt-5 space-y-2 text-sm text-muted-foreground">
-                        <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />Workspace plan access</li>
-                        <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />Credits renew each billing period</li>
+                        {plan.highlights.length ? (
+                          plan.highlights.map((highlight) => (
+                            <li key={highlight} className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />{highlight}</li>
+                          ))
+                        ) : (
+                          <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />Workspace plan access</li>
+                        )}
+                        <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />AI usage renews each billing period</li>
                       </ul>
 
                       <div className="mt-auto space-y-2 pt-5">

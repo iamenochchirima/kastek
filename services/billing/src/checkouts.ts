@@ -28,7 +28,11 @@ export async function createCheckout(
   input: BillingCheckoutInput,
 ): Promise<BillingCheckoutResult> {
   const { account } = await getAccountForTenant(pool, input.product, input.tenantId);
-  const plan = await getActivePlanVersion(pool, text(input.planKey, "Plan key", 80));
+  const plan = await getActivePlanVersion(
+    pool,
+    text(input.planKey, "Plan key", 80),
+    account.currency,
+  );
   if (plan.product_key !== input.product)
     bad("That plan belongs to another product");
   if (!plan.paystack_plan_code)
@@ -36,9 +40,9 @@ export async function createCheckout(
   if (BigInt(plan.amount_minor) <= 0n)
     bad("This plan does not have a checkout amount");
   const idempotencyKey = text(input.idempotencyKey, "Checkout idempotency key", 128);
-  const email = text(input.email, "Checkout email", 320);
+  const email = account.billing_email;
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
-    bad("Checkout email is invalid");
+    bad("The billing account email is invalid");
   const returnUrl = assertReturnUrl(
     text(input.returnUrl, "Checkout return URL", 2048),
     config.returnOrigins,

@@ -6,6 +6,7 @@ import type { CoreContext } from '../context.js';
 import { ApiError } from '../error.js';
 import { transaction } from '../db.js';
 import { enqueueOrganizationScope, sendOrganizationEmail } from './org-support.js';
+import { requireResourceLimit } from './billing.js';
 export interface OrgRow { id: string; name: string; slug: string; logo: string | null; ownerId: string; reportingTimezone: string; createdAt: Date; updatedAt: Date }
 const columns = 'id,name,slug,logo,"ownerId","reportingTimezone","createdAt" AT TIME ZONE \'UTC\' AS "createdAt","updatedAt" AT TIME ZONE \'UTC\' AS "updatedAt"';
 export const bad = (message: string): ApiError => new ApiError(400,'bad_request',message);
@@ -47,6 +48,10 @@ export async function createInvitation(context: CoreContext,orgId: string,orgNam
  if(!['ADMIN','MEMBER'].includes(role))throw bad(`Invalid role '${role}'. Must be ADMIN or MEMBER.`);
  const already=(await context.pool.query(`SELECT EXISTS(SELECT 1 FROM "OrganizationMember" m JOIN "User" u ON u.id=m."userId" WHERE m."orgId"=$1 AND LOWER(u.email)=LOWER($2) AND u."emailVerified" IS NOT NULL) AS exists`,[orgId,email])).rows[0].exists;
  if(already&&!allowExistingMember)throw new ApiError(409,'conflict','That person is already a member of this organisation');
+ if(!(already&&allowExistingMember)) {
+   const seats=(await context.pool.query<{used:string}>(`SELECT ((SELECT count(*) FROM "OrganizationMember" WHERE "orgId"=$1)+(SELECT count(*) FROM "OrganizationInvitation" WHERE "orgId"=$1 AND "acceptedAt" IS NULL AND "revokedAt" IS NULL AND LOWER(email)<>LOWER($2)))::text AS used`,[orgId,email])).rows[0]!.used;
+   await requireResourceLimit(context.pool,orgId,'limit.team_seats',Number(seats));
+ }
  const token=randomBytes(48).toString('base64url');const expires=new Date(Date.now()+7*86400000);
  await context.pool.query('DELETE FROM "OrganizationInvitation" WHERE "orgId"=$1 AND LOWER(email)=LOWER($2) AND "acceptedAt" IS NULL',[orgId,email]);
  const inv=(await context.pool.query(`INSERT INTO "OrganizationInvitation"(id,"orgId",email,role,"tokenHash","invitedById","expiresAt","createdAt","updatedAt") VALUES($1,$2,$3,$4::"OrgRole",$5,$6,$7,NOW(),NOW()) RETURNING id,"orgId",email,role::text AS role,''::text AS token,"invitedById","expiresAt" AT TIME ZONE 'UTC' AS "expiresAt","acceptedAt" AT TIME ZONE 'UTC' AS "acceptedAt","createdAt" AT TIME ZONE 'UTC' AS "createdAt",$8::text AS "invitedByName"`,[createId(),orgId,email,role,hash(token),invitedById,expires,invitedByName])).rows[0]!;
@@ -59,6 +64,9 @@ export async function acceptInvitation(pool: Pool,token: string,userId: string):
   if(!inv)throw notFound('Invitation not found');if(inv.acceptedAt)throw bad('This invitation has already been accepted');if(inv.expiresAt<Date.now())throw bad('This invitation has expired');
   const userEmail=(await tx.query('SELECT email FROM "User" WHERE id=$1',[userId])).rows[0]?.email??'';
   if(userEmail.toLowerCase()!==inv.email.toLowerCase())throw new ApiError(403,'forbidden','Sign in with the email address that received this invitation');
+  const seats=(await tx.query<{used:string}>('SELECT count(*)::text AS used FROM "OrganizationMember" WHERE "orgId"=$1',[inv.orgId])).rows[0]!.used;
+  const existing=(await tx.query('SELECT 1 FROM "OrganizationMember" WHERE "orgId"=$1 AND "userId"=$2',[inv.orgId,userId])).rowCount;
+  if(!existing) await requireResourceLimit(pool,inv.orgId,'limit.team_seats',Number(seats));
   await tx.query('INSERT INTO "OrganizationMember"(id,"orgId","userId",role,"joinedAt","createdAt","updatedAt") VALUES($1,$2,$3,$4::"OrgRole",NOW(),NOW(),NOW()) ON CONFLICT("orgId","userId") DO NOTHING',[createId(),inv.orgId,userId,inv.role]);
   await tx.query('UPDATE "OrganizationInvitation" SET "acceptedAt"=NOW(),"updatedAt"=NOW() WHERE id=$1',[inv.id]);return inv.orgId as string;
  });

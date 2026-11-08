@@ -16,20 +16,28 @@ import {
 } from "./accounts.js";
 import {
   adminCatalog,
-  createPlanVersion,
+  adminPlanDetail,
+  clonePlan,
+  createPlanDraft,
+  createPlanVersionDraft,
   getLatestPlanVersion,
   getPlanDetails,
   getPlanEntitlements,
   listPlans,
   parseBoolean,
   parseCapabilityKind,
+  parseImplementationStatus,
   parseOptionalWire,
   parsePlanEntitlements,
   parseProduct,
   parseTaxRate,
+  parseValueType,
+  publishPlanVersion,
   replacePlanEntitlements,
+  schedulePlanVersion,
+  retirePlanVersion,
+  updatePlanVersionDraft,
   upsertCapability,
-  upsertPlan,
   upsertProduct,
 } from "./catalog.js";
 import {
@@ -247,14 +255,25 @@ export async function buildApi(
 
   app.get("/internal/plans", async (request) => {
     const { product } = await productRequest(request as RawBodyRequest);
-    return { plans: await listPlans(pool, product) };
+    const query = (request.query ?? {}) as { currency?: string };
+    const currency =
+      typeof query.currency === "string" && query.currency.trim()
+        ? text(query.currency, "Plan currency", 3).toUpperCase()
+        : undefined;
+    return { plans: await listPlans(pool, product, currency) };
   });
 
   app.get("/internal/plans/:planKey", async (request) => {
     const { product } = await productRequest(request as RawBodyRequest);
+    const query = (request.query ?? {}) as { currency?: string };
+    const currency =
+      typeof query.currency === "string" && query.currency.trim()
+        ? text(query.currency, "Plan currency", 3).toUpperCase()
+        : undefined;
     const plan = await getPlanDetails(
       pool,
       text((request.params as { planKey: string }).planKey, "Plan key", 80),
+      currency,
     );
     if (plan.product !== product) missing("Plan not found");
     return plan;
@@ -312,7 +331,7 @@ export async function buildApi(
       [account.id],
     );
     return {
-      credits: await getCreditSummary(pool, account.id, account.currency),
+      credits: await getCreditSummary(pool, account.id),
       grants: grants.rows.map((row) => ({
         id: row.id,
         source: row.source,
@@ -425,6 +444,11 @@ export async function buildApi(
       description: optionalText(body.description, 2000),
       kind: parseCapabilityKind(body.kind),
       unit: optionalText(body.unit, 80),
+      valueType: parseValueType(body.valueType ?? "boolean"),
+      displayGroup: optionalText(body.displayGroup, 120),
+      displayOrder: Number(body.displayOrder ?? 0),
+      visibleToCustomer: parseBoolean(body.visibleToCustomer, true),
+      implementationStatus: parseImplementationStatus(body.implementationStatus ?? "implemented"),
       creditCostPerUnit: parseOptionalWire(body.creditCostPerUnit, "Credit cost per unit"),
       creditCostMinimum: parseOptionalWire(body.creditCostMinimum, "Minimum credit cost") ?? "0",
       active: parseBoolean(body.active, true),
@@ -433,54 +457,152 @@ export async function buildApi(
     return capability;
   });
 
+  app.get("/admin/plans/:planKey", async (request) => {
+    await adminRequest(request as RawBodyRequest, "admin:read");
+    return adminPlanDetail(
+      pool,
+      text((request.params as { planKey: string }).planKey, "Plan key", 80),
+    );
+  });
+
   app.post("/admin/plans", async (request) => {
     const { actor, body } = await adminRequest(request as RawBodyRequest);
-    const planKey = text(body.key, "Plan key", 80);
-    let entitlements: Array<{ key: string; value: unknown }>;
-    if (body.entitlements == null) {
-      try {
-        const current = await getLatestPlanVersion(pool, planKey);
-        entitlements = (await getPlanEntitlements(pool, current.id)).map((item) => ({
-          key: item.key,
-          value: item.value,
-        }));
-      } catch {
-        entitlements = [];
-      }
-    } else {
-      entitlements = parsePlanEntitlements(body.entitlements);
-    }
-    const plan = await upsertPlan(pool, {
+    const plan = await createPlanDraft(pool, {
       product: parseProduct(body.product),
-      key: planKey,
+      key: text(body.key, "Plan key", 80),
       name: text(body.name, "Plan name", 120),
+      description: optionalText(body.description, 2000),
       amountMinor: bigValue(body.amountMinor, "Plan amount", 0n).toString(),
       currency: text(body.currency, "Plan currency", 3).toUpperCase(),
       taxInclusive: parseBoolean(body.taxInclusive, true),
       taxRateBps: parseTaxRate(body.taxRateBps ?? config.taxRateBps),
       creditsPerPeriod: parseOptionalWire(body.creditsPerPeriod, "Plan credits"),
       paystackPlanCode: optionalText(body.paystackPlanCode, 120),
-      active: parseBoolean(body.active, true),
-      entitlements,
+      entitlements:
+        body.entitlements == null ? [] : parsePlanEntitlements(body.entitlements),
     });
-    await audit(pool, actor.id, "plan.upsert", "plan", plan.key, body);
+    await audit(pool, actor.id, "plan.draft.create", "plan", plan.key, body);
     return plan;
   });
 
   app.post("/admin/plans/:planKey/versions", async (request) => {
     const { actor, body } = await adminRequest(request as RawBodyRequest);
     const planKey = text((request.params as { planKey: string }).planKey, "Plan key", 80);
-    const plan = await createPlanVersion(pool, planKey, {
-      amountMinor: bigValue(body.amountMinor, "Plan amount", 0n).toString(),
-      currency: text(body.currency, "Plan currency", 3).toUpperCase(),
-      taxInclusive: parseBoolean(body.taxInclusive, true),
-      taxRateBps: parseTaxRate(body.taxRateBps ?? config.taxRateBps),
-      creditsPerPeriod: parseOptionalWire(body.creditsPerPeriod, "Plan credits"),
-      paystackPlanCode: optionalText(body.paystackPlanCode, 120),
-      active: parseBoolean(body.active, true),
-      entitlements: body.entitlements == null ? [] : parsePlanEntitlements(body.entitlements),
+    const plan = await createPlanVersionDraft(pool, planKey, {
+      amountMinor:
+        body.amountMinor == null
+          ? undefined
+          : bigValue(body.amountMinor, "Plan amount", 0n).toString(),
+      currency:
+        body.currency == null
+          ? undefined
+          : text(body.currency, "Plan currency", 3).toUpperCase(),
+      taxInclusive:
+        body.taxInclusive == null ? undefined : parseBoolean(body.taxInclusive, true),
+      taxRateBps:
+        body.taxRateBps == null ? undefined : parseTaxRate(body.taxRateBps),
+      creditsPerPeriod:
+        body.creditsPerPeriod === undefined
+          ? undefined
+          : parseOptionalWire(body.creditsPerPeriod, "Plan credits"),
+      paystackPlanCode:
+        body.paystackPlanCode === undefined
+          ? undefined
+          : optionalText(body.paystackPlanCode, 120),
+      notes: optionalText(body.notes, 2000),
+      entitlements:
+        body.entitlements == null ? undefined : parsePlanEntitlements(body.entitlements),
     });
     await audit(pool, actor.id, "plan.version.create", "plan", planKey, body);
+    return plan;
+  });
+
+  app.put("/admin/plan-versions/:versionId", async (request) => {
+    const { actor, body } = await adminRequest(request as RawBodyRequest);
+    const versionId = text(
+      (request.params as { versionId: string }).versionId,
+      "Plan version id",
+      120,
+    );
+    const plan = await updatePlanVersionDraft(pool, versionId, {
+      amountMinor:
+        body.amountMinor == null
+          ? undefined
+          : bigValue(body.amountMinor, "Plan amount", 0n).toString(),
+      currency:
+        body.currency == null
+          ? undefined
+          : text(body.currency, "Plan currency", 3).toUpperCase(),
+      taxInclusive:
+        body.taxInclusive == null ? undefined : parseBoolean(body.taxInclusive, true),
+      taxRateBps:
+        body.taxRateBps == null ? undefined : parseTaxRate(body.taxRateBps),
+      creditsPerPeriod:
+        body.creditsPerPeriod === undefined
+          ? undefined
+          : parseOptionalWire(body.creditsPerPeriod, "Plan credits"),
+      paystackPlanCode:
+        body.paystackPlanCode === undefined
+          ? undefined
+          : optionalText(body.paystackPlanCode, 120),
+      notes: body.notes === undefined ? undefined : optionalText(body.notes, 2000),
+      effectiveFrom: body.effectiveFrom
+        ? dateValue(body.effectiveFrom, "Effective from")
+        : undefined,
+    });
+    await audit(pool, actor.id, "plan.version.update", "plan_version", versionId, body);
+    return plan;
+  });
+
+  app.post("/admin/plan-versions/:versionId/schedule", async (request) => {
+    const { actor, body } = await adminRequest(request as RawBodyRequest);
+    const versionId = text(
+      (request.params as { versionId: string }).versionId,
+      "Plan version id",
+      120,
+    );
+    const plan = await schedulePlanVersion(
+      pool,
+      versionId,
+      dateValue(body.effectiveFrom, "Effective from"),
+      actor.id,
+    );
+    await audit(pool, actor.id, "plan.version.schedule", "plan_version", versionId, body);
+    return plan;
+  });
+
+  app.post("/admin/plan-versions/:versionId/publish", async (request) => {
+    const { actor, body } = await adminRequest(request as RawBodyRequest);
+    const versionId = text(
+      (request.params as { versionId: string }).versionId,
+      "Plan version id",
+      120,
+    );
+    const plan = await publishPlanVersion(pool, versionId, actor.id);
+    await audit(pool, actor.id, "plan.version.publish", "plan_version", versionId, body);
+    return plan;
+  });
+
+  app.post("/admin/plan-versions/:versionId/retire", async (request) => {
+    const { actor, body } = await adminRequest(request as RawBodyRequest);
+    const versionId = text(
+      (request.params as { versionId: string }).versionId,
+      "Plan version id",
+      120,
+    );
+    const result = await retirePlanVersion(pool, versionId);
+    await audit(pool, actor.id, "plan.version.retire", "plan_version", versionId, body);
+    return result;
+  });
+
+  app.post("/admin/plans/:planKey/clone", async (request) => {
+    const { actor, body } = await adminRequest(request as RawBodyRequest);
+    const planKey = text((request.params as { planKey: string }).planKey, "Plan key", 80);
+    const plan = await clonePlan(pool, planKey, {
+      key: text(body.key, "New plan key", 80),
+      name: text(body.name, "New plan name", 120),
+    });
+    await audit(pool, actor.id, "plan.clone", "plan", plan.key, body);
     return plan;
   });
 
@@ -488,12 +610,19 @@ export async function buildApi(
     const { actor, body } = await adminRequest(request as RawBodyRequest);
     const planKey = text((request.params as { planKey: string }).planKey, "Plan key", 80);
     const version = await getLatestPlanVersion(pool, planKey);
+    if (version.status !== "draft" && version.status !== "scheduled")
+      bad("Only draft or scheduled plan versions can be edited");
     const key = text(body.key, "Entitlement key", 120);
+    const metadata =
+      body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata)
+        ? body.metadata
+        : {};
     await pool.query(
-      `INSERT INTO billing.plan_entitlements(id, plan_version_id, key, value)
-       VALUES('ple_' || gen_random_uuid()::text,$1,$2,$3)
-       ON CONFLICT (plan_version_id, key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,
-      [version.id, key, JSON.stringify(body.value)],
+      `INSERT INTO billing.plan_entitlements(id, plan_version_id, key, value, metadata)
+       VALUES('ple_' || gen_random_uuid()::text,$1,$2,$3,$4)
+       ON CONFLICT (plan_version_id, key) DO UPDATE SET
+         value=EXCLUDED.value, metadata=EXCLUDED.metadata, updated_at=now()`,
+      [version.id, key, JSON.stringify(body.value), JSON.stringify(metadata)],
     );
     await audit(pool, actor.id, "plan.entitlement.upsert", "plan", planKey, body);
     return { updated: true, planKey, planVersion: version.version, key };
@@ -717,7 +846,7 @@ export async function buildApi(
       [account.id],
     );
     return {
-      credits: await getCreditSummary(pool, account.id, account.currency),
+      credits: await getCreditSummary(pool, account.id),
       grants: grants.rows.map((row) => ({
         id: row.id,
         source: row.source,
@@ -729,9 +858,9 @@ export async function buildApi(
         reference: row.reference,
       })),
       orgId: tenantId,
-      balance: Number((await getCreditSummary(pool, account.id, account.currency)).balance),
-      reservedBalance: Number((await getCreditSummary(pool, account.id, account.currency)).reserved),
-      availableBalance: Number((await getCreditSummary(pool, account.id, account.currency)).available),
+      balance: Number((await getCreditSummary(pool, account.id)).balance),
+      reservedBalance: Number((await getCreditSummary(pool, account.id)).reserved),
+      availableBalance: Number((await getCreditSummary(pool, account.id)).available),
       ledger: (await listCreditLedger(pool, account.id, 500)).map((entry) => ({
         ...entry,
         entryType: entry.type,
@@ -890,7 +1019,7 @@ export async function buildApi(
     const accountId = text((request.params as { id: string }).id, "Account id", 120);
     const account = await getAccountById(pool, accountId);
     return {
-      credits: await getCreditSummary(pool, accountId, account.currency),
+      credits: await getCreditSummary(pool, accountId),
       ledger: await listCreditLedger(pool, accountId, 500),
     };
   });

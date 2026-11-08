@@ -44,11 +44,12 @@ according to its existing contracts. Source relocation does not change cookie sc
 
 ## Billing boundary
 
-`services/billing/` is the financial system of record. It owns billing accounts, tenant links,
-catalog prices and versions, Paystack checkout and webhooks, subscriptions, invoices, credit
-ledgers, usage events, reconciliation and signed entitlement snapshots. Product APIs keep their
-own organizations and feature definitions, link a tenant to a billing account, and verify the
-signed snapshot before serving paid access. Products never read the billing database.
+`services/billing/` is the financial system of record. It owns billing accounts, payer identity,
+tenant links, the dynamic capability and plan catalog, Paystack checkout and webhooks,
+subscriptions, invoices, AI usage ledgers, usage events, reconciliation and signed entitlement
+snapshots. Product APIs keep their own organizations and feature definitions, link a tenant to a
+billing account, and verify the signed snapshot before serving paid access. Products never read
+the billing database.
 
 Billing accounts are independent of product memberships. A Growth organization, Agents
 organization, or Agency workspace is linked by `(product, tenant_id)`. One billing account can
@@ -56,11 +57,16 @@ hold multiple product subscriptions and receive one invoice. Embedded Agents usa
 host product’s plan; standalone Agents has its own plan. Agency partners are the default payer for
 their client workspaces.
 
-The service is designed for ZAR and monthly billing first. Plan versions declare whether their
-price is VAT-inclusive or VAT-exclusive, and Paystack always receives the gross amount. Annual
-billing and multi-currency conversion are not enabled. The Growth cutover bridge is configured
-only when `BILLING_SERVICE_URL`, `BILLING_SERVICE_SECRET`, and `BILLING_SNAPSHOT_SECRET` are set;
-otherwise Growth retains its legacy implementation as a rollback path.
+Plans are priced per currency and versioned. Published versions are immutable and existing
+subscribers stay pinned; a new version only affects new checkouts. Plan versions declare whether
+their price is VAT-inclusive or VAT-exclusive, and Paystack always receives the gross amount.
+Monthly billing is the only interval. Paystack South Africa settles ZAR only, so a USD checkout
+requires another provider even though USD prices can be stored. AI usage is held in USD
+micro-units and shown to customers as dollars.
+
+Growth has no legacy billing implementation or local billing tables. When
+`BILLING_SERVICE_URL`, `BILLING_SERVICE_SECRET`, and `BILLING_SNAPSHOT_SECRET` are absent,
+customer billing routes fail closed with `503` rather than using a local provider.
 
 ## Growth browser boundary
 

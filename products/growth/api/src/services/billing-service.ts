@@ -172,18 +172,41 @@ export function invalidateBillingSnapshot(orgId: string): void {
 
 export async function billingPlans(
   config: BillingServiceConfig,
+  currency?: string,
 ): Promise<BillingPlanSummary[]> {
-  const response = await request(config, "GET", "/internal/plans");
+  const query = currency
+    ? `?currency=${encodeURIComponent(currency.toUpperCase())}`
+    : "";
+  const response = await request(config, "GET", `/internal/plans${query}`);
   return (await json<{ plans: BillingPlanSummary[] }>(response)).plans;
 }
 
 export async function billingPlan(
   config: BillingServiceConfig,
   planKey: string,
+  currency?: string,
 ): Promise<BillingPlanSummary> {
+  const query = currency
+    ? `?currency=${encodeURIComponent(currency.toUpperCase())}`
+    : "";
   return json<BillingPlanSummary>(
-    await request(config, "GET", `/internal/plans/${encodeURIComponent(planKey)}`),
+    await request(
+      config,
+      "GET",
+      `/internal/plans/${encodeURIComponent(planKey)}${query}`,
+    ),
   );
+}
+
+export async function billingAccountCurrency(
+  config: BillingServiceConfig,
+  orgId: string,
+): Promise<string | null> {
+  const summary = await serviceAccount(config, orgId);
+  const account = summary.account;
+  if (!account || typeof account !== "object" || Array.isArray(account)) return null;
+  const currency = (account as Record<string, unknown>).currency;
+  return typeof currency === "string" ? currency : null;
 }
 
 export async function createServiceCheckout(

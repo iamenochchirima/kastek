@@ -27,8 +27,11 @@ export type BillingInvoiceStatus =
 export interface BillingPlanSummary {
   key: string;
   name: string;
+  description: string | null;
   product: BillingProduct;
   version: number;
+  versionId: string;
+  status: "draft" | "scheduled" | "active" | "retired";
   interval: BillingPlanInterval;
   currency: string;
   amountMinor: string;
@@ -37,12 +40,21 @@ export interface BillingPlanSummary {
   grossAmountMinor: string;
   creditsPerPeriod: string | null;
   checkoutReady: boolean;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  notes: string | null;
   entitlements: Array<{
     key: string;
     value: unknown;
     kind: "feature" | "limit" | "meter";
     name: string;
     description: string | null;
+    unit: string | null;
+    metadata: Record<string, unknown>;
+    implementationStatus: "implemented" | "product_pending" | "display_only";
+    visibleToCustomer: boolean;
+    displayGroup: string | null;
+    displayOrder: number;
   }>;
 }
 

@@ -1,12 +1,12 @@
 # Workspace access and billing
 
 Growth access is derived from a signed entitlement snapshot issued by the central billing
-service. Growth does not keep a local plan catalog, subscription table, credit ledger, or
+service. Growth does not keep a local plan catalog, subscription table, AI usage ledger, or
 entitlement table.
 
 ## Product boundary
 
-- `services/billing/` owns billing accounts, plans, prices, subscriptions, invoices, credits,
+- `services/billing/` owns billing accounts, plans, prices, subscriptions, invoices, AI usage,
   usage, Paystack, and reconciliation.
 - Growth owns the meaning of its capability keys, its product permissions, and the code paths
   that enforce them.

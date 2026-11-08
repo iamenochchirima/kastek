@@ -16,7 +16,7 @@ export function agentsBillingEnforcementEnabled(
   );
 }
 
-async function ensureAccount(
+export async function ensureAgentsBillingAccount(
   pool: Pool,
   client: BillingClient,
   organizationId: string,
@@ -60,7 +60,7 @@ export async function assertAgentsBillingAccess(
       "Customer billing is not configured",
     );
   try {
-    await ensureAccount(pool, client, organizationId);
+    await ensureAgentsBillingAccount(pool, client, organizationId);
     const snapshot = await client.snapshot(organizationId);
     if (snapshot.access === "none")
       throw new PlatformError(
@@ -79,6 +79,16 @@ export async function assertAgentsBillingAccess(
         "BILLING_REQUIRED",
         403,
         "Agents is not included in the current plan",
+      );
+    const tokens = snapshot.meters.agent_tokens;
+    if (
+      tokens?.limit != null &&
+      BigInt(tokens.used) >= BigInt(tokens.limit)
+    )
+      throw new PlatformError(
+        "BILLING_LIMIT_REACHED",
+        403,
+        "The monthly agent token allowance is used up",
       );
   } catch (error) {
     if (error instanceof PlatformError) throw error;
