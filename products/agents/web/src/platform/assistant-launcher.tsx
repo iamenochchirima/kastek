@@ -135,6 +135,19 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
     };
   }, [open, close, mobileNavigationOpen]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target || panel.current?.contains(target)) return;
+      // Portaled selects, menus and application dialogs belong to the open panel flow.
+      if (target.closest('[data-slot="dialog-content"],[role="alertdialog"],[role="menu"],[role="listbox"],[data-radix-popper-content-wrapper]')) return;
+      close();
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [open, close]);
+
   const agentId = assistant?.agent?.id ?? null;
   const ready = assistant?.state === "configured" && Boolean(agentId);
   const agentPath = agentId ? `/app/agents/${encodeURIComponent(agentId)}` : null;

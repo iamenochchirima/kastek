@@ -169,3 +169,14 @@ test("disabled private messaging blocks new links", async ({ page }) => {
   await expect(dialog.getByText("Private messaging unavailable", { exact: true })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Link Office bot" })).toBeDisabled();
 });
+
+test("clicking outside minimizes the Ask AI panel", async ({ page }) => {
+  await launcher(page);
+  await openPanel(page);
+  const dialog = page.getByRole("dialog", { name: "Ask AI" });
+  await dialog.getByRole("heading", { name: "Ask AI", exact: true }).click();
+  await expect(dialog).toBeVisible();
+  await page.mouse.click(180, 420);
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Ask AI", exact: true })).toBeVisible();
+});
