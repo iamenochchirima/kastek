@@ -192,7 +192,7 @@ const PLANS: SeedPlan[] = [
     key: "agents-starter",
     name: "Agents Starter",
     description: "Three agents, two channels and a monthly AI allowance.",
-    amountMinor: 49_900,
+    amountMinor: 35_000,
     active: false,
     credits: 10_000_000,
     entitlements: [

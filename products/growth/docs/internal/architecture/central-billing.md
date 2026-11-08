@@ -149,7 +149,7 @@ plan code. Free plans are active.
 | Growth | Growth Mid | R999 | $20 | Campaigns, social, analytics, workspace agents |
 | Growth | Growth Scale | R1,999 | $50 | Higher limits and more channels |
 | Agents | Free | R0 | $1 | One agent and a small monthly allowance |
-| Agents | Starter | R499 | $10 | Three agents and two channels |
+| Agents | Starter | R350 | $10 | Three agents and two channels |
 | Agents | Growth | R999 | $25 | Ten agents and five channels |
 | Agency | Free | R0 | $0 | One client workspace |
 | Agency | Partner | R2,999 | $50 | Ten client workspaces and five staff seats |
