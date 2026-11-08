@@ -204,6 +204,29 @@ available for support operations.
 Agents and Agency surfaces are read-only in v1. Plan changes and payment method updates are not
 self-serve there.
 
+## Sandbox verification
+
+On 2026-11-08 the Growth plans were published against Paystack test mode:
+
+| Plan | Paystack sandbox plan code | Amount |
+| --- | --- | --- |
+| Growth Entry | `PLN_938zqbi735rutu0` | R350 |
+| Growth Mid | `PLN_6j1bbb4kw4z3nnl` | R999 |
+| Growth Scale | `PLN_x6m880cpcxqz8b8` | R1,999 |
+
+A sandbox checkout for Growth Entry completed with reference
+`ks_4e922fb59906439bb5458c6f6133e998`. The billing service:
+
+- stored provider customer `CUS_01w89fb1nkod36j` on the billing account;
+- activated `growth-entry` version 1 and canceled the account's free subscription;
+- created paid invoice `KS-2026-000001` for ZAR 350.00;
+- granted USD 5.00 (`5,000,000` micro-USD) of AI usage;
+- returned an active entitlement snapshot with 3 seats, 1 channel and 500 campaign recipients.
+
+The sandbox payment was completed through the Paystack hosted checkout and verified with
+`POST /internal/checkout/:reference/verify`. Webhook-driven renewal, refund and dispute paths were
+not exercised because the local service has no public HTTPS callback URL.
+
 ## Growth cutover
 
 Growth has no legacy billing implementation or local billing tables. These variables are required
@@ -251,5 +274,5 @@ credit grants, and transitions expired trials and grace periods. Agency usage ou
 | Rollback | Disable checkout by retiring the affected plan versions. Restore the previous active version where a rollback is needed. Billing data remains in the service database. Removing product billing variables disables billing; it does not restore local billing. |
 | Analytics and logs | Structured worker and request logs; no card data or full webhook payloads in logs. Usage forwarding failures remain in outboxes with retry state. |
 | Documentation | This page, `services/billing/README.md`, `ARCHITECTURE.md`, and product billing support runbooks. |
-| Validation | Billing typecheck/build and 12/12 integration tests; Growth typecheck/build and 180 passing tests; Agents, Agency, Admin, Growth web, Agents web, and Agency web typecheck/build; fresh billing migrate and seed; boundary check. |
-| Open decisions | Live Paystack configuration, a USD-capable provider, self-serve top-ups, Agents and Agency product guards for currently display-only limits, and custom-work invoice migration. |
+| Validation | Billing typecheck/build and 12/12 integration tests; Growth typecheck/build and 180 passing tests; Agents, Agency, Admin, Growth web, Agents web, and Agency web typecheck/build; fresh billing migrate and seed; boundary check; Paystack sandbox plans published and Growth Entry checkout completed with paid invoice, active subscription and USD 5.00 AI usage. |
+| Open decisions | Live Paystack keys and a public webhook URL, a USD-capable provider, self-serve top-ups, Agents and Agency product guards for currently display-only limits, and custom-work invoice migration. |
