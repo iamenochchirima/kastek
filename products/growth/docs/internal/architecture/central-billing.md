@@ -153,8 +153,14 @@ Credit top-ups are not self-serve in v1. Admin grants are the only purchase path
 ## Free plan, trial, and grace
 
 - A new account is assigned the product's configured free plan.
-- A 14-day trial is created through the admin assignment endpoint with status `trialing`; it has
-  no provider subscription and no card.
+- A trial is created through the admin assignment endpoint with status `trialing`; it has no
+  provider subscription and no card. The default is 14 days on the selected plan.
+- Admin can start a trial, extend it in place, or end it early. Ending a trial assigns the free
+  plan, revokes unspent trial AI usage, and keeps subscription history. The trial UI is in
+  Admin → Billing → Trials and subscriptions.
+- A trial receives the selected plan's AI usage allowance for the trial period. Extending the
+  trial extends the grant expiry. Converting or changing plans revokes unspent plan AI usage
+  before granting the new plan.
 - A failed Paystack payment moves the subscription to `past_due` with `grace_ends_at` seven days
   later. The snapshot reports `grace`; products treat write capabilities as read-only.
 - After grace, the worker cancels the subscription and the snapshot reports `none`.
@@ -191,6 +197,12 @@ Admin catalog endpoints:
 - `POST /admin/plan-versions/:id/schedule`, `POST /admin/plan-versions/:id/publish`,
   `POST /admin/plan-versions/:id/retire`.
 - `POST /admin/plans/:planKey/clone`.
+
+Trial administration:
+
+- `POST /admin/accounts/:id/subscriptions/assign` with `status: "trialing"` and `trialDays`.
+- `POST /admin/accounts/:id/subscriptions/:subscriptionId/trial/extend`.
+- `POST /admin/accounts/:id/subscriptions/:subscriptionId/trial/end`.
 
 Account, grant, credit, assignment, invoice, reconciliation, audit, and metrics endpoints remain
 available for support operations.
@@ -274,5 +286,5 @@ credit grants, and transitions expired trials and grace periods. Agency usage ou
 | Rollback | Disable checkout by retiring the affected plan versions. Restore the previous active version where a rollback is needed. Billing data remains in the service database. Removing product billing variables disables billing; it does not restore local billing. |
 | Analytics and logs | Structured worker and request logs; no card data or full webhook payloads in logs. Usage forwarding failures remain in outboxes with retry state. |
 | Documentation | This page, `services/billing/README.md`, `ARCHITECTURE.md`, and product billing support runbooks. |
-| Validation | Billing typecheck/build and 12/12 integration tests; Growth typecheck/build and 180 passing tests; Agents, Agency, Admin, Growth web, Agents web, and Agency web typecheck/build; fresh billing migrate and seed; boundary check; Paystack sandbox plans published and Growth Entry checkout completed with paid invoice, active subscription and USD 5.00 AI usage. |
+| Validation | Billing typecheck/build and 13/13 integration tests; Growth typecheck/build and 180 passing tests; Agents, Agency, Admin, Growth web, Agents web, and Agency web typecheck/build; fresh billing migrate and seed; boundary check; Paystack sandbox plans published and Growth Entry checkout completed with paid invoice, active subscription and USD 5.00 AI usage. |
 | Open decisions | Live Paystack keys and a public webhook URL, a USD-capable provider, self-serve top-ups, Agents and Agency product guards for currently display-only limits, and custom-work invoice migration. |

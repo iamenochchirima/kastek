@@ -690,6 +690,114 @@ test("trial downgrade and grace expiry change access", { skip }, async () => {
   assert.equal(snapshot.json().snapshot.access, "none");
 });
 
+test("admin can start, extend and end a trial", { skip }, async () => {
+  const planBody = {
+    product: "growth",
+    key: "growth-trial-manage",
+    name: "Trial management",
+    amountMinor: "0",
+    currency: "ZAR",
+    taxInclusive: true,
+    taxRateBps: 1500,
+    creditsPerPeriod: "2500000",
+    paystackPlanCode: null,
+    entitlements: [{ key: "feature.inbox.access", value: true }],
+  };
+  const created = await app.inject({
+    method: "POST",
+    url: "/admin/plans",
+    headers: adminHeaders("POST", "/admin/plans", planBody),
+    payload: planBody,
+  });
+  assert.equal(created.statusCode, 200, created.body);
+  const published = await app.inject({
+    method: "POST",
+    url: `/admin/plan-versions/${created.json().versionId}/publish`,
+    headers: adminHeaders("POST", `/admin/plan-versions/${created.json().versionId}/publish`, {}),
+    payload: {},
+  });
+  assert.equal(published.statusCode, 200, published.body);
+
+  const accountBody = {
+    product: "growth",
+    tenantId: "org-trial-manage",
+    name: "Trial Manage",
+    billingEmail: "trial-manage@example.test",
+  };
+  const ensured = await app.inject({
+    method: "POST",
+    url: "/internal/accounts/ensure",
+    headers: productHeaders("POST", "/internal/accounts/ensure", accountBody),
+    payload: accountBody,
+  });
+  assert.equal(ensured.statusCode, 200, ensured.body);
+  const accountId = ensured.json().accountId as string;
+
+  const assigned = await app.inject({
+    method: "POST",
+    url: "/admin/tenants/growth/org-trial-manage/subscriptions/assign",
+    headers: adminHeaders("POST", "/admin/tenants/growth/org-trial-manage/subscriptions/assign", {
+      planKey: "growth-trial-manage",
+      status: "trialing",
+      trialDays: 14,
+    }),
+    payload: {
+      planKey: "growth-trial-manage",
+      status: "trialing",
+      trialDays: 14,
+    },
+  });
+  assert.equal(assigned.statusCode, 200, assigned.body);
+  const subscriptionId = assigned.json().id as string;
+
+  let snapshot = await app.inject({
+    method: "GET",
+    url: "/internal/entitlements?product=growth&tenantId=org-trial-manage",
+    headers: productHeaders("GET", "/internal/entitlements"),
+  });
+  assert.equal(snapshot.json().snapshot.access, "trialing");
+  assert.equal(snapshot.json().snapshot.credits.balance, "2500000");
+  const originalTrialEnd = new Date(
+    snapshot.json().snapshot.subscription.trialEndsAt as string,
+  ).getTime();
+
+  const extended = await app.inject({
+    method: "POST",
+    url: `/admin/accounts/${accountId}/subscriptions/${subscriptionId}/trial/extend`,
+    headers: adminHeaders(
+      "POST",
+      `/admin/accounts/${accountId}/subscriptions/${subscriptionId}/trial/extend`,
+      { days: 30 },
+    ),
+    payload: { days: 30 },
+  });
+  assert.equal(extended.statusCode, 200, extended.body);
+  const extendedEnd = new Date(extended.json().trial_ends_at as string).getTime();
+  assert.ok(extendedEnd > originalTrialEnd + 29 * 86_400_000);
+
+  const ended = await app.inject({
+    method: "POST",
+    url: `/admin/accounts/${accountId}/subscriptions/${subscriptionId}/trial/end`,
+    headers: adminHeaders(
+      "POST",
+      `/admin/accounts/${accountId}/subscriptions/${subscriptionId}/trial/end`,
+      {},
+    ),
+    payload: {},
+  });
+  assert.equal(ended.statusCode, 200, ended.body);
+  assert.equal(ended.json().planKey, "growth-free");
+
+  snapshot = await app.inject({
+    method: "GET",
+    url: "/internal/entitlements?product=growth&tenantId=org-trial-manage",
+    headers: productHeaders("GET", "/internal/entitlements"),
+  });
+  assert.equal(snapshot.json().snapshot.access, "active");
+  assert.equal(snapshot.json().snapshot.plan.key, "growth-free");
+  assert.equal(snapshot.json().snapshot.credits.balance, "0");
+});
+
 test("product authority replay is rejected", { skip }, async () => {
   const body = {
     product: "growth",

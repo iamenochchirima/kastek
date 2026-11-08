@@ -8,7 +8,11 @@ import {
   getPlanVersionById,
   type PlanVersionRow,
 } from "./catalog.js";
-import { grantCreditsTx, revokeUnspentPlanCreditsTx } from "./credits.js";
+import {
+  grantCreditsTx,
+  revokeUnspentPlanCredits,
+  revokeUnspentPlanCreditsTx,
+} from "./credits.js";
 import { createInvoiceTx, findInvoiceByCheckout, markInvoiceRefunded } from "./invoices.js";
 import { addMonth, taxBreakdown } from "./money.js";
 import type { BillingProvider, ProviderEvent, VerifiedTransaction } from "./paystack.js";
@@ -145,13 +149,22 @@ export async function activateCheckout(
     }
     if (current.status !== "pending") conflict("Checkout is not pending");
 
-    await client.query(
+    const canceled = await client.query<{ id: string }>(
       `UPDATE billing.subscriptions
           SET status='canceled', canceled_at=now(), cancel_at_period_end=false, updated_at=now()
         WHERE billing_account_id=$1 AND product_key=$2
-          AND status IN ('trialing','active','past_due','grace')`,
+          AND status IN ('trialing','active','past_due','grace')
+        RETURNING id`,
       [current.billing_account_id, current.product_key],
     );
+    for (const previous of canceled.rows)
+      await revokeUnspentPlanCreditsTx(
+        client,
+        current.billing_account_id,
+        current.product_key,
+        previous.id,
+        "Plan changed",
+      );
     const subscriptionId = `sub_${randomUUID()}`;
     await client.query(
       `INSERT INTO billing.subscriptions(
@@ -332,13 +345,22 @@ export async function assignPlan(
       (status === "trialing" && input.trialDays
         ? new Date(Date.now() + input.trialDays * 86_400_000)
         : addMonth(start));
-    await client.query(
+    const canceled = await client.query<{ id: string }>(
       `UPDATE billing.subscriptions
           SET status='canceled', canceled_at=now(), cancel_at_period_end=false, updated_at=now()
         WHERE billing_account_id=$1 AND product_key=$2
-          AND status IN ('trialing','active','past_due','grace')`,
+          AND status IN ('trialing','active','past_due','grace')
+        RETURNING id`,
       [input.accountId, plan.product_key],
     );
+    for (const previous of canceled.rows)
+      await revokeUnspentPlanCreditsTx(
+        client,
+        input.accountId,
+        plan.product_key,
+        previous.id,
+        "Plan changed",
+      );
     const subscriptionId = `sub_${randomUUID()}`;
     const result = await client.query<SubscriptionRow>(
       `INSERT INTO billing.subscriptions(
@@ -357,7 +379,7 @@ export async function assignPlan(
         status === "trialing" ? end : null,
       ],
     );
-    if (status === "active")
+    if (status === "active" || status === "trialing")
       await grantPlanCredits(
         client,
         input.accountId,
@@ -371,6 +393,88 @@ export async function assignPlan(
     await bumpEntitlementRevision(client, input.accountId);
     return result.rows[0]!;
   });
+}
+
+export async function extendTrialSubscription(
+  pool: Pool,
+  accountId: string,
+  subscriptionId: string,
+  days: number,
+): Promise<SubscriptionRow> {
+  return transaction(pool, async (client) => {
+    const result = await client.query<SubscriptionRow>(
+      `SELECT ${SUBSCRIPTION_COLUMNS} FROM billing.subscriptions
+        WHERE id=$1 AND billing_account_id=$2 FOR UPDATE`,
+      [subscriptionId, accountId],
+    );
+    const subscription = result.rows[0];
+    if (!subscription) missing("Subscription not found");
+    if (subscription.status !== "trialing")
+      conflict("Only a trialing subscription can be extended");
+    const base = subscription.trial_ends_at && subscription.trial_ends_at > new Date()
+      ? subscription.trial_ends_at
+      : new Date();
+    const trialEndsAt = new Date(base.getTime() + days * 86_400_000);
+    await client.query(
+      `UPDATE billing.subscriptions
+          SET trial_ends_at=$2, updated_at=now() WHERE id=$1`,
+      [subscriptionId, trialEndsAt],
+    );
+    await client.query(
+      `UPDATE billing.credit_grants
+          SET ends_at=$3
+        WHERE account_id=(SELECT id FROM billing.credit_accounts WHERE billing_account_id=$1)
+          AND product_key=$2 AND source='PLAN' AND metadata->>'subscriptionId'=$4
+          AND remaining>0`,
+      [accountId, subscription.product_key, trialEndsAt, subscriptionId],
+    );
+    await bumpEntitlementRevision(client, accountId);
+    const updated = await client.query<SubscriptionRow>(
+      `SELECT ${SUBSCRIPTION_COLUMNS} FROM billing.subscriptions WHERE id=$1`,
+      [subscriptionId],
+    );
+    return updated.rows[0]!;
+  });
+}
+
+export async function endTrialSubscription(
+  pool: Pool,
+  config: BillingConfig,
+  accountId: string,
+  subscriptionId: string,
+): Promise<{ ended: true; planKey: string | null; subscriptionId: string }> {
+  const trial = await pool.query<{
+    id: string;
+    product_key: BillingProduct;
+    status: string;
+  }>(
+    `SELECT id, product_key, status FROM billing.subscriptions
+      WHERE id=$1 AND billing_account_id=$2`,
+    [subscriptionId, accountId],
+  );
+  const subscription = trial.rows[0];
+  if (!subscription) missing("Subscription not found");
+  if (subscription.status !== "trialing")
+    conflict("Only a trialing subscription can be ended");
+  const freePlan = config.freePlans[subscription.product_key];
+  if (!freePlan) {
+    await cancelSubscription(pool, null, accountId, subscription.product_key, subscriptionId);
+    return { ended: true, planKey: null, subscriptionId };
+  }
+  const assigned = await assignPlan(pool, {
+    accountId,
+    planKey: freePlan,
+    status: "active",
+    reason: "Trial ended by admin",
+  });
+  await revokeUnspentPlanCredits(
+    pool,
+    accountId,
+    subscription.product_key,
+    subscriptionId,
+    "Trial ended early",
+  );
+  return { ended: true, planKey: freePlan, subscriptionId: assigned.id };
 }
 
 export async function cancelSubscription(

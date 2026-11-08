@@ -62,6 +62,8 @@ import { listInvoices } from "./invoices.js";
 import {
   assignPlan,
   cancelSubscription,
+  endTrialSubscription,
+  extendTrialSubscription,
   reactivateSubscription,
   recordIssue,
 } from "./subscriptions.js";
@@ -776,6 +778,63 @@ export async function buildApi(
     await audit(pool, actor.id, "account.subscription.assign", "billing_account", accountId, body);
     return subscription;
   });
+
+  app.post(
+    "/admin/accounts/:id/subscriptions/:subscriptionId/trial/extend",
+    async (request) => {
+      const { actor, body } = await adminRequest(request as RawBodyRequest);
+      const accountId = text((request.params as { id: string }).id, "Account id", 120);
+      const subscriptionId = text(
+        (request.params as { subscriptionId: string }).subscriptionId,
+        "Subscription id",
+        120,
+      );
+      const days = Number(bigValue(body.days ?? 7, "Trial days", 1n, 365n));
+      const subscription = await extendTrialSubscription(
+        pool,
+        accountId,
+        subscriptionId,
+        days,
+      );
+      await audit(
+        pool,
+        actor.id,
+        "account.subscription.trial.extend",
+        "subscription",
+        subscriptionId,
+        body,
+      );
+      return subscription;
+    },
+  );
+
+  app.post(
+    "/admin/accounts/:id/subscriptions/:subscriptionId/trial/end",
+    async (request) => {
+      const { actor, body } = await adminRequest(request as RawBodyRequest);
+      const accountId = text((request.params as { id: string }).id, "Account id", 120);
+      const subscriptionId = text(
+        (request.params as { subscriptionId: string }).subscriptionId,
+        "Subscription id",
+        120,
+      );
+      const result = await endTrialSubscription(
+        pool,
+        config,
+        accountId,
+        subscriptionId,
+      );
+      await audit(
+        pool,
+        actor.id,
+        "account.subscription.trial.end",
+        "subscription",
+        subscriptionId,
+        body,
+      );
+      return result;
+    },
+  );
 
   app.get("/admin/accounts", async (request) => {
     await adminRequest(request as RawBodyRequest, "admin:read");

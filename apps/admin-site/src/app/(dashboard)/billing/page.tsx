@@ -1,5 +1,6 @@
 import { BillingCatalogManager } from "@/components/admin/billing-catalog-manager";
 import { BillingCreditControls } from "@/components/admin/billing-credit-controls";
+import { BillingSubscriptionControls } from "@/components/admin/billing-subscription-controls";
 import { billingJson } from "@/lib/billing-api";
 import { requireAdminSession } from "@/lib/admin-auth";
 import { AdminPageHeader } from "@/components/admin/page-header";
@@ -28,6 +29,7 @@ export default async function BillingAdminPage() {
         entitlements={(catalog.entitlements ?? []) as never[]}
         accessDefinitions={(catalog.accessDefinitions ?? []) as never[]}
       />
+      <BillingSubscriptionControls plans={(catalog.plans ?? []) as never[]} />
       <BillingCreditControls />
     </div>
   );
