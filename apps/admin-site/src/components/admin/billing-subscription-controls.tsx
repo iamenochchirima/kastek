@@ -138,7 +138,7 @@ export function BillingSubscriptionControls({ plans }: { plans: Plan[] }) {
     try {
       setAccount(
         await json<Account>(
-          `/api/billing/orgs/${encodeURIComponent(organization.id)}/account`,
+          `/api/billing/accounts/${encodeURIComponent(organization.id)}`,
         ),
       );
     } catch (cause) {
@@ -154,13 +154,20 @@ export function BillingSubscriptionControls({ plans }: { plans: Plan[] }) {
 
   async function startTrial(event: FormEvent) {
     event.preventDefault();
-    if (!selected) return;
+    if (!selected || !account) return;
+    const growth = account.links.find(
+      (link) => link.product === "growth" && link.status === "active",
+    );
+    if (!growth) {
+      setError("This billing account has no Growth workspace");
+      return;
+    }
     setBusy(true);
     setError("");
     setMessage("");
     try {
       await json(
-        `/api/billing/orgs/${encodeURIComponent(selected.id)}/subscriptions/assign`,
+        `/api/billing/orgs/${encodeURIComponent(growth.tenantId)}/subscriptions/assign`,
         {
           method: "POST",
           body: JSON.stringify({

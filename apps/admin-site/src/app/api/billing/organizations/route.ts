@@ -5,7 +5,6 @@ export async function GET(req: Request) {
   const query = new URLSearchParams({
     q: url.searchParams.get("q") ?? "",
     limit: url.searchParams.get("limit") ?? "25",
-    product: "growth",
   });
   return withBillingActor(async (actor) => {
     const result = await billingJson<{

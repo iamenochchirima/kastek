@@ -113,6 +113,25 @@ function statusVariant(status: string) {
   return "secondary" as const;
 }
 
+const PRODUCT_ORDER = ["growth", "agents", "agency"];
+
+function groupByProduct<T>(items: T[], product: (item: T) => string) {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const key = product(item);
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
+  return [...groups.entries()].sort((left, right) => {
+    const leftIndex = PRODUCT_ORDER.indexOf(left[0]);
+    const rightIndex = PRODUCT_ORDER.indexOf(right[0]);
+    return (
+      (leftIndex === -1 ? PRODUCT_ORDER.length : leftIndex) -
+        (rightIndex === -1 ? PRODUCT_ORDER.length : rightIndex) ||
+      left[0].localeCompare(right[0])
+    );
+  });
+}
+
 export function BillingCatalogManager({
   products,
   capabilities,
@@ -134,6 +153,10 @@ export function BillingCatalogManager({
   const [detail, setDetail] = useState<PlanDetail | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const groupedPlans = useMemo(
+    () => groupByProduct(plans, (plan) => plan.product),
+    [plans],
+  );
 
   function fail(reason: unknown) {
     setError(reason instanceof Error ? reason.message : "Update failed");
@@ -185,29 +208,43 @@ export function BillingCatalogManager({
                   <p className="mt-1 text-xs text-muted-foreground">{plans.length} configured</p>
                 </div>
               </div>
-              <div className="mt-4 divide-y divide-line">
-                {plans.map((plan) => {
-                  const planVersions = versions.filter((version) => version.planKey === plan.key);
-                  const latest = planVersions[0];
+              <div className="mt-4 space-y-5">
+                {groupedPlans.map(([product, productPlans]) => {
+                  const productName =
+                    products.find((item) => item.key === product)?.name ?? product;
                   return (
-                    <button
-                      key={plan.key}
-                      type="button"
-                      onClick={() => loadPlan(plan.key)}
-                      className={`flex w-full flex-wrap items-start justify-between gap-3 py-3 text-left transition-colors hover:text-foreground ${selectedPlan === plan.key ? "text-foreground" : "text-foreground/85"}`}
-                    >
-                      <div>
-                        <p className="font-medium text-foreground">{plan.name}</p>
-                        <p className="text-xs text-muted-foreground">{plan.product} · {plan.key}</p>
+                    <div key={product}>
+                      <div className="flex items-center justify-between gap-3 px-1">
+                        <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{productName}</p>
+                        <span className="text-xs text-muted-foreground">{productPlans.length}</span>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm text-foreground">{money(plan.amountMinor, plan.currency)} / month</p>
-                        <div className="mt-1 flex items-center justify-end gap-1.5">
-                          <Badge variant={statusVariant(latest?.status ?? "draft")}>{latest?.status ?? "draft"}</Badge>
-                          <Badge variant="outline">v{latest?.version ?? plan.version}</Badge>
-                        </div>
+                      <div className="mt-1 divide-y divide-line rounded-lg border border-line px-3">
+                        {productPlans.map((plan) => {
+                          const planVersions = versions.filter((version) => version.planKey === plan.key);
+                          const latest = planVersions[0];
+                          return (
+                            <button
+                              key={plan.key}
+                              type="button"
+                              onClick={() => loadPlan(plan.key)}
+                              className={`flex w-full flex-wrap items-start justify-between gap-3 py-3 text-left transition-colors hover:text-foreground ${selectedPlan === plan.key ? "text-foreground" : "text-foreground/85"}`}
+                            >
+                              <div>
+                                <p className="font-medium text-foreground">{plan.name}</p>
+                                <p className="text-xs text-muted-foreground">{plan.key}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm text-foreground">{money(plan.amountMinor, plan.currency)} / month</p>
+                                <div className="mt-1 flex items-center justify-end gap-1.5">
+                                  <Badge variant={statusVariant(latest?.status ?? "draft")}>{latest?.status ?? "draft"}</Badge>
+                                  <Badge variant="outline">v{latest?.version ?? plan.version}</Badge>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
                 {!plans.length ? <p className="py-6 text-sm text-muted-foreground">No plans yet</p> : null}
@@ -759,6 +796,10 @@ function CapabilityManager({
 }) {
   const [editing, setEditing] = useState<Capability | null>(null);
   const [saving, setSaving] = useState(false);
+  const groupedCapabilities = useMemo(
+    () => groupByProduct(capabilities, (capability) => capability.product),
+    [capabilities],
+  );
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -797,19 +838,33 @@ function CapabilityManager({
       <section className="v-card p-[var(--density-card-padding)]">
         <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Capabilities</h2>
         <p className="mt-1 text-xs text-muted-foreground">{capabilities.length} registered · {accessDefinitions.length} access definitions</p>
-        <div className="mt-4 divide-y divide-line">
-          {capabilities.map((capability) => (
-            <button key={capability.key} type="button" onClick={() => setEditing(capability)} className="flex w-full flex-wrap items-start justify-between gap-3 py-3 text-left hover:text-foreground">
-              <div>
-                <p className="font-medium text-foreground">{capability.name}</p>
-                <p className="text-xs text-muted-foreground">{capability.product} · {capability.key} · {capability.kind}</p>
+        <div className="mt-4 space-y-5">
+          {groupedCapabilities.map(([product, productCapabilities]) => {
+            const productName =
+              products.find((item) => item.key === product)?.name ?? product;
+            return (
+              <div key={product}>
+                <div className="flex items-center justify-between gap-3 px-1">
+                  <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{productName}</p>
+                  <span className="text-xs text-muted-foreground">{productCapabilities.length}</span>
+                </div>
+                <div className="mt-1 divide-y divide-line rounded-lg border border-line px-3">
+                  {productCapabilities.map((capability) => (
+                    <button key={capability.key} type="button" onClick={() => setEditing(capability)} className="flex w-full flex-wrap items-start justify-between gap-3 py-3 text-left hover:text-foreground">
+                      <div>
+                        <p className="font-medium text-foreground">{capability.name}</p>
+                        <p className="text-xs text-muted-foreground">{capability.key} · {capability.kind}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant={capability.implementationStatus === "implemented" ? "success" : "attention"}>{capability.implementationStatus.replaceAll("_", " ")}</Badge>
+                        {!capability.active ? <Badge variant="secondary">inactive</Badge> : null}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <Badge variant={capability.implementationStatus === "implemented" ? "success" : "attention"}>{capability.implementationStatus.replaceAll("_", " ")}</Badge>
-                {!capability.active ? <Badge variant="secondary">inactive</Badge> : null}
-              </div>
-            </button>
-          ))}
+            );
+          })}
         </div>
       </section>
 
