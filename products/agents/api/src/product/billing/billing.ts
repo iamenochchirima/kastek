@@ -53,6 +53,44 @@ export async function ensureAgentsBillingAccount(
   });
 }
 
+export async function assertAgentsBillingLimit(
+  pool: Pool,
+  organizationId: string,
+  key: string,
+  current: number,
+  increment = 1,
+): Promise<void> {
+  if (!agentsBillingEnforcementEnabled(process.env)) return;
+  const client = agentsBillingClient();
+  if (!client)
+    throw new PlatformError(
+      "BILLING_UNAVAILABLE",
+      503,
+      "Customer billing is not configured",
+    );
+  try {
+    await ensureAgentsBillingAccount(pool, client, organizationId);
+    const snapshot = await client.snapshot(organizationId);
+    const raw = snapshot.limits[key];
+    if (raw == null) return;
+    const limit = Number(raw);
+    if (!Number.isFinite(limit)) return;
+    if (current + increment > limit)
+      throw new PlatformError(
+        "BILLING_LIMIT_REACHED",
+        403,
+        `This plan allows ${limit} ${key.replace("limit.", "").replaceAll("_", " ")}`,
+      );
+  } catch (error) {
+    if (error instanceof PlatformError) throw error;
+    throw new PlatformError(
+      "BILLING_UNAVAILABLE",
+      503,
+      error instanceof Error ? error.message : "Billing service is unavailable",
+    );
+  }
+}
+
 export async function assertAgentsBillingAccess(
   pool: Pool,
   organizationId: string,

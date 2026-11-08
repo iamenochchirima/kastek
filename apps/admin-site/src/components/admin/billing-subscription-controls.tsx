@@ -37,7 +37,17 @@ type Subscription = {
 
 type Account = {
   account: { id: string; billing_email: string; currency: string };
+  links: Array<{ product: string; tenantId: string; role: string; status: string }>;
   subscriptions: Subscription[];
+  invoices: Array<{
+    invoiceNumber: string;
+    status: string;
+    currency: string;
+    totalMinor: string;
+    issuedAt: string;
+  }>;
+  issues: Array<{ id: string; issueType: string; status: string; createdAt: string }>;
+  credits?: { available: string };
 };
 
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
@@ -51,6 +61,24 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
       typeof payload?.error === "string" ? payload.error : "Subscription operation failed",
     );
   return payload as T;
+}
+
+function money(amountMinor: string, currency: string) {
+  return new Intl.NumberFormat("en-ZA", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2,
+  }).format(Number(amountMinor) / 100);
+}
+
+function usd(microUsd: string | null | undefined) {
+  if (microUsd == null) return "—";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(microUsd) / 1_000_000);
 }
 
 function date(value: string | null) {
@@ -262,6 +290,58 @@ export function BillingSubscriptionControls({ plans }: { plans: Plan[] }) {
               <p className="px-3 py-3 text-sm text-muted-foreground">No subscriptions</p>
             )}
           </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Linked workspaces</h3>
+              <div className="mt-2 divide-y divide-line rounded-md border border-line">
+                {account.links.length ? account.links.map((link) => (
+                  <div key={`${link.product}:${link.tenantId}`} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 text-sm">
+                    <span className="font-medium text-foreground">{link.product}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{link.tenantId}</span>
+                    <Badge variant={link.status === "active" ? "success" : "secondary"}>{link.status}</Badge>
+                  </div>
+                )) : <p className="px-3 py-3 text-sm text-muted-foreground">No links</p>}
+              </div>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">AI usage</h3>
+              <div className="mt-2 rounded-md border border-line p-3">
+                <p className="text-lg font-semibold text-foreground">{usd(account.credits?.available)}</p>
+                <p className="text-xs text-muted-foreground">available</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Invoices</h3>
+            <div className="mt-2 overflow-x-auto rounded-md border border-line">
+              <table className="w-full min-w-[520px] text-left text-sm">
+                <thead className="border-b border-line text-xs text-muted-foreground">
+                  <tr><th className="px-3 py-2 font-medium">Invoice</th><th className="px-3 py-2 font-medium">Issued</th><th className="px-3 py-2 text-right font-medium">Total</th><th className="px-3 py-2 text-right font-medium">Status</th></tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {account.invoices.length ? account.invoices.map((invoice) => (
+                    <tr key={invoice.invoiceNumber}>
+                      <td className="px-3 py-2 font-mono text-xs">{invoice.invoiceNumber}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{date(invoice.issuedAt)}</td>
+                      <td className="px-3 py-2 text-right">{money(invoice.totalMinor, invoice.currency)}</td>
+                      <td className="px-3 py-2 text-right capitalize text-muted-foreground">{invoice.status.replaceAll("_", " ")}</td>
+                    </tr>
+                  )) : <tr><td colSpan={4} className="px-3 py-3 text-muted-foreground">No invoices</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {account.issues.length ? (
+            <div className="rounded-md border border-status-attention/25 bg-status-attention-soft p-3">
+              <h3 className="text-sm font-semibold text-status-attention">Open billing issues</h3>
+              <div className="mt-2 space-y-1 text-xs text-status-attention">
+                {account.issues.map((issue) => <p key={issue.id}>{issue.issueType.replaceAll("_", " ")} · {date(issue.createdAt)}</p>)}
+              </div>
+            </div>
+          ) : null}
 
           {trial ? (
             <div className="flex flex-wrap items-end gap-3 rounded-md border border-line p-4">

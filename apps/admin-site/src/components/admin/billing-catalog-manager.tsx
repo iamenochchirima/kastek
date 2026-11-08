@@ -33,6 +33,9 @@ type Entitlement = {
   key: string;
   value: unknown;
   metadata: Record<string, unknown>;
+  kind?: "feature" | "limit" | "meter";
+  name?: string;
+  description?: string | null;
 };
 type Plan = {
   key: string;
@@ -390,6 +393,32 @@ function PlanEditor({
 
       {selected ? (
         <>
+          <div className="rounded-lg border border-line bg-secondary/20 p-4">
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Customer preview</p>
+            <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">{detail.plan.name}</h3>
+                {detail.plan.description ? <p className="mt-1 max-w-xl text-sm text-muted-foreground">{detail.plan.description}</p> : null}
+              </div>
+              <p className="text-lg font-semibold text-foreground">{money(selected.amountMinor, selected.currency)} / month</p>
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Included</p>
+                <ul className="mt-2 space-y-1 text-sm text-foreground">
+                  {selected.entitlements.filter((item) => item.kind === "feature" && item.value === true).map((item) => <li key={item.key}>{item.name}</li>)}
+                </ul>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Limits and usage</p>
+                <ul className="mt-2 space-y-1 text-sm text-foreground">
+                  <li>AI usage: {usd(selected.creditsPerPeriod)}</li>
+                  {selected.entitlements.filter((item) => item.kind === "limit" && Number(item.value) > 0).map((item) => <li key={item.key}>{item.name}: {String(item.value)}</li>)}
+                </ul>
+              </div>
+            </div>
+          </div>
+
           <form key={selected.versionId} className="grid gap-3 sm:grid-cols-2" onSubmit={saveVersion}>
             <FormField id="version-currency" label="Currency">
               <Input id="version-currency" name="currency" defaultValue={selected.currency} maxLength={3} disabled={!editable} />

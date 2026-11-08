@@ -154,7 +154,8 @@ plan code. Free plans are active.
 | Agency | Free | R0 | $0 | One client workspace |
 | Agency | Partner | R2,999 | $50 | Ten client workspaces and five staff seats |
 
-Agents and Agency limits that do not yet have product guards are seeded as `display_only`.
+Agents agent-count and channel limits are implemented and seeded as enforced. Agency limits remain
+`display_only` while Agency is deferred.
 
 ## AI usage credits
 
@@ -172,8 +173,10 @@ Credit top-ups are not self-serve in v1. Admin grants are the only purchase path
 ## Free plan, trial, and grace
 
 - A new account is assigned the product's configured free plan.
-- A trial is created through the admin assignment endpoint with status `trialing`; it has no
-  provider subscription and no card. The default is 14 days on the selected plan.
+- A trial is created through the admin assignment endpoint or the product-facing
+  `POST /internal/trials` endpoint; it has no provider subscription and no card. Growth uses the
+  configured `growth-mid` plan for 14 days. A workspace gets one trial per product; a prior trial
+  blocks a second one.
 - Admin can start a trial, extend it in place, or end it early. Ending a trial assigns the free
   plan, revokes unspent trial AI usage, and keeps subscription history. The trial UI is in
   Admin → Billing → Trials and subscriptions.
@@ -228,12 +231,12 @@ available for support operations.
 
 ## Product billing surfaces
 
-- Growth shows plan pricing, AI usage, invoices, checkout, and renewal controls.
-- Agents settings shows the current plan, AI usage, plan prices, invoices, and open billing issues.
-- Agency Billing shows the current plan, AI usage, plan prices, invoices, and open billing issues.
+- Growth shows plan pricing, AI usage, invoices, trial start, checkout, and renewal controls.
+- Agents settings shows the current plan, AI usage, plan prices, checkout, invoices, and open
+  billing issues.
+- Agency Billing remains read-only while its paid plan stays draft.
 
-Agents and Agency surfaces are read-only in v1. Plan changes and payment method updates are not
-self-serve there.
+Agency plan changes and payment method updates are not self-serve in this release.
 
 ## Sandbox verification
 
@@ -255,8 +258,15 @@ A sandbox checkout for Growth Entry completed with reference
 - returned an active entitlement snapshot with 3 seats, 1 channel and 500 campaign recipients.
 
 The sandbox payment was completed through the Paystack hosted checkout and verified with
-`POST /internal/checkout/:reference/verify`. Webhook-driven renewal, refund and dispute paths were
-not exercised because the local service has no public HTTPS callback URL.
+`POST /internal/checkout/:reference/verify`.
+
+A second sandbox check linked a Growth organization and an Agents organization through the same
+owner identity and billing email. Agents Starter then completed for ZAR 499.00, producing invoice
+`KS-2026-000002` and USD 10.00 of AI usage under the same billing account and Paystack customer.
+
+Webhook-driven renewal, refund and dispute paths still need a public HTTPS callback URL. The
+production sequence is in
+[`billing-production-rollout.md`](../runbooks/billing-production-rollout.md).
 
 ## Growth cutover
 
@@ -305,5 +315,5 @@ credit grants, and transitions expired trials and grace periods. Agency usage ou
 | Rollback | Disable checkout by retiring the affected plan versions. Restore the previous active version where a rollback is needed. Billing data remains in the service database. Removing product billing variables disables billing; it does not restore local billing. |
 | Analytics and logs | Structured worker and request logs; no card data or full webhook payloads in logs. Usage forwarding failures remain in outboxes with retry state. |
 | Documentation | This page, `services/billing/README.md`, `ARCHITECTURE.md`, and product billing support runbooks. |
-| Validation | Billing typecheck/build and 15/15 integration tests; Growth typecheck/build and 180 passing tests; Agents, Agency, Admin, Growth web, Agents web, and Agency web typecheck/build; fresh billing migrate and seed; boundary check; Paystack sandbox plans published and Growth Entry checkout completed with paid invoice, active subscription and USD 5.00 AI usage. |
+| Validation | Billing typecheck/build and 16/16 integration tests; Growth typecheck/build and 180 passing tests; Agents, Agency, Admin, Growth web, Agents web, and Agency web typecheck/build; fresh billing migrate and seed; boundary check; Paystack sandbox plans published and Growth Entry checkout completed with paid invoice, active subscription and USD 5.00 AI usage. |
 | Open decisions | Live Paystack keys and a public webhook URL, a USD-capable provider, self-serve top-ups, Agents and Agency product guards for currently display-only limits, and custom-work invoice migration. |

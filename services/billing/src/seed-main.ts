@@ -48,8 +48,8 @@ const CAPABILITIES: Array<{
   { key: "agents.feature.manage", product: "agents", name: "Agents workspace", description: "Create and run standalone customer-service agents.", kind: "feature", valueType: "boolean", displayGroup: "Features", displayOrder: 10, implementationStatus: "implemented" },
   { key: "agent_tokens", product: "agents", name: "Agent tokens", description: "Accounted model tokens settled by agent tasks.", kind: "meter", unit: "token", valueType: "decimal", displayGroup: "Usage", displayOrder: 10, implementationStatus: "implemented", creditCostPerUnit: "2", creditCostMinimum: "0" },
   { key: "limit.agent_tokens", product: "agents", name: "Monthly agent tokens", description: "Accounted tokens per month.", kind: "limit", unit: "tokens", valueType: "integer", displayGroup: "Limits", displayOrder: 10, implementationStatus: "implemented" },
-  { key: "limit.agent_count", product: "agents", name: "Agents", description: "Active agent definitions.", kind: "limit", unit: "agents", valueType: "integer", displayGroup: "Limits", displayOrder: 20, implementationStatus: "product_pending" },
-  { key: "limit.agent_channels", product: "agents", name: "Agent channels", description: "Connected agent channels.", kind: "limit", unit: "channels", valueType: "integer", displayGroup: "Limits", displayOrder: 30, implementationStatus: "product_pending" },
+  { key: "limit.agent_count", product: "agents", name: "Agents", description: "Active agent definitions.", kind: "limit", unit: "agents", valueType: "integer", displayGroup: "Limits", displayOrder: 20, implementationStatus: "implemented" },
+  { key: "limit.agent_channels", product: "agents", name: "Agent channels", description: "Connected agent channels.", kind: "limit", unit: "channels", valueType: "integer", displayGroup: "Limits", displayOrder: 30, implementationStatus: "implemented" },
   // Agency
   { key: "agency.feature.agents", product: "agency", name: "Agency agents", description: "Configure and run agents for Agency client workspaces.", kind: "feature", valueType: "boolean", displayGroup: "Features", displayOrder: 10, implementationStatus: "implemented" },
   { key: "agency_agent_commands", product: "agency", name: "Agency agent commands", description: "Accepted agent commands for client workspaces.", kind: "meter", unit: "command", valueType: "integer", displayGroup: "Usage", displayOrder: 10, implementationStatus: "implemented", creditCostPerUnit: "0", creditCostMinimum: "0" },
@@ -62,8 +62,6 @@ const DISPLAY_ONLY_LIMITS = new Set([
   "limit.social_publishes",
   "limit.agent_deployments",
   "limit.public_api_requests",
-  "limit.agent_count",
-  "limit.agent_channels",
   "limit.agency_workspaces",
   "limit.agency_staff",
 ]);
@@ -185,8 +183,8 @@ const PLANS: SeedPlan[] = [
     entitlements: [
       { key: "agents.feature.manage", value: true },
       { key: "limit.agent_tokens", value: 1_000_000 },
-      { key: "limit.agent_count", value: 1, enforcement: "display_only" },
-      { key: "limit.agent_channels", value: 1, enforcement: "display_only" },
+      { key: "limit.agent_count", value: 1 },
+      { key: "limit.agent_channels", value: 1 },
     ],
   },
   {
@@ -200,8 +198,8 @@ const PLANS: SeedPlan[] = [
     entitlements: [
       { key: "agents.feature.manage", value: true },
       { key: "limit.agent_tokens", value: 10_000_000 },
-      { key: "limit.agent_count", value: 3, enforcement: "display_only" },
-      { key: "limit.agent_channels", value: 2, enforcement: "display_only" },
+      { key: "limit.agent_count", value: 3 },
+      { key: "limit.agent_channels", value: 2 },
     ],
   },
   {
@@ -215,8 +213,8 @@ const PLANS: SeedPlan[] = [
     entitlements: [
       { key: "agents.feature.manage", value: true },
       { key: "limit.agent_tokens", value: 25_000_000 },
-      { key: "limit.agent_count", value: 10, enforcement: "display_only" },
-      { key: "limit.agent_channels", value: 5, enforcement: "display_only" },
+      { key: "limit.agent_count", value: 10 },
+      { key: "limit.agent_channels", value: 5 },
     ],
   },
   {

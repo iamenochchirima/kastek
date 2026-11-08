@@ -22,6 +22,7 @@ import {
   createPlanVersionDraft,
   getLatestPlanVersion,
   getPlanDetails,
+  getPlanVersionById,
   getPlanEntitlements,
   listPlans,
   parseBoolean,
@@ -65,6 +66,8 @@ import {
   endTrialSubscription,
   extendTrialSubscription,
   reactivateSubscription,
+  startTrial,
+  trialEligibility,
   recordIssue,
 } from "./subscriptions.js";
 import { providerFromConfig } from "./paystack.js";
@@ -258,6 +261,21 @@ export async function buildApi(
     const to = raw.to ? dateValue(raw.to, "Usage range end") : undefined;
     const { account } = await getAccountForTenant(pool, product, query.tenantId);
     return usageSummary(pool, account.id, product, { from, to });
+  });
+
+  app.get("/internal/trials/eligibility", async (request) => {
+    const { product } = await productRequest(request as RawBodyRequest);
+    const query = parseTenantQuery(request.query);
+    if (query.product !== product) bad("Request product does not match authority");
+    const { account } = await getAccountForTenant(pool, product, query.tenantId);
+    return trialEligibility(pool, config, account.id, product);
+  });
+
+  app.post("/internal/trials", async (request) => {
+    const { product, body } = await productRequest(request as RawBodyRequest);
+    const tenant = parseTenantQuery({ product, tenantId: body.tenantId });
+    const { account } = await getAccountForTenant(pool, product, tenant.tenantId);
+    return startTrial(pool, config, account.id, product);
   });
 
   app.get("/internal/plans", async (request) => {
@@ -531,6 +549,7 @@ export async function buildApi(
       "Plan version id",
       120,
     );
+    const before = await getPlanVersionById(pool, versionId).catch(() => null);
     const plan = await updatePlanVersionDraft(pool, versionId, {
       amountMinor:
         body.amountMinor == null
@@ -557,7 +576,11 @@ export async function buildApi(
         ? dateValue(body.effectiveFrom, "Effective from")
         : undefined,
     });
-    await audit(pool, actor.id, "plan.version.update", "plan_version", versionId, body);
+    await audit(pool, actor.id, "plan.version.update", "plan_version", versionId, {
+      request: body,
+      before,
+      after: plan,
+    });
     return plan;
   });
 
@@ -568,13 +591,18 @@ export async function buildApi(
       "Plan version id",
       120,
     );
+    const before = await getPlanVersionById(pool, versionId).catch(() => null);
     const plan = await schedulePlanVersion(
       pool,
       versionId,
       dateValue(body.effectiveFrom, "Effective from"),
       actor.id,
     );
-    await audit(pool, actor.id, "plan.version.schedule", "plan_version", versionId, body);
+    await audit(pool, actor.id, "plan.version.schedule", "plan_version", versionId, {
+      request: body,
+      before,
+      after: plan,
+    });
     return plan;
   });
 
@@ -585,8 +613,13 @@ export async function buildApi(
       "Plan version id",
       120,
     );
+    const before = await getPlanVersionById(pool, versionId).catch(() => null);
     const plan = await publishPlanVersion(pool, versionId, actor.id);
-    await audit(pool, actor.id, "plan.version.publish", "plan_version", versionId, body);
+    await audit(pool, actor.id, "plan.version.publish", "plan_version", versionId, {
+      request: body,
+      before,
+      after: plan,
+    });
     return plan;
   });
 
@@ -597,8 +630,13 @@ export async function buildApi(
       "Plan version id",
       120,
     );
+    const before = await getPlanVersionById(pool, versionId).catch(() => null);
     const result = await retirePlanVersion(pool, versionId);
-    await audit(pool, actor.id, "plan.version.retire", "plan_version", versionId, body);
+    await audit(pool, actor.id, "plan.version.retire", "plan_version", versionId, {
+      request: body,
+      before,
+      after: result,
+    });
     return result;
   });
 

@@ -56,6 +56,7 @@ import { pageQuery, cursorKeysFromEnvironment, readPageCursor, finishPage } from
 import { PlatformDiscovery } from "../product/agents/discovery";
 import { registerKnowledgeRoutes } from "../product/agents/knowledge-routes";
 import { registerBillingRoutes } from "../product/billing/routes";
+import { assertAgentsBillingLimit } from "../product/billing/billing";
 import { WebsiteCrawlStore, startWebsiteCrawlDispatcher } from "../product/agents/website-crawls";
 import { registerWebsiteCrawlRoutes, websiteCrawlOperations } from "../product/agents/website-crawl-routes";
 import { registerAgentsMcp } from "../product/mcp/server";
@@ -319,6 +320,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.delete(`${assistantBase}/member-channels/:linkId`,async request=>memberChannels.revoke(await resolveScope(request),uuid.parse(parameters(request).linkId)));
   app.get(`${assistantBase}/agents/:agentId/specialists`,async request=>specialistCatalogue(pool,await resolveScope(request),uuid.parse(parameters(request).agentId)));
   registerChannelRoutes(app,{store:channelServices.channels,telegram:channelServices.telegram,meta:channelServices.meta,growthLinks:channelServices.growthLinks,resolveScope,
+    assertChannelLimit:async(scope,current)=>{await assertAgentsBillingLimit(pool,scope.organizationId,"limit.agent_channels",current);},
     resolveActor:async request=>{const user=await account(request);return {issuer:user.issuer,subject:user.subject};},
     resolveSessionId:async request=>{await account(request);return hash(request.cookies[sessionCookie]!);}});
   registerWebsiteAppearanceRoutes(app,{pool,resolveScope});
@@ -332,7 +334,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     try {await initializeDefaultModel?.({accountId,organizationId});}
     catch(error) {app.log.warn({event:"agents.default_model.initialization_failed",organizationId,code:error instanceof PlatformError?error.code:"MODEL_DEFAULT_UNAVAILABLE"},"Managed model initialization unavailable");}
   }
-  registerBillingRoutes(app, { pool, resolveScope });
+  registerBillingRoutes(app, { pool, publicUrl: config.AGENTS_PUBLIC_URL, resolveScope });
   registerModelProviderRoutes(app, { store: modelProviders, resolveScope });  registerModelProviderDependencyRoutes(app, { pool, resolveScope });
   registerModelPolicyRoutes(app, { store: modelProviders, resolveScope });
   registerProviderRoutes(app,{providers,resolveScope,resolveCallbackAccount:async request=>(await account(request)).id});
@@ -444,7 +446,19 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.get(`${base}/agents`, async (request) => ({ agents: (await creationOperations.list({ accountId: (await account(request)).id, organizationId: organizationId(request) })).map(dto) }));
   app.post(`${base}/agents`, async (request, reply) => {
     const user = await account(request);
-    const created = await creationOperations.create({ accountId: user.id, organizationId: organizationId(request) }, request.body);
+    const organization = organizationId(request);
+    const agents = await pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM agents_platform.agents
+        WHERE organization_id=$1 AND deleted_at IS NULL`,
+      [organization],
+    );
+    await assertAgentsBillingLimit(
+      pool,
+      organization,
+      "limit.agent_count",
+      Number(agents.rows[0]?.count ?? "0"),
+    );
+    const created = await creationOperations.create({ accountId: user.id, organizationId: organization }, request.body);
     return reply.code(201).send({ agent: dto(created.agent), snapshot: dto(created.snapshot) });
   });
   app.get(`${base}/agents/:agentId`, async (request) => {

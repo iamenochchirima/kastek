@@ -22,6 +22,8 @@ export interface BillingConfig {
   reconciliationBatchSize: number;
   returnOrigins: string[];
   freePlans: Partial<Record<BillingProduct, string>>;
+  trialPlans: Partial<Record<BillingProduct, string>>;
+  trialDays: number;
   snapshotTtlSeconds: number;
 }
 
@@ -68,17 +70,20 @@ function origin(value: string): string {
   return url.origin;
 }
 
-function freePlans(value: string | undefined): Partial<Record<BillingProduct, string>> {
+function planMap(
+  value: string | undefined,
+  name: string,
+): Partial<Record<BillingProduct, string>> {
   if (!value) return {};
   const parsed: unknown = JSON.parse(value);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
-    throw new Error("BILLING_FREE_PLANS_JSON must be an object");
+    throw new Error(`${name} must be an object`);
   const result: Partial<Record<BillingProduct, string>> = {};
   for (const product of ["growth", "agents", "agency"] as const) {
     const key = (parsed as Record<string, unknown>)[product];
     if (key === undefined) continue;
     if (typeof key !== "string" || !/^[a-z0-9._-]{1,80}$/.test(key))
-      throw new Error(`Invalid free plan key for ${product}`);
+      throw new Error(`Invalid plan key for ${product}`);
     result[product] = key;
   }
   return result;
@@ -144,7 +149,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BillingConfig 
       "BILLING_RECONCILIATION_BATCH_SIZE",
     ),
     returnOrigins,
-    freePlans: freePlans(env.BILLING_FREE_PLANS_JSON),
+    freePlans: planMap(env.BILLING_FREE_PLANS_JSON, "BILLING_FREE_PLANS_JSON"),
+    trialPlans: planMap(env.BILLING_TRIAL_PLANS_JSON, "BILLING_TRIAL_PLANS_JSON"),
+    trialDays: integer(env.BILLING_TRIAL_DAYS, 14, 1, 365, "BILLING_TRIAL_DAYS"),
     snapshotTtlSeconds: integer(
       env.BILLING_SNAPSHOT_TTL_SECONDS,
       300,

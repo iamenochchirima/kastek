@@ -19,6 +19,7 @@ export interface ChannelRouteOptions {
   resolveScope(request: FastifyRequest): Promise<ActionScope>;
   resolveActor(request: FastifyRequest): Promise<{ issuer: string; subject: string }>;
   resolveSessionId(request: FastifyRequest): Promise<string>;
+  assertChannelLimit?(scope: ActionScope, current: number): Promise<void>;
 }
 export function registerChannelRoutes(app: FastifyInstance, options: ChannelRouteOptions): void {
   const base = "/api/organizations/:organizationId/channels";
@@ -182,6 +183,14 @@ export function registerChannelRoutes(app: FastifyInstance, options: ChannelRout
     const scope = await owner(request);
     const input = z.strictObject({ kind: z.enum(["whatsapp","facebook","instagram"]), name: z.string().trim().min(1).max(120), mode: channelModeSchema }).parse(request.body);
     if (!options.meta?.readiness().some(item => item.kind === input.kind && item.mode === input.mode)) throw new PlatformError("CHANNEL_SETUP_NOT_CONFIGURED",503,"Channel setup is unavailable");
+    if (options.assertChannelLimit) {
+      const current = await options.store.pool.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM agents_platform.channel_connections
+          WHERE organization_id=$1 AND state IN ('pending','active','needs_attention')`,
+        [scope.organizationId],
+      );
+      await options.assertChannelLimit(scope, Number(current.rows[0]?.count ?? "0"));
+    }
     return { connection: await options.store.create(scope, input) };
   });
   app.get(`${base}/:connectionId`, async request => ({ connection: await options.store.get(await options.resolveScope(request),id(request)) }));

@@ -64,6 +64,8 @@ USD-capable provider.
 - An entitlement-only change may reuse a Paystack plan code. A price, currency, or interval change
   requires a new code.
 - Seeding creates defaults only for missing plan keys and never overwrites admin edits.
+- `BILLING_TRIAL_PLANS_JSON` selects the self-serve trial plan per product; `BILLING_TRIAL_DAYS`
+  defaults to 14. A workspace gets one trial per product, with no provider subscription.
 
 Admin endpoints: `GET /admin/catalog`, `POST /admin/products`, `POST /admin/capabilities`,
 `POST /admin/plans`, `GET /admin/plans/:planKey`, `POST /admin/plans/:planKey/versions`,

@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { CoreContext } from "../context.js";
 import { extractUser, resolveActiveOrgId } from "../identity/session.js";
-import { requireMember } from "../services/orgs.js";
+import { requireAdmin, requireMember } from "../services/orgs.js";
 import * as billing from "../services/billing.js";
 import { ApiError } from "../error.js";
 import {
@@ -13,7 +13,9 @@ import {
   getBillingSnapshot,
   reactivateServiceSubscription,
   serviceCredits,
+  serviceTrialEligibility,
   serviceUsage,
+  startServiceTrial,
   verifyServiceCheckout,
   type BillingServiceConfig,
 } from "../services/billing-service.js";
@@ -165,6 +167,17 @@ export function registerBillingServiceRoutes(
       },
       usage: [],
     };
+  });
+
+  app.get("/api/billing/trial", async (request) => {
+    const { org } = await access(request);
+    return serviceTrialEligibility(service, org);
+  });
+
+  app.post("/api/billing/trial", async (request) => {
+    const { user, org } = await access(request);
+    await requireAdmin(context.pool, org, user.id);
+    return startServiceTrial(service, org);
   });
 
   app.get("/api/billing/plans", async (request) => {

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import { ArrowLeft, Check } from "lucide-react";
 
@@ -11,7 +12,7 @@ import {
   PageHeaderDescription,
   PageHeaderTitle,
 } from "@/components/ui/page-header";
-import type { AvailablePlan, BillingSummary } from "@/lib/billing";
+import { startBillingTrial, type AvailablePlan, type BillingSummary, type BillingTrial } from "@/lib/billing";
 
 function formatPrice(amountMinor: number | null, currency: string) {
   if (amountMinor === null) return "Contact sales";
@@ -41,10 +42,26 @@ function formatStatus(status: string | null) {
 export function UpgradePage({
   plans,
   summary,
+  trial,
 }: {
   plans: AvailablePlan[];
   summary: BillingSummary | null;
+  trial: BillingTrial | null;
 }) {
+  const [trialBusy, setTrialBusy] = useState(false);
+  const [trialError, setTrialError] = useState("");
+
+  async function beginTrial() {
+    setTrialBusy(true);
+    setTrialError("");
+    try {
+      await startBillingTrial();
+      window.location.reload();
+    } catch {
+      setTrialError("The trial could not be started. Try again.");
+      setTrialBusy(false);
+    }
+  }
   const currentSubscriptions = (summary?.products ?? []).filter(
     (product) => product.subscriptionId && product.hasAccess,
   );
@@ -64,6 +81,23 @@ export function UpgradePage({
             </Link>
           </Button>
         </PageHeader>
+
+        {trial?.eligible ? (
+          <MotionReveal>
+            <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-primary/30 bg-primary/5 p-5">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">
+                  Try {plans.find((plan) => plan.key === trial.planKey)?.name ?? "Growth"} for {trial.days} days
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">No card required. Your workspace returns to the free plan when the trial ends.</p>
+                {trialError ? <p className="mt-2 text-sm text-destructive">{trialError}</p> : null}
+              </div>
+              <Button onClick={() => void beginTrial()} disabled={trialBusy}>
+                {trialBusy ? "Starting…" : "Start trial"}
+              </Button>
+            </section>
+          </MotionReveal>
+        ) : null}
 
         {currentSubscriptions.length ? (
           <MotionReveal>

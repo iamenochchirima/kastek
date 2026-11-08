@@ -207,6 +207,8 @@ before(async () => {
     BILLING_ADMIN_AUDIENCE: "billing",
     BILLING_RETURN_ORIGINS: "http://localhost:3000",
     BILLING_FREE_PLANS_JSON: '{"growth":"growth-free","agents":"agents-free","agency":"agency-free"}',
+    BILLING_TRIAL_PLANS_JSON: '{"growth":"growth-mid"}',
+    BILLING_TRIAL_DAYS: "14",
     PAYSTACK_MODE: "test",
     PAYSTACK_TEST_SECRET_KEY: PAYSTACK_SECRET,
     PAYSTACK_API_BASE_URL: fake.url,
@@ -985,9 +987,9 @@ test("dynamic plan versions are published and existing subscriptions stay pinned
 
 test("publish rejects unimplemented hard limits and accepts display-only limits", { skip }, async () => {
   const planBody = {
-    product: "agents",
-    key: "agents-display-limit",
-    name: "Agents display limit",
+    product: "agency",
+    key: "agency-display-limit",
+    name: "Agency display limit",
     amountMinor: "0",
     currency: "ZAR",
     taxInclusive: true,
@@ -996,7 +998,7 @@ test("publish rejects unimplemented hard limits and accepts display-only limits"
     paystackPlanCode: null,
     entitlements: [
       {
-        key: "limit.agent_count",
+        key: "limit.agency_workspaces",
         value: 1,
         metadata: { enforcement: "hard" },
       },
@@ -1021,7 +1023,7 @@ test("publish rejects unimplemented hard limits and accepts display-only limits"
   const versionBody = {
     entitlements: [
       {
-        key: "limit.agent_count",
+        key: "limit.agency_workspaces",
         value: 1,
         metadata: { enforcement: "display_only" },
       },
@@ -1029,8 +1031,8 @@ test("publish rejects unimplemented hard limits and accepts display-only limits"
   };
   const version = await app.inject({
     method: "POST",
-    url: "/admin/plans/agents-display-limit/versions",
-    headers: adminHeaders("POST", "/admin/plans/agents-display-limit/versions", versionBody),
+    url: "/admin/plans/agency-display-limit/versions",
+    headers: adminHeaders("POST", "/admin/plans/agency-display-limit/versions", versionBody),
     payload: versionBody,
   });
   assert.equal(version.statusCode, 200, version.body);
@@ -1376,6 +1378,109 @@ test("usage summary aggregates daily debits and grants for the product", { skip 
     { meterKey: "campaign_recipients", creditsUsed: "300", operations: "2" },
   ]);
   assert.equal(body.credits.currency, "USD");
+});
+
+test("self-serve trial is one per product and grants plan usage", { skip }, async () => {
+  const detail = await app.inject({
+    method: "GET",
+    url: "/admin/plans/growth-mid",
+    headers: adminHeaders("GET", "/admin/plans/growth-mid", undefined, "admin:read"),
+  });
+  assert.equal(detail.statusCode, 200, detail.body);
+  const versionId = detail.json().versions[0].versionId as string;
+  const updated = await app.inject({
+    method: "PUT",
+    url: `/admin/plan-versions/${versionId}`,
+    headers: adminHeaders("PUT", `/admin/plan-versions/${versionId}`, {
+      paystackPlanCode: "PLN_TRIAL_MID",
+    }),
+    payload: { paystackPlanCode: "PLN_TRIAL_MID" },
+  });
+  assert.equal(updated.statusCode, 200, updated.body);
+  const published = await app.inject({
+    method: "POST",
+    url: `/admin/plan-versions/${versionId}/publish`,
+    headers: adminHeaders("POST", `/admin/plan-versions/${versionId}/publish`, {}),
+    payload: {},
+  });
+  assert.equal(published.statusCode, 200, published.body);
+
+  const accountBody = {
+    product: "growth",
+    tenantId: "org-self-trial",
+    name: "Self Trial",
+    billingEmail: "self-trial@example.test",
+  };
+  await app.inject({
+    method: "POST",
+    url: "/internal/accounts/ensure",
+    headers: productHeaders("POST", "/internal/accounts/ensure", accountBody),
+    payload: accountBody,
+  });
+  const eligibility = await app.inject({
+    method: "GET",
+    url: "/internal/trials/eligibility?product=growth&tenantId=org-self-trial",
+    headers: productHeaders("GET", "/internal/trials/eligibility"),
+  });
+  assert.equal(eligibility.statusCode, 200, eligibility.body);
+  assert.deepEqual(eligibility.json(), {
+    eligible: true,
+    planKey: "growth-mid",
+    days: 14,
+    reason: "available",
+  });
+
+  const started = await app.inject({
+    method: "POST",
+    url: "/internal/trials",
+    headers: productHeaders("POST", "/internal/trials", { tenantId: "org-self-trial" }),
+    payload: { tenantId: "org-self-trial" },
+  });
+  assert.equal(started.statusCode, 200, started.body);
+  assert.equal(started.json().started, true);
+  const snapshot = await app.inject({
+    method: "GET",
+    url: "/internal/entitlements?product=growth&tenantId=org-self-trial",
+    headers: productHeaders("GET", "/internal/entitlements"),
+  });
+  assert.equal(snapshot.json().snapshot.access, "trialing");
+  assert.equal(snapshot.json().snapshot.plan.key, "growth-mid");
+  assert.equal(snapshot.json().snapshot.credits.balance, "20000000");
+
+  const repeated = await app.inject({
+    method: "POST",
+    url: "/internal/trials",
+    headers: productHeaders("POST", "/internal/trials", { tenantId: "org-self-trial" }),
+    payload: { tenantId: "org-self-trial" },
+  });
+  assert.equal(repeated.statusCode, 409, repeated.body);
+
+  const account = await pool.query<{ id: string }>(
+    `SELECT id FROM billing.accounts WHERE billing_email='self-trial@example.test'`,
+  );
+  const trial = await pool.query<{ id: string }>(
+    `SELECT id FROM billing.subscriptions
+      WHERE billing_account_id=$1 AND product_key='growth' AND status='trialing'`,
+    [account.rows[0]!.id],
+  );
+  const ended = await app.inject({
+    method: "POST",
+    url: `/admin/accounts/${account.rows[0]!.id}/subscriptions/${trial.rows[0]!.id}/trial/end`,
+    headers: adminHeaders(
+      "POST",
+      `/admin/accounts/${account.rows[0]!.id}/subscriptions/${trial.rows[0]!.id}/trial/end`,
+      {},
+    ),
+    payload: {},
+  });
+  assert.equal(ended.statusCode, 200, ended.body);
+  const afterEnd = await app.inject({
+    method: "GET",
+    url: "/internal/trials/eligibility?product=growth&tenantId=org-self-trial",
+    headers: productHeaders("GET", "/internal/trials/eligibility"),
+  });
+  assert.equal(afterEnd.json().eligible, false);
+  assert.equal(afterEnd.json().reason, "trial_used");
 });
 
 test("invalid webhook signature is rejected", { skip }, async () => {

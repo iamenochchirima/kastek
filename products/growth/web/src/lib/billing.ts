@@ -164,6 +164,20 @@ export type CreditUsageEvent = {
   createdAt: string;
 };
 
+export type BillingTrial = {
+  eligible: boolean;
+  planKey: string | null;
+  days: number;
+  reason:
+    | "available"
+    | "not_configured"
+    | "trial_active"
+    | "trial_used"
+    | "already_subscribed";
+  subscriptionId?: string;
+  trialEndsAt?: string | null;
+};
+
 export type BillingCredits = {
   account: CreditAccount;
   usage: CreditUsageEvent[];
@@ -206,6 +220,17 @@ export function fetchBillingSummary() {
 
 export function fetchBillingPlans() {
   return fetchCoreJson<{ plans: AvailablePlan[] }>("/api/billing/plans");
+}
+
+export function fetchBillingTrial() {
+  return fetchCoreJson<BillingTrial>("/api/billing/trial");
+}
+
+export function startBillingTrial() {
+  return fetchCoreJson<{ started: boolean; subscription: Record<string, unknown> }>(
+    "/api/billing/trial",
+    { method: "POST" },
+  );
 }
 
 export function fetchBillingPlanDetails(planKey: string) {

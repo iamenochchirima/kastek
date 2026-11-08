@@ -217,6 +217,33 @@ export async function billingAccountCurrency(
   return typeof currency === "string" ? currency : null;
 }
 
+export async function serviceTrialEligibility(
+  config: BillingServiceConfig,
+  orgId: string,
+): Promise<Record<string, unknown>> {
+  return json<Record<string, unknown>>(
+    await request(
+      config,
+      "GET",
+      `/internal/trials/eligibility?product=growth&tenantId=${encodeURIComponent(orgId)}`,
+    ),
+  );
+}
+
+export async function startServiceTrial(
+  config: BillingServiceConfig,
+  orgId: string,
+): Promise<Record<string, unknown>> {
+  const result = await json<Record<string, unknown>>(
+    await request(config, "POST", "/internal/trials", {
+      product: "growth",
+      tenantId: orgId,
+    }),
+  );
+  snapshots.delete(orgId);
+  return result;
+}
+
 export async function createServiceCheckout(
   config: BillingServiceConfig,
   input: {

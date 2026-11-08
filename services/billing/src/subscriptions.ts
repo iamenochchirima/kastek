@@ -395,6 +395,104 @@ export async function assignPlan(
   });
 }
 
+export interface TrialEligibility {
+  eligible: boolean;
+  planKey: string | null;
+  days: number;
+  reason:
+    | "available"
+    | "not_configured"
+    | "trial_active"
+    | "trial_used"
+    | "already_subscribed";
+  subscriptionId?: string;
+  trialEndsAt?: string | null;
+}
+
+export async function trialEligibility(
+  pool: Pool | PoolClient,
+  config: BillingConfig,
+  accountId: string,
+  product: BillingProduct,
+): Promise<TrialEligibility> {
+  const planKey = config.trialPlans[product] ?? null;
+  if (!planKey)
+    return { eligible: false, planKey: null, days: config.trialDays, reason: "not_configured" };
+  const history = await pool.query<{
+    id: string;
+    status: string;
+    trial_ends_at: Date | null;
+  }>(
+    `SELECT s.id, s.status, s.trial_ends_at
+       FROM billing.subscriptions s
+      WHERE s.billing_account_id=$1 AND s.product_key=$2
+        AND s.trial_ends_at IS NOT NULL
+      ORDER BY s.created_at DESC LIMIT 1`,
+    [accountId, product],
+  );
+  const previous = history.rows[0];
+  if (previous) {
+    if (previous.status === "trialing")
+      return {
+        eligible: false,
+        planKey,
+        days: config.trialDays,
+        reason: "trial_active",
+        subscriptionId: previous.id,
+        trialEndsAt: previous.trial_ends_at?.toISOString() ?? null,
+      };
+    return { eligible: false, planKey, days: config.trialDays, reason: "trial_used" };
+  }
+  const paid = await pool.query(
+    `SELECT 1 FROM billing.subscriptions
+      WHERE billing_account_id=$1 AND product_key=$2
+        AND status IN ('trialing','active','past_due','grace')
+        AND provider_subscription_id IS NOT NULL
+      LIMIT 1`,
+    [accountId, product],
+  );
+  if (paid.rowCount)
+    return { eligible: false, planKey, days: config.trialDays, reason: "already_subscribed" };
+  return { eligible: true, planKey, days: config.trialDays, reason: "available" };
+}
+
+export async function startTrial(
+  pool: Pool,
+  config: BillingConfig,
+  accountId: string,
+  product: BillingProduct,
+): Promise<{ started: true; subscription: SubscriptionRow }> {
+  const lock = await pool.connect();
+  try {
+    await lock.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [
+      `trial:${accountId}:${product}`,
+    ]);
+    const eligibility = await trialEligibility(lock, config, accountId, product);
+    if (!eligibility.eligible || !eligibility.planKey) {
+      if (eligibility.reason === "trial_active")
+        conflict("This workspace already has an active trial");
+      if (eligibility.reason === "trial_used")
+        conflict("This workspace has already used its trial");
+      if (eligibility.reason === "already_subscribed")
+        conflict("This workspace already has a paid subscription");
+      bad("A trial is not configured for this product");
+    }
+    const subscription = await assignPlan(pool, {
+      accountId,
+      planKey: eligibility.planKey,
+      status: "trialing",
+      trialDays: eligibility.days,
+      reason: "Self-serve trial",
+    });
+    return { started: true, subscription };
+  } finally {
+    await lock.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [
+      `trial:${accountId}:${product}`,
+    ]).catch(() => undefined);
+    lock.release();
+  }
+}
+
 export async function extendTrialSubscription(
   pool: Pool,
   accountId: string,

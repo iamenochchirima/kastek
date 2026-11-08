@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PiWallet as Wallet } from "react-icons/pi";
+import { Button } from "@/components/ui/button";
 import { api, organizationPath } from "./api";
 import "./management.css";
 import "./workspace-surfaces.css";
@@ -73,21 +74,68 @@ function date(value: string | null) {
 export function BillingSettings({ organizationId }: { organizationId: string }) {
   const [data, setData] = useState<Billing | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [checkoutBusy, setCheckoutBusy] = useState("");
+  const verified = useRef(false);
+
   useEffect(() => {
     let active = true;
     setData(null);
     setError("");
-    void api<Billing>(`${organizationPath(organizationId)}/billing`)
-      .then((result) => {
-        if (active) setData(result);
-      })
-      .catch((cause) => {
-        if (active) setError(cause instanceof Error ? cause.message : "Billing could not be loaded");
-      });
+    const params = new URLSearchParams(window.location.search);
+    const reference = params.get("reference");
+    const payment = params.get("payment");
+    const verification =
+      payment === "complete" && reference && !verified.current
+        ? (verified.current = true,
+          api(
+            `${organizationPath(organizationId)}/billing/checkout/${encodeURIComponent(reference)}/verify`,
+            {},
+            "POST",
+          )
+            .then(() => setNotice("Payment received. Your plan will update shortly."))
+            .catch((cause) =>
+              setError(cause instanceof Error ? cause.message : "Payment could not be verified"),
+            )
+            .finally(() => {
+              params.delete("payment");
+              params.delete("reference");
+              params.delete("trxref");
+              const query = params.toString();
+              window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+            }))
+        : Promise.resolve();
+    void verification
+      .then(() =>
+        api<Billing>(`${organizationPath(organizationId)}/billing`)
+          .then((result) => {
+            if (active) setData(result);
+          })
+          .catch((cause) => {
+            if (active) setError(cause instanceof Error ? cause.message : "Billing could not be loaded");
+          }),
+      );
     return () => {
       active = false;
     };
   }, [organizationId]);
+
+  async function startCheckout(planKey: string) {
+    setCheckoutBusy(planKey);
+    setError("");
+    setNotice("");
+    try {
+      const result = await api<{ authorizationUrl: string }>(
+        `${organizationPath(organizationId)}/billing/checkout`,
+        { planKey, idempotencyKey: crypto.randomUUID() },
+        "POST",
+      );
+      window.location.assign(result.authorizationUrl);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Checkout could not be started");
+      setCheckoutBusy("");
+    }
+  }
 
   const account = data?.account;
   const subscription =
@@ -103,6 +151,7 @@ export function BillingSettings({ organizationId }: { organizationId: string }) 
         Billing
       </h2>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {notice ? <p className="text-sm text-emerald-600">{notice}</p> : null}
       {!data ? (
         !error ? <p className="text-sm text-muted-foreground">Loading billing…</p> : null
       ) : !data.configured ? (
@@ -136,9 +185,21 @@ export function BillingSettings({ organizationId }: { organizationId: string }) 
                       <p className="font-medium">{plan.name}</p>
                       {plan.description ? <p className="text-xs text-muted-foreground">{plan.description}</p> : null}
                     </div>
-                    <div className="text-right">
-                      <p>{money(plan.amountMinor, plan.currency)} / month</p>
-                      <p className="text-xs text-muted-foreground">{usd(plan.creditsPerPeriod)} AI usage</p>
+                    <div className="flex flex-wrap items-center justify-end gap-3 text-right">
+                      <div>
+                        <p>{money(plan.amountMinor, plan.currency)} / month</p>
+                        <p className="text-xs text-muted-foreground">{usd(plan.creditsPerPeriod)} AI usage</p>
+                      </div>
+                      {plan.checkoutReady && plan.key !== subscription?.planKey ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={Boolean(checkoutBusy)}
+                          onClick={() => void startCheckout(plan.key)}
+                        >
+                          {checkoutBusy === plan.key ? "Opening…" : "Upgrade"}
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 ))}
