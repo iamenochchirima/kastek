@@ -53,6 +53,8 @@ function snapshot(product: string, tenantId: string): BillingEntitlementSnapshot
       ).map((key) => [key, true]),
     ),
     limits: {
+      "limit.team_seats": 3,
+      "limit.connected_channels": 1,
       "limit.agent_deployments": 1_000_000,
       "limit.campaign_recipients": 1_000_000,
       "limit.social_publishes": 1_000_000,
