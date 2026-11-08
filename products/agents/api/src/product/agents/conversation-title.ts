@@ -51,7 +51,7 @@ export async function generateConversationTitle(options: {
   const response = await dispatchBoundModel({
     pool: options.pool, providerStore: options.providers, accepted: routes.primary,
     messages: [{ role: "system", content: titlePrompt }, { role: "user", content: `Customer: ${row.input.slice(0, 2_000)}${row.output ? `\n\nAssistant: ${row.output.slice(0, 1_500)}` : ""}` }],
-    maxRequestBytes: 12_288, deadlineAt: Date.now() + 20_000,
+    maxRequestBytes: 12_288, deadlineAt: Date.now() + 60_000,
   });
   const title = sanitizeConversationTitle(response.message.content ?? "");
   if (!title) return null;
