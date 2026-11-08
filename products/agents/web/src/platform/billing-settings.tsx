@@ -25,6 +25,16 @@ type Plan = {
   amountMinor: string;
   creditsPerPeriod: string | null;
   checkoutReady: boolean;
+  entitlements: Array<{
+    key: string;
+    name: string;
+    description: string | null;
+    kind: "feature" | "limit";
+    value: unknown;
+    unit: string | null;
+    displayGroup: string | null;
+    displayOrder: number;
+  }>;
 };
 
 type Subscription = {
@@ -88,6 +98,28 @@ function usd(microUsd: string | null | undefined) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number(microUsd) / 1_000_000);
+}
+
+function formatLimit(value: unknown, unit: string | null) {
+  const number =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^\d+$/.test(value)
+        ? Number(value)
+        : null;
+  if (number !== null) return `${number.toLocaleString()}${unit ? ` ${unit}` : ""}`;
+  return typeof value === "string" ? value : "Included";
+}
+
+function entitlementList(plan: Plan, kind: "feature" | "limit") {
+  return (plan.entitlements ?? [])
+    .filter((item) => item.kind === kind && (kind === "limit" || item.value === true))
+    .sort(
+      (left, right) =>
+        (left.displayGroup ?? "").localeCompare(right.displayGroup ?? "") ||
+        left.displayOrder - right.displayOrder ||
+        left.name.localeCompare(right.name),
+    );
 }
 
 function date(value: string | null) {
@@ -269,6 +301,25 @@ export function BillingSettings({ organizationId }: { organizationId: string }) 
                     <p className="mt-4 text-2xl font-semibold tracking-tight text-foreground">{money(plan.amountMinor, plan.currency)}</p>
                     <p className="text-xs text-muted-foreground">per month</p>
                     <p className="mt-3 text-sm text-muted-foreground">{usd(plan.creditsPerPeriod)} AI usage</p>
+                    <div className="mt-4 space-y-3 border-t border-border pt-4">
+                      {entitlementList(plan, "feature").map((feature) => (
+                        <div key={feature.key} className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
+                          <span>{feature.name}</span>
+                        </div>
+                      ))}
+                      {entitlementList(plan, "limit").length ? (
+                        <div className="space-y-1.5 border-t border-border pt-3">
+                          <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Limits</p>
+                          {entitlementList(plan, "limit").map((limit) => (
+                            <div key={limit.key} className="flex items-start justify-between gap-3 text-sm">
+                              <span className="text-muted-foreground">{limit.name}</span>
+                              <span className="shrink-0 font-medium text-foreground">{formatLimit(limit.value, limit.unit)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
                     <div className="mt-auto pt-4">
                       {plan.checkoutReady && !current ? (
                         <Button

@@ -98,6 +98,7 @@ export type AvailablePlan = {
   creditsPerPeriod: number | null;
   checkoutReady: boolean;
   highlights: string[];
+  entitlements: PlanEntitlement[];
 };
 
 export type PlanEntitlement = {

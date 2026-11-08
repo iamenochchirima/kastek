@@ -34,6 +34,28 @@ function formatAiUsage(microUsd: number | null) {
   }).format(microUsd / 1_000_000);
 }
 
+function formatLimit(value: unknown, unit: string | null) {
+  const number =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^\d+$/.test(value)
+        ? Number(value)
+        : null;
+  if (number !== null) return `${number.toLocaleString()}${unit ? ` ${unit}` : ""}`;
+  return typeof value === "string" ? value : "Included";
+}
+
+function entitlementList(plan: AvailablePlan, kind: "feature" | "limit") {
+  return (plan.entitlements ?? [])
+    .filter((item) => item.kind === kind && (kind === "limit" || item.value === true))
+    .sort(
+      (left, right) =>
+        (left.displayGroup ?? "").localeCompare(right.displayGroup ?? "") ||
+        left.displayOrder - right.displayOrder ||
+        left.name.localeCompare(right.name),
+    );
+}
+
 function formatStatus(status: string | null) {
   if (!status) return "No active plan";
   return status.replaceAll("_", " ").toLowerCase().replace(/^\w/, (letter) => letter.toUpperCase());
@@ -158,16 +180,29 @@ export function UpgradePage({
                         </p>
                       </div>
 
-                      <ul className="mt-5 space-y-2 text-sm text-muted-foreground">
-                        {plan.highlights.length ? (
-                          plan.highlights.map((highlight) => (
-                            <li key={highlight} className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />{highlight}</li>
-                          ))
-                        ) : (
-                          <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />Workspace plan access</li>
-                        )}
-                        <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />AI usage renews each billing period</li>
-                      </ul>
+                      <div className="mt-5 space-y-4 border-t border-border pt-4">
+                        {entitlementList(plan, "feature").map((feature) => (
+                          <div key={feature.key} className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                            <span>{feature.name}</span>
+                          </div>
+                        ))}
+                        {entitlementList(plan, "limit").length ? (
+                          <div className="space-y-1.5 border-t border-border pt-4">
+                            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Limits</p>
+                            {entitlementList(plan, "limit").map((limit) => (
+                              <div key={limit.key} className="flex items-start justify-between gap-3 text-sm">
+                                <span className="text-muted-foreground">{limit.name}</span>
+                                <span className="shrink-0 font-medium text-foreground">{formatLimit(limit.value, limit.unit)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                        <p className="flex items-start gap-2 text-xs text-muted-foreground">
+                          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                          AI usage renews each billing period
+                        </p>
+                      </div>
 
                       <div className="mt-auto space-y-2 pt-5">
                         <Button asChild variant="ghost" className="w-full"><Link to={`/upgrade/${encodeURIComponent(plan.key)}`}>View plan details</Link></Button>

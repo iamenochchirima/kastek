@@ -47,7 +47,28 @@ export function registerBillingRoutes(
       configured: true,
       account,
       invoices,
-      plans,
+      plans: plans.map((plan) => ({
+        key: plan.key,
+        name: plan.name,
+        description: plan.description,
+        product: plan.product,
+        currency: plan.currency,
+        amountMinor: plan.amountMinor,
+        creditsPerPeriod: plan.creditsPerPeriod,
+        checkoutReady: plan.checkoutReady,
+        entitlements: plan.entitlements
+          .filter((item) => item.visibleToCustomer)
+          .map((item) => ({
+            key: item.key,
+            name: item.name,
+            description: item.description,
+            kind: item.kind === "meter" ? "limit" : item.kind,
+            value: item.value,
+            unit: item.unit,
+            displayGroup: item.displayGroup,
+            displayOrder: item.displayOrder,
+          })),
+      })),
       usage,
     };
   });

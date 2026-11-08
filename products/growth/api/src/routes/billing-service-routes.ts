@@ -205,6 +205,19 @@ export function registerBillingServiceRoutes(
           )
           .slice(0, 6)
           .map((item) => item.name),
+        entitlements: plan.entitlements
+          .filter((item) => item.visibleToCustomer)
+          .map((item) => ({
+            key: item.key,
+            name: item.name,
+            description: item.description,
+            kind: item.kind === "meter" ? "limit" : item.kind,
+            value: item.value,
+            unit: item.unit,
+            displayGroup: item.displayGroup,
+            displayOrder: item.displayOrder,
+            metadata: item.metadata,
+          })),
       })),
     };
   });
