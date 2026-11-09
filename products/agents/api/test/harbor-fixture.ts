@@ -15,9 +15,17 @@ import { publishFixtureSource } from "./knowledge-fixture";
 import { prepareHarborAnalysis } from "./harbor-analysis-support";
 import { prepareHarborConnector,type HarborConnectorPurpose } from "./harbor-connector-support";
 import { prepareHarborWorker } from "./harbor-worker-support";
+import { HARNESS_RELEASE,SHARED_HARNESS_RELEASE,SHARED_WORKFLOW_NAME,WORKFLOW_NAME } from "../src/contracts/execution";
 
 const root = resolve(__dirname, "../../../.."), api = join(root, "products/agents/api");
-const fixtureId = randomUUID(), databaseName = `agents_harbor_${fixtureId.replaceAll("-", "")}`;
+const fixtureId = randomUUID(), databasePrefix = process.env.AGENTS_HARBOR_DATABASE_PREFIX ?? "agents_harbor";
+const databaseName = `${databasePrefix}_${fixtureId.replaceAll("-", "")}`;
+if (process.env.AGENTS_HARBOR_DATABASE_PREFIX) {
+  assert.ok(process.env.AGENTS_BROWSER_FIXTURE_DATABASE_URL, "Eval-prefixed fixture runs require an explicit eval database URL");
+  assert.notEqual(process.env.AGENTS_BROWSER_FIXTURE_DATABASE_URL, process.env.AGENTS_DATABASE_URL, "Eval database must differ from the product database");
+  assert.ok(databaseName.startsWith(`${process.env.AGENTS_HARBOR_DATABASE_PREFIX}_`), "Eval database name must use the configured prefix");
+  assert.equal(process.env.AGENTS_BILLING_ENFORCEMENT, "0", "Eval-prefixed fixture runs must disable billing enforcement");
+}
 const containerName = `agents-harbor-${fixtureId}`, build = join(root, ".audit", `harbor-${fixtureId}`);
 const compiled = join(build, "runtime");
 const suite = process.env.AGENTS_HARBOR_SUITE ?? "faq-grounded";
@@ -39,7 +47,7 @@ assert.ok(["none","assertion","exception","missing-evidence"].includes(verifierS
 assert.ok(verifierScenario==="none" || (suite==="faq-grounded" && attempts===1), "Verifier failure probes use one ordinary FAQ execution");
 const realModel = process.env.AGENTS_HARBOR_REAL_MODEL === "1";
 assert.ok(!connectorPurpose||process.env.AGENTS_HARBOR_REAL_MODEL!=="1","Connector acceptance uses deterministic provider fixtures, not a quality benchmark");
-const modelKey = realModel ? process.env.OPENROUTER_API_KEY : "deterministic-harbor-fixture";
+const modelKey = realModel ? process.env.OPENROUTER_API_KEY : randomBytes(32).toString("base64url");
 assert.ok(!realModel || lifecycle==="none","Lifecycle acceptance uses deterministic provider fixtures");
 assert.ok(!realModel || verifierScenario==="none", "Verifier failure probes never call a live model");
 assert.ok(modelKey, "Approved free-model acceptance requires the configured key");
@@ -118,7 +126,8 @@ async function main() {
   const canonical = ["PUT", `/${bucket}`, "", `host:127.0.0.1:${storagePort}\nx-amz-content-sha256:${payload}\nx-amz-date:${date}\n`, signedHeaders, payload].join("\n");
   const signingKey = hmac(hmac(hmac(hmac(`AWS4${secret}`, day), "us-east-1"), "s3"), "aws4_request");
   const signature = createHmac("sha256", signingKey).update(`AWS4-HMAC-SHA256\n${date}\n${scope}\n${sha(canonical)}`).digest("hex");
-  assert.ok((await fetch(`${endpoint}/${bucket}`, { method: "PUT", headers: { "x-amz-date": date, "x-amz-content-sha256": payload, authorization: `AWS4-HMAC-SHA256 Credential=${accessKey}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}` } })).ok);
+  const bucketResponse = await fetch(`${endpoint}/${bucket}`, { method: "PUT", headers: { "x-amz-date": date, "x-amz-content-sha256": payload, authorization: `AWS4-HMAC-SHA256 Credential=${accessKey}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}` } });
+  assert.ok(bucketResponse.ok, `MinIO bucket creation failed: ${bucketResponse.status} ${await bucketResponse.text()}`);
   Object.assign(process.env, { NODE_ENV: "test", AGENTS_S3_ENDPOINT: endpoint, AGENTS_S3_REGION: "us-east-1", AGENTS_S3_BUCKET: bucket, AGENTS_S3_ACCESS_KEY_ID: accessKey, AGENTS_S3_SECRET_ACCESS_KEY: secret,
     AGENTS_SANDBOX_ENABLED: "0", AGENTS_DOCUMENT_RUNTIME_ENABLED: "0", AGENTS_REPORT_DELIVERY_TARGETS: "[]" });
   delete process.env.AGENTS_CONNECTION_ACTIVE_KEY; delete process.env.AGENTS_CONNECTION_KEYS;
@@ -285,18 +294,24 @@ async function main() {
   if(lifecycle==="native-restart") {
     processWorker=await prepareHarborWorker({compiled,api,directory:privateDirectory,databaseUrl:isolatedUrl.href,provider:fixtureFetch,modelVaultKey});workerPort=processWorker.port;
   } else {
-  worker = createServer(createEndpointHandler({ services: [createBusinessWorkflow(pool, { modelProvider:modelProviders,modelRuntime:{dispatch:input=>{if(realModel){providerCalls++;return dispatchBoundModel(input);}return dispatchBoundModel(input,policy=>{
+  const workflowOptions: Parameters<typeof createBusinessWorkflow>[1] = { modelProvider:modelProviders,modelRuntime:{dispatch:input=>{if(realModel){providerCalls++;return dispatchBoundModel(input);}return dispatchBoundModel(input,policy=>{
       const network=(async(url,request)=>{if(!policy.authorizeUrl(new URL(String(url))))throw Error("Fixture destination denied");await policy.beforeDispatch?.();return fixtureFetch(url,request);}) as import("../src/infrastructure/model-network").ModelFetch;
       network.markProgress=()=>{};return network;
     });}}, ...(analysis ? {executeSandbox:analysis.executeSandbox} : {}), ...(connector ? {connected:connector.executor} : {}), evidence, knowledgeRuntime: new KnowledgeRuntime(pool, evidence), signal: abort.signal,
-    ...(reportServices ? { actions: { prepare: (...args: Parameters<typeof reportServices.actions.prepare>) => reportServices!.actions.prepare(...args), getReview: (...args: Parameters<typeof reportServices.actions.getReview>) => reportServices!.actions.getReview(...args), reconcile: (...args: Parameters<typeof reportServices.actions.reconcile>) => reportServices!.actions.reconcile(...args), execute: (...args: Parameters<typeof reportServices.actions.execute>) => reportServices!.actions.execute(...args) }, selectReportArtifact: (...args: Parameters<import("../src/execution/artifacts/task-artifacts").TaskArtifactStore["prepareReport"]>) => new TaskArtifactStore(pool!,objects).prepareReport(...args) } : {}) })] }));
+    ...(reportServices ? { actions: { prepare: (...args: Parameters<typeof reportServices.actions.prepare>) => reportServices!.actions.prepare(...args), getReview: (...args: Parameters<typeof reportServices.actions.getReview>) => reportServices!.actions.getReview(...args), reconcile: (...args: Parameters<typeof reportServices.actions.reconcile>) => reportServices!.actions.reconcile(...args), execute: (...args: Parameters<typeof reportServices.actions.execute>) => reportServices!.actions.execute(...args) }, selectReportArtifact: (...args: Parameters<import("../src/execution/artifacts/task-artifacts").TaskArtifactStore["prepareReport"]>) => new TaskArtifactStore(pool!,objects).prepareReport(...args) } : {}) };
+  const businessWorkflow = createBusinessWorkflow(pool, workflowOptions);
+  const sharedWorkflow = createBusinessWorkflow(pool, workflowOptions, { release: SHARED_HARNESS_RELEASE, workflow: SHARED_WORKFLOW_NAME });
+  worker = createServer(createEndpointHandler({ services: [businessWorkflow, sharedWorkflow] }));
   worker.on("session", session => { sessions.add(session); session.once("close", () => sessions.delete(session)); });
   await new Promise<void>(resolve => worker!.listen(0, "0.0.0.0", resolve));
   workerPort = (worker.address() as { port: number }).port;
   }
   const registration = await fetch(`${adminUrl}/deployments`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ uri: `http://host.docker.internal:${workerPort}`, use_http_11: false }) });
   assert.ok(registration.ok, `Worker registration status ${registration.status}`);
-  dispatcher = startDispatcher(pool, { ingressUrl, adminUrl });
+  dispatcher = startDispatcher(pool, { ingressUrl, adminUrl, runtimeRoutes: {
+    [HARNESS_RELEASE]: { ingressUrl, adminUrl, workflowName: WORKFLOW_NAME },
+    [SHARED_HARNESS_RELEASE]: { ingressUrl, adminUrl, workflowName: SHARED_WORKFLOW_NAME },
+  } });
   if (report) {
     approvalTimer = setInterval(() => {
       if (approvalPending) return;
@@ -439,7 +454,7 @@ async function main() {
     const identities=(await pool.query("SELECT id,root_task_id,parent_task_id,version_id FROM agents_platform.tasks ORDER BY created_at,id")).rows;
     await writeFile(join(build,"telemetry.json"),JSON.stringify({schemaVersion:"harbor-native-telemetry.v1",suite,observationsExported:exported,tasks:identities},null,2),{mode:0o600});
   }
-  await writeFile(join(build, "acceptance.json"), JSON.stringify({ status: withdrawal || verifierScenario!=="none" || lifecycle==="cancel" ? "verified-negative" : "passed", suite, ...(connectorPurpose?{connectorPurpose,connectorSemantics:"policy-read-with-reviewed-skill",mutationsVerified:false}:{}), attempts, baselineDigest, verifierScenario, lifecycle, modelQuality:takeover?"inconclusive":null, workerPids:processWorker?.pids, modelMode: realModel ? "approved-free-model" : "deterministic-provider-fixture", harborVersion: "0.24.0", restateVersion: "1.7.13", reward, taskCount: tasks.length, providerCalls, compositionDigest: version.effective_composition.digest, sourceRevisionId: source.id, ownerServicesChanged: false }, null, 2), { mode: 0o600 });
+  await writeFile(join(build, "acceptance.json"), JSON.stringify({ status: withdrawal || verifierScenario!=="none" || lifecycle==="cancel" ? "verified-negative" : "passed", suite, ...(connectorPurpose?{connectorPurpose,connectorSemantics:"policy-read-with-reviewed-skill",mutationsVerified:false}:{}), attempts, baselineDigest, verifierScenario, lifecycle, modelQuality:takeover?"inconclusive":null, workerPids:processWorker?.pids, modelMode: realModel ? "approved-free-model" : "deterministic-provider-fixture", harborVersion: "0.24.0", restateVersion: "1.7.13", database: { name: databaseName, host: new URL(databaseUrl).host, role: new URL(databaseUrl).username }, reward, taskCount: tasks.length, providerCalls, compositionDigest: version.effective_composition.digest, sourceRevisionId: source.id, ownerServicesChanged: false }, null, 2), { mode: 0o600 });
   console.log(JSON.stringify({ evidence: "actual Harbor trial + verifier + native HTTP/PostgreSQL/Restate", modelMode: realModel ? "approved-free-model" : "deterministic-provider-fixture", reward, providerCalls, proof: join(build, "acceptance.json") }));
 }
 async function cleanup() {

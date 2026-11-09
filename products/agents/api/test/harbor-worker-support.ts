@@ -39,10 +39,12 @@ const evidence=new EvidenceStore(pool,privateStoreFromEnvironment());
 const abort=new AbortController();
 const fixtureFetch=(_url,request)=>fetch(process.env.HARBOR_PROVIDER_URL,{method:'POST',headers:{authorization:'Bearer '+process.env.HARBOR_PROVIDER_CREDENTIAL,'content-type':'application/json'},body:request.body});
 const modelProvider=new ModelProviderStore(pool,new ModelCredentialVault(new ConnectionVault('harbor-model',{'harbor-model':process.env.HARBOR_MODEL_VAULT_KEY})));
-const workflow=createBusinessWorkflow(pool,{modelProvider,modelRuntime:{dispatch:input=>dispatchBoundModel(input,policy=>{
+const options={modelProvider,modelRuntime:{dispatch:input=>dispatchBoundModel(input,policy=>{
   const network=async(url,request)=>{if(!policy.authorizeUrl(new URL(String(url))))throw Error('Fixture destination denied');await policy.beforeDispatch?.();return fixtureFetch(url,request);};network.markProgress=()=>{};return network;
-})},evidence,knowledgeRuntime:new KnowledgeRuntime(pool,evidence),signal:abort.signal});
-const server=createServer(createEndpointHandler({services:[workflow]}));
+})},evidence,knowledgeRuntime:new KnowledgeRuntime(pool,evidence),signal:abort.signal};
+const workflow=createBusinessWorkflow(pool,options);
+const sharedWorkflow=createBusinessWorkflow(pool,options,{release:'product-capabilities-v15',workflow:'AgentsBusinessRunV25'});
+const server=createServer(createEndpointHandler({services:[workflow,sharedWorkflow]}));
 const sessions=new Set();server.on('session',session=>{sessions.add(session);session.once('close',()=>sessions.delete(session));});
 server.listen(Number(process.env.HARBOR_WORKER_PORT||0),'0.0.0.0',()=>process.send({port:server.address().port,pid:process.pid}));
 process.once('SIGTERM',()=>{abort.abort();for(const session of sessions)session.destroy();server.close(()=>pool.end().then(()=>process.exit(0)));});
