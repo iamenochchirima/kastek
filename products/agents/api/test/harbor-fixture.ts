@@ -183,7 +183,7 @@ async function runEnquiryOutcome(input: {
   origin: string; websiteOrigin: string; ownerSession: string; deploymentId: string;
   organizationId: string; agentId: string; versionId: string; sandboxId: string;
   workspaceRefId: string; agentRefId: string; evidenceDirectory: string;
-  evalsApiUrl: string; operatorToken: string; requestKey: string;
+  evalsApiUrl: string; operatorToken: string; requestKey: string; setupSteps: string[];
 }): Promise<void> {
   const staffHeaders = { origin: input.origin, cookie: `agents_session=${input.ownerSession}` };
   const visitorHeaders = (token: string) => ({ origin: input.websiteOrigin, authorization: `Bearer ${token}` });
@@ -231,6 +231,7 @@ async function runEnquiryOutcome(input: {
       output: "Your enquiry has been submitted.",
       replayTaskId: existing.taskId,
       enquiryCount: 1,
+      setupSteps: input.setupSteps,
     };
     await writeFile(join(input.evidenceDirectory, "enquiry-restart.json"), JSON.stringify(evidence, null, 2), { mode: 0o600 });
     console.log(JSON.stringify({ evidence: "persisted enquiry read-back after restart", ...evidence }));
@@ -349,6 +350,7 @@ async function runEnquiryOutcome(input: {
     output,
     replayTaskId,
     enquiryCount: (afterReplay.enquiries ?? []).length,
+    setupSteps: input.setupSteps,
   };
   await writeFile(join(input.evidenceDirectory, "enquiry-outcome.json"), JSON.stringify(evidence, null, 2), { mode: 0o600 });
   console.log(JSON.stringify({ evidence: "normal website visitor enquiry outcome", ...evidence }));
@@ -515,7 +517,7 @@ async function main() {
         ownerSession: session.token,
         model: { providerId: "openrouter", name: "Controlled Harbor provider", apiKey: modelKey!, modelId },
         knowledge: { title: "Opening hours", content: sourceContent, visibility: enquiryOutcome ? "public" : sourceVisibility },
-        agent: { name: enquiryOutcome ? "Enquiry fixture" : "Grounded FAQ fixture", configuration: configuration as unknown as Record<string, unknown>, instructions: configuration.instructions },
+        agent: { name: enquiryOutcome ? "Enquiry fixture" : "Grounded FAQ fixture", configuration: configuration as unknown as Record<string, unknown>, instructions: configuration.instructions, ...(enquiryOutcome ? { responsibilities: ["enquiries" as const] } : {}) },
         website: enquiryOutcome ? { allowedOrigins: [websiteOrigin] } : undefined,
         member: { email: memberAccount.email, session: memberSession.token },
         controlPlane: { apiUrl: process.env.EVALS_API_URL!, operatorToken: process.env.EVALS_OPERATOR_TOKEN!, sandboxId: sandboxId!, workspaceRefId: sandboxWorkspaceRefId },
@@ -699,6 +701,7 @@ async function main() {
       evalsApiUrl: process.env.EVALS_API_URL!,
       operatorToken: process.env.EVALS_OPERATOR_TOKEN!,
       requestKey: process.env.AGENTS_EVAL_ENQUIRY_REQUEST_KEY ?? "harbor-enquiry-outcome-v1",
+      setupSteps: sandboxSetup.steps,
     });
     return;
   }

@@ -22,6 +22,7 @@ export interface SandboxSetupInput {
     configuration: Record<string, unknown>;
     instructions: string;
     rootTokenLimit?: number;
+    responsibilities?: Array<"answer-questions" | "customer-support" | "bookings" | "enquiries">;
   };
   website?: {
     allowedOrigins: string[];
@@ -222,7 +223,8 @@ export async function setupSandbox(input: SandboxSetupInput): Promise<SandboxSet
     if (!versions.length) {
       throw new SandboxSetupError("read existing agent", null, "CONFIGURATION_UNAVAILABLE", "Existing agent has no published version");
     }
-    const latest = versions[versions.length - 1];
+    const latest = [...versions].sort((left: Json, right: Json) =>
+      Number(right.number ?? 0) - Number(left.number ?? 0))[0]!;
     versionId = String(latest.id);
     compositionDigest = String(latest.effectiveComposition?.digest ?? latest.effective_composition?.digest);
     steps.push("agent and version reused");
@@ -235,8 +237,18 @@ export async function setupSandbox(input: SandboxSetupInput): Promise<SandboxSet
       configuration,
     }, "create agent");
     agentId = String(created.agent.id);
+    let createdAgent = created.agent;
+    if (input.agent.responsibilities?.length) {
+      const updated = await product(input.ownerSession, "PUT", `${orgBase}/agents/${encodeURIComponent(agentId)}/capabilities`, {
+        responsibilities: input.agent.responsibilities,
+        expectedRevision: createdAgent.draftRevision,
+        confirmImpact: true,
+      }, "save agent capabilities");
+      createdAgent = updated.agent;
+      steps.push("agent capabilities saved");
+    }
     const published = await product(input.ownerSession, "POST", `${orgBase}/agents/${encodeURIComponent(agentId)}/versions`, {
-      expectedRevision: created.agent.draftRevision,
+      expectedRevision: createdAgent.draftRevision,
     }, "publish agent version");
     versionId = String(published.version.id);
     compositionDigest = String(published.version.effectiveComposition?.digest ?? published.version.effective_composition?.digest);
@@ -288,6 +300,13 @@ export async function setupSandbox(input: SandboxSetupInput): Promise<SandboxSet
   const readBack = await product(input.ownerSession, "GET", `${orgBase}/agents/${encodeURIComponent(agentId)}`, undefined, "read agent");
   if (!(readBack.versions ?? []).some((item: Json) => item.id === versionId)) {
     throw new SandboxSetupError("read back agent", null, null, "Published version is missing from the agent read");
+  }
+  if (input.agent.responsibilities?.includes("enquiries")) {
+    const readiness = await product(input.ownerSession, "GET", `${orgBase}/agents/${encodeURIComponent(agentId)}/setup-readiness`, undefined, "read setup readiness");
+    if (readiness.readiness?.requirements?.enquiries?.state !== "ready") {
+      throw new SandboxSetupError("read setup readiness", null, "ENQUIRY_CAPABILITY_NOT_READY", "Enquiry capability is not ready");
+    }
+    steps.push("enquiry readiness verified");
   }
   let deploymentId: string | null = null;
   if (input.website) {
