@@ -320,10 +320,9 @@ export class InboxStore {
         LEFT JOIN agents_platform.accounts assignee ON assignee.id=c.assignee_account_id
         ${customerIdentityJoin}
         LEFT JOIN LATERAL (SELECT id,task_id,request_key,body,author_kind,created_at,ownership_generation FROM agents_platform.customer_messages WHERE conversation_id=c.id ORDER BY sequence DESC LIMIT 1) last_message ON true
-        WHERE c.organization_id=$1 AND (last_message.id IS NOT NULL OR c.state<>'automation_active' OR c.assignee_account_id IS NOT NULL
+        WHERE c.organization_id=$1 AND (last_message.id IS NOT NULL OR c.state IN ('handoff_pending','human_owned') OR c.assignee_account_id IS NOT NULL
           OR EXISTS(SELECT 1 FROM agents_platform.human_assistance_requests h WHERE h.conversation_id=c.id)
           OR EXISTS(SELECT 1 FROM agents_platform.customer_record_enquiries e WHERE e.customer_conversation_id=c.id)
-          OR EXISTS(SELECT 1 FROM agents_platform.customer_commands cmd WHERE cmd.conversation_id=c.id)
           OR EXISTS(SELECT 1 FROM agents_platform.customer_task_links link WHERE link.conversation_id=c.id))
         AND ($2::text IS NULL OR c.state=$2 OR ($2='human_requested' AND EXISTS(SELECT 1 FROM agents_platform.human_assistance_requests h WHERE h.conversation_id=c.id AND h.status IN ('requested','human_owned')))) AND ($3::uuid IS NULL OR c.agent_id=$3)
         AND ($4::text IS NULL OR ($4='mine' AND c.assignee_account_id=$5) OR ($4='unassigned' AND c.assignee_account_id IS NULL))
