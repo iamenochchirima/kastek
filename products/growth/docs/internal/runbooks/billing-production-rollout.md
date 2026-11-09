@@ -26,6 +26,8 @@ and Agents are the products in scope. Agency remains draft and read-only.
 - [ ] Build the image with `SERVICE_PACKAGE=@kasitek/billing` and `SERVICE_PATH=services/billing`.
 - [ ] Run `node dist/migrate-main.js` once.
 - [ ] Run `node dist/seed-main.js` once.
+- [ ] Apply the current plan definitions with `node dist/apply-plans.js` and
+      `BILLING_PLAN_CODES_JSON` mapping each paid plan key to its live Paystack plan code.
 - [ ] Start the API with `node dist/api-main.js`.
 - [ ] Start the worker with `node dist/worker-main.js`.
 - [ ] Confirm `/health/ready` succeeds.
