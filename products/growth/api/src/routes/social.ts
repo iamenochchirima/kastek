@@ -16,6 +16,7 @@ import * as channels from "../services/social/channels.js";
 import * as posts from "../services/social/posts.js";
 import { updatePublishedFacebookPost } from "../capabilities/content-published-edit.js";
 import { authorizeGrowthOperation } from "../operations/policy.js";
+import { billingEnforcementEnabled, requireCapability } from "../services/billing.js";
 import * as media from "../services/social/media.js";
 import type { SocialPostUpsertRequest } from "../services/social/types.js";
 import { socialChannelResponse, socialPostResponse } from "./social-post-response.js";
@@ -101,7 +102,14 @@ async function scope(
   const user = await extractUser(request, context);
   const org = await resolveActiveOrgId(request, context, user.id);
   if (admin) await requireAdmin(context.pool, org, user.id);
+  if (billingEnforcementEnabled())
+    await requireCapability(context.pool, org, "feature.content.manage");
   return { user, org };
+}
+async function requireContentPublish(context: CoreContext, org: string) {
+  if (!billingEnforcementEnabled()) return;
+  await requireCapability(context.pool, org, "feature.content.manage");
+  await requireCapability(context.pool, org, "feature.content.publish");
 }
 function id(request: FastifyRequest): string {
   return (request.params as { id: string }).id;
@@ -227,6 +235,8 @@ export function registerSocialRoutes(
     { schema: { body: postSchema } },
     async (request, reply) => {
       const { user, org } = await scope(request, context);
+      if ((request.body as { status?: string }).status === "SCHEDULED")
+        await requireContentPublish(context, org);
       return reply.code(201).send({
         post: socialPostResponse(await posts.createSocialPostIdempotent(
           context.pool,
@@ -243,6 +253,8 @@ export function registerSocialRoutes(
     { schema: { body: postSchema } },
     async (request) => {
       const { user, org } = await scope(request, context);
+      if ((request.body as { status?: string }).status === "SCHEDULED")
+        await requireContentPublish(context, org);
       return {
         post: socialPostResponse(await posts.updateSocialPost(
           context.pool,
@@ -262,6 +274,7 @@ export function registerSocialRoutes(
     } } },
   }, async request => {
     const ctx = await resolveProductContext(request, context);
+    await requireContentPublish(context, ctx.organizationId);
     await authorizeGrowthOperation(context, ctx, "content.posts.update_published");
     const post = await updatePublishedFacebookPost(context.pool, context.config, ctx, id(request), request.body as { content: string; expectedUpdatedAt: string; removePhoto?: boolean });
     return { post: socialPostResponse(post) };
@@ -495,6 +508,7 @@ export function registerSocialRoutes(
     { schema: { body: { type: "object", properties: { platform: string } } } },
     async (request) => {
       const { org } = await scope(request, context);
+      await requireContentPublish(context, org);
       const platform =
         (request.body as { platform?: string | null }).platform ?? "X";
       if (!isValidPlatform(platform))
@@ -536,6 +550,7 @@ export function registerSocialRoutes(
   );
   app.post("/api/social/posts/:id/publish-batch", async (request, reply) => {
     const ctx = await resolveProductContext(request, context);
+    await requireContentPublish(context, ctx.organizationId);
     ctx.idempotencyKey ??= `manual:content-publish-batch:${id(request)}:${createId()}`;
     const result = await batch.publishBatch(context.pool, ctx, id(request));
     return reply
@@ -558,6 +573,7 @@ export function registerSocialRoutes(
   }));
   app.post("/api/social/publish-batches/:id/retry", async (request, reply) => {
     const ctx = await resolveProductContext(request, context);
+    await requireContentPublish(context, ctx.organizationId);
     ctx.idempotencyKey ??= `manual:content-publish-batch-retry:${id(request)}:${createId()}`;
     const result = await batch.retryFailedBatch(context.pool, ctx, id(request));
     return reply
@@ -569,6 +585,7 @@ export function registerSocialRoutes(
     { schema: { body: { type: "object", properties: { action: string } } } },
     async (request) => {
       const { org } = await scope(request, context);
+      await requireContentPublish(context, org);
       const action = (request.body as { action?: string | null }).action;
       if (action == null) throw bad("Action is required");
       const job = (

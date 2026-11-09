@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import type { CoreContext } from "../context.js";
 import { extractUser, resolveActiveOrgId } from "../identity/session.js";
 import { requireAdmin } from "../services/orgs.js";
+import { billingEnforcementEnabled, requireCapability } from "../services/billing.js";
 import { bad, internal, trimmed } from "../services/social/common.js";
 import * as oauth from "../integrations/social-oauth.js";
 import * as auth from "../integrations/provider-auth.js";
@@ -34,6 +35,8 @@ async function scope(request: FastifyRequest, core: CoreContext) {
   const user = await extractUser(request, core),
     org = await resolveActiveOrgId(request, core, user.id);
   await requireAdmin(core.pool, org, user.id);
+  if (billingEnforcementEnabled())
+    await requireCapability(core.pool, org, "feature.content.manage");
   return { user, org };
 }
 function setCookie(
