@@ -90,12 +90,15 @@ test('static cache policies cover assets, worker, HTML, manifest and preview hos
 test('legacy permanent redirects preserve query strings and do not consume invitation routes', async () => {
   const app = await fixture();
   try {
-    for (const [path, target] of [['/pricing1?campaign=test', 'https://kasitek.co.za/pricing?campaign=test'], ['/solutions/website', 'https://kasitek.co.za'], ['/fliers', 'https://kasitek.co.za'], ['/privacy-policy', 'https://kasitek.co.za/privacy-policy']]) {
+    for (const [path, target] of [['/about?campaign=test', 'https://kasitek.co.za/about?campaign=test'], ['/solutions/website', 'https://kasitek.co.za'], ['/fliers', 'https://kasitek.co.za'], ['/privacy-policy', 'https://kasitek.co.za/privacy-policy']]) {
       const response = await raw(app.origin, path);
       assert.equal(response.status, 308);
       assert.equal(response.headers.location, target);
     }
     assert.equal((await raw(app.origin, '/early-access/private-token')).status, 200);
+    const pricing = await raw(app.origin, '/pricing');
+    assert.equal(pricing.status, 200);
+    assert.match(pricing.body.toString(), /App/);
   } finally { await app.cleanup(); }
 });
 

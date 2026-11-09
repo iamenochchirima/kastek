@@ -32,10 +32,11 @@ test("serves crawlable landing HTML and keeps private routes out of sitemap", as
   const root = await request.get("/");
   const html = await root.text();
   expect(html).toContain("Growth | KasiTek");
-  expect(html).toContain('rel="canonical" href="https://growth.kasitek.co.za/"');
+  expect(html).toContain('rel="canonical" href="https://app.kasitek.co.za/"');
   expect(html).toMatch(/<h1[\s>]/);
   const sitemap = await (await request.get("/sitemap.xml")).text();
-  expect(sitemap).toContain("https://growth.kasitek.co.za/");
+  expect(sitemap).toContain("https://app.kasitek.co.za/");
+  expect(sitemap).toContain("https://app.kasitek.co.za/pricing");
   for (const route of ["/agents", "/inbox", "/workspace"]) expect(sitemap).not.toContain(route);
   expect((await request.get("/not-a-growth-route")).status()).toBe(404);
 });

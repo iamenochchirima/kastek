@@ -236,6 +236,10 @@ export function PricingPage() {
 
   return (
     <div className={styles.page}>
+      <title>Pricing | KasiTek Agents</title>
+      <meta name="description" content="Monthly plans for KasiTek Agents. Start with one agent, then add seats, channels, analytics and unbranded widgets." />
+      <meta name="robots" content="index, follow" />
+      <link rel="canonical" href="https://agents.kasitek.co.za/pricing" />
       <header className={styles.nav}>
         <Link to="/landingv2" className={styles.brand} aria-label="KasiTek Agents home">
           kasitek<span>/ agents</span>

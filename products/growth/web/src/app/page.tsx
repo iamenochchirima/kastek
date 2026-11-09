@@ -9,10 +9,10 @@ export const meta = () => [
   { name: "robots", content: "index, follow" },
   { title: "Growth | KasiTek" },
   { name: "description", content: "Manage customer conversations, campaigns, content and bookings in your Growth workspace." },
-  { tagName: "link", rel: "canonical", href: "https://growth.kasitek.co.za/" },
+  { tagName: "link", rel: "canonical", href: "https://app.kasitek.co.za/" },
   { property: "og:title", content: "Growth | KasiTek" },
   { property: "og:description", content: "Your customer conversations, campaigns, content and bookings in one workspace." },
-  { property: "og:url", content: "https://growth.kasitek.co.za/" },
+  { property: "og:url", content: "https://app.kasitek.co.za/" },
   { property: "og:type", content: "website" },
   { name: "twitter:card", content: "summary" },
 ];

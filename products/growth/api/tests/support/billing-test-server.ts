@@ -128,7 +128,72 @@ export async function startBillingFixture(): Promise<{
       });
     if (url.pathname.startsWith("/internal/subscriptions/"))
       return send({ canceled: true, cancelAtPeriodEnd: false, reactivated: true });
-    if (url.pathname === "/internal/plans") return send({ plans: [] });
+    if (url.pathname === "/internal/plans")
+      return send({
+        plans: [
+          {
+            key: "growth-public-test",
+            name: "Growth Public Test",
+            description: "Public test plan",
+            product: "growth",
+            version: 1,
+            versionId: "pv_public_test",
+            status: "active",
+            interval: "monthly",
+            currency: "ZAR",
+            amountMinor: "35000",
+            taxInclusive: true,
+            taxRateBps: 1500,
+            grossAmountMinor: "35000",
+            creditsPerPeriod: "10000000",
+            checkoutReady: true,
+            effectiveFrom: new Date().toISOString(),
+            effectiveTo: null,
+            notes: "internal note",
+            entitlements: [
+              {
+                key: "feature.agents.manage",
+                value: true,
+                kind: "feature",
+                name: "Workspace agents",
+                description: null,
+                unit: null,
+                metadata: { enforcement: "hard", internal: "secret" },
+                implementationStatus: "implemented",
+                visibleToCustomer: true,
+                displayGroup: "Features",
+                displayOrder: 1,
+              },
+              {
+                key: "limit.team_seats",
+                value: 3,
+                kind: "limit",
+                name: "Team seats",
+                description: null,
+                unit: "seats",
+                metadata: { internal: "secret" },
+                implementationStatus: "implemented",
+                visibleToCustomer: true,
+                displayGroup: "Limits",
+                displayOrder: 1,
+              },
+              {
+                key: "internal.hidden",
+                value: true,
+                kind: "feature",
+                name: "Internal hidden",
+                description: null,
+                unit: null,
+                metadata: {},
+                implementationStatus: "implemented",
+                visibleToCustomer: false,
+                displayGroup: "Features",
+                displayOrder: 2,
+              },
+            ],
+          },
+        ],
+      });
     if (url.pathname.startsWith("/internal/plans/"))
       return send({
         key: "test",

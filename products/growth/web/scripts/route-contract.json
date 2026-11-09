@@ -34,6 +34,10 @@
       "source": "products/growth/web/src/app/(dashboard)/agents/page.tsx"
     },
     {
+      "path": "/pricing",
+      "source": "products/growth/web/src/app/pricing/page.tsx"
+    },
+    {
       "path": "/analytics",
       "source": "products/growth/web/src/app/(dashboard)/analytics/page.tsx"
     },

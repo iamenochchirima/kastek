@@ -7,7 +7,7 @@ const html = await readFile(new URL('index.html', root), 'utf8');
 test('landing has meaningful prerendered HTML, canonical metadata and public indexing', () => {
   assert.match(html, /<title>Growth \| KasiTek<\/title>/);
   assert.match(html, /<h1[^>]*>Stay close to<br\s*\/?>your customers\.<\/h1>/);
-  assert.match(html, /rel="canonical" href="https:\/\/growth.kasitek.co.za\/"/);
+  assert.match(html, /rel="canonical" href="https:\/\/app.kasitek.co.za\/"/);
   assert.match(html, /name="robots" content="index, follow"/);
   assert.doesNotMatch(html, /name="robots" content="noindex/);
   assert.match(html, /property="og:title"/);
@@ -21,8 +21,9 @@ test('SPA fallback is separate, private and contains no user or business bootstr
 });
 test('sitemap contains only the public canonical and public HTML excludes private scripts', async () => {
   const sitemap = await readFile(new URL('sitemap.xml', root), 'utf8');
-  assert.equal((sitemap.match(/<loc>/g) ?? []).length, 1);
-  assert.match(sitemap, /https:\/\/growth.kasitek.co.za\//);
+  assert.equal((sitemap.match(/<loc>/g) ?? []).length, 2);
+  assert.match(sitemap, /https:\/\/app.kasitek.co.za\//);
+  assert.match(sitemap, /https:\/\/app.kasitek.co.za\/pricing/);
   assert.doesNotMatch(html, /src="[^"\s]*(?:twilio|inbox-page|posts-workspace)/);
 });
 test('browser artifacts contain no database runtime, secret material or published source maps', async () => {

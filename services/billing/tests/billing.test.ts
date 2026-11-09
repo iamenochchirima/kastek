@@ -1216,6 +1216,84 @@ test("dynamic plan versions are published and existing subscriptions stay pinned
   assert.equal(publishNoCode.statusCode, 400, publishNoCode.body);
 });
 
+test("public plan listing returns only the active version", { skip }, async () => {
+  const planBody = {
+    product: "growth",
+    key: "growth-public-filter",
+    name: "Growth Public Filter",
+    amountMinor: "0",
+    currency: "ZAR",
+    taxInclusive: true,
+    taxRateBps: 1500,
+    creditsPerPeriod: "0",
+    paystackPlanCode: null,
+    active: true,
+    entitlements: [{ key: "feature.inbox.access", value: true }],
+  };
+  const created = await app.inject({
+    method: "POST",
+    url: "/admin/plans",
+    headers: adminHeaders("POST", "/admin/plans", planBody),
+    payload: planBody,
+  });
+  assert.equal(created.statusCode, 200, created.body);
+  const v1 = created.json().versionId as string;
+
+  const list = async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/internal/plans?product=growth&currency=ZAR",
+      headers: productHeaders("GET", "/internal/plans"),
+    });
+    assert.equal(response.statusCode, 200, response.body);
+    return response.json().plans as Array<{ key: string; version: number }>;
+  };
+
+  assert.equal((await list()).some((plan) => plan.key === "growth-public-filter"), false);
+  const publishedV1 = await app.inject({
+    method: "POST",
+    url: `/admin/plan-versions/${v1}/publish`,
+    headers: adminHeaders("POST", `/admin/plan-versions/${v1}/publish`, {}),
+    payload: {},
+  });
+  assert.equal(publishedV1.statusCode, 200, publishedV1.body);
+  const activeV1 = (await list()).find((plan) => plan.key === "growth-public-filter");
+  assert.equal(activeV1?.version, 1);
+
+  const versionBody = {
+    entitlements: [{ key: "feature.contacts.access", value: true }],
+  };
+  const draft = await app.inject({
+    method: "POST",
+    url: "/admin/plans/growth-public-filter/versions",
+    headers: adminHeaders("POST", "/admin/plans/growth-public-filter/versions", versionBody),
+    payload: versionBody,
+  });
+  assert.equal(draft.statusCode, 200, draft.body);
+  const v2 = draft.json().versionId as string;
+  const stillV1 = (await list()).filter((plan) => plan.key === "growth-public-filter");
+  assert.deepEqual(stillV1.map((plan) => plan.version), [1]);
+
+  const publishedV2 = await app.inject({
+    method: "POST",
+    url: `/admin/plan-versions/${v2}/publish`,
+    headers: adminHeaders("POST", `/admin/plan-versions/${v2}/publish`, {}),
+    payload: {},
+  });
+  assert.equal(publishedV2.statusCode, 200, publishedV2.body);
+  const activeV2 = (await list()).filter((plan) => plan.key === "growth-public-filter");
+  assert.deepEqual(activeV2.map((plan) => plan.version), [2]);
+
+  const retired = await app.inject({
+    method: "POST",
+    url: `/admin/plan-versions/${v2}/retire`,
+    headers: adminHeaders("POST", `/admin/plan-versions/${v2}/retire`, {}),
+    payload: {},
+  });
+  assert.equal(retired.statusCode, 200, retired.body);
+  assert.equal((await list()).some((plan) => plan.key === "growth-public-filter"), false);
+});
+
 test("publish rejects unimplemented hard limits and accepts display-only limits", { skip }, async () => {
   const planBody = {
     product: "agency",

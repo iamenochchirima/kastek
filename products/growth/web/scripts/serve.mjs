@@ -12,7 +12,7 @@ const contract = JSON.parse(await readFile(join(webRoot, 'scripts/route-contract
 const routes = contract.routes.map(({ path }) => new RegExp(`^${path.split('/').map(part => part.startsWith(':') ? '[^/]+' : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('/')}/*$`));
 const redirects = new Map([
   ['about', '/about'], ['data-deletion', '/data-deletion'], ['demo', '/demo'], ['get-quote', '/get-quote'],
-  ['meta-business-platform', '/meta-business-platform'], ['pricing', '/pricing'], ['pricing1', '/pricing'],
+  ['meta-business-platform', '/meta-business-platform'],
   ['privacy-policy', '/privacy-policy'], ['terms', '/terms'], ['waitlist', '/waitlist'], ['early-access', '/early-access'], ['fliers', ''], ['solutions', ''],
 ]);
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml; charset=utf-8', '.map': 'application/json' };
@@ -72,7 +72,7 @@ async function locateFile(root, relative) {
   }
 }
 
-export function createGrowthServer({ root = join(webRoot, 'build/client'), upstream = process.env.CORE_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000', canonicalOrigin = process.env.GROWTH_CANONICAL_ORIGIN ?? 'https://growth.kasitek.co.za', frontendOrigin = process.env.FRONTEND_URL ?? 'http://localhost:3000', environment = process.env.NODE_ENV ?? 'production', headersTimeout = 120_000, previousAssetRoots = process.env.GROWTH_PREVIOUS_ASSET_ROOTS ?? '[]', legacyNextStaticRoot = process.env.GROWTH_LEGACY_NEXT_STATIC_ROOT } = {}) {
+export function createGrowthServer({ root = join(webRoot, 'build/client'), upstream = process.env.CORE_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000', canonicalOrigin = process.env.GROWTH_CANONICAL_ORIGIN ?? 'https://app.kasitek.co.za', frontendOrigin = process.env.FRONTEND_URL ?? 'http://localhost:3000', environment = process.env.NODE_ENV ?? 'production', headersTimeout = 120_000, previousAssetRoots = process.env.GROWTH_PREVIOUS_ASSET_ROOTS ?? '[]', legacyNextStaticRoot = process.env.GROWTH_LEGACY_NEXT_STATIC_ROOT } = {}) {
   const target = new URL(upstream);
   if (!['http:', 'https:'].includes(target.protocol) || target.username || target.password || target.pathname !== '/' || target.search || target.hash) throw Error('CORE_API_BASE_URL must be an HTTP(S) origin');
   const frontend = new URL(frontendOrigin);

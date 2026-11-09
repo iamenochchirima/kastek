@@ -8,6 +8,7 @@ export function meta() {
     { title: "Pricing | KasiTek Growth" },
     { name: "description", content: "Monthly plans for KasiTek Growth. Start free, then add campaigns, content and workspace agents." },
     { name: "robots", content: "index, follow" },
+    { tagName: "link", rel: "canonical", href: "https://app.kasitek.co.za/pricing" },
   ];
 }
 

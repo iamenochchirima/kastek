@@ -43,7 +43,10 @@ export function registerBillingRoutes(
   },
 ): void {
   app.get("/api/public/plans", async (_request, reply) => {
-    reply.header("cache-control", "public, max-age=60");
+    reply.header(
+      "cache-control",
+      "public, max-age=60, s-maxage=60, stale-while-revalidate=300",
+    );
     const client = agentsBillingClient();
     if (!client) return { configured: false, plans: [] };
     try {

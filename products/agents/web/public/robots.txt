@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /pricing$
+Disallow: /api/
+Disallow: /app/
+Sitemap: https://agents.kasitek.co.za/sitemap.xml

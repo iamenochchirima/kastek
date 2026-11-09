@@ -59,7 +59,6 @@ function publicPlan(plan: Awaited<ReturnType<typeof billingPlans>>[number]) {
         unit: item.unit,
         displayGroup: item.displayGroup,
         displayOrder: item.displayOrder,
-        metadata: item.metadata,
       })),
   };
 }
@@ -229,7 +228,10 @@ export function registerBillingServiceRoutes(
   });
 
   app.get("/api/public/plans", async (_request, reply) => {
-    reply.header("cache-control", "public, max-age=60");
+    reply.header(
+      "cache-control",
+      "public, max-age=60, s-maxage=60, stale-while-revalidate=300",
+    );
     try {
       const plans = await billingPlans(service, "ZAR");
       return { configured: true, plans: plans.map(publicPlan) };
