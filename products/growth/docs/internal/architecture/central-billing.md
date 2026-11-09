@@ -230,6 +230,11 @@ Product-facing:
 | `GET /internal/credits` | AI usage balance and ledger. |
 
 Public webhook: `POST /webhooks/paystack` with the raw body and `x-paystack-signature`.
+The service handles `charge.success`, `subscription.create`, `subscription.not_renew`,
+`subscription.disable`, `invoice.payment_failed`, `refund.pending`, `refund.processed` and
+`charge.dispute.create`. Event delivery is idempotent; failed or interrupted events are retried by
+the worker. The development endpoint is `https://billing-dev.kasitek.co.za/webhooks/paystack`; the
+live endpoint is recorded in the production rollout runbook.
 
 Admin catalog endpoints:
 
@@ -262,6 +267,31 @@ available for support operations.
 
 Agency plan changes and payment method updates are not self-serve in this release.
 
+## Public catalog
+
+Each product exposes `GET /api/public/plans` for its public pricing page. The endpoint:
+
+- returns only active plans and active versions, filtered to ZAR;
+- includes only customer-visible entitlements;
+- omits Paystack plan codes, internal costs, tenant identifiers and draft metadata;
+- caches for 60 seconds at the browser and shared cache, with a 300-second stale window;
+- returns an empty `configured: false` response rather than internal errors when billing is
+  unavailable.
+
+The canonical pricing hosts are `https://app.kasitek.co.za/pricing` for Growth and
+`https://agents.kasitek.co.za/pricing` for Agents. The Labs `/pricing` page routes to those product
+pages and contains no prices of its own. Each product pricing page is indexable and listed in its
+own sitemap.
+
+## Live publication gate
+
+Live catalog publication is the final release step. Test and live plan codes are never mixed in one
+deployment. Before live publication, the release owner must approve live mode, the billing service
+must run with the live Paystack key and public webhook URL, and the release record must contain the
+live plan-code matrix and rollback steps. Publishing new versions retires the previous active
+version for the same plan and currency; existing subscribers remain pinned to their purchased
+versions.
+
 ## Sandbox verification
 
 On 2026-11-08 the original Growth plans were published against Paystack test mode:
@@ -285,24 +315,35 @@ A second sandbox check linked a Growth organization and an Agents organization t
 owner identity and billing email. Agents Starter then completed for ZAR 499.00, producing invoice
 `KS-2026-000002` and USD 10.00 of AI usage under the same billing account and Paystack customer.
 
-On 2026-11-09 the catalog was repackaged into the current tiers. New sandbox plan codes:
+On 2026-11-09 the catalog was repackaged into the current tiers. Active sandbox plan codes:
 
 | Plan | Paystack sandbox plan code | Amount |
 | --- | --- | --- |
 | Growth Starter | `PLN_0szdbuzvvglr0xi` | R350 |
 | Growth | `PLN_6j1bbb4kw4z3nnl` | R999 |
 | Growth Scale | `PLN_x6m880cpcxqz8b8` | R1,999 |
+| Agents Starter | `PLN_fj6pj1fx6zldscu` | R350 |
+| Agents Growth | `PLN_lgemcs47h9pxhdz` | R999 |
 | Agents Scale | `PLN_1409yztz8quozkl` | R1,999 |
 | Agents Reseller | `PLN_l11l4imajo7mgjj` | R4,999 |
 
-The active sandbox versions are Growth Starter version 2, Growth version 2, Scale version 2,
-Agents Free version 2, Agents Starter version 3, Agents Growth version 2, Agents Scale version 2
-and Agents Reseller version 2. Existing subscribers remain pinned to earlier versions. A fresh
-hosted checkout for the new paid versions has not yet been recorded.
+The active sandbox versions are Growth Starter version 2, Growth version 2 and Scale version 2;
+Agents Free version 3, Starter version 4, Growth version 3, Scale version 3 and Reseller version 3.
+Existing subscribers remain pinned to earlier versions.
 
-Webhook-driven renewal, refund and dispute paths still need a public HTTPS callback URL. The
-production sequence is in
+All seven paid tiers completed a sandbox checkout on 2026-11-09 and 2026-11-10. Each produced a
+paid invoice with a 15% VAT split, an active subscription, the expected pinned plan version, the
+expected AI credit grant and the expected entitlement limits. Invoices `KS-2026-000003` through
+`KS-2026-000009` cover the seven tiers. Upgrade, downgrade, cancel-at-period-end, pinned legacy
+subscribers and admin trial start/extend/end were also checked.
+
+The webhook endpoint is `https://billing-dev.kasitek.co.za/webhooks/paystack`, routed through the
+development Cloudflare tunnel to the billing service. A real Paystack `refund.pending` and
+`refund.processed` event reached it; duplicate delivery, invalid signature, renewal, failed renewal,
+grace expiry and dispute handling were verified. The production sequence is in
 [`billing-production-rollout.md`](../runbooks/billing-production-rollout.md).
+
+No live checkout has been recorded. Live publication is the final gate described above.
 
 ## Growth cutover
 
