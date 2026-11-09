@@ -9,6 +9,7 @@ import { SOURCE_LIMITS } from "../../contracts/source-contracts";
 import { publicAddress } from "../../infrastructure/connected-network";
 import { transaction } from "../../infrastructure/database";
 import { assertMcpJobAuthority } from "../../infrastructure/mcp-job-authority";
+import { assertAgentsBillingLimit } from "../billing/billing";
 
 export const websiteCrawlInput = z.strictObject({ operationId: z.string().min(1).max(128), url: z.string().trim().min(1).max(2048), limit: z.number().int().min(1).max(100).default(20), maxDiscoveryDepth: z.number().int().min(0).max(10).default(2) });
 export const websiteCrawlImportInput = z.strictObject({ operationId: z.string().min(1).max(128), pageIds: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(100) });
@@ -48,6 +49,8 @@ export class WebsiteCrawlStore {
   }
   async start(scope:KnowledgeScope,agentId:string,raw:unknown) {
     const input=websiteCrawlInput.parse(raw),url=websiteCrawlUrl(input.url),digest=requestDigest({...input,url,agentId});
+    const used=(await this.pool.query<{used:string}>(`SELECT COALESCE(SUM(page_limit),0)::text AS used FROM agents_platform.website_crawls WHERE organization_id=$1 AND created_at>=date_trunc('month',now())`,[scope.organizationId])).rows[0]?.used??"0";
+    await assertAgentsBillingLimit(this.pool,scope.organizationId,"limit.crawl_pages",Number(used),input.limit);
     return transaction(this.pool,async db=>{
       await this.authorize(db,scope,agentId);
       const connectionId=(scope as KnowledgeScope & {connectionId?:string}).connectionId??null;

@@ -149,7 +149,11 @@ import {
 } from "../../integrations/provider-auth.js";
 import * as bluesky from "../../integrations/bluesky-oauth.js";
 import { syncOrgConnections } from "../connections.js";
-import { recordMeterUsage } from "../billing.js";
+import {
+  billingEnforcementEnabled,
+  recordMeterUsage,
+  requireMeterAvailable,
+} from "../billing.js";
 import { publicMediaUrl, readContentMediaBytes } from "./media.js";
 import * as providers from "./provider-publishing.js";
 import { isValidPlatform, missing, internal, trimmed } from "./common.js";
@@ -359,6 +363,8 @@ export async function executeSocialPublishJob(
     published: string;
   let admittedAccount: Awaited<ReturnType<typeof assertSocialPublicationAccount>>;
   try {
+    if (billingEnforcementEnabled())
+      await requireMeterAvailable(pool, org, "social_publishes", 1);
     await assertDelegatedSocialAuthority({ pool, config }, org, job.user_id, job.job_metadata);
     admittedAccount = await assertSocialPublicationAccount(pool, org, job.channel_connection_id, job.platform, job.job_metadata);
   } catch (error) {

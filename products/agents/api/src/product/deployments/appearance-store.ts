@@ -6,6 +6,7 @@ import type { ActionScope } from "../../contracts/connections";
 import { canonicalJson, PlatformError } from "../../contracts/contracts";
 import { requireActionMember } from "../../infrastructure/action-authority";
 import { transaction } from "../../infrastructure/database";
+import { assertAgentsBillingFeature } from "../billing/billing";
 export const websiteAppearanceUpdateSchema = z.strictObject({ appearance: websiteAppearanceSchema, paused: z.boolean(), expectedAppearanceDigest: z.string().regex(/^[a-f0-9]{64}$/) });
 function dto(row: Record<string, any>) {
   const appearance = websiteAppearanceSchema.parse(row.appearance), paused = Boolean(row.paused);
@@ -31,6 +32,8 @@ export class WebsiteAppearanceStore {
   }
   async updateDraft(scope: ActionScope, agentId: string, raw: unknown) {
     const input = z.strictObject({ appearance: websiteAppearanceSchema, expectedRevision: z.number().int().nonnegative() }).parse(raw);
+    if (input.appearance.showBranding === false)
+      await assertAgentsBillingFeature(this.pool, scope.organizationId, "agents.feature.branding");
     return transaction(this.pool, async db => {
       await this.draftAuthority(db, scope, agentId, true);
       const row = (await db.query("SELECT revision FROM agents_platform.website_appearance_drafts WHERE organization_id=$1 AND agent_id=$2", [scope.organizationId, agentId])).rows[0];
@@ -50,6 +53,8 @@ export class WebsiteAppearanceStore {
   async get(scope: ActionScope, agentId: string, deploymentId: string) { return transaction(this.pool, async db => dto(await this.row(db, scope, agentId, deploymentId))); }
   async update(scope: ActionScope, agentId: string, deploymentId: string, raw: unknown) {
     const input = websiteAppearanceUpdateSchema.parse(raw);
+    if (input.appearance.showBranding === false)
+      await assertAgentsBillingFeature(this.pool, scope.organizationId, "agents.feature.branding");
     return transaction(this.pool, async db => {
       await requireActionMember(db, scope);
       if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL FOR SHARE", [scope.organizationId, scope.accountId])).rowCount) throw new PlatformError("ACCESS_DENIED",403,"An owner must manage website settings");

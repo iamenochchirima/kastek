@@ -144,18 +144,22 @@ plan code. Free plans are active.
 
 | Product | Plan | Price | AI usage | Notes |
 | --- | --- | --- | --- | --- |
-| Growth | Free | R0 | $0 | Inbox, contacts, bookings; one seat and channel |
-| Growth | Growth | R350 | $5 | 3 seats, 1 channel, 500 campaign recipients |
-| Growth | Growth Mid | R999 | $20 | Campaigns, social, analytics, workspace agents |
-| Growth | Growth Scale | R1,999 | $50 | Higher limits and more channels |
-| Agents | Free | R0 | $1 | One agent and a small monthly allowance |
-| Agents | Starter | R350 | $10 | Three agents and two channels |
-| Agents | Growth | R999 | $25 | Ten agents and five channels |
+| Growth | Free | R0 | $0 | Inbox, contacts, calls, bookings and templates; one seat and channel |
+| Growth | Starter | R350 | $10 | Campaigns, content, agents, 3 seats, 2 channels and 1,000 recipients |
+| Growth | Growth | R999 | $25 | 10 seats, 5 channels, 5,000 recipients and workspace analytics |
+| Growth | Scale | R1,999 | $60 | 25 seats, 15 channels, 25,000 recipients and onboarding |
+| Agents | Free | R0 | $1 | One agent and one channel |
+| Agents | Starter | R350 | $10 | Three agents, human handoff and 100 crawl pages |
+| Agents | Growth | R999 | $25 | Ten agents, assignment, analytics and unbranded widgets |
+| Agents | Scale | R1,999 | $60 | 25 agents, 10 channels and 2,000 crawl pages |
+| Agents | Reseller | R4,999 | $150 | 50 agents, 25 channels, 5,000 crawl pages and dedicated support |
 | Agency | Free | R0 | $0 | One client workspace |
 | Agency | Partner | R2,999 | $50 | Ten client workspaces and five staff seats |
 
-Agents agent-count and channel limits are implemented and seeded as enforced. Agency limits remain
-`display_only` while Agency is deferred.
+Growth seats, channels, campaign recipients, social publishes and public API requests are enforced.
+Agents agents, channels, crawl pages, handoff, assignment and badge removal are enforced. Agents
+team seats are defined in the catalog but are not yet enforced by a membership flow. Agency limits
+remain `display_only` while Agency is deferred.
 
 ## AI usage credits
 
@@ -240,7 +244,7 @@ Agency plan changes and payment method updates are not self-serve in this releas
 
 ## Sandbox verification
 
-On 2026-11-08 the Growth plans were published against Paystack test mode:
+On 2026-11-08 the original Growth plans were published against Paystack test mode:
 
 | Plan | Paystack sandbox plan code | Amount |
 | --- | --- | --- |
@@ -257,12 +261,24 @@ A sandbox checkout for Growth Entry completed with reference
 - granted USD 5.00 (`5,000,000` micro-USD) of AI usage;
 - returned an active entitlement snapshot with 3 seats, 1 channel and 500 campaign recipients.
 
-The sandbox payment was completed through the Paystack hosted checkout and verified with
-`POST /internal/checkout/:reference/verify`.
-
 A second sandbox check linked a Growth organization and an Agents organization through the same
 owner identity and billing email. Agents Starter then completed for ZAR 499.00, producing invoice
 `KS-2026-000002` and USD 10.00 of AI usage under the same billing account and Paystack customer.
+
+On 2026-11-09 the catalog was repackaged into the current tiers. New sandbox plan codes:
+
+| Plan | Paystack sandbox plan code | Amount |
+| --- | --- | --- |
+| Growth Starter | `PLN_0szdbuzvvglr0xi` | R350 |
+| Growth | `PLN_6j1bbb4kw4z3nnl` | R999 |
+| Growth Scale | `PLN_x6m880cpcxqz8b8` | R1,999 |
+| Agents Scale | `PLN_1409yztz8quozkl` | R1,999 |
+| Agents Reseller | `PLN_l11l4imajo7mgjj` | R4,999 |
+
+The active sandbox versions are Growth Starter version 2, Growth version 2, Scale version 2,
+Agents Free version 2, Agents Starter version 3, Agents Growth version 2, Agents Scale version 2
+and Agents Reseller version 2. Existing subscribers remain pinned to earlier versions. A fresh
+hosted checkout for the new paid versions has not yet been recorded.
 
 Webhook-driven renewal, refund and dispute paths still need a public HTTPS callback URL. The
 production sequence is in
@@ -315,5 +331,5 @@ credit grants, and transitions expired trials and grace periods. Agency usage ou
 | Rollback | Disable checkout by retiring the affected plan versions. Restore the previous active version where a rollback is needed. Billing data remains in the service database. Removing product billing variables disables billing; it does not restore local billing. |
 | Analytics and logs | Structured worker and request logs; no card data or full webhook payloads in logs. Usage forwarding failures remain in outboxes with retry state. |
 | Documentation | This page, `services/billing/README.md`, `ARCHITECTURE.md`, and product billing support runbooks. |
-| Validation | Billing typecheck/build and 16/16 integration tests; Growth typecheck/build and 180 passing tests; Agents, Agency, Admin, Growth web, Agents web, and Agency web typecheck/build; fresh billing migrate and seed; boundary check; Paystack sandbox plans published and Growth Entry checkout completed with paid invoice, active subscription and USD 5.00 AI usage. |
+| Validation | Billing typecheck/build and 16/16 integration tests; Growth typecheck/build and 180 passing tests; Agents, Agency, Admin, Growth web, Agents web, and Agency web typecheck/build; fresh billing migrate and seed; boundary check; Paystack sandbox plans published and Growth Starter checkout completed with paid invoice, active subscription and USD 10.00 AI usage. |
 | Open decisions | Live Paystack keys and a public webhook URL, a USD-capable provider, self-serve top-ups, Agents and Agency product guards for currently display-only limits, and custom-work invoice migration. |

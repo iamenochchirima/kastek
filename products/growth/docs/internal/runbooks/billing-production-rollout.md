@@ -32,8 +32,8 @@ and Agents are the products in scope. Agency remains draft and read-only.
 
 ## 3. Paystack live catalog
 
-- [ ] Create or confirm live ZAR monthly plans for Growth Entry, Growth Mid and Growth Scale.
-- [ ] Create or confirm live ZAR monthly plans for Agents Starter and Agents Growth.
+- [ ] Create or confirm live ZAR monthly plans for Growth Starter, Growth and Scale.
+- [ ] Create or confirm live ZAR monthly plans for Agents Starter, Growth, Scale and Reseller.
 - [ ] Verify each live plan amount matches the local plan version.
 - [ ] In Admin → Billing, set the live plan code on each draft version.
 - [ ] Publish the versions.
@@ -56,7 +56,7 @@ and Agents are the products in scope. Agency remains draft and read-only.
 
 ## 6. Live verification
 
-- [ ] Buy Growth Entry with a real card.
+- [ ] Buy Growth Starter with a real card.
 - [ ] Confirm one billing account, one Paystack customer, one paid invoice, an active subscription and
       USD 5.00 AI usage.
 - [ ] Buy Agents Starter with the same owner identity and billing email.

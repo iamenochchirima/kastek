@@ -14,6 +14,7 @@
     "start:worker": "node dist/worker-main.js",
     "migrate": "node dist/migrate-main.js",
     "seed": "node dist/seed-main.js",
+    "apply:plans": "node dist/apply-plans.js",
     "dev": "tsx watch src/api-main.ts",
     "dev:worker": "tsx watch src/worker-main.ts"
   },

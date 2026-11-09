@@ -25,6 +25,7 @@ import { parseHandoffFeedbackRequest, type HandoffFeedbackRequest } from "../../
 import { publishSupportStatus,assertSupportStatusNotice,assertSupportStatusNoticeVisible,type StatusNoticeBinding,type StatusEvidenceVerifier } from './support-status-notice';
 import { projectRecipientText, taskRecipientTextScope } from "../../execution/context/recipient-text";
 import { recordSupportLifecycle } from "../reporting/support-lifecycle";
+import { assertAgentsBillingFeature } from "../billing/billing";
 export type { ChannelBinding } from "../../contracts/channel";
 
 type Db = Pool | PoolClient;
@@ -365,6 +366,8 @@ export class InboxStore {
     });
   }
   async command(scope: InboxScope, id: string, input: InboxCommand, preparedDelivery?:PreparedChannelDelivery, sourceDigest?:string) {
+    if (input.action === "assign")
+      await assertAgentsBillingFeature(this.pool, scope.organizationId, "agents.feature.assignment");
     const result = await transaction(this.pool, async db => {
       const role = await this.membership(db, scope), row = await this.conversation(db, id, true); if (row.organization_id !== scope.organizationId) denied();
       await this.trialStaff(db,scope,row,true);

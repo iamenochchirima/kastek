@@ -451,7 +451,7 @@ export async function upsertPlan(
         input.active ? "catalog" : null,
       ],
     );
-    await replacePlanEntitlementsTx(client, versionId, input.entitlements);
+    await replacePlanEntitlementsTx(client, versionId, input.entitlements, true);
     return planSummary(
       await getPlanVersionById(client, versionId),
       await getPlanEntitlements(client, versionId),

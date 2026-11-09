@@ -64,6 +64,9 @@ USD-capable provider.
 - An entitlement-only change may reuse a Paystack plan code. A price, currency, or interval change
   requires a new code.
 - Seeding creates defaults only for missing plan keys and never overwrites admin edits.
+- `pnpm exec tsx src/apply-plans.ts` publishes the seeded plan definitions as new versions when
+  `BILLING_PLAN_CODES_JSON` supplies a Paystack plan code for each paid plan. Existing subscribers
+  stay pinned to the version they bought.
 - `BILLING_TRIAL_PLANS_JSON` selects the self-serve trial plan per product; `BILLING_TRIAL_DAYS`
   defaults to 14. A workspace gets one trial per product, with no provider subscription.
 

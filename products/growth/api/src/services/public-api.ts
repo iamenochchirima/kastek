@@ -9,6 +9,7 @@ import type {
 import { ApiError } from "../error.js";
 import { transaction } from "../db.js";
 import { wireInteger } from "@kasitek-labs/server-support/json";
+import { billingEnforcementEnabled, requireMeterAvailable } from "./billing.js";
 type Row = Record<string, unknown>;
 const SQL = {
   audit_begin_request: [
@@ -111,6 +112,8 @@ export async function beginRequest(
   method: string,
   route: string,
 ): Promise<RequestAuditHandle> {
+  if (billingEnforcementEnabled())
+    await requireMeterAvailable(pool, context.organizationId, "public_api_requests", 1);
   return transaction(pool, async (client) => {
     await client.query(SQL.audit_begin_request[0], [
       `${context.organizationId}:${context.principal.id}`,

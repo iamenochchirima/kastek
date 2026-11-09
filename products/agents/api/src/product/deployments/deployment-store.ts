@@ -17,6 +17,7 @@ import { delegatedConfiguration } from "../../execution/delegation/scope";
 import { loadBookingPolicy } from "../../workflows/booking/policy";
 import { AuthorityStore } from "../../execution/admission/authority-store";
 import { defaultWebsiteAppearance, websiteAppearanceSchema } from "../../adapters/channels/website/appearance";
+import { assertAgentsBillingFeature } from "../billing/billing";
 
 type Db=Pool|PoolClient;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -67,6 +68,8 @@ export class DeploymentStore extends AuthorityStore {
       await db.query("SELECT id FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 FOR SHARE", [input.organizationId, input.agentId]);
       const draft = (await db.query("SELECT appearance FROM agents_platform.website_appearance_drafts WHERE organization_id=$1 AND agent_id=$2 FOR SHARE", [input.organizationId, input.agentId])).rows[0];
       const appearance = websiteAppearanceSchema.parse(draft?.appearance ?? defaultWebsiteAppearance);
+      if (appearance.showBranding === false)
+        await assertAgentsBillingFeature(this.pool, input.organizationId, "agents.feature.branding");
       return (await db.query<WebsiteDeployment>(`INSERT INTO agents_platform.website_deployments(id,organization_id,agent_id,version_id,allowed_origins,published_by,appearance)
         VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`, [randomUUID(), input.organizationId, input.agentId, version.id, JSON.stringify(origins), input.accountId, appearance])).rows[0]!;
   }

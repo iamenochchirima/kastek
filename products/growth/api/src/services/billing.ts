@@ -350,6 +350,7 @@ export async function getBillingSummary(
             isGrowth && snapshot.access === "none"
               ? "upgrade_required"
               : "enabled",
+          planKey: item.planKey ? String(item.planKey) : null,
           planName: String(item.planName ?? ""),
           subscriptionStatus: item.status ? String(item.status) : null,
           subscriptionId: String(item.id),
@@ -368,6 +369,7 @@ export async function getBillingSummary(
           description: productDefinitions.growth!.description,
           hasAccess: snapshot.access !== "none",
           state: snapshot.access === "none" ? "upgrade_required" : "enabled",
+          planKey: snapshot.plan?.key ?? null,
           planName: snapshot.plan?.name ?? null,
           subscriptionStatus: snapshot.subscription?.status ?? null,
           subscriptionId: snapshot.subscription?.id ?? null,

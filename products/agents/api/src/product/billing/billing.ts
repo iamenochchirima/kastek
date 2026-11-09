@@ -53,6 +53,38 @@ export async function ensureAgentsBillingAccount(
   });
 }
 
+export async function assertAgentsBillingFeature(
+  pool: Pool,
+  organizationId: string,
+  key: string,
+): Promise<void> {
+  if (!agentsBillingEnforcementEnabled(process.env)) return;
+  const client = agentsBillingClient();
+  if (!client)
+    throw new PlatformError(
+      "BILLING_UNAVAILABLE",
+      503,
+      "Customer billing is not configured",
+    );
+  try {
+    await ensureAgentsBillingAccount(pool, client, organizationId);
+    const snapshot = await client.snapshot(organizationId);
+    if (snapshot.features[key] !== true)
+      throw new PlatformError(
+        "BILLING_PLAN_REQUIRED",
+        403,
+        "This feature is not included in the current plan",
+      );
+  } catch (error) {
+    if (error instanceof PlatformError) throw error;
+    throw new PlatformError(
+      "BILLING_UNAVAILABLE",
+      503,
+      error instanceof Error ? error.message : "Billing service is unavailable",
+    );
+  }
+}
+
 export async function assertAgentsBillingLimit(
   pool: Pool,
   organizationId: string,

@@ -26,6 +26,7 @@ import type { Account,AgentRecord,VersionRecord,WebsiteDeployment } from "../../
 import { DeploymentStore } from "../deployments/deployment-store";
 import { AuthorityStore } from "../../execution/admission/authority-store";
 import { loadSkillRevisions } from "../../execution/memory/memory";
+import { assertAgentsBillingFeature } from "../billing/billing";
 
 type Db=Pool|PoolClient;
 function updatedSupportHoursSetup(agent:AgentRecord,configuration:AgentConfiguration):CustomerSetup|undefined {
@@ -220,6 +221,8 @@ export class AgentStore extends AuthorityStore {
   }
   private async createVersionInTransaction(db:PoolClient,input:{accountId:string;organizationId:string;agentId:string},agent:AgentRecord):Promise<VersionRecord> {
       const config = agentConfigurationSchema.parse(agent.draft);
+      if (config.tools.includes("channel.request_handoff"))
+        await assertAgentsBillingFeature(this.pool, input.organizationId, "agents.feature.handoff");
       const connectedAuthority = connectedToolAuthorityIds(config);
       if (config.model.selection.kind === "connection") {
         const selection = config.model.selection;
