@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
 import { transaction } from "../../infrastructure/database";
+import { assertAgentsBillingLimit } from "../billing/billing";
 
 export type MemberRole = "owner" | "member";
 export type MemberScope = { accountId: string; organizationId: string };
@@ -47,6 +48,15 @@ const denied = () => new PlatformError("ACCESS_DENIED", 403, "Workspace access i
 const ownerRequired = () => new PlatformError("OWNER_REQUIRED", 403, "Only an owner can manage members");
 const notFound = () => new PlatformError("NOT_FOUND", 404, "Member not found");
 const lastOwner = () => new PlatformError("LAST_OWNER", 409, "A workspace must keep at least one owner");
+
+async function activeSeats(db: Pool | PoolClient, organizationId: string): Promise<number> {
+  const result = await db.query<{ used: string }>(
+    `SELECT count(*)::text AS used FROM agents_platform.memberships
+     WHERE organization_id=$1 AND revoked_at IS NULL`,
+    [organizationId],
+  );
+  return Number(result.rows[0]?.used ?? "0");
+}
 
 async function activeRole(
   db: Pool | PoolClient,
@@ -228,6 +238,12 @@ export class MemberStore {
       if (existing && existing.revoked_at === null) {
         throw new PlatformError("ALREADY_MEMBER", 409, "That account is already a member");
       }
+      await assertAgentsBillingLimit(
+        this.pool,
+        scope.organizationId,
+        "limit.agent_seats",
+        await activeSeats(db, scope.organizationId),
+      );
       if (existing) {
         await db.query(
           `UPDATE agents_platform.memberships
@@ -274,6 +290,22 @@ export class MemberStore {
       if (pending) {
         throw new PlatformError("INVITATION_EXISTS", 409, "An invitation is already pending for that email");
       }
+      const seats = (await db.query<{ used: string }>(
+        `SELECT (
+           (SELECT count(*) FROM agents_platform.memberships
+             WHERE organization_id=$1 AND revoked_at IS NULL) +
+           (SELECT count(*) FROM agents_platform.organization_invitations
+             WHERE organization_id=$1 AND accepted_at IS NULL AND revoked_at IS NULL
+               AND expires_at>now() AND lower(email)<>lower($2))
+         )::text AS used`,
+        [scope.organizationId, normalized],
+      )).rows[0]?.used ?? "0";
+      await assertAgentsBillingLimit(
+        this.pool,
+        scope.organizationId,
+        "limit.agent_seats",
+        Number(seats),
+      );
       const id = randomUUID();
       const token = randomBytes(32).toString("base64url");
       await db.query(
@@ -409,6 +441,22 @@ export class MemberStore {
         acceptedRole = existing.role;
       } else {
         acceptedRole = invitation.role;
+        const seats = (await db.query<{ used: string }>(
+          `SELECT (
+             (SELECT count(*) FROM agents_platform.memberships
+               WHERE organization_id=$1 AND revoked_at IS NULL) +
+             (SELECT count(*) FROM agents_platform.organization_invitations
+               WHERE organization_id=$1 AND accepted_at IS NULL AND revoked_at IS NULL
+                 AND expires_at>now() AND id<>$2)
+           )::text AS used`,
+          [invitation.organization_id, invitation.id],
+        )).rows[0]?.used ?? "0";
+        await assertAgentsBillingLimit(
+          this.pool,
+          invitation.organization_id,
+          "limit.agent_seats",
+          Number(seats),
+        );
         if (existing) {
           await db.query(
             `UPDATE agents_platform.memberships
