@@ -1,15 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  PiArrowRight as ArrowRight,
-  PiCheck as Check,
-  PiMinus as Minus,
-  PiSparkle as Sparkle,
-} from "react-icons/pi";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { ArrowRight, ArrowUpRight, Check, Minus, Sparkles } from "lucide-react";
+
+import styles from "./pricing.module.css";
 import type { Plan } from "./billing-settings";
-import "./landing-v2.css";
 import {
   AGENTS_COMPARISON,
   agentsFeatureGroups,
@@ -25,7 +19,7 @@ function signupHref(): string {
   return "/signup?returnTo=%2Fapp%2Fupgrade";
 }
 
-function PlanCard({
+function PublicPlanCard({
   plan,
   selected,
   onSelect,
@@ -36,6 +30,7 @@ function PlanCard({
 }) {
   const presentation = presentationFor(plan);
   const isFree = Number(plan.amountMinor) === 0;
+  const featured = presentation.recommended === true;
   const features = agentsFeatureGroups(plan).filter((group) => group.included);
   const metrics = [
     { label: "Seats", value: metricNumber(plan, "limit.agent_seats") },
@@ -47,14 +42,7 @@ function PlanCard({
 
   return (
     <article
-      className={cn(
-        "flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border bg-[#fffdf8] shadow-[0_1px_2px_rgba(16,24,40,.04),0_18px_40px_-28px_rgba(16,24,40,.22)] outline-none transition-shadow focus-visible:ring-[3px] focus-visible:ring-[#245ed2]/30",
-        selected
-          ? "border-[#245ed2] ring-2 ring-[#245ed2]/15"
-          : presentation.recommended
-            ? "border-[#245ed2]/40"
-            : "border-[#e7e2d8]",
-      )}
+      className={`${styles.card} ${featured ? styles.cardFeatured : ""} ${selected ? styles.cardSelected : ""}`}
       onClick={onSelect}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -65,74 +53,52 @@ function PlanCard({
       role="button"
       tabIndex={0}
       aria-pressed={selected}
+      style={{ cursor: "pointer" }}
     >
-      {presentation.recommended ? (
-        <div className="bg-[#245ed2] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white">
-          {presentation.ribbon ?? "Most popular"}
-        </div>
-      ) : null}
-      <div className="flex flex-1 flex-col p-5">
-        <div className="flex items-start justify-between gap-2">
-          <h2 className="text-lg font-semibold tracking-tight text-[#171a22]">{plan.name}</h2>
-          {selected ? (
-            <span className="shrink-0 rounded-full bg-[#245ed2] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-white">
-              Selected
-            </span>
-          ) : null}
-        </div>
-        <p className="mt-1 text-sm leading-5 text-[#6b6b64]">{presentation.tagline}</p>
+      {featured ? <span className={styles.ribbon}>{presentation.ribbon ?? "Most popular"}</span> : null}
+      <div className={styles.cardTop}>
+        <h2 className={styles.cardName}>{plan.name}</h2>
+      </div>
+      <p className={styles.tagline}>{presentation.tagline}</p>
 
-        <div className="mt-6 flex items-end gap-1.5">
-          <p className="text-4xl font-semibold tracking-[-0.05em] text-[#171a22]">
-            {formatPrice(plan.amountMinor, plan.currency)}
-          </p>
-          <p className="pb-1 text-xs text-[#6b6b64]">/ month</p>
-        </div>
-        <p className="mt-1 text-xs text-[#6b6b64]">Billed monthly. Cancel anytime.</p>
+      <p className={styles.price}>{formatPrice(plan.amountMinor, plan.currency)}</p>
+      <p className={styles.priceNote}>per month · billed monthly · cancel anytime</p>
 
-        <div className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-full border border-[#e7e2d8] bg-[#f1ece2] px-2.5 py-1 text-xs text-[#171a22]">
-          <Sparkle className="size-3.5 text-[#245ed2]" />
-          {Number(plan.creditsPerPeriod ?? 0) > 0
-            ? `${formatUsd(plan.creditsPerPeriod)} AI usage`
-            : "No AI usage"}
-        </div>
+      <span className={styles.aiLine}>
+        <Sparkles className={styles.check} size={13} />
+        {Number(plan.creditsPerPeriod ?? 0) > 0
+          ? `${formatUsd(plan.creditsPerPeriod)} AI usage`
+          : "No AI usage"}
+      </span>
 
-        <dl className="mt-5 grid grid-cols-2 gap-2">
-          {metrics.map((metric) => (
-            <div key={metric.label} className="rounded-lg border border-[#e7e2d8] bg-[#f7f3ea] px-2.5 py-2">
-              <dt className="text-[10px] uppercase tracking-[0.1em] text-[#7a766c]">{metric.label}</dt>
-              <dd className="mt-0.5 text-sm font-semibold text-[#171a22]">{metric.value}</dd>
-            </div>
-          ))}
-        </dl>
+      <dl className={styles.metrics}>
+        {metrics.map((metric) => (
+          <div key={metric.label} className={styles.metric}>
+            <dt className={styles.metricLabel}>{metric.label}</dt>
+            <dd className={styles.metricValue}>{metric.value}</dd>
+          </div>
+        ))}
+      </dl>
 
-        <div className="mt-5 border-t border-[#e7e2d8] pt-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#7a766c]">Includes</p>
-          <ul className="mt-3 space-y-2">
-            {features.map((feature) => (
-              <li key={feature.label} className="flex items-start gap-2 text-sm text-[#6b6b64]">
-                <Check className="mt-0.5 size-4 shrink-0 text-[#245ed2]" />
-                <span>{feature.label}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+      <ul className={styles.features}>
+        {features.map((feature) => (
+          <li key={feature.label} className={styles.feature}>
+            <Check className={styles.check} size={15} />
+            <span>{feature.label}</span>
+          </li>
+        ))}
+      </ul>
 
-        <div className="mt-auto pt-5">
-          {available ? (
-            <Button asChild className="w-full rounded-full bg-[#202530] text-white hover:bg-[#35405a]">
-              <Link to={signupHref()} style={{ color: "#fff" }}>
-                {isFree ? "Get started" : `Choose ${plan.name}`}
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-          ) : (
-            <Button className="w-full rounded-full" variant="outline" disabled>
-              Coming soon
-            </Button>
-          )}
-          <p className="mt-2 text-center text-[11px] text-[#7a766c]">{presentation.support}</p>
-        </div>
+      <div className={styles.cardAction}>
+        {available ? (
+          <Link to={signupHref()} className={styles.cta} style={{ color: "#f4f2ea" }}>
+            <span>{isFree ? "Get started" : `Choose ${plan.name}`}</span>
+            <ArrowRight size={16} />
+          </Link>
+        ) : (
+          <span className={styles.ctaDisabled}>Coming soon</span>
+        )}
+        <p className={styles.supportLine}>{presentation.support}</p>
       </div>
     </article>
   );
@@ -149,12 +115,10 @@ function ResellerCard({
 }) {
   const presentation = presentationFor(plan);
   const available = plan.checkoutReady;
+
   return (
     <article
-      className={cn(
-        "cursor-pointer overflow-hidden rounded-2xl border bg-gradient-to-br from-[#eef4ff] via-white to-white shadow-[0_1px_2px_rgba(16,24,40,.04),0_18px_40px_-28px_rgba(16,24,40,.22)] outline-none transition-shadow focus-visible:ring-[3px] focus-visible:ring-[#245ed2]/30",
-        selected ? "border-[#245ed2] ring-2 ring-[#245ed2]/15" : "border-[#245ed2]/30",
-      )}
+      className={`${styles.card} ${styles.reseller} ${selected ? styles.cardSelected : ""}`}
       onClick={onSelect}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -165,49 +129,45 @@ function ResellerCard({
       role="button"
       tabIndex={0}
       aria-pressed={selected}
+      style={{ cursor: "pointer" }}
     >
-      <div className="grid gap-6 p-6 lg:grid-cols-[1.25fr_1fr] lg:items-center">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold tracking-tight text-[#171a22]">{plan.name}</h2>
-            <span className="rounded-full border border-[#245ed2]/25 bg-[#e8f0ff] px-2.5 py-0.5 text-[11px] font-medium text-[#245ed2]">
-              For agencies
-            </span>
-            {selected ? (
-              <span className="rounded-full bg-[#245ed2] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-white">
-                Selected
-              </span>
-            ) : null}
-          </div>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-[#6b6b64]">{presentation.tagline}</p>
-          <div className="mt-5 flex flex-wrap gap-2 text-xs">
-            <span className="rounded-full border border-[#e7e2d8] bg-[#fffdf8] px-3 py-1">{metricNumber(plan, "limit.agent_count")} agents</span>
-            <span className="rounded-full border border-[#e7e2d8] bg-[#fffdf8] px-3 py-1">{metricNumber(plan, "limit.agent_channels")} channels</span>
-            <span className="rounded-full border border-[#e7e2d8] bg-[#fffdf8] px-3 py-1">{metricNumber(plan, "limit.crawl_pages")} crawl pages / mo</span>
-            <span className="rounded-full border border-[#e7e2d8] bg-[#fffdf8] px-3 py-1">{formatUsd(plan.creditsPerPeriod)} AI usage</span>
-          </div>
+      <div>
+        <div className={styles.cardTop}>
+          <h2 className={styles.cardName}>{plan.name}</h2>
+          <span className={styles.ribbon} style={{ marginBottom: 0 }}>For agencies</span>
         </div>
-        <div className="space-y-3 lg:border-l lg:border-[#e7e2d8] lg:pl-6">
-          <p className="text-3xl font-semibold tracking-[-0.04em] text-[#171a22]">
-            {formatPrice(plan.amountMinor, plan.currency)}
-            <span className="ml-1 text-sm font-normal text-[#6b6b64]">/ month</span>
-          </p>
-          <p className="text-sm leading-6 text-[#6b6b64]">
-            {presentation.support}. Build and host agents for clients under your own brand.
-          </p>
-          {available ? (
-            <Button asChild className="w-full rounded-full bg-[#202530] text-white hover:bg-[#35405a]">
-              <Link to={signupHref()} style={{ color: "#fff" }}>
-                Choose {plan.name}
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-          ) : (
-            <Button className="w-full rounded-full" variant="outline" disabled>
-              Coming soon
-            </Button>
-          )}
-        </div>
+        <p className={styles.tagline}>{presentation.tagline}</p>
+        <dl className={styles.metrics}>
+          <div className={styles.metric}>
+            <dt className={styles.metricLabel}>Agents</dt>
+            <dd className={styles.metricValue}>{metricNumber(plan, "limit.agent_count")}</dd>
+          </div>
+          <div className={styles.metric}>
+            <dt className={styles.metricLabel}>Channels</dt>
+            <dd className={styles.metricValue}>{metricNumber(plan, "limit.agent_channels")}</dd>
+          </div>
+          <div className={styles.metric}>
+            <dt className={styles.metricLabel}>Crawl / mo</dt>
+            <dd className={styles.metricValue}>{metricNumber(plan, "limit.crawl_pages")}</dd>
+          </div>
+          <div className={styles.metric}>
+            <dt className={styles.metricLabel}>AI usage</dt>
+            <dd className={styles.metricValue}>{formatUsd(plan.creditsPerPeriod)}</dd>
+          </div>
+        </dl>
+      </div>
+      <div className={styles.cardAction}>
+        <p className={styles.price}>{formatPrice(plan.amountMinor, plan.currency)}</p>
+        <p className={styles.priceNote}>per month · billed monthly · cancel anytime</p>
+        {available ? (
+          <Link to={signupHref()} className={styles.cta} style={{ color: "#f4f2ea", marginTop: 18 }}>
+            <span>Choose {plan.name}</span>
+            <ArrowRight size={16} />
+          </Link>
+        ) : (
+          <span className={styles.ctaDisabled} style={{ marginTop: 18 }}>Coming soon</span>
+        )}
+        <p className={styles.supportLine}>{presentation.support}</p>
       </div>
     </article>
   );
@@ -218,24 +178,22 @@ function ComparisonRows({ plans }: { plans: Plan[] }) {
     <>
       {AGENTS_COMPARISON.map((group) => (
         <tbody key={group.label}>
-          <tr className="border-b border-[#e7e2d8] bg-[#f1ece2]">
-            <th colSpan={plans.length + 1} className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-[#7a766c]">
-              {group.label}
-            </th>
+          <tr className={styles.groupRow}>
+            <th colSpan={plans.length + 1}>{group.label}</th>
           </tr>
           {group.rows.map((row) => (
-            <tr key={row.label} className="border-b border-[#e7e2d8] last:border-0">
-              <td className="px-5 py-3 text-sm text-[#6b6b64]">{row.label}</td>
+            <tr key={row.label}>
+              <td className={styles.cellLabel}>{row.label}</td>
               {plans.map((plan) => {
                 const cell = row.cell(plan);
                 return (
-                  <td key={plan.key} className="px-5 py-3 text-sm text-[#171a22]">
+                  <td key={plan.key}>
                     {cell.kind === "included" ? (
-                      <Check className="size-4 text-[#245ed2]" aria-label="Included" />
+                      <Check className={styles.check} size={16} aria-label="Included" />
                     ) : cell.kind === "excluded" ? (
-                      <Minus className="size-4 text-[#c2c6cd]" aria-label="Not included" />
+                      <Minus size={16} color="#b7b3a8" aria-label="Not included" />
                     ) : (
-                      <span>{cell.value}</span>
+                      cell.value
                     )}
                   </td>
                 );
@@ -260,8 +218,7 @@ export function PricingPage() {
         return (await response.json()) as PublicPlans;
       })
       .then((result) => { if (live) setData(result); })
-      .catch((cause) => { if (live) setError(cause instanceof Error ? cause.message : "Plans could not be loaded"); })
-      .finally(() => { if (!live) return; });
+      .catch((cause) => { if (live) setError(cause instanceof Error ? cause.message : "Plans could not be loaded"); });
     return () => { live = false; };
   }, []);
 
@@ -270,7 +227,7 @@ export function PricingPage() {
   );
   const reseller = plans.find((plan) => plan.key === "agents-reseller");
   const mainPlans = plans.filter((plan) => plan.key !== "agents-reseller");
-  const [selected, setSelected] = useState<string | null>(() => null);
+  const [selected, setSelected] = useState<string | null>(null);
   const activeSelection =
     selected ??
     plans.find((plan) => presentationFor(plan).recommended)?.key ??
@@ -278,90 +235,74 @@ export function PricingPage() {
     null;
 
   return (
-    <div className="landing-v2">
-      <title>Pricing | KasiTek Agents</title>
-      <meta name="description" content="Monthly plans for KasiTek Agents. Start free, add handoff, knowledge, inbox tools and unbranded widgets." />
-      <header className="lv2-header mt-7">
-        <Link to="/landingv2" className="lv2-brand" aria-label="Agents home">
-          Agents <small>by KasiTek</small>
+    <div className={styles.page}>
+      <header className={styles.nav}>
+        <Link to="/landingv2" className={styles.brand} aria-label="KasiTek Agents home">
+          kasitek<span>/ agents</span>
         </Link>
-        <nav className="lv2-desktop-nav" aria-label="Product navigation">
-          <Link to="/landingv2#product">Product</Link>
-          <Link to="/landingv2#personal">Personal</Link>
+        <nav aria-label="Public navigation">
           <Link to="/pricing">Pricing</Link>
+          <Link to="/login">Sign in<ArrowUpRight size={14} aria-hidden="true" /></Link>
         </nav>
-        <div className="lv2-header-actions">
-          <Link to="/login" className="lv2-signin">Sign in</Link>
-          <Button asChild className="lv2-button is-dark">
-            <Link to="/signup?returnTo=%2Fapp%2Fagents">Get started</Link>
-          </Button>
-        </div>
       </header>
 
       <main>
-        <section className="lv2-container pb-8 pt-12 sm:pt-16">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#245ed2]">KasiTek Agents</p>
-          <h1 className="mt-3 max-w-2xl text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">
-            Plans for every stage.
-          </h1>
-          <p className="mt-4 max-w-xl text-base leading-7 text-[#6b6b64]">
+        <section className={styles.hero}>
+          <p className={styles.kicker}>KasiTek Agents</p>
+          <h1 className={styles.heading}>Plans for every stage.</h1>
+          <p className={styles.intro}>
             Start with one agent. Add handoff, knowledge, inbox tools and unbranded widgets as your team grows.
           </p>
-          <div className="mt-5 flex flex-wrap gap-2 text-xs">
-            <span className="rounded-full border border-[#245ed2]/25 bg-[#e8f0ff] px-3 py-1 font-medium text-[#245ed2]">Free to start</span>
-            <span className="rounded-full border border-[#e7e2d8] bg-[#fffdf8] px-3 py-1 text-[#6b6b64]">Monthly billing</span>
-            <span className="rounded-full border border-[#e7e2d8] bg-[#fffdf8] px-3 py-1 text-[#6b6b64]">AI usage shown in USD</span>
+          <div className={styles.actions}>
+            <Link to={signupHref()} className={styles.heroCta}>
+              Get started <ArrowRight size={18} aria-hidden="true" />
+            </Link>
           </div>
         </section>
 
-        {error ? <p className="mx-auto max-w-6xl px-4 pb-4 text-sm text-red-600" role="alert">{error}</p> : null}
+        {error ? <p className={styles.error} role="alert">{error}</p> : null}
 
-        <section className="lv2-container" aria-label="Agents plans">
+        <section className={styles.plansSection} aria-label="Agents plans">
           {!data && !error ? (
-            <div className="rounded-2xl border border-[#e7e2d8] bg-[#fffdf8] p-6 text-sm text-[#6b6b64]">Loading plans…</div>
+            <p className={styles.intro}>Loading plans…</p>
           ) : plans.length ? (
-            <div className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {mainPlans.map((plan) => (
-                <PlanCard
-                  key={plan.key}
-                  plan={plan}
-                  selected={activeSelection === plan.key}
-                  onSelect={() => setSelected(plan.key)}
+            <>
+              <div className={styles.planGrid}>
+                {mainPlans.map((plan) => (
+                  <PublicPlanCard
+                    key={plan.key}
+                    plan={plan}
+                    selected={activeSelection === plan.key}
+                    onSelect={() => setSelected(plan.key)}
+                  />
+                ))}
+              </div>
+              {reseller ? (
+                <ResellerCard
+                  plan={reseller}
+                  selected={activeSelection === reseller.key}
+                  onSelect={() => setSelected(reseller.key)}
                 />
-              ))}
-            </div>
+              ) : null}
+            </>
           ) : (
-            <div className="rounded-2xl border border-[#e7e2d8] bg-[#fffdf8] p-6 text-sm text-[#6b6b64]">
-              Plans are being configured.
-            </div>
+            <p className={styles.intro}>Plans are being configured.</p>
           )}
         </section>
 
-        {reseller ? (
-          <section className="mx-auto mt-4 max-w-6xl px-4">
-            <ResellerCard
-              plan={reseller}
-              selected={activeSelection === reseller.key}
-              onSelect={() => setSelected(reseller.key)}
-            />
-          </section>
-        ) : null}
-
         {plans.length ? (
-          <section className="mx-auto mt-8 max-w-6xl overflow-hidden rounded-2xl border border-[#e7e2d8] bg-[#fffdf8] shadow-[0_1px_2px_rgba(16,24,40,.04),0_18px_40px_-28px_rgba(16,24,40,.22)]">
-            <div className="border-b border-[#e7e2d8] p-5">
-              <h2 className="text-lg font-semibold text-[#171a22]">Compare plans</h2>
-              <p className="mt-1 text-sm text-[#6b6b64]">Seats, agents, knowledge, inbox tools and branding side by side.</p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[980px] text-left text-sm">
+          <section className={styles.compareSection}>
+            <h2 className={styles.sectionTitle}>Compare plans</h2>
+            <p className={styles.sectionCopy}>Seats, agents, knowledge, inbox tools and branding side by side.</p>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
                 <thead>
-                  <tr className="border-b border-[#e7e2d8] bg-[#f1ece2]">
-                    <th className="min-w-[190px] px-5 py-4 text-xs font-medium uppercase tracking-[0.12em] text-[#7a766c]">Plan</th>
+                  <tr>
+                    <th>Plan</th>
                     {plans.map((plan) => (
-                      <th key={plan.key} className="min-w-[150px] px-5 py-4 align-bottom">
-                        <span className="block text-sm font-semibold text-[#171a22]">{plan.name}</span>
-                        <span className="mt-1 block text-xs font-normal text-[#6b6b64]">
+                      <th key={plan.key}>
+                        <span className={styles.planHeading}>{plan.name}</span>
+                        <span className={styles.planPrice}>
                           {formatPrice(plan.amountMinor, plan.currency)} / mo
                         </span>
                       </th>
@@ -374,22 +315,20 @@ export function PricingPage() {
           </section>
         ) : null}
 
-        <p className="lv2-container mt-6 text-xs leading-5 text-[#7a766c]">
+        <p className={styles.note}>
           Early access pricing. Plans and limits may change before general availability. Prices exclude VAT where applicable.
         </p>
       </main>
 
-      <footer className="lv2-footer lv2-container">
-        <Link to="/landingv2" className="lv2-footer-brand">Agents <small>by KasiTek</small></Link>
+      <footer className={styles.footer}>
+        <span>© {new Date().getFullYear()} KasiTek</span>
         <nav aria-label="Footer navigation">
-          <Link to="/landingv2">Product</Link>
+          <Link to="/landingv2">Agents</Link>
           <Link to="/pricing">Pricing</Link>
           <Link to="/login">Sign in</Link>
-        </nav>
-        <div className="lv2-footer-legal">
           <a href="https://kasitek.co.za/privacy-policy">Privacy</a>
           <a href="https://kasitek.co.za/terms">Terms</a>
-        </div>
+        </nav>
       </footer>
     </div>
   );

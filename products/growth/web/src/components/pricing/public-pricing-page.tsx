@@ -63,7 +63,6 @@ function PublicPlanCard({
       {featured ? <span className={styles.ribbon}>{presentation.ribbon ?? "Most popular"}</span> : null}
       <div className={styles.cardTop}>
         <h2 className={styles.cardName}>{plan.name}</h2>
-        {selected ? <span className={styles.selectedBadge}>Selected</span> : null}
       </div>
       <p className={styles.tagline}>{presentation.tagline}</p>
 
