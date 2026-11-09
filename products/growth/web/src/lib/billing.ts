@@ -6,6 +6,7 @@ export type ProductAccess = {
   description: string | null;
   hasAccess: boolean;
   state: "enabled" | "upgrade_required";
+  planKey: string | null;
   planName: string | null;
   subscriptionStatus: string | null;
   subscriptionId: string | null;

@@ -1,15 +1,19 @@
 import { apiUrl } from "@/lib/server-api";
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
 
 export function CheckoutButton({
   planKey,
   disabled = false,
   label = "Choose plan",
+  variant = "default",
+  className = "",
 }: {
   planKey: string;
   disabled?: boolean;
   label?: string;
+  variant?: ComponentProps<typeof Button>["variant"];
+  className?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -37,9 +41,10 @@ export function CheckoutButton({
   }
 
   return (
-    <div className="mt-4">
+    <div className={className}>
       <Button
         type="button"
+        variant={variant}
         disabled={disabled || loading}
         onClick={startCheckout}
         className="w-full"
