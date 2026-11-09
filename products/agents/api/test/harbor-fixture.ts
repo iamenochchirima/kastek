@@ -158,7 +158,20 @@ async function registerSandboxWorkspace(sandboxId: string, organization: { id: s
   });
   if (!response.ok) throw new Error(`Sandbox workspace registration failed: ${response.status} ${(await response.text()).slice(0, 500)}`);
 }
+async function assertSandboxVersion(sandboxId: string, sandboxVersion: string): Promise<void> {
+  const apiUrl = process.env.EVALS_API_URL!.replace(/\/+$/, "");
+  const response = await fetch(`${apiUrl}/v1/sandboxes/${encodeURIComponent(sandboxId)}`, {
+    headers: { authorization: `Bearer ${process.env.EVALS_OPERATOR_TOKEN!}` },
+  });
+  if (!response.ok) throw new Error(`Sandbox lookup failed: ${response.status}`);
+  const detail = await response.json() as { sandbox?: { id?: string; status?: string }; version?: { id?: string } | null };
+  assert.equal(detail.sandbox?.id, sandboxId, "Sandbox identity does not match the service registry");
+  assert.equal(detail.sandbox?.status, "active", "Sandbox is not active");
+  assert.ok(detail.version, "Sandbox has no active version");
+  assert.equal(detail.version?.id, sandboxVersion, "Sandbox version does not match the service registry");
+}
 async function main() {
+  if (sandbox) await assertSandboxVersion(sandboxId!, sandboxVersion!);
   await mkdir(compiled, { recursive: true, mode: 0o700 });
   execFileSync(process.execPath, [join(api, "node_modules/typescript/bin/tsc"), "-p", join(api, "tsconfig.json"), "--outDir", compiled], { cwd: root, stdio: "inherit", timeout: 60000 });
   await cp(join(api, "schema"), join(build, "schema"), { recursive: true });

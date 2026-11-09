@@ -161,6 +161,9 @@ connection and published agent version on later runs. It writes
 `run-*.json`, `latest.json` and the core acceptance evidence under the evidence
 directory. The agent and source ids must match across runs.
 
+The fixture looks up the sandbox version before starting. A missing, inactive or
+mismatched version fails before any product work begins.
+
 Persistent sandbox runs use normal product tasks. The product's evaluation-trial
 API reserves an agent for one isolated trial, so that path remains exclusive to
 the per-run mode. Do not use both paths on the same agent.
