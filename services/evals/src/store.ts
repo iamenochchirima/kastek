@@ -246,3 +246,137 @@ export async function addWorkspaceRef(
     return ref;
   });
 }
+
+export interface AgentRef {
+  id: string;
+  sandboxId: string;
+  workspaceRefId: string;
+  productAgentId: string;
+  productVersionId: string;
+  sourceIds: string[];
+  compositionDigest: string;
+  modelRoutesDigest: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export class AgentRefError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "AgentRefError";
+  }
+}
+
+export interface CreateAgentRefInput {
+  workspaceRefId: string;
+  productAgentId: string;
+  productVersionId: string;
+  sourceIds: string[];
+  compositionDigest: string;
+  modelRoutesDigest: string;
+}
+
+function mapAgentRef(row: Row): AgentRef {
+  const sourceIds =
+    typeof row.source_ids === "string"
+      ? (JSON.parse(row.source_ids) as string[])
+      : (row.source_ids as string[]);
+  return {
+    id: String(row.id),
+    sandboxId: String(row.sandbox_id),
+    workspaceRefId: String(row.workspace_ref_id),
+    productAgentId: String(row.product_agent_id),
+    productVersionId: String(row.product_version_id),
+    sourceIds,
+    compositionDigest: String(row.composition_digest),
+    modelRoutesDigest: String(row.model_routes_digest),
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+  };
+}
+
+export async function createAgentRef(
+  pool: Pool,
+  sandboxId: string,
+  input: CreateAgentRefInput,
+): Promise<AgentRef> {
+  return transaction(pool, async (client) => {
+    const sandbox = await client.query(
+      "SELECT 1 FROM evals.sandboxes WHERE id=$1",
+      [sandboxId],
+    );
+    if (!sandbox.rows[0]) {
+      throw new AgentRefError("SANDBOX_NOT_FOUND", "Sandbox not found");
+    }
+    const workspace = await client.query(
+      "SELECT 1 FROM evals.workspace_refs WHERE id=$1 AND sandbox_id=$2",
+      [input.workspaceRefId, sandboxId],
+    );
+    if (!workspace.rows[0]) {
+      throw new AgentRefError(
+        "WORKSPACE_REF_NOT_FOUND",
+        "Workspace reference does not belong to this sandbox",
+      );
+    }
+    const existing = await client.query(
+      `SELECT 1 FROM evals.agent_refs
+       WHERE sandbox_id=$1 AND product_agent_id=$2 AND product_version_id=$3`,
+      [sandboxId, input.productAgentId, input.productVersionId],
+    );
+    if (existing.rows[0]) {
+      throw new AgentRefError(
+        "AGENT_REF_EXISTS",
+        "That agent version is already recorded for this sandbox",
+      );
+    }
+    const result = await client.query(
+      `INSERT INTO evals.agent_refs(
+         id, sandbox_id, workspace_ref_id, product_agent_id,
+         product_version_id, source_ids, composition_digest, model_routes_digest
+       ) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8)
+       RETURNING *`,
+      [
+        randomUUID(),
+        sandboxId,
+        input.workspaceRefId,
+        input.productAgentId,
+        input.productVersionId,
+        JSON.stringify(input.sourceIds),
+        input.compositionDigest,
+        input.modelRoutesDigest,
+      ],
+    );
+    await client.query(
+      "UPDATE evals.sandboxes SET updated_at=now() WHERE id=$1",
+      [sandboxId],
+    );
+    return mapAgentRef(result.rows[0] as Row);
+  });
+}
+
+export async function listAgentRefs(
+  pool: Pool,
+  sandboxId: string,
+): Promise<AgentRef[]> {
+  const result = await pool.query(
+    `SELECT * FROM evals.agent_refs
+     WHERE sandbox_id=$1 ORDER BY created_at DESC, id DESC`,
+    [sandboxId],
+  );
+  return result.rows.map((row) => mapAgentRef(row as Row));
+}
+
+export async function getAgentRef(
+  pool: Pool,
+  sandboxId: string,
+  agentRefId: string,
+): Promise<AgentRef | null> {
+  const result = await pool.query(
+    "SELECT * FROM evals.agent_refs WHERE sandbox_id=$1 AND id=$2",
+    [sandboxId, agentRefId],
+  );
+  return result.rows[0] ? mapAgentRef(result.rows[0] as Row) : null;
+}

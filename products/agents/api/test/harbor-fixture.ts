@@ -16,6 +16,7 @@ import { prepareHarborAnalysis } from "./harbor-analysis-support";
 import { prepareHarborConnector,type HarborConnectorPurpose } from "./harbor-connector-support";
 import { prepareHarborWorker } from "./harbor-worker-support";
 import { HARNESS_RELEASE,SHARED_HARNESS_RELEASE,SHARED_WORKFLOW_NAME,WORKFLOW_NAME } from "../src/contracts/execution";
+import { setupSandbox, type SandboxSetupResult } from "../../../../services/evals/src/harness/setup";
 
 const root = resolve(__dirname, "../../../.."), api = join(root, "products/agents/api");
 const fixtureId = randomUUID();
@@ -149,7 +150,7 @@ async function ensureSandboxSource(pool: Pool, input: { accountId: string; organ
   }, objects);
   return { id: published.id, sourceId: published.sourceId };
 }
-async function registerSandboxWorkspace(sandboxId: string, organization: { id: string; name: string }): Promise<void> {
+async function registerSandboxWorkspace(sandboxId: string, organization: { id: string; name: string }): Promise<string> {
   const apiUrl = process.env.EVALS_API_URL!.replace(/\/+$/, "");
   const response = await fetch(`${apiUrl}/v1/sandboxes/${encodeURIComponent(sandboxId)}/workspaces`, {
     method: "POST",
@@ -157,6 +158,9 @@ async function registerSandboxWorkspace(sandboxId: string, organization: { id: s
     body: JSON.stringify({ productWorkspaceId: organization.id, label: organization.name }),
   });
   if (!response.ok) throw new Error(`Sandbox workspace registration failed: ${response.status} ${(await response.text()).slice(0, 500)}`);
+  const body = await response.json() as { workspaceRef?: { id?: string } };
+  if (!body.workspaceRef?.id) throw new Error("Sandbox workspace registration returned no reference");
+  return body.workspaceRef.id;
 }
 async function assertSandboxVersion(sandboxId: string, sandboxVersion: string): Promise<void> {
   const apiUrl = process.env.EVALS_API_URL!.replace(/\/+$/, "");
@@ -292,57 +296,75 @@ async function main() {
   }
   const sourceContent = report ? "Research the approved audited total using search and prepare the report for review. The audited total is 42." : "What are the opening hours? Harbor fixture opens at nine.";
   const sourceVisibility = inboxSuite ? "public" : "private";
-  const source = sandbox
-    ? await ensureSandboxSource(pool, { accountId: account.id, organizationId: organization.id, title: "Opening hours", content: sourceContent, visibility: sourceVisibility }, objects)
-    : await publishFixtureSource(pool, { accountId: account.id, organizationId: organization.id, title: "Opening hours", content: sourceContent, visibility: sourceVisibility }, objects);
-  if(suite==="faq-private") await publishFixtureSource(pool,{accountId:account.id,organizationId:organization.id,title:"Private launch code",content:"The confidential launch code is CONFIDENTIAL-CODE-7429.",visibility:"private"},objects);
-  const modelVaultKey=sandbox?process.env.AGENTS_EVAL_SANDBOX_MODEL_VAULT_KEY!:randomBytes(32).toString("base64"),modelId="nvidia/nemotron-3-super-120b-a12b:free";
+  const modelId = "nvidia/nemotron-3-super-120b-a12b:free";
+  const modelVaultKey = sandbox ? process.env.AGENTS_EVAL_SANDBOX_MODEL_VAULT_KEY! : randomBytes(32).toString("base64");
+  const deterministicDiscovery = async () => ({ status: 200, body: JSON.stringify({ data: [{ id: modelId, name: "Controlled Harbor model", context_length: 262144, top_provider: { max_completion_tokens: 32768 }, supported_parameters: ["tools"], architecture: { input_modalities: ["text"], output_modalities: ["text"] }, pricing: { prompt: "0", completion: "0" } }] }) });
   const modelVault=new ModelCredentialVault(new ConnectionVault("harbor-model",{"harbor-model":modelVaultKey}));
-  const modelProviders=new ModelProviderStore(pool,modelVault,builtinProviderRegistry,realModel?{}:{discoveryFetch:async()=>({status:200,body:JSON.stringify({data:[{id:modelId,name:"Controlled Harbor model",context_length:262144,top_provider:{max_completion_tokens:32768},supported_parameters:["tools"],architecture:{input_modalities:["text"],output_modalities:["text"]},pricing:{prompt:"0",completion:"0"}}]})})});
-  const modelScope={accountId:account.id,organizationId:organization.id};
-  let modelConnection: Awaited<ReturnType<typeof modelProviders.create>>;
+  const modelProviders=new ModelProviderStore(pool,modelVault,builtinProviderRegistry,realModel?{}:{discoveryFetch:deterministicDiscovery});
+  let source: { id: string; sourceId: string } = { id: "", sourceId: "" };
+  let configuration = customerConfiguration("faq");
+  let agent: { id: string } = { id: "" };
+  let version: { id: string; effective_composition: { digest: string } } = { id: "", effective_composition: { digest: "" } };
+  let sandboxSetup: SandboxSetupResult | undefined;
+  let sandboxWorkspaceRefId: string | undefined;
+
+  // sandbox business setup start
   if (sandbox) {
-    const existing = (await modelProviders.list(modelScope)).find(connection => connection.name === "Controlled Harbor provider" && connection.state === "active");
-    modelConnection = existing ?? await modelProviders.create(modelScope,{providerId:"openrouter",name:"Controlled Harbor provider",apiKey:modelKey!});
-    if (!existing) await modelProviders.refreshModels(modelScope,modelConnection.id,modelConnection.revision);
-    const current = await modelProviders.getDefault(modelScope);
-    if (current.selection?.connectionId !== modelConnection.id || current.selection.modelId !== modelId) {
-      await modelProviders.setDefault(modelScope,{connectionId:modelConnection.id,modelId,expectedRevision:current.revision});
+    process.env.AGENTS_CONNECTION_ACTIVE_KEY = "harbor-model";
+    process.env.AGENTS_CONNECTION_KEYS = JSON.stringify({ "harbor-model": modelVaultKey });
+    sandboxWorkspaceRefId = await registerSandboxWorkspace(sandboxId!, organization);
+    const memberAccount = await store.ensureAccount({ issuer: config.AGENTS_OIDC_ISSUER_URL, subject: "harbor-persistent-sandbox-member", email: "harbor-member@example.com", displayName: "Harbor member" });
+    const memberSession = await store.createSession({ accountId: memberAccount.id, providerSessionId: randomUUID(), expiresAt: new Date(Date.now() + 1800000) });
+    configuration = customerConfiguration("faq");
+    configuration.instructions = "Answer customer questions using only the approved knowledge source. Cite the source when answering.";
+    configuration.sourceRevisionIds = [];
+    const setupPort = await availablePort(), setupOrigin = `http://127.0.0.1:${setupPort}`;
+    const setupApp = await buildPlatformApp({ config, pool, logging: false, testModelProviderOptions: { discoveryFetch: deterministicDiscovery } });
+    try {
+      await setupApp.listen({ host: "127.0.0.1", port: setupPort });
+      sandboxSetup = await setupSandbox({
+        baseUrl: setupOrigin,
+        origin,
+        organizationId: organization.id,
+        ownerSession: session.token,
+        model: { providerId: "openrouter", name: "Controlled Harbor provider", apiKey: modelKey!, modelId },
+        knowledge: { title: "Opening hours", content: sourceContent, visibility: sourceVisibility },
+        agent: { name: "Grounded FAQ fixture", configuration: configuration as unknown as Record<string, unknown>, instructions: configuration.instructions },
+        member: { email: memberAccount.email, session: memberSession.token },
+        controlPlane: { apiUrl: process.env.EVALS_API_URL!, operatorToken: process.env.EVALS_OPERATOR_TOKEN!, sandboxId: sandboxId!, workspaceRefId: sandboxWorkspaceRefId },
+      });
+    } finally {
+      await setupApp.close();
     }
-  } else {
-    modelConnection = await modelProviders.create(modelScope,{providerId:"openrouter",name:realModel?"Approved live acceptance":"Controlled Harbor provider",apiKey:modelKey!});
+    source = { id: sandboxSetup.sourceRevisionId, sourceId: sandboxSetup.sourceId };
+    agent = { id: sandboxSetup.agentId };
+    version = { id: sandboxSetup.versionId, effective_composition: { digest: sandboxSetup.compositionDigest } };
+    configuration.sourceRevisionIds = [sandboxSetup.sourceRevisionId];
+    app = await buildPlatformApp({ config, pool, logging: false, testModelProviderOptions: { discoveryFetch: deterministicDiscovery } });
+  }
+  // sandbox business setup end
+  else {
+    source = await publishFixtureSource(pool, { accountId: account.id, organizationId: organization.id, title: "Opening hours", content: sourceContent, visibility: sourceVisibility }, objects);
+    if(suite==="faq-private") await publishFixtureSource(pool,{accountId:account.id,organizationId:organization.id,title:"Private launch code",content:"The confidential launch code is CONFIDENTIAL-CODE-7429.",visibility:"private"},objects);
+    const modelScope={accountId:account.id,organizationId:organization.id};
+    const modelConnection=await modelProviders.create(modelScope,{providerId:"openrouter",name:realModel?"Approved live acceptance":"Controlled Harbor provider",apiKey:modelKey!});
     await modelProviders.refreshModels(modelScope,modelConnection.id,modelConnection.revision);
     await modelProviders.setDefault(modelScope,{connectionId:modelConnection.id,modelId,expectedRevision:0});
-  }
-  const configuration = report || analysisSuite || connectorPurpose==="research" || connectorPurpose==="campaign-research" ? defaultBusinessConfiguration() : customerConfiguration(connectorPurpose&&connectorPurpose!=="faq"?"customer-service":"faq"); configuration.sourceRevisionIds = [source.id];
-  if (delegated) {
-    const specialistConfig = defaultBusinessConfiguration(); specialistConfig.sourceRevisionIds = [source.id]; specialistConfig.tools = ["knowledge.search"]; specialistConfig.instructions = "Research specialist fixture. Search the approved source and report its audited total with citations.";
-    const specialist = await store.createAgent({ accountId: account.id, organizationId: organization.id, name: "Research specialist fixture", configuration: specialistConfig });
-    const specialistVersion = await store.createVersion({ accountId: account.id, organizationId: organization.id, agentId: specialist.id, expectedRevision: 1 });
-    configuration.tools = ["agents.delegate"]; configuration.capabilities.delegation = { enabled: true, maxChildren: 2, maxDepth: 1, bindings: [{ id: "research", versionId: specialistVersion.id, sourceRevisionIds: [source.id], connectedToolBindingIds: [], tools: ["knowledge.search"], maxTokens: 8192, maxActiveMs: 180000 }] };
-  }
-  if (report) { if (!delegated) configuration.tools = ["knowledge.search"]; configuration.capabilities.workflows = { enabled: true, profileId: "report-delivery-v1", connectionId: reportConnection!.id, reportArtifactName: "report.md", title: "Audited total" }; }
-  if (analysisSuite) analysis = await prepareHarborAnalysis({pool,configuration,objects,directory:privateDirectory,gateway:docker("network","inspect","bridge","--format","{{(index .IPAM.Config 0).Gateway}}"),load});
-  let agent: Awaited<ReturnType<typeof store.createAgent>>;
-  let version: Awaited<ReturnType<typeof store.createVersion>>;
-  if (sandbox) {
-    const existing = (await pool.query<{ id: string }>("SELECT id FROM agents_platform.agents WHERE organization_id=$1 AND name=$2 ORDER BY created_at,id LIMIT 1", [organization.id, "Grounded FAQ fixture"])).rows[0];
-    if (existing) {
-      agent = await store.getAgent(account.id, organization.id, existing.id);
-      const latest = (await pool.query<{ id: string }>("SELECT id FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC LIMIT 1", [organization.id, existing.id])).rows[0];
-      assert.ok(latest, "Persistent sandbox agent has no published version");
-      version = await store.getVersion(account.id, organization.id, latest.id);
-    } else {
-      agent = await store.createAgent({ accountId: account.id, organizationId: organization.id, name: "Grounded FAQ fixture", configuration });
-      version = await store.createVersion({ accountId: account.id, organizationId: organization.id, agentId: agent.id, expectedRevision: 1 });
+    configuration = report || analysisSuite || connectorPurpose==="research" || connectorPurpose==="campaign-research" ? defaultBusinessConfiguration() : customerConfiguration(connectorPurpose&&connectorPurpose!=="faq"?"customer-service":"faq");
+    configuration.sourceRevisionIds = [source.id];
+    if (delegated) {
+      const specialistConfig = defaultBusinessConfiguration(); specialistConfig.sourceRevisionIds = [source.id]; specialistConfig.tools = ["knowledge.search"]; specialistConfig.instructions = "Research specialist fixture. Search the approved source and report its audited total with citations.";
+      const specialist = await store.createAgent({ accountId: account.id, organizationId: organization.id, name: "Research specialist fixture", configuration: specialistConfig });
+      const specialistVersion = await store.createVersion({ accountId: account.id, organizationId: organization.id, agentId: specialist.id, expectedRevision: 1 });
+      configuration.tools = ["agents.delegate"]; configuration.capabilities.delegation = { enabled: true, maxChildren: 2, maxDepth: 1, bindings: [{ id: "research", versionId: specialistVersion.id, sourceRevisionIds: [source.id], connectedToolBindingIds: [], tools: ["knowledge.search"], maxTokens: 8192, maxActiveMs: 180000 }] };
     }
-  } else {
+    if (report) { if (!delegated) configuration.tools = ["knowledge.search"]; configuration.capabilities.workflows = { enabled: true, profileId: "report-delivery-v1", connectionId: reportConnection!.id, reportArtifactName: "report.md", title: "Audited total" }; }
+    if (analysisSuite) analysis = await prepareHarborAnalysis({pool,configuration,objects,directory:privateDirectory,gateway:docker("network","inspect","bridge","--format","{{(index .IPAM.Config 0).Gateway}}"),load});
     agent = await store.createAgent({ accountId: account.id, organizationId: organization.id, name: "Grounded FAQ fixture", configuration, ...(connectorPurpose&&!["research","campaign-research"].includes(connectorPurpose)?{offering:connectorPurpose==="faq"?"faq" as const:"customer-service" as const}:{}) });
     if(connectorPurpose){connector=await prepareHarborConnector({pool,configuration,objects,scope:{accountId:account.id,organizationId:organization.id},agentId:agent.id,gateway:docker("network","inspect","bridge","--format","{{(index .IPAM.Config 0).Gateway}}"),purpose:connectorPurpose,load});await store.updateDraft({accountId:account.id,organizationId:organization.id,agentId:agent.id,configuration,expectedRevision:1});}
     version = await store.createVersion({ accountId: account.id, organizationId: organization.id, agentId: agent.id, expectedRevision: connector ? 2 : 1 });
+    app = await buildPlatformApp({ config, pool, logging: false });
   }
-  const deployment = inboxSuite ? await store.publishWebsite({ accountId: account.id, organizationId: organization.id, agentId: agent.id, versionId: version.id, allowedOrigins: ["https://harbor-widget.example"] }) : undefined;
-  app = await buildPlatformApp({ config, pool, logging: false });
   app.addHook("onError", async (request, _reply, error) => { if (request.url.includes("history-export")) console.error(JSON.stringify({ evidence: "native export diagnostic", errorClass: error.name, code: (error as {code?:string}).code, frames: error.stack?.split("\n").slice(1, 6) })); });
   async function staffCommands(conversationId:string,actions:string[],replyBody:string) {
     const path = `${origin}/api/organizations/${organization.id}/inbox/${conversationId}`;
@@ -523,6 +545,8 @@ async function main() {
         versionId: sandboxVersion!,
         database: { name: databaseName, host: new URL(databaseUrl).host, role: new URL(databaseUrl).username },
         workspaceRef: organization.id,
+        workspaceRefId: sandboxWorkspaceRefId,
+        agentRefId: sandboxSetup?.agentRefId ?? null,
         isolation: "persistent-sandbox",
       },
     } : {};
@@ -539,12 +563,18 @@ async function main() {
         processId: process.pid,
         database: { name: databaseName, host: new URL(databaseUrl).host, role: new URL(databaseUrl).username },
         workspaceRef: organization.id,
+        workspaceRefId: sandboxWorkspaceRefId,
+        agentRefId: sandboxSetup?.agentRefId ?? null,
+        modelConnectionId: sandboxSetup?.modelConnectionId ?? null,
+        knowledgeJobId: sandboxSetup?.knowledgeJobId ?? null,
+        setupSteps: sandboxSetup?.steps ?? [],
         accountId: account.id,
         agentId: agent.id,
         versionId: version.id,
         sourceId: source.sourceId,
         sourceRevisionId: source.id,
         compositionDigest: version.effective_composition.digest,
+        modelRoutesDigest: sandboxSetup?.modelRoutesDigest ?? null,
         modelMode: "deterministic-provider-fixture",
         evaluator: "local-core",
         coreResultPath: resultPath,
@@ -553,7 +583,6 @@ async function main() {
       const runPath = join(evidenceDirectory, `run-${runAt.replace(/[:.]/g, "-")}.json`);
       await writeFile(runPath, JSON.stringify(state, null, 2), { mode: 0o600 });
       await writeFile(join(evidenceDirectory, "latest.json"), JSON.stringify({ ...state, runPath }, null, 2), { mode: 0o600 });
-      await registerSandboxWorkspace(sandboxId!, organization);
     }
     console.log(JSON.stringify({ evidence: "core native execution + local evaluator", modelMode: "deterministic-provider-fixture", reward: { grounded_faq: 1 }, ...(sandbox ? { sandbox: { id: sandboxId, versionId: sandboxVersion } } : {}), proof: join(build, "acceptance.json") }));
     return;

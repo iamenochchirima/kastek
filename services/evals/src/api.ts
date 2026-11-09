@@ -9,8 +9,12 @@ import type { EvalsConfig } from "./config.js";
 import { SandboxGuardError } from "./guard.js";
 import {
   addWorkspaceRef,
+  AgentRefError,
+  createAgentRef,
   createSandbox,
+  getAgentRef,
   getSandbox,
+  listAgentRefs,
   listSandboxes,
 } from "./store.js";
 import { captureSandboxVersion } from "./version.js";
@@ -108,6 +112,28 @@ function adapterVersions(
   return result;
 }
 
+
+function sourceIds(value: unknown): string[] {
+  if (value == null) return [];
+  if (!Array.isArray(value) || value.length > 200) {
+    throw new HttpError(400, "invalid_field", "sourceIds must be an array of at most 200 strings");
+  }
+  return value.map((item) => {
+    if (typeof item !== "string" || !item.trim() || item.length > 200) {
+      throw new HttpError(400, "invalid_field", "sourceIds values must be bounded strings");
+    }
+    return item.trim();
+  });
+}
+
+function sha256(value: unknown, name: string): string {
+  const normalized = requiredText(value, name, 64);
+  if (!/^[a-f0-9]{64}$/.test(normalized)) {
+    throw new HttpError(400, "invalid_field", `${name} must be a SHA-256 checksum`);
+  }
+  return normalized;
+}
+
 function workspaceRef(
   value: unknown,
 ): { productWorkspaceId: string; label?: string } | undefined {
@@ -178,6 +204,15 @@ export function buildApi(
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof SandboxGuardError) {
       return reply.code(422).send({
+        error: error.message,
+        code: error.code,
+      });
+    }
+    if (error instanceof AgentRefError) {
+      const status =
+        error.code === "AGENT_REF_EXISTS" ? 409 :
+        error.code === "SANDBOX_NOT_FOUND" ? 404 : 400;
+      return reply.code(status).send({
         error: error.message,
         code: error.code,
       });
@@ -284,6 +319,53 @@ export function buildApi(
       });
     }
     return reply.code(201).send({ workspaceRef: ref });
+  });
+
+  app.post("/v1/sandboxes/:id/agents", async (request, reply) => {
+    const params = request.params as { id: string };
+    const sandboxId = uuid(params.id, "id");
+    const body = bodyObject(request.body);
+    const ref = await createAgentRef(pool, sandboxId, {
+      workspaceRefId: uuid(
+        requiredText(body.workspaceRefId, "workspaceRefId", 64),
+        "workspaceRefId",
+      ),
+      productAgentId: requiredText(body.productAgentId, "productAgentId", 200),
+      productVersionId: requiredText(body.productVersionId, "productVersionId", 200),
+      sourceIds: sourceIds(body.sourceIds),
+      compositionDigest: sha256(body.compositionDigest, "compositionDigest"),
+      modelRoutesDigest: sha256(body.modelRoutesDigest, "modelRoutesDigest"),
+    });
+    return reply.code(201).send({ agentRef: ref });
+  });
+
+  app.get("/v1/sandboxes/:id/agents", async (request, reply) => {
+    const params = request.params as { id: string };
+    const sandboxId = uuid(params.id, "id");
+    if (!(await getSandbox(pool, sandboxId))) {
+      return reply.code(404).send({
+        error: "Sandbox not found",
+        code: "not_found",
+      });
+    }
+    return { agentRefs: await listAgentRefs(pool, sandboxId) };
+  });
+
+  app.get("/v1/sandboxes/:id/agents/:agentRefId", async (request, reply) => {
+    const params = request.params as { id: string; agentRefId: string };
+    const sandboxId = uuid(params.id, "id");
+    const ref = await getAgentRef(
+      pool,
+      sandboxId,
+      uuid(params.agentRefId, "agentRefId"),
+    );
+    if (!ref) {
+      return reply.code(404).send({
+        error: "Agent reference not found",
+        code: "not_found",
+      });
+    }
+    return { agentRef: ref };
   });
 
   return app;

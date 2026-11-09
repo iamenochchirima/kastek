@@ -30,6 +30,7 @@ services/evals/
   src/store.ts         sandbox and workspace registry
   src/api.ts           Fastify operator API
   src/api-main.ts      service entry point
+  src/harness/setup.ts normal-API sandbox setup client
   src/migrate.ts       migration runner
   tests/               guard, manifest and API tests
 ```
@@ -114,6 +115,49 @@ curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/workspaces" \
   -H "content-type: application/json" \
   -d '{"productWorkspaceId":"<agents-organization-id>","label":"Persistent workspace"}'
 ```
+
+### Record and read agent references
+
+The control plane stores the product agent, immutable version, source revisions and digest
+identity for every configured sandbox agent.
+
+```sh
+curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/agents" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{
+    "workspaceRefId":"<workspace-ref-id>",
+    "productAgentId":"<agents-agent-id>",
+    "productVersionId":"<agents-version-id>",
+    "sourceIds":["<source-id>"],
+    "compositionDigest":"<64-hex>",
+    "modelRoutesDigest":"<64-hex>"
+  }'
+
+curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/agents" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN"
+```
+
+`GET /v1/sandboxes/:id/agents/:agentRefId` reads one reference. Duplicate agent
+versions return `409 AGENT_REF_EXISTS`; a workspace reference from another sandbox
+is rejected.
+
+### Normal-API setup client
+
+`services/evals/src/harness/setup.ts` configures a sandbox through the normal Agents
+HTTP APIs with a workspace user session:
+
+- model provider connection and default
+- knowledge import, extraction and approval
+- agent creation, configuration and immutable version
+- model-route preview
+- second workspace member through the member API, including a denied owner action
+- agent, version and source read-back
+- control-plane agent reference recording
+
+The client does not import product runtime source. The caller supplies the
+product-specific agent configuration. The persistent fixture uses the client for
+both first-run creation and later-run reuse.
 
 ## Persistent sandbox verification
 
