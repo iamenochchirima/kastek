@@ -11,6 +11,7 @@ import {
   PiChartBar as ChartBar,
   PiCpu as Cpu,
   PiPlugsConnected as Plugs,
+  PiUsersThree as Users,
 } from "react-icons/pi";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,12 +22,14 @@ import { message } from "./api";
 import "./management.css";
 import "./workspace-surfaces.css";
 import { ModelProvidersSettings } from "./model-providers";
+import { MembersSettings } from "./members-settings";
 import { McpAccess } from "./mcp-access";
 import { BillingSettings, UsageSettings } from "./billing-settings";
 
 type SettingsTab =
   | "account"
   | "workspace"
+  | "members"
   | "billing"
   | "usage"
   | "models"
@@ -36,6 +39,7 @@ type SettingsTab =
 const SETTINGS_LINKS = [
   { id: "account", label: "Account", icon: UserRound },
   { id: "workspace", label: "Workspace", icon: Building2 },
+  { id: "members", label: "Members", icon: Users },
   { id: "billing", label: "Billing", icon: Wallet },
   { id: "usage", label: "Usage", icon: ChartBar },
   { id: "models", label: "Model providers", icon: Cpu },
@@ -167,6 +171,14 @@ export function SettingsPage() {
                 </div>
               </div>
             </section>
+          ) : null}
+
+          {tab === "members" ? (
+            <MembersSettings
+              key={`members-${organizationId}`}
+              organizationId={organizationId}
+              currentAccountId={session.account.id}
+            />
           ) : null}
 
           {tab === "billing" ? (

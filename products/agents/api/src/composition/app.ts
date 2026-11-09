@@ -99,6 +99,9 @@ import { curatedSkillCatalog } from "../capabilities/skills/curated";
 import { ToolReviewStore } from "../capabilities/reviews/tool-reviews";
 import { registerToolReviewRoutes } from "../product/connections/tool-review-routes";
 import { PlatformStore } from "../product/agents/store";
+import { MemberStore } from "../product/members/store";
+import { registerMemberRoutes } from "../product/members/routes";
+import { invitationEmailConfig } from "../product/members/email";
 import { transaction } from "../infrastructure/database";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
 import { customerOfferings } from "../product/offerings/offerings";
@@ -150,13 +153,16 @@ const dto = (row: object) => ({ ...Object.fromEntries(Object.entries(row).map(([
 
 export async function buildPlatformApp(options: { config: PlatformConfig; pool: Pool; identity?: PlatformIdentity; logging?: boolean;testGoogleOAuth?:GoogleOAuthPort;testGoogleApiBaseUrl?:string;testConnectionLoopback?:boolean;
   testFollowupSender?: Pick<ResendNotificationSender,"send">;
+  testInvitationSender?: Pick<ResendNotificationSender,"send">;
   testModelProviderOptions?: ConstructorParameters<typeof ModelProviderStore>[3] }) {
   const { config, pool } = options;
   if((options.testGoogleOAuth||options.testGoogleApiBaseUrl)&&config.NODE_ENV!=="test")throw new Error("TEST_GOOGLE_OPTIONS_DENIED");
   if(options.testConnectionLoopback&&config.NODE_ENV!=="test")throw new Error("TEST_CONNECTION_OPTIONS_DENIED");
   if(options.testModelProviderOptions&&config.NODE_ENV!=="test")throw new Error("TEST_MODEL_OPTIONS_DENIED");
   if(options.testFollowupSender&&config.NODE_ENV!=="test")throw new Error("TEST_FOLLOWUP_OPTIONS_DENIED");
+  if(options.testInvitationSender&&config.NODE_ENV!=="test")throw new Error("TEST_INVITATION_OPTIONS_DENIED");
   const store = new PlatformStore(pool);
+  const members = new MemberStore(pool);
   const evaluationTrials = new EvaluationTrials(pool);
   const discovery = new PlatformDiscovery(pool,store);
   const summary = ({position: _position,...row}: Record<string,unknown>) => row;
@@ -310,6 +316,20 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return {...dto(task),...await readTaskTiming(pool,task),canContinue,input,inputAvailability,...await readableOutput(task.id,task.output)};
   }
   async function resolveScope(request:FastifyRequest) {const user=await account(request),org=organizationId(request);await store.requireMembership(user.id,org);return {accountId:user.id,organizationId:org};}
+  const invitationConfig = invitationEmailConfig({...process.env, AGENTS_PUBLIC_URL: config.AGENTS_PUBLIC_URL});
+  const invitationSender = options.testInvitationSender ?? (invitationConfig ? new ResendNotificationSender(invitationConfig.apiKey, invitationConfig.sender, { timeoutMs: 10_000 }) : undefined);
+  async function sendInvitationEmail(input: { invitation: { id: string; email: string }; token: string; organizationName: string }): Promise<void> {
+    if (!invitationSender) throw new PlatformError("INVITATION_EMAIL_UNAVAILABLE", 503, "Invitation email is unavailable");
+    const link = `${new URL(config.AGENTS_PUBLIC_URL).origin}/invite/${encodeURIComponent(input.token)}`;
+    const result = await invitationSender.send({
+      to: input.invitation.email,
+      subject: `Join ${input.organizationName} on KasiTek`,
+      text: `You've been invited to join ${input.organizationName} on KasiTek.\n\nAccept the invitation:\n${link}\n\nThis link expires in 7 days.`,
+      idempotencyKey: `invitation_${input.invitation.id}`,
+    });
+    if (result.state !== "accepted") throw new PlatformError("INVITATION_EMAIL_FAILED", 502, "Invitation email could not be sent");
+  }
+  registerMemberRoutes(app, { store: members, resolveScope, account, sendInvitation: sendInvitationEmail });
   const organizationAssistant=new OrganizationAssistantStore(pool),memberChannels=new MemberChannels(pool);
   const assistantBase="/api/organizations/:organizationId";
   app.get(`${assistantBase}/assistant`,async request=>{const scope=await resolveScope(request);return organizationAssistant.getOrganizationAssistant(scope.accountId,scope.organizationId);});

@@ -67,6 +67,7 @@ implementation and boundaries:
 - [Implementation boundary](source-boundary.md): current modules, verification, and remaining work.
 - [Agents verification skill](../../../.agents/skills/verify-agents/SKILL.md): owned browser and purpose-specific API checks.
 - [Platform login](architecture/platform-login.md): identity, sessions, and product authorization.
+- [Workspace members](operations/workspace-members.md): owner/member roles, invitations, email configuration and member management.
 - [Integration boundaries](mcp-integration.md): outbound read adapters, provider acceptance gates and future product connections.
 - [Threat model](THREAT_MODEL.md): enforced controls and release limits.
 
