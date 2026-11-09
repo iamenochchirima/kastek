@@ -28,6 +28,7 @@ export default function GrowthLandingPage() {
       <header className={styles.nav}>
         <Link to="/" className={styles.brand} aria-label="KasiTek Growth home">kasitek<span>/ growth</span></Link>
         <nav aria-label="Public navigation">
+          <Link to="/pricing">Pricing</Link>
           <Link to="/login">Sign in<ArrowUpRight size={14} aria-hidden="true" /></Link>
         </nav>
       </header>
@@ -72,7 +73,7 @@ export default function GrowthLandingPage() {
         <nav aria-label="Public site links">
           <a href={publicSiteUrl}>KasiTek Labs<ArrowUpRight size={14} aria-hidden="true" /></a>
           <a href={`${publicSiteUrl}/about`}>About</a>
-          <a href={`${publicSiteUrl}/pricing`}>Pricing</a>
+          <Link to="/pricing">Pricing</Link>
           <a href={`${publicSiteUrl}/demo`}>Book a demo</a>
           <a href={`${publicSiteUrl}/privacy-policy`}>Privacy</a>
           <a href={`${publicSiteUrl}/terms`}>Terms</a>

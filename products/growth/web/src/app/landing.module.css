@@ -21,6 +21,7 @@
 
 .brand { font-size: 24px; font-weight: 650; letter-spacing: -1px; }
 .brand span { margin-left: 8px; font-size: 16px; font-weight: 400; color: #65726c; white-space: nowrap; }
+.nav nav { display: flex; align-items: center; gap: 20px; }
 .nav nav a { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
 
 .hero { max-width: 1240px; margin: auto; padding: 96px 40px 88px; }
