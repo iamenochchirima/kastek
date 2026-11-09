@@ -14,6 +14,7 @@ packages:
   - packages/server-support
   - services/analytics
   - services/billing
+  - services/evals
   - services/operations
 
 onlyBuiltDependencies:

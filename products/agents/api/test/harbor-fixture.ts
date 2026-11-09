@@ -18,13 +18,35 @@ import { prepareHarborWorker } from "./harbor-worker-support";
 import { HARNESS_RELEASE,SHARED_HARNESS_RELEASE,SHARED_WORKFLOW_NAME,WORKFLOW_NAME } from "../src/contracts/execution";
 
 const root = resolve(__dirname, "../../../.."), api = join(root, "products/agents/api");
-const fixtureId = randomUUID(), databasePrefix = process.env.AGENTS_HARBOR_DATABASE_PREFIX ?? "agents_harbor";
-const databaseName = `${databasePrefix}_${fixtureId.replaceAll("-", "")}`;
-if (process.env.AGENTS_HARBOR_DATABASE_PREFIX) {
+const fixtureId = randomUUID();
+const evalMode = process.env.AGENTS_EVAL_DATABASE_MODE ?? "per-run";
+assert.ok(["per-run", "sandbox"].includes(evalMode), "Select a supported eval database mode");
+const sandbox = evalMode === "sandbox";
+const sandboxId = process.env.AGENTS_EVAL_SANDBOX_ID;
+const sandboxVersion = process.env.AGENTS_EVAL_SANDBOX_VERSION;
+const databasePrefix = process.env.AGENTS_HARBOR_DATABASE_PREFIX ?? "agents_harbor";
+const databaseName = sandbox ? "agents_evals" : `${databasePrefix}_${fixtureId.replaceAll("-", "")}`;
+if (!sandbox && process.env.AGENTS_HARBOR_DATABASE_PREFIX) {
   assert.ok(process.env.AGENTS_BROWSER_FIXTURE_DATABASE_URL, "Eval-prefixed fixture runs require an explicit eval database URL");
   assert.notEqual(process.env.AGENTS_BROWSER_FIXTURE_DATABASE_URL, process.env.AGENTS_DATABASE_URL, "Eval database must differ from the product database");
   assert.ok(databaseName.startsWith(`${process.env.AGENTS_HARBOR_DATABASE_PREFIX}_`), "Eval database name must use the configured prefix");
   assert.equal(process.env.AGENTS_BILLING_ENFORCEMENT, "0", "Eval-prefixed fixture runs must disable billing enforcement");
+}
+if (sandbox) {
+  assert.ok(process.env.AGENTS_EVALS_DATABASE_URL, "Sandbox mode requires AGENTS_EVALS_DATABASE_URL");
+  assert.equal(new URL(process.env.AGENTS_EVALS_DATABASE_URL).pathname, "/agents_evals", "Sandbox mode requires the persistent agents_evals database");
+  assert.notEqual(process.env.AGENTS_EVALS_DATABASE_URL, process.env.AGENTS_DATABASE_URL, "Sandbox database must differ from the product database");
+  assert.ok(process.env.AGENTS_EVAL_SANDBOX_ID, "Sandbox mode requires AGENTS_EVAL_SANDBOX_ID");
+  assert.ok(process.env.AGENTS_EVAL_SANDBOX_VERSION, "Sandbox mode requires AGENTS_EVAL_SANDBOX_VERSION");
+  assert.ok(process.env.AGENTS_S3_ENDPOINT, "Sandbox mode requires AGENTS_S3_ENDPOINT");
+  assert.ok(process.env.AGENTS_S3_BUCKET, "Sandbox mode requires AGENTS_S3_BUCKET");
+  assert.ok(process.env.AGENTS_S3_ACCESS_KEY_ID, "Sandbox mode requires AGENTS_S3_ACCESS_KEY_ID");
+  assert.ok(process.env.AGENTS_S3_SECRET_ACCESS_KEY, "Sandbox mode requires AGENTS_S3_SECRET_ACCESS_KEY");
+  assert.ok(process.env.AGENTS_EVAL_SANDBOX_MODEL_VAULT_KEY, "Sandbox mode requires AGENTS_EVAL_SANDBOX_MODEL_VAULT_KEY");
+  assert.ok(Buffer.from(process.env.AGENTS_EVAL_SANDBOX_MODEL_VAULT_KEY, "base64").length >= 32, "Sandbox model vault key must contain at least 32 bytes");
+  assert.ok(process.env.EVALS_API_URL, "Sandbox mode requires EVALS_API_URL");
+  assert.ok(process.env.EVALS_OPERATOR_TOKEN, "Sandbox mode requires EVALS_OPERATOR_TOKEN");
+  assert.equal(process.env.AGENTS_BILLING_ENFORCEMENT, "0", "Sandbox mode requires billing enforcement disabled");
 }
 const containerName = `agents-harbor-${fixtureId}`, build = join(root, ".audit", `harbor-${fixtureId}`);
 const compiled = join(build, "runtime");
@@ -51,6 +73,13 @@ const modelKey = realModel ? process.env.OPENROUTER_API_KEY : randomBytes(32).to
 assert.ok(!realModel || lifecycle==="none","Lifecycle acceptance uses deterministic provider fixtures");
 assert.ok(!realModel || verifierScenario==="none", "Verifier failure probes never call a live model");
 assert.ok(modelKey, "Approved free-model acceptance requires the configured key");
+if (sandbox) {
+  assert.equal(suite, "faq-grounded", "Persistent sandbox mode currently supports the grounded FAQ suite");
+  assert.equal(attempts, 1, "Persistent sandbox mode uses one scope");
+  assert.equal(lifecycle, "none", "Persistent sandbox mode does not run lifecycle scenarios");
+  assert.equal(verifierScenario, "none", "Persistent sandbox mode does not run verifier probes");
+  assert.equal(realModel, false, "Persistent sandbox mode uses the deterministic provider");
+}
 let pool: Pool | undefined, admin: Pool | undefined, storage: ChildProcess | undefined, harbor: ChildProcess | undefined;
 let app: Awaited<ReturnType<typeof import("../src/composition/app")["buildPlatformApp"]>> | undefined;
 let dispatcher: ReturnType<typeof import("../src/execution/lifecycle/dispatcher")["startDispatcher"]> | undefined;
@@ -77,6 +106,57 @@ async function ready(check: () => Promise<boolean>, label: string) {
 }
 async function stop(process: ChildProcess | undefined) {
   if (process?.pid && process.exitCode === null && process.signalCode === null) { process.kill("SIGTERM"); await once(process, "exit"); }
+}
+async function ensureBucket(endpoint: string, accessKey: string, secret: string, bucket: string): Promise<void> {
+  const url = new URL(endpoint);
+  const sha = (value: string) => createHash("sha256").update(value).digest("hex");
+  const hmac = (key: string | Uint8Array, value: string) => createHmac("sha256", key).update(value).digest();
+  const date = new Date().toISOString().replace(/[:-]|\.\d{3}/g, ""), day = date.slice(0, 8), scope = `${day}/us-east-1/s3/aws4_request`, payload = sha("");
+  const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+  const canonical = ["PUT", `/${bucket}`, "", `host:${url.host}\nx-amz-content-sha256:${payload}\nx-amz-date:${date}\n`, signedHeaders, payload].join("\n");
+  const signingKey = hmac(hmac(hmac(hmac(`AWS4${secret}`, day), "us-east-1"), "s3"), "aws4_request");
+  const signature = createHmac("sha256", signingKey).update(`AWS4-HMAC-SHA256\n${date}\n${scope}\n${sha(canonical)}`).digest("hex");
+  const response = await fetch(`${endpoint.replace(/\/+$/, "")}/${bucket}`, { method: "PUT", headers: { "x-amz-date": date, "x-amz-content-sha256": payload, authorization: `AWS4-HMAC-SHA256 Credential=${accessKey}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}` } });
+  if (![200, 409].includes(response.status)) throw new Error(`MinIO bucket creation failed: ${response.status} ${await response.text()}`);
+}
+async function ensureSandboxOrganization(pool: Pool, store: { createOrganization(accountId: string, name: string): Promise<{ id: string; name: string }> }, accountId: string, name: string): Promise<{ id: string; name: string }> {
+  const existing = await pool.query<{ id: string; name: string }>(
+    `SELECT o.id,o.name FROM agents_platform.organizations o
+     JOIN agents_platform.memberships m ON m.organization_id=o.id
+     WHERE m.account_id=$1 AND m.revoked_at IS NULL AND o.name=$2
+     ORDER BY o.created_at,o.id LIMIT 1`,
+    [accountId, name],
+  );
+  return existing.rows[0] ?? store.createOrganization(accountId, name);
+}
+async function ensureSandboxSource(pool: Pool, input: { accountId: string; organizationId: string; title: string; content: string; visibility: "public" | "private" }, objects: Parameters<typeof publishFixtureSource>[2]): Promise<{ id: string; sourceId: string }> {
+  const existing = await pool.query<{ source_id: string; revision_id: string }>(
+    `SELECT s.id AS source_id,r.id AS revision_id
+     FROM agents_platform.sources s
+     JOIN agents_platform.source_revisions r ON r.organization_id=s.organization_id AND r.source_id=s.id
+     JOIN agents_platform.source_revision_policy p ON p.organization_id=r.organization_id AND p.revision_id=r.id AND p.state='approved'
+     WHERE s.organization_id=$1 AND s.title=$2 AND s.state='active'
+     ORDER BY r.revision DESC LIMIT 1`,
+    [input.organizationId, input.title],
+  );
+  if (existing.rows[0]) return { id: existing.rows[0].revision_id, sourceId: existing.rows[0].source_id };
+  const published = await publishFixtureSource(pool, {
+    accountId: input.accountId,
+    organizationId: input.organizationId,
+    title: input.title,
+    content: input.content,
+    visibility: input.visibility,
+  }, objects);
+  return { id: published.id, sourceId: published.sourceId };
+}
+async function registerSandboxWorkspace(sandboxId: string, organization: { id: string; name: string }): Promise<void> {
+  const apiUrl = process.env.EVALS_API_URL!.replace(/\/+$/, "");
+  const response = await fetch(`${apiUrl}/v1/sandboxes/${encodeURIComponent(sandboxId)}/workspaces`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${process.env.EVALS_OPERATOR_TOKEN!}`, "content-type": "application/json" },
+    body: JSON.stringify({ productWorkspaceId: organization.id, label: organization.name }),
+  });
+  if (!response.ok) throw new Error(`Sandbox workspace registration failed: ${response.status} ${(await response.text()).slice(0, 500)}`);
 }
 async function main() {
   await mkdir(compiled, { recursive: true, mode: 0o700 });
@@ -107,35 +187,54 @@ async function main() {
   const { actionsFromEnvironment } = load("composition/actions.js") as typeof import("../src/composition/actions");
   const { TaskArtifactStore } = load("execution/artifacts/task-artifacts.js") as typeof import("../src/execution/artifacts/task-artifacts");
   const { createReportReceiver, initializeReportReceiver } = load("acceptance/report-receiver.js") as typeof import("../src/acceptance/report-receiver");
-  const databaseUrl = process.env.AGENTS_BROWSER_FIXTURE_DATABASE_URL ?? process.env.AGENTS_DATABASE_URL;
+  const databaseUrl = sandbox
+    ? process.env.AGENTS_EVALS_DATABASE_URL
+    : process.env.AGENTS_BROWSER_FIXTURE_DATABASE_URL ?? process.env.AGENTS_DATABASE_URL;
   assert.ok(databaseUrl, "Fixture requires an administrative local PostgreSQL URL");
-  admin = new Pool({ connectionString: databaseUrl }); await admin.query(`CREATE DATABASE "${databaseName}"`);
-  const isolatedUrl = new URL(databaseUrl); isolatedUrl.pathname = `/${databaseName}`;
-  pool = new Pool({ connectionString: isolatedUrl.href }); await setupPlatformSchema(pool);
+  let isolatedUrl: URL;
+  if (sandbox) {
+    isolatedUrl = new URL(databaseUrl);
+    pool = new Pool({ connectionString: isolatedUrl.href });
+    await setupPlatformSchema(pool);
+  } else {
+    admin = new Pool({ connectionString: databaseUrl });
+    await admin.query(`CREATE DATABASE "${databaseName}"`);
+    isolatedUrl = new URL(databaseUrl);
+    isolatedUrl.pathname = `/${databaseName}`;
+    pool = new Pool({ connectionString: isolatedUrl.href });
+    await setupPlatformSchema(pool);
+  }
   privateDirectory = await mkdtemp(join(tmpdir(), "agents-harbor-"));
-  const storagePort = await availablePort(), endpoint = `http://127.0.0.1:${storagePort}`;
-  const accessKey = "harbor-fixture", secret = randomUUID() + randomUUID(), bucket = `harbor-${fixtureId}`;
-  const childEnv = { ...process.env }; delete childEnv.OPENROUTER_API_KEY; delete childEnv.AGENTS_DATABASE_URL;
-  storage = spawn(process.env.AGENTS_TEST_MINIO_BINARY ?? "/tmp/kasitek-minio-build/minio", ["server", join(privateDirectory, "objects"), "--address", `127.0.0.1:${storagePort}`, "--console-address", "127.0.0.1:0"], { stdio: "ignore", env: { ...childEnv, MINIO_ROOT_USER: accessKey, MINIO_ROOT_PASSWORD: secret, MINIO_BROWSER: "off" } });
-  storage.on("error", () => {});
-  await ready(async () => (await fetch(`${endpoint}/minio/health/live`)).ok, "owned MinIO");
-  const sha = (value: string) => createHash("sha256").update(value).digest("hex");
-  const hmac = (key: string | Uint8Array, value: string) => createHmac("sha256", key).update(value).digest();
-  const date = new Date().toISOString().replace(/[:-]|\.\d{3}/g, ""), day = date.slice(0, 8), scope = `${day}/us-east-1/s3/aws4_request`, payload = sha("");
-  const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
-  const canonical = ["PUT", `/${bucket}`, "", `host:127.0.0.1:${storagePort}\nx-amz-content-sha256:${payload}\nx-amz-date:${date}\n`, signedHeaders, payload].join("\n");
-  const signingKey = hmac(hmac(hmac(hmac(`AWS4${secret}`, day), "us-east-1"), "s3"), "aws4_request");
-  const signature = createHmac("sha256", signingKey).update(`AWS4-HMAC-SHA256\n${date}\n${scope}\n${sha(canonical)}`).digest("hex");
-  const bucketResponse = await fetch(`${endpoint}/${bucket}`, { method: "PUT", headers: { "x-amz-date": date, "x-amz-content-sha256": payload, authorization: `AWS4-HMAC-SHA256 Credential=${accessKey}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}` } });
-  assert.ok(bucketResponse.ok, `MinIO bucket creation failed: ${bucketResponse.status} ${await bucketResponse.text()}`);
-  Object.assign(process.env, { NODE_ENV: "test", AGENTS_S3_ENDPOINT: endpoint, AGENTS_S3_REGION: "us-east-1", AGENTS_S3_BUCKET: bucket, AGENTS_S3_ACCESS_KEY_ID: accessKey, AGENTS_S3_SECRET_ACCESS_KEY: secret,
+  let endpoint: string, accessKey: string, secret: string, bucket: string;
+  if (sandbox) {
+    endpoint = process.env.AGENTS_S3_ENDPOINT!;
+    accessKey = process.env.AGENTS_S3_ACCESS_KEY_ID!;
+    secret = process.env.AGENTS_S3_SECRET_ACCESS_KEY!;
+    bucket = process.env.AGENTS_S3_BUCKET!;
+  } else {
+    const storagePort = await availablePort();
+    endpoint = `http://127.0.0.1:${storagePort}`;
+    accessKey = "harbor-fixture";
+    secret = randomUUID() + randomUUID();
+    bucket = `harbor-${fixtureId}`;
+    const childEnv = { ...process.env };
+    delete childEnv.OPENROUTER_API_KEY;
+    delete childEnv.AGENTS_DATABASE_URL;
+    storage = spawn(process.env.AGENTS_TEST_MINIO_BINARY ?? "/tmp/kasitek-minio-build/minio", ["server", join(privateDirectory, "objects"), "--address", `127.0.0.1:${storagePort}`, "--console-address", "127.0.0.1:0"], { stdio: "ignore", env: { ...childEnv, MINIO_ROOT_USER: accessKey, MINIO_ROOT_PASSWORD: secret, MINIO_BROWSER: "off" } });
+    storage.on("error", () => {});
+    await ready(async () => (await fetch(`${endpoint}/minio/health/live`)).ok, "owned MinIO");
+  }
+  await ensureBucket(endpoint, accessKey, secret, bucket);
+  Object.assign(process.env, { NODE_ENV: "test", AGENTS_S3_ENDPOINT: endpoint, AGENTS_S3_REGION: process.env.AGENTS_S3_REGION ?? "us-east-1", AGENTS_S3_BUCKET: bucket, AGENTS_S3_ACCESS_KEY_ID: accessKey, AGENTS_S3_SECRET_ACCESS_KEY: secret,
     AGENTS_SANDBOX_ENABLED: "0", AGENTS_DOCUMENT_RUNTIME_ENABLED: "0", AGENTS_REPORT_DELIVERY_TARGETS: "[]" });
   delete process.env.AGENTS_CONNECTION_ACTIVE_KEY; delete process.env.AGENTS_CONNECTION_KEYS;
   const objects = privateStoreFromEnvironment(process.env, 10485760)!;
   const store = new PlatformStore(pool), apiPort = await availablePort(), origin = `http://127.0.0.1:${apiPort}`;
   const config = loadPlatformConfig({ ...process.env, AGENTS_DATABASE_URL: isolatedUrl.href, AGENTS_PUBLIC_URL: origin, AGENTS_OIDC_ISSUER_URL: "http://localhost/realms/harbor-fixture", AGENTS_OIDC_CLIENT_SECRET: "harbor-local-fixture-secret-only", AGENTS_LOGIN_RETURN_SECRET: randomBytes(32).toString("hex"), OPENROUTER_API_KEY: modelKey });
-  const account = await store.ensureAccount({ issuer: config.AGENTS_OIDC_ISSUER_URL, subject: randomUUID(), email: "harbor@example.com", displayName: "Harbor fixture" });
-  const organization = await store.createOrganization(account.id, "Harbor isolated trial");
+  const account = await store.ensureAccount({ issuer: config.AGENTS_OIDC_ISSUER_URL, subject: sandbox ? "harbor-persistent-sandbox" : randomUUID(), email: "harbor@example.com", displayName: "Harbor fixture" });
+  const organization = sandbox
+    ? await ensureSandboxOrganization(pool, store, account.id, "Harbor isolated trial")
+    : await store.createOrganization(account.id, "Harbor isolated trial");
   const session = await store.createSession({ accountId: account.id, providerSessionId: randomUUID(), expiresAt: new Date(Date.now() + 1800000) });
   let lostVisitorAck=false,lostHumanAck=false,visitorRequestAttempts=0;
   let receiverPosts = 0, receiverReads = 0, acknowledgementLost = false, conflictVerified=false;
@@ -178,15 +277,30 @@ async function main() {
     await new Promise<void>(resolve => verifierBridge!.listen(0, gateway, resolve));
     verifierOrigin = `http://host.docker.internal:${(verifierBridge.address() as {port:number}).port}`;
   }
-  const source = await publishFixtureSource(pool, { accountId: account.id, organizationId: organization.id, title: "Opening hours", content: report ? "Research the approved audited total using search and prepare the report for review. The audited total is 42." : "What are the opening hours? Harbor fixture opens at nine.", visibility: inboxSuite ? "public" : "private" }, objects);
+  const sourceContent = report ? "Research the approved audited total using search and prepare the report for review. The audited total is 42." : "What are the opening hours? Harbor fixture opens at nine.";
+  const sourceVisibility = inboxSuite ? "public" : "private";
+  const source = sandbox
+    ? await ensureSandboxSource(pool, { accountId: account.id, organizationId: organization.id, title: "Opening hours", content: sourceContent, visibility: sourceVisibility }, objects)
+    : await publishFixtureSource(pool, { accountId: account.id, organizationId: organization.id, title: "Opening hours", content: sourceContent, visibility: sourceVisibility }, objects);
   if(suite==="faq-private") await publishFixtureSource(pool,{accountId:account.id,organizationId:organization.id,title:"Private launch code",content:"The confidential launch code is CONFIDENTIAL-CODE-7429.",visibility:"private"},objects);
-  const modelVaultKey=randomBytes(32).toString("base64"),modelId="nvidia/nemotron-3-super-120b-a12b:free";
+  const modelVaultKey=sandbox?process.env.AGENTS_EVAL_SANDBOX_MODEL_VAULT_KEY!:randomBytes(32).toString("base64"),modelId="nvidia/nemotron-3-super-120b-a12b:free";
   const modelVault=new ModelCredentialVault(new ConnectionVault("harbor-model",{"harbor-model":modelVaultKey}));
   const modelProviders=new ModelProviderStore(pool,modelVault,builtinProviderRegistry,realModel?{}:{discoveryFetch:async()=>({status:200,body:JSON.stringify({data:[{id:modelId,name:"Controlled Harbor model",context_length:262144,top_provider:{max_completion_tokens:32768},supported_parameters:["tools"],architecture:{input_modalities:["text"],output_modalities:["text"]},pricing:{prompt:"0",completion:"0"}}]})})});
   const modelScope={accountId:account.id,organizationId:organization.id};
-  const modelConnection=await modelProviders.create(modelScope,{providerId:"openrouter",name:realModel?"Approved live acceptance":"Controlled Harbor provider",apiKey:modelKey!});
-  await modelProviders.refreshModels(modelScope,modelConnection.id,modelConnection.revision);
-  await modelProviders.setDefault(modelScope,{connectionId:modelConnection.id,modelId,expectedRevision:0});
+  let modelConnection: Awaited<ReturnType<typeof modelProviders.create>>;
+  if (sandbox) {
+    const existing = (await modelProviders.list(modelScope)).find(connection => connection.name === "Controlled Harbor provider" && connection.state === "active");
+    modelConnection = existing ?? await modelProviders.create(modelScope,{providerId:"openrouter",name:"Controlled Harbor provider",apiKey:modelKey!});
+    if (!existing) await modelProviders.refreshModels(modelScope,modelConnection.id,modelConnection.revision);
+    const current = await modelProviders.getDefault(modelScope);
+    if (current.selection?.connectionId !== modelConnection.id || current.selection.modelId !== modelId) {
+      await modelProviders.setDefault(modelScope,{connectionId:modelConnection.id,modelId,expectedRevision:current.revision});
+    }
+  } else {
+    modelConnection = await modelProviders.create(modelScope,{providerId:"openrouter",name:realModel?"Approved live acceptance":"Controlled Harbor provider",apiKey:modelKey!});
+    await modelProviders.refreshModels(modelScope,modelConnection.id,modelConnection.revision);
+    await modelProviders.setDefault(modelScope,{connectionId:modelConnection.id,modelId,expectedRevision:0});
+  }
   const configuration = report || analysisSuite || connectorPurpose==="research" || connectorPurpose==="campaign-research" ? defaultBusinessConfiguration() : customerConfiguration(connectorPurpose&&connectorPurpose!=="faq"?"customer-service":"faq"); configuration.sourceRevisionIds = [source.id];
   if (delegated) {
     const specialistConfig = defaultBusinessConfiguration(); specialistConfig.sourceRevisionIds = [source.id]; specialistConfig.tools = ["knowledge.search"]; specialistConfig.instructions = "Research specialist fixture. Search the approved source and report its audited total with citations.";
@@ -196,9 +310,24 @@ async function main() {
   }
   if (report) { if (!delegated) configuration.tools = ["knowledge.search"]; configuration.capabilities.workflows = { enabled: true, profileId: "report-delivery-v1", connectionId: reportConnection!.id, reportArtifactName: "report.md", title: "Audited total" }; }
   if (analysisSuite) analysis = await prepareHarborAnalysis({pool,configuration,objects,directory:privateDirectory,gateway:docker("network","inspect","bridge","--format","{{(index .IPAM.Config 0).Gateway}}"),load});
-  const agent = await store.createAgent({ accountId: account.id, organizationId: organization.id, name: "Grounded FAQ fixture", configuration, ...(connectorPurpose&&!["research","campaign-research"].includes(connectorPurpose)?{offering:connectorPurpose==="faq"?"faq" as const:"customer-service" as const}:{}) });
-  if(connectorPurpose){connector=await prepareHarborConnector({pool,configuration,objects,scope:{accountId:account.id,organizationId:organization.id},agentId:agent.id,gateway:docker("network","inspect","bridge","--format","{{(index .IPAM.Config 0).Gateway}}"),purpose:connectorPurpose,load});await store.updateDraft({accountId:account.id,organizationId:organization.id,agentId:agent.id,configuration,expectedRevision:1});}
-  const version = await store.createVersion({ accountId: account.id, organizationId: organization.id, agentId: agent.id, expectedRevision: connector ? 2 : 1 });
+  let agent: Awaited<ReturnType<typeof store.createAgent>>;
+  let version: Awaited<ReturnType<typeof store.createVersion>>;
+  if (sandbox) {
+    const existing = (await pool.query<{ id: string }>("SELECT id FROM agents_platform.agents WHERE organization_id=$1 AND name=$2 ORDER BY created_at,id LIMIT 1", [organization.id, "Grounded FAQ fixture"])).rows[0];
+    if (existing) {
+      agent = await store.getAgent(account.id, organization.id, existing.id);
+      const latest = (await pool.query<{ id: string }>("SELECT id FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC LIMIT 1", [organization.id, existing.id])).rows[0];
+      assert.ok(latest, "Persistent sandbox agent has no published version");
+      version = await store.getVersion(account.id, organization.id, latest.id);
+    } else {
+      agent = await store.createAgent({ accountId: account.id, organizationId: organization.id, name: "Grounded FAQ fixture", configuration });
+      version = await store.createVersion({ accountId: account.id, organizationId: organization.id, agentId: agent.id, expectedRevision: 1 });
+    }
+  } else {
+    agent = await store.createAgent({ accountId: account.id, organizationId: organization.id, name: "Grounded FAQ fixture", configuration, ...(connectorPurpose&&!["research","campaign-research"].includes(connectorPurpose)?{offering:connectorPurpose==="faq"?"faq" as const:"customer-service" as const}:{}) });
+    if(connectorPurpose){connector=await prepareHarborConnector({pool,configuration,objects,scope:{accountId:account.id,organizationId:organization.id},agentId:agent.id,gateway:docker("network","inspect","bridge","--format","{{(index .IPAM.Config 0).Gateway}}"),purpose:connectorPurpose,load});await store.updateDraft({accountId:account.id,organizationId:organization.id,agentId:agent.id,configuration,expectedRevision:1});}
+    version = await store.createVersion({ accountId: account.id, organizationId: organization.id, agentId: agent.id, expectedRevision: connector ? 2 : 1 });
+  }
   const deployment = inboxSuite ? await store.publishWebsite({ accountId: account.id, organizationId: organization.id, agentId: agent.id, versionId: version.id, allowedOrigins: ["https://harbor-widget.example"] }) : undefined;
   app = await buildPlatformApp({ config, pool, logging: false });
   app.addHook("onError", async (request, _reply, error) => { if (request.url.includes("history-export")) console.error(JSON.stringify({ evidence: "native export diagnostic", errorClass: error.name, code: (error as {code?:string}).code, frames: error.stack?.split("\n").slice(1, 6) })); });
@@ -358,6 +487,7 @@ async function main() {
   await writeFile(join(build,"baseline.json"),JSON.stringify({...baseline,digest:baselineDigest},null,2),{mode:0o600});
   const evaluator = process.env.AGENTS_HARBOR_EVALUATOR ?? "harbor";
   assert.ok(["harbor","core"].includes(evaluator), "Select a supported evaluator");
+  if (sandbox) assert.equal(evaluator, "core", "Persistent sandbox mode currently uses the core evaluator");
   if (evaluator === "core") {
     assert.equal(suite, "faq-grounded", "Core evaluator currently supports the grounded FAQ suite");
     assert.equal(attempts, 1, "Core evaluator supports one prepared scope");
@@ -366,7 +496,7 @@ async function main() {
     const instruction = (await readFile(join(suitePath, "instruction.md"), "utf8")).trim();
     const resultPath = join(build, "core-result.json");
     const python = process.env.AGENTS_EVALS_PYTHON ?? join(process.env.HOME ?? "", ".local/share/uv/tools/harbor/bin/python");
-    const coreProcess = spawn(python, [join(adapter, "verification", "core_eval.py"), "--scope", preparedScope, "--instruction", instruction, "--result", resultPath], {
+    const coreProcess = spawn(python, [join(adapter, "verification", "core_eval.py"), "--scope", preparedScope, "--instruction", instruction, "--result", resultPath, ...(sandbox ? ["--sandbox"] : [])], {
       cwd: root, stdio: "inherit",
       env: { PATH: process.env.PATH, HOME: process.env.HOME, LANG: process.env.LANG, PYTHONPATH: join(adapter, "src"), KASITEK_EVALUATION_SESSION: session.token },
     });
@@ -374,8 +504,45 @@ async function main() {
     assert.equal(coreCode, 0, "Core evaluator failed");
     const coreResult = JSON.parse(await readFile(resultPath, "utf8"));
     assert.equal(coreResult.status, "passed");
-    await writeFile(join(build, "acceptance.json"), JSON.stringify({ status: "passed", suite, attempts: 1, evaluator: "local-core", modelMode: "deterministic-provider-fixture", harborVersion: null, restateVersion: "1.7.13", database: { name: databaseName, host: new URL(databaseUrl).host, role: new URL(databaseUrl).username }, reward: { grounded_faq: 1 }, taskCount: 1, providerCalls: 1, compositionDigest: version.effective_composition.digest, sourceRevisionId: source.id, coreResultPath: resultPath, ownerServicesChanged: false }, null, 2), { mode: 0o600 });
-    console.log(JSON.stringify({ evidence: "core native execution + local evaluator", modelMode: "deterministic-provider-fixture", reward: { grounded_faq: 1 }, proof: join(build, "acceptance.json") }));
+    const sandboxEvidence = sandbox ? {
+      sandbox: {
+        id: sandboxId!,
+        versionId: sandboxVersion!,
+        database: { name: databaseName, host: new URL(databaseUrl).host, role: new URL(databaseUrl).username },
+        workspaceRef: organization.id,
+        isolation: "persistent-sandbox",
+      },
+    } : {};
+    await writeFile(join(build, "acceptance.json"), JSON.stringify({ status: "passed", suite, attempts: 1, evaluator: "local-core", modelMode: "deterministic-provider-fixture", harborVersion: null, restateVersion: "1.7.13", database: { name: databaseName, host: new URL(databaseUrl).host, role: new URL(databaseUrl).username }, reward: { grounded_faq: 1 }, taskCount: 1, providerCalls: 1, compositionDigest: version.effective_composition.digest, sourceRevisionId: source.id, coreResultPath: resultPath, ownerServicesChanged: false, ...sandboxEvidence }, null, 2), { mode: 0o600 });
+    if (sandbox) {
+      const evidenceDirectory = process.env.AGENTS_EVAL_SANDBOX_EVIDENCE_DIR ?? join(root, ".audit", "sandbox", sandboxId!);
+      await mkdir(evidenceDirectory, { recursive: true, mode: 0o700 });
+      const runAt = new Date().toISOString();
+      const state = {
+        schemaVersion: "kasitek-persistent-sandbox-run.v1",
+        sandboxId: sandboxId!,
+        sandboxVersionId: sandboxVersion!,
+        runAt,
+        processId: process.pid,
+        database: { name: databaseName, host: new URL(databaseUrl).host, role: new URL(databaseUrl).username },
+        workspaceRef: organization.id,
+        accountId: account.id,
+        agentId: agent.id,
+        versionId: version.id,
+        sourceId: source.sourceId,
+        sourceRevisionId: source.id,
+        compositionDigest: version.effective_composition.digest,
+        modelMode: "deterministic-provider-fixture",
+        evaluator: "local-core",
+        coreResultPath: resultPath,
+        acceptancePath: join(build, "acceptance.json"),
+      };
+      const runPath = join(evidenceDirectory, `run-${runAt.replace(/[:.]/g, "-")}.json`);
+      await writeFile(runPath, JSON.stringify(state, null, 2), { mode: 0o600 });
+      await writeFile(join(evidenceDirectory, "latest.json"), JSON.stringify({ ...state, runPath }, null, 2), { mode: 0o600 });
+      await registerSandboxWorkspace(sandboxId!, organization);
+    }
+    console.log(JSON.stringify({ evidence: "core native execution + local evaluator", modelMode: "deterministic-provider-fixture", reward: { grounded_faq: 1 }, ...(sandbox ? { sandbox: { id: sandboxId, versionId: sandboxVersion } } : {}), proof: join(build, "acceptance.json") }));
     return;
   }
   harbor = spawn(process.env.AGENTS_HARBOR_BINARY ?? "/home/enock/.local/share/uv/tools/harbor/bin/harbor", ["run", "--path", suitePath, "--agent", "kasitek_harbor.agent:KasitekAgent", ...(suite==="faq-paraphrase-v3"?["--verifier","kasitek_harbor.verifier:RecordedNativeVerifier"]:[]), "--agent-kwarg", `scope_path=${preparedScope}`, "--agent-kwarg", `root_token_limit=${rootTokenLimit}`, ...(lifecycle==="cancel"?["--agent-kwarg","trial_timeout_sec=1"]:[]), ...(lifecycle==="evaluator-restart"?["--agent-kwarg",`recovery_id=${fixtureId}`]:[]), ...(deployment ? ["--agent-kwarg", `channel=${JSON.stringify({deployment_id:deployment.id,origin:"https://harbor-widget.example"})}`] : []), ...(followUp ? ["--agent-kwarg", `follow_ups=${JSON.stringify([{id:"confirm-hours",instruction:"What are the opening hours?"}])}`] : []), "--n-concurrent", "1", "--n-attempts", String(attempts), "--max-retries", "0", "--jobs-dir", jobs, "--job-name", "native-faq", "--quiet", "--yes"],

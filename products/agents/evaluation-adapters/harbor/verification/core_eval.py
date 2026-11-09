@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the same native evaluation trial without Harbor, then grade locally."""
+"""Run a native core evaluation without Harbor, then grade it locally."""
 
 import argparse
 import asyncio
@@ -22,6 +22,11 @@ def parser():
     result.add_argument("--result", required=True)
     result.add_argument("--timeout", type=float, default=120)
     result.add_argument("--poll", type=float, default=0.5)
+    result.add_argument(
+        "--sandbox",
+        action="store_true",
+        help="Use a normal product task in a persistent sandbox instead of an isolated evaluation trial",
+    )
     return result
 
 
@@ -32,31 +37,41 @@ async def run(args):
         raise ValueError(f"Missing evaluation session in {scope.session_cookie_env}")
     trial_id = None
     async with PlatformClient(scope, session, timeout=min(args.timeout, 120)) as client:
-        prepared = await client.prepare({
-            "trialId": f"core:{scope.scope_id}:{uuid4()}",
-            "agentId": str(scope.agent_id),
-            "versionId": str(scope.version_id),
-            "expectedCompositionDigest": scope.composition_digest,
-            "expectedModelRoutesDigest": scope.model_routes_digest,
-            "rootTokenLimit": scope.root_token_limit,
-            "maxTokens": scope.max_tokens,
-            "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
-        })
-        trial_id = prepared["trial"]["id"]
-        task = await client.submit({
-            "versionId": str(scope.version_id),
-            "requestKey": str(uuid4()),
-            "input": args.instruction,
-            "evaluationRootTokenLimit": scope.root_token_limit,
-            "evaluationTrialId": trial_id,
-        })
+        if args.sandbox:
+            sandbox_request = {
+                "versionId": str(scope.version_id),
+                "requestKey": str(uuid4()),
+                "input": args.instruction,
+            }
+            task = await client.submit(sandbox_request)
+            native_trial_id = None
+        else:
+            prepared = await client.prepare({
+                "trialId": f"core:{scope.scope_id}:{uuid4()}",
+                "agentId": str(scope.agent_id),
+                "versionId": str(scope.version_id),
+                "expectedCompositionDigest": scope.composition_digest,
+                "expectedModelRoutesDigest": scope.model_routes_digest,
+                "rootTokenLimit": scope.root_token_limit,
+                "maxTokens": scope.max_tokens,
+                "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+            })
+            trial_id = prepared["trial"]["id"]
+            native_trial_id = trial_id
+            task = await client.submit({
+                "versionId": str(scope.version_id),
+                "requestKey": str(uuid4()),
+                "input": args.instruction,
+                "evaluationRootTokenLimit": scope.root_token_limit,
+                "evaluationTrialId": trial_id,
+            })
         deadline = time.monotonic() + args.timeout
         while task["state"] not in TERMINAL_STATES:
             if time.monotonic() >= deadline:
                 raise TimeoutError("Native task did not settle before the evaluation deadline")
             await asyncio.sleep(args.poll)
             task = await client.status(task["id"])
-        raw, export = await client.history(task["id"])
+        raw, export = await client.history(task["id"], sandbox=args.sandbox)
         root = next((entry for entry in raw["tasks"] if entry["id"] == raw["rootTaskId"]), None)
         output = (root or {}).get("output") or ""
         references = (root or {}).get("evidenceReferences") or []
@@ -74,13 +89,11 @@ async def run(args):
             "noEffects": not raw.get("effectReceipts"),
             "versionMatched": export.versionId == str(scope.version_id),
         }
-        cleanup = False
-        try:
+        cleanup = None
+        if not args.sandbox:
             revoked = await client.revoke(trial_id)
             cleanup = revoked.get("trial", {}).get("state") == "revoked"
-        finally:
-            trial_id = None
-        checks["cleanupRevoked"] = cleanup
+            checks["cleanupRevoked"] = cleanup
         passed = all(checks.values())
         result = {
             "schemaVersion": "kasitek-core-evaluation.v1",
@@ -89,10 +102,19 @@ async def run(args):
             "scopeId": str(scope.scope_id),
             "agentId": str(scope.agent_id),
             "versionId": str(scope.version_id),
-            "nativeTrialId": prepared["trial"]["id"],
+            "nativeTrialId": native_trial_id,
             "taskId": task["id"],
             "checks": checks,
+            "cleanup": (
+                {"mode": "persistent-sandbox", "revocation": "not-applicable"}
+                if args.sandbox
+                else {
+                    "mode": "evaluation-trial",
+                    "revocation": "revoked" if cleanup else "failed",
+                }
+            ),
             "coverage": raw["coverage"],
+            "modelRoutesDigest": export.modelRoutesDigest,
             "evidenceReferences": references,
             "output": output,
         }

@@ -31,10 +31,12 @@ KNOWN_STATES = TERMINAL_STATES | {
 
 
 class PlatformRequestError(RuntimeError):
-    def __init__(self, status: int):
+    def __init__(self, status: int, code: str | None = None):
         self.status = status
+        self.code = code
+        detail = f" (code {code})" if code else ""
         super().__init__(
-            f"Platform request rejected (HTTP {status}); inspect authorized native state"
+            f"Platform request rejected (HTTP {status}){detail}; inspect authorized native state"
         )
 
 
@@ -76,8 +78,18 @@ class PlatformClient:
             method, path, json=body if body is not None else None, params=params
         ) as response:
             if not response.is_success:
-                # Error text can reflect private instructions or credentials. Retain only status.
-                raise PlatformRequestError(response.status_code)
+                # Error text can reflect private instructions or credentials. Retain
+                # only the status and a bounded machine error code.
+                code = None
+                try:
+                    payload = json.loads(await response.aread())
+                    error = payload.get("error") if isinstance(payload, dict) else None
+                    candidate = error.get("code") if isinstance(error, dict) else None
+                    if isinstance(candidate, str) and re.fullmatch(r"[A-Z0-9_]{2,80}", candidate):
+                        code = candidate
+                except Exception:
+                    pass
+                raise PlatformRequestError(response.status_code, code)
             content = bytearray()
             async for chunk in response.aiter_bytes():
                 content.extend(chunk)
@@ -412,7 +424,7 @@ class PlatformClient:
             task_id,
         )
 
-    async def history(self, task_id: str) -> tuple[dict, ExecutionExport]:
+    async def history(self, task_id: str, *, sandbox: bool = False) -> tuple[dict, ExecutionExport]:
         UUID(task_id)
         raw = await self.request(
             "GET", f"{self.organization_path}/tasks/{task_id}/history-export"
@@ -424,7 +436,10 @@ class PlatformClient:
             or export.agentId != str(self.scope.agent_id)
             or export.versionId != str(self.scope.version_id)
             or export.effectiveComposition.digest != self.scope.composition_digest
-            or export.modelRoutesDigest != self.scope.model_routes_digest
+        ):
+            raise ValueError("Authorized export differs from the persisted trial scope")
+        if not sandbox and (
+            export.modelRoutesDigest != self.scope.model_routes_digest
             or export.modelRoutes["primary"]["policy"]["maxRootTokens"]
             != self.scope.root_token_limit
         ):

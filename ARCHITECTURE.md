@@ -25,6 +25,7 @@ membership, database access or permission to call internal operations.
 | `packages/ui/` | Shared workspace theme, appearance definitions and generic React controls |
 | `services/analytics/` | Analytics ingestion, publishing, registry and query service |
 | `services/billing/` | Billing accounts, plan catalog, Paystack, subscriptions, invoices, credits, usage and entitlement snapshots |
+| `services/evals/` | Agent evaluation control plane: sandbox registry, version manifests, workspace references and operator API |
 | `services/operations/` | Independent Labs admin sessions, durable monitoring, incidents, and notification intent |
 | `infra/identity/` | Keycloak development identity configuration |
 | `infra/agents-runtime/` | Pinned local Restate runtime and recovery verification |
@@ -41,6 +42,18 @@ Service-to-service integration remains over the existing authenticated HTTP inte
 migrations, organizations, memberships, sessions, databases and secrets remain separately owned.
 Shared login does not synchronize product permissions. Agency customer identity remains scoped
 according to its existing contracts. Source relocation does not change cookie scopes or callbacks.
+
+## Evaluation control plane
+
+`services/evals/` is the Phase 1 control plane for agent evaluation. It records
+isolated sandbox environments, immutable sandbox version manifests and workspace
+references. It does not execute agents.
+
+Persistent sandbox evaluations use the Agents product's normal task path.
+Evaluation trials remain isolated per-run scopes and reserve the agent for one
+trial, so the two paths are not mixed on one agent. The service is local and
+development only until lifecycle, billing test mode and retention controls land.
+See `services/evals/README.md`.
 
 ## Billing boundary
 

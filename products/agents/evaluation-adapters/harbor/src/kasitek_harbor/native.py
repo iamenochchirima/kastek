@@ -202,9 +202,14 @@ class ExecutionExport(NativeRecord):
                     or binding.get("providerId") != model.get("providerId")
                     or binding.get("protocol") != definition.get("protocol")
                     or binding.get("protocol") != model.get("protocol")
-                    or not isinstance(policy.get("maxRootTokens"), int)
-                    or isinstance(policy.get("maxRootTokens"), bool)
-                    or policy["maxRootTokens"] <= 0
+                    or not (
+                        policy.get("maxRootTokens") is None
+                        or (
+                            isinstance(policy.get("maxRootTokens"), int)
+                            and not isinstance(policy.get("maxRootTokens"), bool)
+                            and policy["maxRootTokens"] > 0
+                        )
+                    )
                 ):
                     raise ValueError("Accepted model route fields disagree")
             UUID(task.id)
