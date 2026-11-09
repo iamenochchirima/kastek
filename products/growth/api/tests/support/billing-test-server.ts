@@ -64,9 +64,9 @@ function snapshot(product: string, tenantId: string): BillingEntitlementSnapshot
     },
     meters: {},
     credits: {
-      balance: "1000000",
+      balance: tenantId.startsWith("zero-credit") ? "0" : "1000000",
       reserved: "0",
-      available: "1000000",
+      available: tenantId.startsWith("zero-credit") ? "0" : "1000000",
       currency: "ZAR",
     },
     issuedAt: issuedAt.toISOString(),

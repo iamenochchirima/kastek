@@ -2,7 +2,9 @@ import { Badge } from "@/components/ui/badge";
 import type { BillingCredits, BillingUsage, BillingUsageDay, MeterUsage } from "@/lib/billing";
 import { fetchBillingUsage } from "@/lib/billing-client";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
-import { Activity, BarChart3, Wallet, type LucideIcon } from "lucide-react";
+import { Link } from "react-router";
+import { billingAllowance } from "@kasitek-labs/ui/billing-allowance";
+import { Activity, AlertTriangle, BarChart3, Wallet, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type UsageRange = "7d" | "30d" | "90d";
@@ -196,8 +198,11 @@ export function UsagePanel({
   const tokenMeter = data?.meters.find((meter) => meter.key === "growth_agent_tokens");
   const modelRequests = (data?.models ?? []).reduce((sum, item) => sum + item.requests, 0);
   const limitedMeters = data?.meters.filter((meter) => meter.limit !== null && meter.limit > 0) ?? [];
-  const totalAiUsage = data ? data.credits.used + data.credits.available : 0;
-  const usedPercent = totalAiUsage > 0 ? Math.min(100, Math.round((data!.credits.used / totalAiUsage) * 100)) : 0;
+  const allowanceBase = usage ?? data;
+  const allowance = billingAllowance({
+    used: allowanceBase?.credits.used ?? 0,
+    available: allowanceBase?.credits.available ?? 0,
+  });
 
   return (
     <div className={embedded ? "space-y-5" : "min-h-[100dvh] p-4 sm:p-6"}>
@@ -221,23 +226,50 @@ export function UsagePanel({
             </div>
 
             <section className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-panel)] sm:p-7">
+              {allowance.exhausted ? (
+                <div role="alert" className="mb-5 rounded-xl border border-destructive/30 bg-destructive/10 p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
+                    <div>
+                      <p className="text-sm font-medium text-destructive">AI usage allowance used up</p>
+                      <p className="mt-1 text-sm text-destructive">
+                        New AI requests are blocked until the next billing period.{" "}
+                        <Link className="font-medium underline underline-offset-2" to="/upgrade">View plans</Link>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : allowance.approaching ? (
+                <div role="status" className="mb-5 rounded-xl border border-status-attention/30 bg-status-attention-soft p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-status-attention" aria-hidden="true" />
+                    <div>
+                      <p className="text-sm font-medium text-status-attention">AI usage at {allowance.percent}%</p>
+                      <p className="mt-1 text-sm text-status-attention">
+                        New AI requests stop at 100%.{" "}
+                        <Link className="font-medium underline underline-offset-2" to="/upgrade">View plans</Link>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 className="text-base font-semibold text-foreground">AI usage and limits</h2>
                   <p className="mt-1 text-sm text-muted-foreground">Usage for the current billing cycle.</p>
                 </div>
-                <p className="text-sm font-medium text-foreground">{formatUsd(data.credits.available)} available</p>
+                <p className="text-sm font-medium text-foreground">{formatUsd(allowanceBase?.credits.available)} available</p>
               </div>
               <div className="mt-5 grid gap-3 md:grid-cols-2">
                 <div className="rounded-xl border border-border bg-background/40 p-4">
                   <div className="flex items-center justify-between gap-3 text-sm">
                     <span className="font-medium text-foreground">AI usage</span>
-                    <span className="text-muted-foreground">{formatUsd(data.credits.used)} used</span>
+                    <span className="text-muted-foreground">{formatUsd(allowanceBase?.credits.used)} used</span>
                   </div>
                   <div className="mt-3 h-2 overflow-hidden rounded-full bg-secondary">
-                    <div className="h-full rounded-full bg-primary" style={{ width: `${usedPercent}%` }} />
+                    <div className={allowance.exhausted ? "h-full rounded-full bg-destructive" : allowance.approaching ? "h-full rounded-full bg-status-attention" : "h-full rounded-full bg-primary"} style={{ width: `${allowance.percent}%` }} />
                   </div>
-                  <p className="mt-2 text-xs text-muted-foreground">{formatUsd(data.credits.reserved)} reserved</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{formatUsd(allowanceBase?.credits.reserved)} reserved</p>
                 </div>
                 {limitedMeters.map((meter) => <UsageMeter key={meter.key} meter={meter} />)}
               </div>

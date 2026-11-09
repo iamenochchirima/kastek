@@ -114,6 +114,10 @@
       "types": "./dist/utils.d.ts",
       "default": "./dist/utils.js"
     },
+    "./billing-allowance": {
+      "types": "./dist/billing-allowance.d.ts",
+      "default": "./dist/billing-allowance.js"
+    },
     "./agent": {
       "types": "./dist/agent.d.ts",
       "default": "./dist/agent.js"

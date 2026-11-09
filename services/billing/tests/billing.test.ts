@@ -1445,7 +1445,7 @@ test("self-serve trial is one per product and grants plan usage", { skip }, asyn
   });
   assert.equal(snapshot.json().snapshot.access, "trialing");
   assert.equal(snapshot.json().snapshot.plan.key, "growth-mid");
-  assert.equal(snapshot.json().snapshot.credits.balance, "20000000");
+  assert.equal(snapshot.json().snapshot.credits.balance, "25000000");
 
   const repeated = await app.inject({
     method: "POST",

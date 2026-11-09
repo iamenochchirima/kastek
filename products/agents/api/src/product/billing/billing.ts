@@ -157,15 +157,11 @@ export async function assertAgentsBillingAccess(
         403,
         "Agents is not included in the current plan",
       );
-    const tokens = snapshot.meters.agent_tokens;
-    if (
-      tokens?.limit != null &&
-      BigInt(tokens.used) >= BigInt(tokens.limit)
-    )
+    if (BigInt(snapshot.credits.available) <= 0n)
       throw new PlatformError(
-        "BILLING_LIMIT_REACHED",
+        "BILLING_AI_ALLOWANCE_EXHAUSTED",
         403,
-        "The monthly agent token allowance is used up",
+        "The monthly AI usage allowance is used up. Upgrade the plan or wait for the next billing period.",
       );
   } catch (error) {
     if (error instanceof PlatformError) throw error;

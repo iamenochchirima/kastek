@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Alert02Icon } from "@hugeicons/core-free-icons";
+import { billingAllowance } from "@kasitek-labs/ui/billing-allowance";
 import { PiArrowClockwise as RefreshCw } from "react-icons/pi";
 import { Button } from "@/components/ui/button";
 import { api, organizationPath } from "./api";
@@ -356,8 +359,10 @@ export function UsageSettings({ organizationId }: { organizationId: string }) {
     account?.subscriptions?.[0];
   const tokenMeter = data?.snapshot?.meters?.agent_tokens;
   const modelRequests = (data?.modelUsage ?? []).reduce((sum, item) => sum + item.requests, 0);
-  const totalAiUsage = usage ? Number(usage.creditsUsed) + Number(usage.credits.available) : 0;
-  const usedPercent = totalAiUsage > 0 ? Math.min(100, Math.round((Number(usage!.creditsUsed) / totalAiUsage) * 100)) : 0;
+  const allowance = billingAllowance({
+    used: usage ? Number(usage.creditsUsed) : 0,
+    available: usage ? Number(usage.credits.available) : 0,
+  });
 
   return (
     <div className="space-y-5">
@@ -384,6 +389,33 @@ export function UsageSettings({ organizationId }: { organizationId: string }) {
           </div>
 
           <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
+            {allowance.exhausted ? (
+              <div role="alert" className="mb-5 rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+                <div className="flex items-start gap-3">
+                  <HugeiconsIcon icon={Alert02Icon} size={16} className="mt-0.5 shrink-0 text-destructive" aria-hidden="true" />
+                  <div>
+                    <p className="text-sm font-medium text-destructive">AI usage allowance used up</p>
+                    <p className="mt-1 text-sm text-destructive">
+                      New AI requests are blocked until the next billing period.{" "}
+                      <Link className="font-medium underline underline-offset-2" to="/app/upgrade">View plans</Link>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : allowance.approaching ? (
+              <div role="status" className="mb-5 rounded-lg border border-status-attention/30 bg-status-attention-soft p-4">
+                <div className="flex items-start gap-3">
+                  <HugeiconsIcon icon={Alert02Icon} size={16} className="mt-0.5 shrink-0 text-status-attention" aria-hidden="true" />
+                  <div>
+                    <p className="text-sm font-medium text-status-attention">AI usage at {allowance.percent}%</p>
+                    <p className="mt-1 text-sm text-status-attention">
+                      New AI requests stop at 100%.{" "}
+                      <Link className="font-medium underline underline-offset-2" to="/app/upgrade">View plans</Link>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-base font-semibold text-foreground">AI usage and limits</h2>
@@ -397,7 +429,7 @@ export function UsageSettings({ organizationId }: { organizationId: string }) {
                 <span className="text-muted-foreground">{usd(usage.creditsUsed)} used</span>
               </div>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-secondary">
-                <div className="h-full rounded-full bg-primary" style={{ width: `${usedPercent}%` }} />
+                <div className={allowance.exhausted ? "h-full rounded-full bg-destructive" : allowance.approaching ? "h-full rounded-full bg-status-attention" : "h-full rounded-full bg-primary"} style={{ width: `${allowance.percent}%` }} />
               </div>
               <p className="mt-2 text-xs text-muted-foreground">{usd(usage.credits.reserved)} reserved</p>
             </div>

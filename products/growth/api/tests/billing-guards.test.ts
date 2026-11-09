@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { requireCapability, requireResourceLimit } from "../src/services/billing.js";
+import { requireAiCredit, requireCapability, requireResourceLimit } from "../src/services/billing.js";
 import { analyticsQueryNeedsPlan } from "../src/routes/analytics.js";
 
 test("seat and channel guards allow within the plan and deny above it", async () => {
@@ -12,6 +12,14 @@ test("seat and channel guards allow within the plan and deny above it", async ()
   await assert.rejects(
     requireResourceLimit(null as never, "org-guard", "limit.connected_channels", 1),
     /connected channels limit/,
+  );
+});
+
+test("AI allowance stays available until the credit balance reaches zero", async () => {
+  await requireAiCredit(null as never, "org-credit");
+  await assert.rejects(
+    requireAiCredit(null as never, "zero-credit"),
+    /AI usage allowance is used up/,
   );
 });
 

@@ -113,6 +113,20 @@ export async function resourceLimit(
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+export async function requireAiCredit(
+  pool: Pool,
+  orgId: string,
+): Promise<void> {
+  if (!billingEnforcementEnabled()) return;
+  const snapshot = await getBillingSnapshot(pool, serviceConfig(), orgId, true);
+  if (BigInt(snapshot.credits.available) <= 0n)
+    throw new ApiError(
+      403,
+      "ai_allowance_exhausted",
+      "The monthly AI usage allowance is used up. Upgrade your plan or wait for the next billing period.",
+    );
+}
+
 export async function requireResourceLimit(
   pool: Pool,
   orgId: string,

@@ -157,9 +157,8 @@ plan code. Free plans are active.
 | Agency | Partner | R2,999 | $50 | Ten client workspaces and five staff seats |
 
 Growth seats, channels, campaign recipients, social publishes and public API requests are enforced.
-Agents agents, channels, crawl pages, handoff, assignment and badge removal are enforced. Agents
-team seats are defined in the catalog but are not yet enforced by a membership flow. Agency limits
-remain `display_only` while Agency is deferred.
+Agents agents, channels, crawl pages, handoff, assignment, badge removal and team seats are enforced.
+Agency limits remain `display_only` while Agency is deferred.
 
 ## AI usage credits
 
@@ -173,6 +172,14 @@ usage prices, grants, balances, and refunds all use the same micro-USD unit.
 Usage events are idempotent and debit the account ledger. Products record local usage and forward
 it through a durable outbox where available; the billing service is the settlement authority.
 Credit top-ups are not self-serve in v1. Admin grants are the only purchase path.
+
+AI usage stops when the available credit balance reaches zero. Growth checks the balance before
+messages, task continuation, task instructions and review approval; Agents checks it at task
+admission. Both products return an upgrade-required error instead of starting new work, and their
+usage panels warn at 80% and 100%. A task already running may settle with a shortfall, which is
+not billed as overage. The dollar credit balance is the customer-facing allowance; the Agents
+`limit.agent_tokens` limit is not granted by new plan versions because the credit balance now
+provides the stop.
 
 ## Free plan, trial, and grace
 

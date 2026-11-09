@@ -16,7 +16,7 @@ import { GrowthAgentReviewStore } from "./reviews.js";
 import { ensureGrowthAgentSetup } from "./setup.js";
 import { enqueueGrowthAgentCommand } from "./analytics.js";
 import { requireAdmin } from "../services/orgs.js";
-import { recordMeterUsage } from "../services/billing.js";
+import { recordMeterUsage, requireAiCredit } from "../services/billing.js";
 function contract<T>(run: () => T): T {
   try { return run(); } catch (error) {
     if (error instanceof GrowthAgentContractError) throw new ApiError(400, "agent_request_invalid", "Check the request fields");
@@ -137,6 +137,8 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     const auth = await scope(request), commandId = requestId ?? randomUUID();
     try { parseGrowthAgentCommand(JSON.parse(JSON.stringify({ version: "1", requestId: commandId, ...auth, operation, input }))); }
     catch (error) { if (error instanceof GrowthAgentContractError) throw new ApiError(400, "agent_request_invalid", "Check the request fields"); throw error; }
+    if (["turns.submit", "tasks.continue", "tasks.instructions"].includes(operation))
+      await requireAiCredit(core.pool, auth.tenantId);
     let result;
     try { result = await client.command(auth, operation, input, commandId); }
     catch (error) {
@@ -358,6 +360,7 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     const taskId = (request.params as Record<string, unknown>).taskId;
     const publicTaskId = taskId === undefined ? undefined : string(taskId);
     const allowed = publicTaskId ? await scopedReview(auth, publicTaskId, reviewId) : undefined;
+    if (input.decision === "approve") await requireAiCredit(core.pool, auth.tenantId);
     const result = await reviews.decide(auth, reviewId, { requestId, payloadDigest, decision: input.decision }, allowed?.taskId);
     let resumePending = false;
     try { await client.command(auth, "reviews.decide", { taskId: publicTaskId ?? result.review.taskId, reviewId, payloadDigest, decision: input.decision }, requestId); }
