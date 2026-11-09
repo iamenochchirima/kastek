@@ -30,6 +30,7 @@ import {
   type InteractiveSessionState,
 } from "./store.js";
 import { captureSandboxVersion } from "./version.js";
+import { provisionLocalSandbox } from "./provisioner/local.js";
 
 class HttpError extends Error {
   constructor(
@@ -323,6 +324,47 @@ export function buildApi(
       ),
       adapterVersions: adapterVersions(body.adapterVersions),
     });
+    if (body.provision === true) {
+      if (!config.localProvisioning) {
+        return reply.code(503).send({
+          error: "Local sandbox provisioning is not configured",
+          code: "PROVISIONING_UNAVAILABLE",
+        });
+      }
+      if (body.workspaceRef != null) {
+        throw new HttpError(400, "invalid_field", "workspaceRef cannot be supplied during provisioning");
+      }
+      const profile = requiredText(body.profile ?? "local", "profile", 32);
+      if (profile !== "local") {
+        throw new HttpError(400, "invalid_field", "profile must be local");
+      }
+      const workspaceName = requiredText(body.workspaceName, "workspaceName", 120);
+      const label = optionalText(body.label, "label", 200);
+      const detail = await createSandbox(pool, {
+        product,
+        manifest,
+        status: "provisioning",
+        profile,
+        provisioningSteps: [
+          { name: "database", status: "pending" },
+          { name: "schema", status: "pending" },
+          { name: "storage", status: "pending" },
+          { name: "runtime", status: "pending" },
+          { name: "workspace", status: "pending" },
+        ],
+      });
+      void provisionLocalSandbox(config, pool, {
+        sandboxId: detail.sandbox.id,
+        workspaceName,
+        ...(label ? { label } : {}),
+      }).catch((error: unknown) => {
+        request.log.error(
+          { event: "sandbox.provision.failed", sandboxId: detail.sandbox.id },
+          error instanceof Error ? error.message : "unknown",
+        );
+      });
+      return reply.code(202).send(detail);
+    }
     const detail = await createSandbox(pool, {
       product,
       manifest,

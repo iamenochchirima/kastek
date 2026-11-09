@@ -8,8 +8,19 @@ import {
   type SandboxEnvironment,
 } from "./guard.js";
 
+export interface LocalProvisioningConfig {
+  s3Endpoint: string;
+  s3Region: string;
+  s3AccessKeyId: string;
+  s3SecretAccessKey: string;
+  restateIngressUrl: string;
+  restateAdminUrl: string;
+}
+
 export interface EvalsConfig extends SandboxEnvironment {
   databaseUrl: string;
+  evalDatabaseUrl: string;
+  productDatabaseUrl: string;
   host: string;
   port: number;
   operatorToken: string;
@@ -19,6 +30,7 @@ export interface EvalsConfig extends SandboxEnvironment {
   runtimeVersion: string;
   modelId: string;
   adapterVersions: Record<string, string>;
+  localProvisioning?: LocalProvisioningConfig;
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
@@ -101,6 +113,11 @@ function adapterVersions(
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): EvalsConfig {
   const sandbox = validateSandboxEnvironment(env);
   const databaseUrl = required(env, "EVALS_DATABASE_URL");
+  const evalDatabaseUrl = required(env, "AGENTS_EVALS_DATABASE_URL");
+  const productDatabaseUrl = required(
+    env,
+    env.AGENTS_PRODUCT_DATABASE_URL ? "AGENTS_PRODUCT_DATABASE_URL" : "AGENTS_DATABASE_URL",
+  );
   const controlDatabase = parseDatabaseUrl(databaseUrl, "EVALS_DATABASE_URL");
   if (
     databaseKey(controlDatabase) === databaseKey(sandbox.evalDatabase) ||
@@ -141,9 +158,28 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): EvalsConfig {
     );
   }
 
+  const s3 = {
+    endpoint: env.EVALS_LOCAL_S3_ENDPOINT?.trim(),
+    region: env.EVALS_LOCAL_S3_REGION?.trim() || "us-east-1",
+    accessKeyId: env.EVALS_LOCAL_S3_ACCESS_KEY_ID?.trim(),
+    secretAccessKey: env.EVALS_LOCAL_S3_SECRET_ACCESS_KEY?.trim(),
+  };
+  const localProvisioning = env.EVALS_LOCAL_PROVISIONING === "0" || !s3.endpoint || !s3.accessKeyId || !s3.secretAccessKey
+    ? undefined
+    : {
+        s3Endpoint: s3.endpoint,
+        s3Region: s3.region,
+        s3AccessKeyId: s3.accessKeyId,
+        s3SecretAccessKey: s3.secretAccessKey,
+        restateIngressUrl: env.EVALS_LOCAL_RESTATE_INGRESS_URL?.trim() || "http://127.0.0.1:18580",
+        restateAdminUrl: env.EVALS_LOCAL_RESTATE_ADMIN_URL?.trim() || "http://127.0.0.1:19570",
+      };
+
   return {
     ...sandbox,
     databaseUrl,
+    evalDatabaseUrl,
+    productDatabaseUrl,
     host: env.EVALS_HOST?.trim() || "127.0.0.1",
     port: integer(env.EVALS_PORT, 4600, "EVALS_PORT"),
     operatorToken,
@@ -156,5 +192,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): EvalsConfig {
       core: "1",
       harbor: env.AGENTS_HARBOR_VERSION?.trim() || "0.24.0",
     }),
+    ...(localProvisioning ? { localProvisioning } : {}),
   };
 }

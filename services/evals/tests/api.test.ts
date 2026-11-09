@@ -7,6 +7,7 @@ import { buildApi } from "../src/api.js";
 import type { EvalsConfig } from "../src/config.js";
 import { createPool } from "../src/db.js";
 import { migrate } from "../src/migrate.js";
+import { updateSandboxProvisioning } from "../src/store.js";
 
 const databaseUrl = process.env.EVALS_TEST_DATABASE_URL;
 const skip = databaseUrl
@@ -19,6 +20,10 @@ const config: EvalsConfig = {
   environment: "test",
   databaseUrl:
     databaseUrl ?? "postgresql://control@127.0.0.1:5432/evals_service_test",
+  evalDatabaseUrl:
+    "postgresql://control@127.0.0.1:55432/agents_evals",
+  productDatabaseUrl:
+    "postgresql://control@127.0.0.1:16544/agents",
   host: "127.0.0.1",
   port: 4600,
   operatorToken,
@@ -565,4 +570,25 @@ test("records an interactive session and appends idempotent turns", { skip }, as
   });
   assert.equal(unknownSession.statusCode, 404);
   assert.equal((unknownSession.json() as { code: string }).code, "SESSION_NOT_FOUND");
+});
+
+test("stores provisioning progress and runtime metadata", { skip }, async () => {
+  const created = await app!.inject({ method: "POST", url: "/v1/sandboxes", headers: auth, payload: {} });
+  const sandboxId = (created.json() as { sandbox: { id: string } }).sandbox.id;
+  const updated = await updateSandboxProvisioning(pool!, sandboxId, {
+    status: "ready",
+    steps: [
+      { name: "database", status: "complete" },
+      { name: "workspace", status: "complete" },
+    ],
+    provisionedAt: "2026-11-09T20:00:00.000Z",
+    runtime: { productApiUrl: "http://127.0.0.1:4000", productDatabase: "agents_sandbox_test" },
+  });
+  assert.ok(updated);
+  assert.equal(updated.status, "ready");
+  assert.equal(updated.profile, "local");
+  assert.equal(updated.provisioningSteps.length, 2);
+  assert.equal(updated.provisioningSteps[1]!.name, "workspace");
+  assert.equal(updated.provisionedAt, "2026-11-09T20:00:00.000Z");
+  assert.equal(updated.runtime.productApiUrl, "http://127.0.0.1:4000");
 });

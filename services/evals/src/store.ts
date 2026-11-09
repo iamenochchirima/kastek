@@ -3,10 +3,22 @@ import type { Pool, PoolClient } from "pg";
 import { transaction } from "./db.js";
 import type { SandboxManifest } from "./version.js";
 
+export interface ProvisioningStep {
+  name: string;
+  status: "pending" | "running" | "complete" | "failed";
+  message?: string;
+  at?: string;
+}
+
 export interface Sandbox {
   id: string;
   product: string;
   status: string;
+  profile: string;
+  provisioningError: string | null;
+  provisioningSteps: ProvisioningStep[];
+  provisionedAt: string | null;
+  runtime: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,6 +56,9 @@ export interface SandboxDetail {
 export interface CreateSandboxInput {
   product: string;
   manifest: SandboxManifest;
+  status?: "provisioning" | "ready" | "failed" | "active" | "retired";
+  profile?: string;
+  provisioningSteps?: ProvisioningStep[];
   workspaceRef?: {
     productWorkspaceId: string;
     label?: string;
@@ -58,10 +73,21 @@ function iso(value: unknown): string {
 }
 
 function mapSandbox(row: Row): Sandbox {
+  const steps = typeof row.provisioning_steps === "string"
+    ? JSON.parse(row.provisioning_steps) as ProvisioningStep[]
+    : (row.provisioning_steps as ProvisioningStep[] | undefined) ?? [];
+  const runtime = typeof row.runtime === "string"
+    ? JSON.parse(row.runtime) as Record<string, unknown>
+    : (row.runtime as Record<string, unknown> | undefined) ?? {};
   return {
     id: String(row.id),
     product: String(row.product),
     status: String(row.status),
+    profile: String(row.profile ?? "local"),
+    provisioningError: row.provisioning_error == null ? null : String(row.provisioning_error),
+    provisioningSteps: steps,
+    provisionedAt: row.provisioned_at == null ? null : iso(row.provisioned_at),
+    runtime,
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   };
@@ -149,9 +175,16 @@ export async function createSandbox(
     const sandboxId = randomUUID();
     const versionId = randomUUID();
     const sandboxResult = await client.query(
-      `INSERT INTO evals.sandboxes(id, product)
-       VALUES($1,$2) RETURNING *`,
-      [sandboxId, input.product],
+      `INSERT INTO evals.sandboxes(
+         id, product, status, profile, provisioning_steps
+       ) VALUES($1,$2,$3,$4,$5::jsonb) RETURNING *`,
+      [
+        sandboxId,
+        input.product,
+        input.status ?? "active",
+        input.profile ?? "local",
+        JSON.stringify(input.provisioningSteps ?? []),
+      ],
     );
     const versionResult = await client.query(
       `INSERT INTO evals.sandbox_versions(
@@ -864,4 +897,38 @@ export async function getInteractiveSession(
     session,
     turns: turns.rows.map((row) => mapInteractiveTurn(row as Row)),
   };
+}
+
+export interface SandboxProvisioningUpdate {
+  status?: "provisioning" | "ready" | "failed" | "active" | "retired";
+  steps?: ProvisioningStep[];
+  error?: string | null;
+  provisionedAt?: string | null;
+  runtime?: Record<string, unknown>;
+}
+
+export async function updateSandboxProvisioning(
+  pool: Pool,
+  sandboxId: string,
+  input: SandboxProvisioningUpdate,
+): Promise<Sandbox | null> {
+  const result = await pool.query(
+    `UPDATE evals.sandboxes SET
+       status=COALESCE($2, status),
+       provisioning_steps=COALESCE($3::jsonb, provisioning_steps),
+       provisioning_error=COALESCE($4, provisioning_error),
+       provisioned_at=COALESCE($5::timestamptz, provisioned_at),
+       runtime=COALESCE($6::jsonb, runtime),
+       updated_at=now()
+     WHERE id=$1 RETURNING *`,
+    [
+      sandboxId,
+      input.status ?? null,
+      input.steps === undefined ? null : JSON.stringify(input.steps),
+      input.error ?? null,
+      input.provisionedAt ?? null,
+      input.runtime === undefined ? null : JSON.stringify(input.runtime),
+    ],
+  );
+  return result.rows[0] ? mapSandbox(result.rows[0] as Row) : null;
 }

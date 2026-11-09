@@ -69,6 +69,7 @@ implementation and boundaries:
 - [Platform login](architecture/platform-login.md): identity, sessions, and product authorization.
 - [Workspace members](operations/workspace-members.md): owner/member roles, invitations, email configuration and member management.
 - [Enquiry outcomes](operations/enquiry-outcomes.md): website visitor confirmation, customer-record projection and outcome references.
+- [Sandbox workspace bootstrap](operations/sandbox-bootstrap.md): product-owned owner/workspace bootstrap for a fresh evaluation sandbox.
 - [Integration boundaries](mcp-integration.md): outbound read adapters, provider acceptance gates and future product connections.
 - [Threat model](THREAT_MODEL.md): enforced controls and release limits.
 

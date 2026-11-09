@@ -15,6 +15,8 @@ not run evaluations; the existing Agents eval fixture does.
 - Record agent versions, saved outcomes and interactive sessions without storing
   transcript text or customer PII in the control plane.
 - Configure and chat through normal Agents product sessions.
+- Provision a local Agents sandbox with its own database, bucket, API, worker,
+  Restate deployment and workspace.
 - Fail closed if the sandbox database is not the persistent `agents_evals`
   database, if it matches the product database, or if billing, live models,
   production identity or an open network policy is configured.
@@ -121,6 +123,44 @@ Optional fields: `product` (`agents` only), `codeRevision`, `imageDigest`,
 
 The service computes every missing manifest field. It refuses to create a sandbox
 if a required field is incomplete or invalid.
+
+Without `provision: true`, this creates a control-plane record only. The Evals UI uses
+the provisioning path:
+
+```sh
+curl -sS http://127.0.0.1:4600/v1/sandboxes \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{
+    "product":"agents",
+    "provision":true,
+    "profile":"local",
+    "workspaceName":"Acme support",
+    "label":"Support experiments"
+  }'
+```
+
+The response is `202` with status `provisioning`. Poll
+`GET /v1/sandboxes/:id` until status is `ready` or `failed`. Each result includes
+ordered `provisioningSteps` and, when ready, the local `runtime` metadata.
+
+The local provisioner currently:
+
+1. Creates `agents_sandbox_<id>` on the local PostgreSQL server.
+2. Applies the Agents schema through the product-owned setup command.
+3. Creates a dedicated object-storage bucket.
+4. Starts a dedicated Agents API and worker with its own ports.
+5. Registers the worker with the local Restate deployment.
+6. Bootstraps an owner and workspace through the product-owned
+   `bootstrap-sandbox` command.
+7. Writes a local owner session file under `.audit/sandboxes/<sandbox-id>/`
+   with mode `0600`; the token is not stored in the control plane.
+
+Local provisioning requires the product environment files, PostgreSQL access to
+create databases, MinIO/S3 credentials, a running Restate admin endpoint, Docker
+socket access to discover the bridge gateway, and the product `tsx` loader. It is a
+development/local provisioner, not the Phase 5 hosted lifecycle. Destroy and
+retention are not implemented yet.
 
 ### List and inspect
 
@@ -374,8 +414,8 @@ EVALS_TEST_DATABASE_URL=postgresql://control@127.0.0.1:5432/evals_service_test \
 ```
 
 The API tests migrate the test database and truncate only the `evals` tables.
-They cover sandbox, workspace, agent, outcome and interactive session/turn
-references. Guard and manifest tests do not need a database.
+They cover sandbox, workspace, agent, outcome, interactive session/turn and
+provisioning-state references. Guard and manifest tests do not need a database.
 
 ## Release impact
 
@@ -386,10 +426,10 @@ references. Guard and manifest tests do not need a database.
   transcript text never stored in the control plane.
 - Versioning: service package, additive control-plane migrations and sandbox
   version manifest.
-- Validation: typecheck, build, service tests, boundary check and a two-turn
-  create/restart interactive run.
+- Validation: typecheck, build, service tests, boundary check, a two-turn
+  create/restart interactive run and a UI-created local sandbox.
 - Rollout: local and development only; no production deployment.
 - Rollback: stop the client and service. Product data, prior session references
   and outcome references remain readable.
 - Migration: additive `evals` control-plane schema only; no product data
-  migration.
+  migration. Each local sandbox creates a fresh product database.

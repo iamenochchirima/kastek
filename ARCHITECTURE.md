@@ -18,6 +18,7 @@ membership, database access or permission to call internal operations.
 | `products/agency/api/` | Tenant API, migrations and workers |
 | `products/agency/web/` | Partner and tenant portal |
 | `products/agency/api-client/` | Private React tenant API client |
+| `apps/evals/` | Evaluation client for the control plane: sandboxes, provisioning, sessions and outcomes |
 | `apps/admin-site/` | Privileged UI using Growth, Agents, and Agency reporting APIs over HTTP |
 | `apps/labs-site/` | Public Labs website |
 | `packages/contracts/` | Shared transport and event contracts |
@@ -25,7 +26,7 @@ membership, database access or permission to call internal operations.
 | `packages/ui/` | Shared workspace theme, appearance definitions and generic React controls |
 | `services/analytics/` | Analytics ingestion, publishing, registry and query service |
 | `services/billing/` | Billing accounts, plan catalog, Paystack, subscriptions, invoices, credits, usage and entitlement snapshots |
-| `services/evals/` | Agent evaluation control plane: sandbox, workspace, agent, outcome and interactive-session references, operator API and terminal client |
+| `services/evals/` | Agent evaluation control plane: sandbox, workspace, agent, outcome and interactive-session references, local sandbox provisioner, operator API and terminal client |
 | `services/operations/` | Independent Labs admin sessions, durable monitoring, incidents, and notification intent |
 | `infra/identity/` | Keycloak development identity configuration |
 | `infra/agents-runtime/` | Pinned local Restate runtime and recovery verification |
