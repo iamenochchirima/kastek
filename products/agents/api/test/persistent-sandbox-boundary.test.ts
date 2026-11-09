@@ -38,3 +38,25 @@ it("keeps the enquiry outcome runner on product and control-plane APIs", async (
   expect(runner).toContain("/v1/sandboxes/");
   expect(runner).toContain("customer-records/enquiries");
 });
+
+it("keeps interactive chat on the client and normal product APIs", async () => {
+  const source = await readFile(new URL("./harbor-fixture.ts", import.meta.url), "utf8");
+  const start = source.indexOf("async function runInteractiveOutcome");
+  const end = source.indexOf("async function runEnquiryOutcome", start);
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+  const runner = source.slice(start, end);
+  for (const forbidden of [
+    "store.createAgent",
+    "store.createVersion",
+    "modelProviders.create",
+    "publishFixtureSource",
+  ]) {
+    expect(runner).not.toContain(forbidden);
+  }
+  expect(runner).toContain("InteractiveSandboxClient");
+  expect(runner).toContain("client.startSession");
+  expect(runner).toContain("client.continueSession");
+  expect(runner).toContain("client.transcript");
+  expect(runner).toContain("client.savedOutcomeRecord");
+});

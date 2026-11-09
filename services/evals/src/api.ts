@@ -22,6 +22,12 @@ import {
   OutcomeRefError,
   type OutcomeKind,
   type OutcomeStatus,
+  appendInteractiveTurn,
+  createInteractiveSession,
+  getInteractiveSession,
+  InteractiveSessionError,
+  listInteractiveSessions,
+  type InteractiveSessionState,
 } from "./store.js";
 import { captureSandboxVersion } from "./version.js";
 
@@ -140,6 +146,23 @@ function sha256(value: unknown, name: string): string {
   return normalized;
 }
 
+function optionalSha256(value: unknown, name: string): string | undefined {
+  if (value == null) return undefined;
+  return sha256(value, name);
+}
+
+function interactiveState(value: unknown): InteractiveSessionState {
+  const normalized = requiredText(value, "state", 32) as InteractiveSessionState;
+  if (!["active", "waiting_review", "completed", "failed", "cancelled"].includes(normalized)) {
+    throw new HttpError(
+      400,
+      "invalid_field",
+      "state must be active, waiting_review, completed, failed or cancelled",
+    );
+  }
+  return normalized;
+}
+
 function workspaceRef(
   value: unknown,
 ): { productWorkspaceId: string; label?: string } | undefined {
@@ -210,6 +233,15 @@ export function buildApi(
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof SandboxGuardError) {
       return reply.code(422).send({
+        error: error.message,
+        code: error.code,
+      });
+    }
+    if (error instanceof InteractiveSessionError) {
+      const status =
+        error.code === "SESSION_CONFLICT" || error.code === "TURN_CONFLICT" ? 409 :
+        error.code === "SANDBOX_NOT_FOUND" || error.code === "SESSION_NOT_FOUND" ? 404 : 400;
+      return reply.code(status).send({
         error: error.message,
         code: error.code,
       });
@@ -442,6 +474,77 @@ export function buildApi(
       });
     }
     return { outcomeRef: outcome };
+  });
+
+  app.post("/v1/sandboxes/:id/sessions", async (request, reply) => {
+    const params = request.params as { id: string };
+    const sandboxId = uuid(params.id, "id");
+    const body = bodyObject(request.body);
+    const result = await createInteractiveSession(pool, sandboxId, {
+      workspaceRefId: uuid(
+        requiredText(body.workspaceRefId, "workspaceRefId", 64),
+        "workspaceRefId",
+      ),
+      agentRefId: uuid(
+        requiredText(body.agentRefId, "agentRefId", 64),
+        "agentRefId",
+      ),
+      productConversationId: requiredText(
+        body.productConversationId,
+        "productConversationId",
+        200,
+      ),
+      productTaskId: requiredText(body.productTaskId, "productTaskId", 200),
+      inputDigest: sha256(body.inputDigest, "inputDigest"),
+      outputDigest: optionalSha256(body.outputDigest, "outputDigest"),
+      state: body.state == null ? "active" : interactiveState(body.state),
+    });
+    return reply.code(result.created ? 201 : 200).send(result);
+  });
+
+  app.post("/v1/sandboxes/:id/sessions/:sessionId/turns", async (request, reply) => {
+    const params = request.params as { id: string; sessionId: string };
+    const sandboxId = uuid(params.id, "id");
+    const sessionId = uuid(params.sessionId, "sessionId");
+    const body = bodyObject(request.body);
+    const result = await appendInteractiveTurn(pool, sandboxId, sessionId, {
+      productTaskId: requiredText(body.productTaskId, "productTaskId", 200),
+      inputDigest: sha256(body.inputDigest, "inputDigest"),
+      outputDigest: optionalSha256(body.outputDigest, "outputDigest"),
+      state: interactiveState(body.state),
+    });
+    return reply.code(result.created ? 201 : 200).send(result);
+  });
+
+  app.get("/v1/sandboxes/:id/sessions", async (request, reply) => {
+    const params = request.params as { id: string };
+    const sandboxId = uuid(params.id, "id");
+    const query = request.query as { limit?: string };
+    if (!(await getSandbox(pool, sandboxId))) {
+      return reply.code(404).send({
+        error: "Sandbox not found",
+        code: "not_found",
+      });
+    }
+    return {
+      sessions: await listInteractiveSessions(pool, sandboxId, limit(query.limit)),
+    };
+  });
+
+  app.get("/v1/sandboxes/:id/sessions/:sessionId", async (request, reply) => {
+    const params = request.params as { id: string; sessionId: string };
+    const detail = await getInteractiveSession(
+      pool,
+      uuid(params.id, "id"),
+      uuid(params.sessionId, "sessionId"),
+    );
+    if (!detail) {
+      return reply.code(404).send({
+        error: "Interactive session not found",
+        code: "not_found",
+      });
+    }
+    return detail;
   });
 
   return app;

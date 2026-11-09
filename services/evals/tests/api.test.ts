@@ -57,7 +57,7 @@ before(async () => {
   pool = createPool(databaseUrl);
   app = buildApi(pool, config, { logger: false });
   await pool.query(
-    "TRUNCATE evals.outcome_refs, evals.agent_refs, evals.workspace_refs, evals.sandbox_versions, evals.sandboxes CASCADE",
+    "TRUNCATE evals.interactive_turns, evals.interactive_sessions, evals.outcome_refs, evals.agent_refs, evals.workspace_refs, evals.sandbox_versions, evals.sandboxes CASCADE",
   );
 });
 
@@ -371,4 +371,198 @@ test("records and reads outcome references for an agent", { skip }, async () => 
     payload,
   });
   assert.equal(unknown.statusCode, 404);
+});
+
+test("records an interactive session and appends idempotent turns", { skip }, async () => {
+  const created = await app!.inject({ method: "POST", url: "/v1/sandboxes", headers: auth, payload: {} });
+  const sandboxId = (created.json() as { sandbox: { id: string } }).sandbox.id;
+  const workspace = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/workspaces`,
+    headers: auth,
+    payload: { productWorkspaceId: "workspace-interactive", label: "Interactive workspace" },
+  });
+  const workspaceRefId = (workspace.json() as { workspaceRef: { id: string } }).workspaceRef.id;
+  const agent = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/agents`,
+    headers: auth,
+    payload: {
+      workspaceRefId,
+      productAgentId: "agent-interactive",
+      productVersionId: "version-interactive",
+      sourceIds: ["source-interactive"],
+      compositionDigest: "a".repeat(64),
+      modelRoutesDigest: "b".repeat(64),
+    },
+  });
+  const agentRefId = (agent.json() as { agentRef: { id: string } }).agentRef.id;
+  const base = {
+    workspaceRefId,
+    agentRefId,
+    productConversationId: "conversation-interactive",
+    productTaskId: "task-interactive-1",
+    inputDigest: "c".repeat(64),
+    outputDigest: "d".repeat(64),
+    state: "completed",
+  };
+  const sessionResponse = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/sessions`,
+    headers: auth,
+    payload: base,
+  });
+  assert.equal(sessionResponse.statusCode, 201);
+  const sessionBody = sessionResponse.json() as {
+    created: boolean;
+    session: {
+      id: string;
+      productConversationId: string;
+      firstTaskId: string;
+      latestTaskId: string;
+      turnCount: number;
+      state: string;
+    };
+    turn: { id: string; sequence: number; productTaskId: string };
+  };
+  assert.equal(sessionBody.created, true);
+  assert.equal(sessionBody.session.productConversationId, "conversation-interactive");
+  assert.equal(sessionBody.session.firstTaskId, "task-interactive-1");
+  assert.equal(sessionBody.session.latestTaskId, "task-interactive-1");
+  assert.equal(sessionBody.session.turnCount, 1);
+  assert.equal(sessionBody.session.state, "completed");
+  assert.equal(sessionBody.turn.sequence, 1);
+  assert.equal(sessionBody.turn.productTaskId, "task-interactive-1");
+  const sessionId = sessionBody.session.id;
+
+  const duplicate = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/sessions`,
+    headers: auth,
+    payload: base,
+  });
+  assert.equal(duplicate.statusCode, 200);
+  assert.equal((duplicate.json() as { created: boolean }).created, false);
+  assert.equal(
+    (duplicate.json() as { session: { id: string } }).session.id,
+    sessionId,
+  );
+
+  const listed = await app!.inject({
+    method: "GET",
+    url: `/v1/sandboxes/${sandboxId}/sessions`,
+    headers: auth,
+  });
+  assert.equal(listed.statusCode, 200);
+  assert.equal(
+    (listed.json() as { sessions: Array<{ id: string }> }).sessions.length,
+    1,
+  );
+
+  const fetched = await app!.inject({
+    method: "GET",
+    url: `/v1/sandboxes/${sandboxId}/sessions/${sessionId}`,
+    headers: auth,
+  });
+  assert.equal(fetched.statusCode, 200);
+  const detail = fetched.json() as {
+    session: { turnCount: number };
+    turns: Array<{ sequence: number; productTaskId: string }>;
+  };
+  assert.equal(detail.session.turnCount, 1);
+  assert.equal(detail.turns.length, 1);
+
+  const secondTurn = {
+    productTaskId: "task-interactive-2",
+    inputDigest: "e".repeat(64),
+    outputDigest: "f".repeat(64),
+    state: "active",
+  };
+  const appended = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/sessions/${sessionId}/turns`,
+    headers: auth,
+    payload: secondTurn,
+  });
+  assert.equal(appended.statusCode, 201);
+  const appendedBody = appended.json() as {
+    created: boolean;
+    session: { turnCount: number; latestTaskId: string; state: string };
+    turn: { sequence: number };
+  };
+  assert.equal(appendedBody.created, true);
+  assert.equal(appendedBody.session.turnCount, 2);
+  assert.equal(appendedBody.session.latestTaskId, "task-interactive-2");
+  assert.equal(appendedBody.session.state, "active");
+  assert.equal(appendedBody.turn.sequence, 2);
+
+  const replay = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/sessions/${sessionId}/turns`,
+    headers: auth,
+    payload: secondTurn,
+  });
+  assert.equal(replay.statusCode, 200);
+  assert.equal((replay.json() as { created: boolean }).created, false);
+  const afterReplay = await app!.inject({
+    method: "GET",
+    url: `/v1/sandboxes/${sandboxId}/sessions/${sessionId}`,
+    headers: auth,
+  });
+  assert.equal(
+    (afterReplay.json() as { session: { turnCount: number } }).session.turnCount,
+    2,
+  );
+
+  const conflict = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/sessions/${sessionId}/turns`,
+    headers: auth,
+    payload: { ...secondTurn, inputDigest: "1".repeat(64) },
+  });
+  assert.equal(conflict.statusCode, 409);
+  assert.equal((conflict.json() as { code: string }).code, "TURN_CONFLICT");
+
+  const secondAgent = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/agents`,
+    headers: auth,
+    payload: {
+      workspaceRefId,
+      productAgentId: "agent-interactive",
+      productVersionId: "version-interactive-2",
+      sourceIds: [],
+      compositionDigest: "2".repeat(64),
+      modelRoutesDigest: "3".repeat(64),
+    },
+  });
+  const secondAgentRefId = (secondAgent.json() as { agentRef: { id: string } }).agentRef.id;
+  const sessionConflict = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/sessions`,
+    headers: auth,
+    payload: { ...base, agentRefId: secondAgentRefId },
+  });
+  assert.equal(sessionConflict.statusCode, 409);
+  assert.equal((sessionConflict.json() as { code: string }).code, "SESSION_CONFLICT");
+
+  const other = await app!.inject({ method: "POST", url: "/v1/sandboxes", headers: auth, payload: {} });
+  const otherSandboxId = (other.json() as { sandbox: { id: string } }).sandbox.id;
+  const wrongRefs = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${otherSandboxId}/sessions`,
+    headers: auth,
+    payload: { ...base, productConversationId: "conversation-other" },
+  });
+  assert.equal(wrongRefs.statusCode, 400);
+  assert.equal((wrongRefs.json() as { code: string }).code, "WORKSPACE_REF_NOT_FOUND");
+
+  const unknownSession = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/sessions/00000000-0000-4000-8000-000000000000/turns`,
+    headers: auth,
+    payload: secondTurn,
+  });
+  assert.equal(unknownSession.statusCode, 404);
+  assert.equal((unknownSession.json() as { code: string }).code, "SESSION_NOT_FOUND");
 });

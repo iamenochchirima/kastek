@@ -1,19 +1,24 @@
-# Evaluation control plane
+# Evaluation control plane and interactive harness
 
-Phase 1 control plane for the agent evaluation and observability service. It owns the
-sandbox registry, the sandbox version manifest and workspace references. It does not
-run evaluations; the existing Agents eval fixture does.
+Control plane for the agent evaluation and observability service. It owns the sandbox
+registry, the sandbox version manifest, workspace, agent, outcome and interactive
+session references. It also provides a terminal client that uses normal product APIs
+to configure an agent, chat, read the transcript and inspect saved outcomes. It does
+not run evaluations; the existing Agents eval fixture does.
 
-## Phase 1 boundary
+## Current boundary
 
 - Create, list and inspect persistent Agents sandboxes.
 - Record code, image, schema, migration, config, runtime, model-route and adapter
   versions for every sandbox.
 - Register the product workspace that belongs to a sandbox.
+- Record agent versions, saved outcomes and interactive sessions without storing
+  transcript text or customer PII in the control plane.
+- Configure and chat through normal Agents product sessions.
 - Fail closed if the sandbox database is not the persistent `agents_evals`
   database, if it matches the product database, or if billing, live models,
   production identity or an open network policy is configured.
-- Update, destroy, retention, Growth, Agency, client UI, MCP and billing test mode
+- Update, destroy, retention, Growth, Agency, browser UI, MCP and billing test mode
   are later phases.
 
 The service is intentionally separate from `apps/evals/`, which remains a client
@@ -27,10 +32,12 @@ services/evals/
   src/config.ts        environment and operator configuration
   src/guard.ts         fail-closed sandbox checks
   src/version.ts       sandbox version manifest
-  src/store.ts         sandbox and workspace registry
+  src/store.ts         sandbox, workspace, agent, outcome and session registry
   src/api.ts           Fastify operator API
   src/api-main.ts      service entry point
   src/harness/setup.ts normal-API sandbox setup client
+  src/harness/interactive.ts service-backed session, chat and transcript client
+  src/cli.ts           terminal client
   src/migrate.ts       migration runner
   tests/               guard, manifest and API tests
 ```
@@ -60,6 +67,24 @@ services/evals/
 
 The service never returns database URLs or credentials. The operator token is
 redacted from request logs.
+
+### Client configuration
+
+The terminal client reads its own environment. It never prints session cookies,
+model keys or operator tokens.
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `EVALS_API_URL` | no | Control-plane URL. Default `http://127.0.0.1:4600`. |
+| `EVALS_OPERATOR_TOKEN` | yes | Operator token for session and outcome references. |
+| `EVALS_SANDBOX_ID` | no | Default sandbox for commands that omit `--sandbox`. |
+| `AGENTS_BASE_URL` | setup, chat, transcript, records | Agents product origin. |
+| `AGENTS_ORIGIN` | no | Request `Origin`. Defaults to the origin of `AGENTS_BASE_URL`. |
+| `AGENTS_ORGANIZATION_ID` | setup, chat, transcript, records | Agents workspace id. |
+| `AGENTS_OWNER_SESSION` | setup, chat, transcript, records | Normal owner session token. |
+| `AGENTS_SESSION_COOKIE_NAME` | no | Cookie name. Default `agents_session`. |
+| `AGENTS_MODEL_API_KEY` | setup when the file omits it | Model provider key. |
+| `AGENTS_MEMBER_SESSION` | no | Optional second-member session used by setup. |
 
 ## Migrate and run
 
@@ -171,6 +196,44 @@ curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/outcomes" \
 sandbox/kind/product outcome returns `409 OUTCOME_REF_EXISTS`. The reference
 must belong to the same sandbox, workspace and agent reference.
 
+### Record and read interactive sessions
+
+An interactive session links one product conversation to the sandbox, workspace and
+agent reference. Each turn links the product task and stores only input/output
+digests and state. Transcript text stays in the product.
+
+```sh
+curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/sessions" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{
+    "workspaceRefId":"<workspace-ref-id>",
+    "agentRefId":"<agent-ref-id>",
+    "productConversationId":"<conversation-id>",
+    "productTaskId":"<first-task-id>",
+    "inputDigest":"<64-hex>",
+    "outputDigest":"<64-hex>",
+    "state":"completed"
+  }'
+
+curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/sessions/$SESSION_ID/turns" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{
+    "productTaskId":"<second-task-id>",
+    "inputDigest":"<64-hex>",
+    "outputDigest":"<64-hex>",
+    "state":"completed"
+  }'
+
+curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/sessions" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN"
+```
+
+`GET /v1/sandboxes/:id/sessions/:sessionId` returns the session and ordered turns.
+Session creation is idempotent by product conversation. Turn creation is idempotent
+by product task; a different input digest returns `409 TURN_CONFLICT`.
+
 ### Normal-API setup client
 
 `services/evals/src/harness/setup.ts` configures a sandbox through the normal Agents
@@ -187,6 +250,53 @@ HTTP APIs with a workspace user session:
 The client does not import product runtime source. The caller supplies the
 product-specific agent configuration. The persistent fixture uses the client for
 both first-run creation and later-run reuse.
+
+## Interactive terminal client
+
+The client drives the product through normal HTTP APIs and records session and turn
+references in the control plane.
+
+```sh
+pnpm --filter @kasitek/evals-service client view --sandbox "$SANDBOX_ID"
+pnpm --filter @kasitek/evals-service client setup --sandbox "$SANDBOX_ID" --file setup.json
+pnpm --filter @kasitek/evals-service client chat --sandbox "$SANDBOX_ID" --agent-ref "$AGENT_REF" --message "What are the opening hours?"
+pnpm --filter @kasitek/evals-service client chat --sandbox "$SANDBOX_ID" --session "$SESSION_ID" --message "Can you repeat that?"
+pnpm --filter @kasitek/evals-service client transcript --sandbox "$SANDBOX_ID" "$SESSION_ID"
+pnpm --filter @kasitek/evals-service client records --sandbox "$SANDBOX_ID" --outcome "$OUTCOME_REF"
+```
+
+Add `--json` for machine-readable output. `view` shows the sandbox version,
+workspaces, agent references, sessions and saved outcomes. `transcript` shows both
+sides of each turn, operations and tool calls, task events and evidence citations.
+`records` reads the saved enquiry and projected customer record through staff APIs.
+
+The setup file contains product configuration, not credentials:
+
+```json
+{
+  "model": {
+    "providerId": "openrouter",
+    "name": "Sandbox model",
+    "modelId": "nvidia/nemotron-3-super-120b-a12b:free"
+  },
+  "knowledge": {
+    "title": "Opening hours",
+    "content": "The office opens at nine.",
+    "visibility": "private"
+  },
+  "agent": {
+    "name": "Interactive fixture",
+    "configuration": {},
+    "instructions": "Answer using approved knowledge."
+  },
+  "member": { "email": "member@example.test" }
+}
+```
+
+Pass the model key in `AGENTS_MODEL_API_KEY` and any member session in
+`AGENTS_MEMBER_SESSION`. `setup` reuses an existing model connection, knowledge
+source and member, publishes an immutable agent version only when it creates a new
+agent, and records the agent reference in the control plane.
 
 ## Persistent sandbox verification
 
@@ -234,6 +344,17 @@ connection and published agent version on later runs. It writes
 `run-*.json`, `latest.json` and the core acceptance evidence under the evidence
 directory. The agent and source ids must match across runs.
 
+For interactive use, build the service first so `services/evals/dist/cli.js`
+exists, then run the same fixture with `AGENTS_EVAL_OUTCOME=interactive` and a
+distinct `AGENTS_EVAL_INTERACTIVE_AGENT_NAME`. The fixture configures the
+agent through the terminal client, sends two turns in one conversation, records the
+session and turns, reads the transcript and saved outcome, and runs the client's
+`transcript`, `view` and `records` commands. A second run writes
+`interactive-restart.json` after reading the same session and outcome without
+creating another task. Evidence is written under the sandbox directory as
+`interactive-session.json`, `interactive-restart.json`, `cli-transcript*.json`,
+`cli-view*.json` and `cli-records*.json`.
+
 The fixture looks up the sandbox version before starting. A missing, inactive or
 mismatched version fails before any product work begins.
 
@@ -253,16 +374,22 @@ EVALS_TEST_DATABASE_URL=postgresql://control@127.0.0.1:5432/evals_service_test \
 ```
 
 The API tests migrate the test database and truncate only the `evals` tables.
-Guard and manifest tests do not need a database.
+They cover sandbox, workspace, agent, outcome and interactive session/turn
+references. Guard and manifest tests do not need a database.
 
 ## Release impact
 
-- Documentation: this README and the root architecture map.
-- Analytics: not applicable to the control plane in Phase 1.
-- Logging: structured create, inspect and guard events; authorization redacted.
-- Versioning: service package, sandbox version manifest and adapter versions.
-- Validation: typecheck, guard tests, API tests, two-run persistence and restart.
+- Documentation: this README and the root architecture map. No Agents user-facing
+  route or feature-map entry changes.
+- Analytics: not applicable to the local harness.
+- Logging: structured session and turn references; authorization redacted and
+  transcript text never stored in the control plane.
+- Versioning: service package, additive control-plane migrations and sandbox
+  version manifest.
+- Validation: typecheck, build, service tests, boundary check and a two-turn
+  create/restart interactive run.
 - Rollout: local and development only; no production deployment.
-- Rollback: stop the service and use the fixture's per-run mode. Sandbox data
-  remains isolated.
-- Migration: new `evals` control-plane schema only; no product data migration.
+- Rollback: stop the client and service. Product data, prior session references
+  and outcome references remain readable.
+- Migration: additive `evals` control-plane schema only; no product data
+  migration.

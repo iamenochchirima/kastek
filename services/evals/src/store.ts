@@ -536,3 +536,332 @@ export async function getOutcomeRef(
   );
   return result.rows[0] ? mapOutcomeRef(result.rows[0] as Row) : null;
 }
+
+export type InteractiveSessionState =
+  | "active"
+  | "waiting_review"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export interface InteractiveTurn {
+  id: string;
+  sessionId: string;
+  productTaskId: string;
+  sequence: number;
+  inputDigest: string;
+  outputDigest: string | null;
+  state: InteractiveSessionState;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InteractiveSession {
+  id: string;
+  sandboxId: string;
+  workspaceRefId: string;
+  agentRefId: string;
+  productConversationId: string;
+  firstTaskId: string;
+  latestTaskId: string;
+  state: InteractiveSessionState;
+  turnCount: number;
+  lastActivityAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InteractiveSessionDetail {
+  session: InteractiveSession;
+  turns: InteractiveTurn[];
+}
+
+export class InteractiveSessionError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "InteractiveSessionError";
+  }
+}
+
+export interface CreateInteractiveSessionInput {
+  workspaceRefId: string;
+  agentRefId: string;
+  productConversationId: string;
+  productTaskId: string;
+  inputDigest: string;
+  outputDigest?: string;
+  state: InteractiveSessionState;
+}
+
+export interface AppendInteractiveTurnInput {
+  productTaskId: string;
+  inputDigest: string;
+  outputDigest?: string;
+  state: InteractiveSessionState;
+}
+
+function mapInteractiveTurn(row: Row): InteractiveTurn {
+  return {
+    id: String(row.id),
+    sessionId: String(row.session_id),
+    productTaskId: String(row.product_task_id),
+    sequence: Number(row.sequence),
+    inputDigest: String(row.input_digest),
+    outputDigest: row.output_digest == null ? null : String(row.output_digest),
+    state: row.state as InteractiveSessionState,
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+  };
+}
+
+function mapInteractiveSession(row: Row): InteractiveSession {
+  return {
+    id: String(row.id),
+    sandboxId: String(row.sandbox_id),
+    workspaceRefId: String(row.workspace_ref_id),
+    agentRefId: String(row.agent_ref_id),
+    productConversationId: String(row.product_conversation_id),
+    firstTaskId: String(row.first_task_id),
+    latestTaskId: String(row.latest_task_id),
+    state: row.state as InteractiveSessionState,
+    turnCount: Number(row.turn_count),
+    lastActivityAt: iso(row.last_activity_at),
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+  };
+}
+
+async function validateInteractiveRefs(
+  client: PoolClient,
+  sandboxId: string,
+  workspaceRefId: string,
+  agentRefId: string,
+): Promise<void> {
+  const sandbox = await client.query(
+    "SELECT 1 FROM evals.sandboxes WHERE id=$1",
+    [sandboxId],
+  );
+  if (!sandbox.rows[0]) {
+    throw new InteractiveSessionError("SANDBOX_NOT_FOUND", "Sandbox not found");
+  }
+  const workspace = await client.query(
+    "SELECT 1 FROM evals.workspace_refs WHERE id=$1 AND sandbox_id=$2",
+    [workspaceRefId, sandboxId],
+  );
+  if (!workspace.rows[0]) {
+    throw new InteractiveSessionError(
+      "WORKSPACE_REF_NOT_FOUND",
+      "Workspace reference does not belong to this sandbox",
+    );
+  }
+  const agent = await client.query(
+    "SELECT 1 FROM evals.agent_refs WHERE id=$1 AND sandbox_id=$2 AND workspace_ref_id=$3",
+    [agentRefId, sandboxId, workspaceRefId],
+  );
+  if (!agent.rows[0]) {
+    throw new InteractiveSessionError(
+      "AGENT_REF_NOT_FOUND",
+      "Agent reference does not belong to this sandbox and workspace",
+    );
+  }
+}
+
+export async function createInteractiveSession(
+  pool: Pool,
+  sandboxId: string,
+  input: CreateInteractiveSessionInput,
+): Promise<{ session: InteractiveSession; turn: InteractiveTurn; created: boolean }> {
+  return transaction(pool, async (client) => {
+    await validateInteractiveRefs(
+      client,
+      sandboxId,
+      input.workspaceRefId,
+      input.agentRefId,
+    );
+    const existing = await client.query(
+      `SELECT * FROM evals.interactive_sessions
+       WHERE sandbox_id=$1 AND product_conversation_id=$2 FOR UPDATE`,
+      [sandboxId, input.productConversationId],
+    );
+    if (existing.rows[0]) {
+      const session = mapInteractiveSession(existing.rows[0] as Row);
+      if (
+        session.workspaceRefId !== input.workspaceRefId ||
+        session.agentRefId !== input.agentRefId ||
+        session.firstTaskId !== input.productTaskId
+      ) {
+        throw new InteractiveSessionError(
+          "SESSION_CONFLICT",
+          "That product conversation is already linked to a different session",
+        );
+      }
+      const turn = await client.query(
+        `SELECT * FROM evals.interactive_turns
+         WHERE session_id=$1 AND product_task_id=$2`,
+        [session.id, input.productTaskId],
+      );
+      if (!turn.rows[0]) {
+        throw new InteractiveSessionError(
+          "SESSION_CONFLICT",
+          "The first turn is missing from the session",
+        );
+      }
+      return {
+        session,
+        turn: mapInteractiveTurn(turn.rows[0] as Row),
+        created: false,
+      };
+    }
+    const sessionId = randomUUID();
+    const sessionResult = await client.query(
+      `INSERT INTO evals.interactive_sessions(
+         id, sandbox_id, workspace_ref_id, agent_ref_id,
+         product_conversation_id, first_task_id, latest_task_id,
+         state, turn_count, last_activity_at
+       ) VALUES($1,$2,$3,$4,$5,$6,$6,$7,1,now())
+       RETURNING *`,
+      [
+        sessionId,
+        sandboxId,
+        input.workspaceRefId,
+        input.agentRefId,
+        input.productConversationId,
+        input.productTaskId,
+        input.state,
+      ],
+    );
+    const turnResult = await client.query(
+      `INSERT INTO evals.interactive_turns(
+         id, session_id, product_task_id, sequence,
+         input_digest, output_digest, state
+       ) VALUES($1,$2,$3,1,$4,$5,$6)
+       RETURNING *`,
+      [
+        randomUUID(),
+        sessionId,
+        input.productTaskId,
+        input.inputDigest,
+        input.outputDigest ?? null,
+        input.state,
+      ],
+    );
+    await client.query(
+      "UPDATE evals.sandboxes SET updated_at=now() WHERE id=$1",
+      [sandboxId],
+    );
+    return {
+      session: mapInteractiveSession(sessionResult.rows[0] as Row),
+      turn: mapInteractiveTurn(turnResult.rows[0] as Row),
+      created: true,
+    };
+  });
+}
+
+export async function appendInteractiveTurn(
+  pool: Pool,
+  sandboxId: string,
+  sessionId: string,
+  input: AppendInteractiveTurnInput,
+): Promise<{ session: InteractiveSession; turn: InteractiveTurn; created: boolean }> {
+  return transaction(pool, async (client) => {
+    const existingSession = await client.query(
+      `SELECT * FROM evals.interactive_sessions
+       WHERE id=$1 AND sandbox_id=$2 FOR UPDATE`,
+      [sessionId, sandboxId],
+    );
+    if (!existingSession.rows[0]) {
+      throw new InteractiveSessionError(
+        "SESSION_NOT_FOUND",
+        "Interactive session not found",
+      );
+    }
+    const session = mapInteractiveSession(existingSession.rows[0] as Row);
+    const existingTurn = await client.query(
+      `SELECT * FROM evals.interactive_turns
+       WHERE session_id=$1 AND product_task_id=$2`,
+      [sessionId, input.productTaskId],
+    );
+    if (existingTurn.rows[0]) {
+      const turn = mapInteractiveTurn(existingTurn.rows[0] as Row);
+      if (turn.inputDigest !== input.inputDigest) {
+        throw new InteractiveSessionError(
+          "TURN_CONFLICT",
+          "That task is already recorded with a different input digest",
+        );
+      }
+      return { session, turn, created: false };
+    }
+    const nextSequence = session.turnCount + 1;
+    const turnResult = await client.query(
+      `INSERT INTO evals.interactive_turns(
+         id, session_id, product_task_id, sequence,
+         input_digest, output_digest, state
+       ) VALUES($1,$2,$3,$4,$5,$6,$7)
+       RETURNING *`,
+      [
+        randomUUID(),
+        sessionId,
+        input.productTaskId,
+        nextSequence,
+        input.inputDigest,
+        input.outputDigest ?? null,
+        input.state,
+      ],
+    );
+    const sessionResult = await client.query(
+      `UPDATE evals.interactive_sessions
+       SET latest_task_id=$2, state=$3, turn_count=$4,
+           last_activity_at=now(), updated_at=now()
+       WHERE id=$1 RETURNING *`,
+      [sessionId, input.productTaskId, input.state, nextSequence],
+    );
+    await client.query(
+      "UPDATE evals.sandboxes SET updated_at=now() WHERE id=$1",
+      [sandboxId],
+    );
+    return {
+      session: mapInteractiveSession(sessionResult.rows[0] as Row),
+      turn: mapInteractiveTurn(turnResult.rows[0] as Row),
+      created: true,
+    };
+  });
+}
+
+export async function listInteractiveSessions(
+  pool: Pool,
+  sandboxId: string,
+  limit = 50,
+): Promise<InteractiveSession[]> {
+  const result = await pool.query(
+    `SELECT * FROM evals.interactive_sessions
+     WHERE sandbox_id=$1
+     ORDER BY last_activity_at DESC, id DESC LIMIT $2`,
+    [sandboxId, limit],
+  );
+  return result.rows.map((row) => mapInteractiveSession(row as Row));
+}
+
+export async function getInteractiveSession(
+  pool: Pool,
+  sandboxId: string,
+  sessionId: string,
+): Promise<InteractiveSessionDetail | null> {
+  const result = await pool.query(
+    "SELECT * FROM evals.interactive_sessions WHERE sandbox_id=$1 AND id=$2",
+    [sandboxId, sessionId],
+  );
+  if (!result.rows[0]) return null;
+  const session = mapInteractiveSession(result.rows[0] as Row);
+  const turns = await pool.query(
+    `SELECT * FROM evals.interactive_turns
+     WHERE session_id=$1 ORDER BY sequence, id`,
+    [session.id],
+  );
+  return {
+    session,
+    turns: turns.rows.map((row) => mapInteractiveTurn(row as Row)),
+  };
+}

@@ -25,7 +25,7 @@ membership, database access or permission to call internal operations.
 | `packages/ui/` | Shared workspace theme, appearance definitions and generic React controls |
 | `services/analytics/` | Analytics ingestion, publishing, registry and query service |
 | `services/billing/` | Billing accounts, plan catalog, Paystack, subscriptions, invoices, credits, usage and entitlement snapshots |
-| `services/evals/` | Agent evaluation control plane: sandbox registry, version manifests, workspace references and operator API |
+| `services/evals/` | Agent evaluation control plane: sandbox, workspace, agent, outcome and interactive-session references, operator API and terminal client |
 | `services/operations/` | Independent Labs admin sessions, durable monitoring, incidents, and notification intent |
 | `infra/identity/` | Keycloak development identity configuration |
 | `infra/agents-runtime/` | Pinned local Restate runtime and recovery verification |
@@ -45,15 +45,18 @@ according to its existing contracts. Source relocation does not change cookie sc
 
 ## Evaluation control plane
 
-`services/evals/` is the Phase 1 control plane for agent evaluation. It records
-isolated sandbox environments, immutable sandbox version manifests and workspace
-references. It does not execute agents.
+`services/evals/` is the evaluation control plane for agent evaluation. It records
+isolated sandbox environments, immutable sandbox version manifests, workspace and
+agent references, saved outcomes and interactive session/turn references. It does
+not execute agents.
 
-Persistent sandbox evaluations use the Agents product's normal task path.
-Evaluation trials remain isolated per-run scopes and reserve the agent for one
-trial, so the two paths are not mixed on one agent. The service is local and
-development only until lifecycle, billing test mode and retention controls land.
-See `services/evals/README.md`.
+The terminal client configures agents and chats through the Agents product's normal
+HTTP APIs and a normal workspace session. It stores ids, digests and states in the
+control plane, not transcript text or customer PII. Persistent sandbox evaluations
+use the same normal task path. Evaluation trials remain isolated per-run scopes and
+reserve the agent for one trial, so the two paths are not mixed on one agent. The
+service is local and development only until lifecycle, billing test mode and
+retention controls land. See `services/evals/README.md`.
 
 ## Billing boundary
 

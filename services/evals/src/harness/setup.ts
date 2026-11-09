@@ -27,7 +27,7 @@ export interface SandboxSetupInput {
   website?: {
     allowedOrigins: string[];
   };
-  member: {
+  member?: {
     email: string;
     session: string;
   };
@@ -267,33 +267,36 @@ export async function setupSandbox(input: SandboxSetupInput): Promise<SandboxSet
     throw new SandboxSetupError("read model route preview", null, null, "Model preview has no route digest");
   }
 
-  // 4. Second member through the normal member API, then verify member restrictions.
+  // 4. Optional second member through the normal member API, then verify member restrictions.
   let memberAccountId = "";
-  const members = await product(input.ownerSession, "GET", `${orgBase}/members`, undefined, "list members");
-  const existingMember = (members.members ?? []).find((item: Json) => item.email === input.member.email);
-  if (existingMember) {
-    memberAccountId = String(existingMember.accountId);
-    steps.push("member reused");
-  } else {
-    const added = await product(input.ownerSession, "POST", `${orgBase}/members`, {
-      email: input.member.email,
-      role: "member",
-    }, "add member");
-    memberAccountId = String(added.member.accountId);
-    steps.push("member added");
-  }
-  const memberView = await product(input.member.session, "GET", `${orgBase}/members`, undefined, "member list");
-  if (memberView.canManage !== false) {
-    throw new SandboxSetupError("member restrictions", null, null, "Member unexpectedly received owner management access");
-  }
-  try {
-    await product(input.member.session, "POST", `${orgBase}/invitations`, {
-      email: `blocked-${randomUUID()}@example.test`,
-      role: "member",
-    }, "member invitation");
-    throw new SandboxSetupError("member restrictions", null, null, "Member unexpectedly created an invitation");
-  } catch (error) {
-    if (!(error instanceof SandboxSetupError) || error.status !== 403) throw error;
+  const member = input.member;
+  if (member) {
+    const members = await product(input.ownerSession, "GET", `${orgBase}/members`, undefined, "list members");
+    const existingMember = (members.members ?? []).find((item: Json) => item.email === member.email);
+    if (existingMember) {
+      memberAccountId = String(existingMember.accountId);
+      steps.push("member reused");
+    } else {
+      const added = await product(input.ownerSession, "POST", `${orgBase}/members`, {
+        email: member.email,
+        role: "member",
+      }, "add member");
+      memberAccountId = String(added.member.accountId);
+      steps.push("member added");
+    }
+    const memberView = await product(member.session, "GET", `${orgBase}/members`, undefined, "member list");
+    if (memberView.canManage !== false) {
+      throw new SandboxSetupError("member restrictions", null, null, "Member unexpectedly received owner management access");
+    }
+    try {
+      await product(member.session, "POST", `${orgBase}/invitations`, {
+        email: `blocked-${randomUUID()}@example.test`,
+        role: "member",
+      }, "member invitation");
+      throw new SandboxSetupError("member restrictions", null, null, "Member unexpectedly created an invitation");
+    } catch (error) {
+      if (!(error instanceof SandboxSetupError) || error.status !== 403) throw error;
+    }
   }
 
   // 5. Read back through normal APIs.

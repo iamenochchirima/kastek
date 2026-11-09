@@ -11,6 +11,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "start": "node dist/api-main.js",
+    "client": "tsx src/cli.ts",
+    "client:built": "node dist/cli.js",
     "migrate": "node dist/migrate-main.js",
     "dev": "tsx watch src/api-main.ts"
   },

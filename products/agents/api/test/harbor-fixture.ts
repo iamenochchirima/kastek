@@ -17,6 +17,7 @@ import { prepareHarborConnector,type HarborConnectorPurpose } from "./harbor-con
 import { prepareHarborWorker } from "./harbor-worker-support";
 import { HARNESS_RELEASE,SHARED_HARNESS_RELEASE,SHARED_WORKFLOW_NAME,WORKFLOW_NAME } from "../src/contracts/execution";
 import { setupSandbox, type SandboxSetupResult } from "../../../../services/evals/src/harness/setup";
+import { InteractiveSandboxClient } from "../../../../services/evals/src/harness/interactive";
 
 const root = resolve(__dirname, "../../../.."), api = join(root, "products/agents/api");
 const fixtureId = randomUUID();
@@ -24,8 +25,9 @@ const evalMode = process.env.AGENTS_EVAL_DATABASE_MODE ?? "per-run";
 assert.ok(["per-run", "sandbox"].includes(evalMode), "Select a supported eval database mode");
 const sandbox = evalMode === "sandbox";
 const outcomeMode = process.env.AGENTS_EVAL_OUTCOME ?? "core";
-assert.ok(["core", "enquiry"].includes(outcomeMode), "Select a supported evaluation outcome");
+assert.ok(["core", "enquiry", "interactive"].includes(outcomeMode), "Select a supported evaluation outcome");
 const enquiryOutcome = sandbox && outcomeMode === "enquiry";
+const interactiveOutcome = sandbox && outcomeMode === "interactive";
 const websiteOrigin = "https://harbor-widget.example";
 const sandboxId = process.env.AGENTS_EVAL_SANDBOX_ID;
 const sandboxVersion = process.env.AGENTS_EVAL_SANDBOX_VERSION;
@@ -177,6 +179,188 @@ async function assertSandboxVersion(sandboxId: string, sandboxVersion: string): 
   assert.equal(detail.sandbox?.status, "active", "Sandbox is not active");
   assert.ok(detail.version, "Sandbox has no active version");
   assert.equal(detail.version?.id, sandboxVersion, "Sandbox version does not match the service registry");
+}
+
+async function runEvalsCli(args: string[], env: NodeJS.ProcessEnv, timeoutMs = 120000): Promise<string> {
+  const clientBin = join(root, "services/evals/dist/cli.js");
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [clientBin, ...args], { env, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "", stderr = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error(`Evaluation client timed out: ${args.join(" ")}`));
+    }, timeoutMs);
+    child.stdout.on("data", chunk => { stdout += String(chunk); });
+    child.stderr.on("data", chunk => { stderr += String(chunk); });
+    child.once("error", error => { clearTimeout(timer); reject(error); });
+    child.once("close", code => {
+      clearTimeout(timer);
+      if (code === 0) resolve(stdout);
+      else reject(new Error(`Evaluation client exited ${code}: ${stderr.slice(0, 1000)}`));
+    });
+  });
+}
+
+async function runInteractiveOutcome(input: {
+  origin: string; ownerSession: string; organizationId: string; sandboxId: string;
+  workspaceRefId: string; agentRefId: string; agentId: string; versionId: string;
+  evidenceDirectory: string; evalsApiUrl: string; operatorToken: string;
+  setupSteps: string[];
+}): Promise<void> {
+  const client = new InteractiveSandboxClient({
+    product: {
+      baseUrl: input.origin,
+      origin: input.origin,
+      organizationId: input.organizationId,
+      session: input.ownerSession,
+      sessionCookieName: "agents_session",
+    },
+    controlPlane: {
+      apiUrl: input.evalsApiUrl,
+      operatorToken: input.operatorToken,
+      sandboxId: input.sandboxId,
+    },
+  });
+  const agentSessions = (await client.listSessions()).filter((session) => session.agentRefId === input.agentRefId);
+  const existing = agentSessions.find((session) => session.turnCount >= 2);
+  const firstMessage = "What are the opening hours?";
+  const secondMessage = "Can you repeat the opening hours?";
+  let sessionId: string;
+  if (!existing) {
+    const first = await client.startSession({
+      agentRefId: input.agentRefId,
+      message: firstMessage,
+      requestKey: `interactive:${input.agentRefId}:1`,
+    });
+    assert.equal(first.turn.sequence, 1, "First interactive turn must be sequence 1");
+    assert.equal(first.session.turnCount, 1, "First interactive turn must create one turn");
+    assert.equal(first.task.task.state, "completed", "First interactive turn must complete");
+    assert.match(String(first.task.task.output ?? ""), /Harbor fixture opens at nine/, "First interactive answer must use approved knowledge");
+    assert.ok((first.evidence?.passages ?? []).length > 0, "First interactive answer must expose evidence citations");
+    const second = await client.continueSession({
+      sessionId: first.session.id,
+      message: secondMessage,
+      requestKey: `interactive:${input.agentRefId}:2`,
+    });
+    assert.equal(second.turn.sequence, 2, "Second interactive turn must be sequence 2");
+    assert.equal(second.session.turnCount, 2, "Second interactive turn must append one turn");
+    assert.equal(second.task.task.state, "completed", "Second interactive turn must complete");
+    assert.equal(second.session.productConversationId, first.session.productConversationId, "Both turns must use one conversation");
+    assert.notEqual(String(second.task.task.id), String(first.task.task.id), "Each turn must have a distinct task id");
+    sessionId = first.session.id;
+  } else {
+    sessionId = existing.id;
+  }
+
+  const transcript = await client.transcript(sessionId);
+  assert.equal(transcript.session.agentRefId, input.agentRefId, "Transcript session agent mismatch");
+  assert.equal(transcript.turns.length, 2, "Transcript must contain exactly two turns");
+  assert.equal(transcript.conversationTasks.length, 2, "Product conversation must contain exactly two tasks");
+  assert.equal(String(transcript.turns[0]!.task.task.input), firstMessage, "First turn input mismatch");
+  assert.equal(String(transcript.turns[1]!.task.task.input), secondMessage, "Second turn input mismatch");
+  assert.match(String(transcript.turns[0]!.task.task.output ?? ""), /Harbor fixture opens at nine/, "First transcript output mismatch");
+  assert.match(String(transcript.turns[1]!.task.task.output ?? ""), /Harbor fixture opens at nine/, "Second transcript output mismatch");
+  const firstOperations = transcript.turns[0]!.task.operations ?? [];
+  const firstEvents = transcript.turns[0]!.task.events ?? [];
+  assert.ok(
+    firstOperations.some((operation) => operation.kind === "tool" || String(operation.name ?? "").includes("knowledge")) ||
+      firstEvents.some((event) => String(event.kind ?? "").startsWith("operation.")),
+    "Transcript must expose tool or operation events",
+  );
+  assert.ok((transcript.turns[0]!.evidence?.passages ?? []).length > 0, "Transcript must expose evidence citations");
+
+  const outcomes = await client.listOutcomes();
+  const enquiryRef = outcomes.find((outcome) => outcome.kind === "enquiry");
+  assert.ok(enquiryRef, "Saved enquiry outcome reference must remain readable");
+  const saved = await client.savedOutcomeRecord(enquiryRef.id);
+  assert.equal(saved.enquiry?.state, "submitted", "Saved enquiry must be submitted");
+  assert.equal(saved.record?.sourceEnquiryId, enquiryRef.productOutcomeId, "Saved customer record source mismatch");
+
+  const childEnvironment = {
+    ...process.env,
+    EVALS_API_URL: input.evalsApiUrl,
+    EVALS_OPERATOR_TOKEN: input.operatorToken,
+    EVALS_SANDBOX_ID: input.sandboxId,
+    AGENTS_BASE_URL: input.origin,
+    AGENTS_ORIGIN: input.origin,
+    AGENTS_ORGANIZATION_ID: input.organizationId,
+    AGENTS_OWNER_SESSION: input.ownerSession,
+    AGENTS_SESSION_COOKIE_NAME: "agents_session",
+  };
+  const cliTranscriptRaw = await runEvalsCli(["transcript", "--sandbox", input.sandboxId, sessionId, "--json"], childEnvironment);
+  const cliTranscript = JSON.parse(cliTranscriptRaw) as { turns: unknown[] };
+  assert.equal(cliTranscript.turns.length, 2, "CLI transcript must expose both turns");
+  const cliViewRaw = await runEvalsCli(["view", "--sandbox", input.sandboxId, "--json"], childEnvironment);
+  const cliView = JSON.parse(cliViewRaw) as { sessions: Array<{ id: string }>; outcomes: Array<{ id: string }> };
+  assert.ok(cliView.sessions.some((session) => session.id === sessionId), "CLI view must include the interactive session");
+  assert.ok(cliView.outcomes.some((outcome) => outcome.id === enquiryRef.id), "CLI view must include the saved outcome");
+  const cliRecordsRaw = await runEvalsCli(["records", "--sandbox", input.sandboxId, "--outcome", enquiryRef.id, "--json"], childEnvironment);
+  const cliRecords = JSON.parse(cliRecordsRaw) as { outcomeRef: { id: string }; enquiry: { state: string }; record: { sourceEnquiryId: string } };
+  assert.equal(cliRecords.outcomeRef.id, enquiryRef.id, "CLI records must return the requested outcome");
+  assert.equal(cliRecords.enquiry.state, "submitted", "CLI records must read the submitted enquiry");
+  assert.equal(cliRecords.record.sourceEnquiryId, enquiryRef.productOutcomeId, "CLI records must read the projected customer record");
+
+  const taskCount = Number((await pool!.query("SELECT count(*) FROM agents_platform.tasks WHERE resource_id=$1", [input.agentId])).rows[0].count);
+  const trialCount = Number((await pool!.query("SELECT count(*) FROM agents_platform.evaluation_trials")).rows[0].count);
+  const finalSessions = (await client.listSessions()).filter((session) => session.agentRefId === input.agentRefId);
+  assert.equal(taskCount, 2, "Interactive use must create exactly two product tasks");
+  assert.equal(trialCount, 0, "Interactive use must not create an evaluation trial");
+  assert.equal(finalSessions.length, 1, "Interactive use must record exactly one session for the agent");
+
+  const mode = existing ? "restart-readback" : "create";
+  const evidence = {
+    schemaVersion: "kasitek-interactive-session.v1",
+    mode,
+    sandboxId: input.sandboxId,
+    workspaceRefId: input.workspaceRefId,
+    agentRefId: input.agentRefId,
+    agentId: input.agentId,
+    versionId: input.versionId,
+    session: {
+      id: transcript.session.id,
+      state: transcript.session.state,
+      turnCount: transcript.session.turnCount,
+      productConversationId: transcript.session.productConversationId,
+      firstTaskId: transcript.session.firstTaskId,
+      latestTaskId: transcript.session.latestTaskId,
+    },
+    turns: transcript.turns.map((turn) => ({
+      sequence: turn.sequence,
+      productTaskId: turn.productTaskId,
+      state: turn.state,
+      input: turn.task.task.input,
+      output: turn.task.task.output,
+      operations: (turn.task.operations ?? []).map((operation) => ({
+        kind: operation.kind, name: operation.name, state: operation.state,
+      })),
+      evidencePassages: (turn.evidence?.passages ?? []).length,
+    })),
+    outcome: {
+      id: saved.outcomeRef.id,
+      kind: saved.outcomeRef.kind,
+      status: saved.outcomeRef.status,
+      productOutcomeId: saved.outcomeRef.productOutcomeId,
+      productRecordId: saved.outcomeRef.productRecordId,
+      enquiryState: saved.enquiry?.state,
+      customerRecordSourceEnquiryId: saved.record?.sourceEnquiryId,
+    },
+    productTaskCount: taskCount,
+    evaluationTrialCount: trialCount,
+    sessionCount: finalSessions.length,
+    setupSteps: input.setupSteps,
+  };
+  await mkdir(input.evidenceDirectory, { recursive: true, mode: 0o700 });
+  const evidencePath = join(input.evidenceDirectory, existing ? "interactive-restart.json" : "interactive-session.json");
+  await writeFile(evidencePath, JSON.stringify(evidence, null, 2), { mode: 0o600 });
+  await writeFile(join(input.evidenceDirectory, existing ? "cli-view-restart.json" : "cli-view.json"), cliViewRaw, { mode: 0o600 });
+  await writeFile(join(input.evidenceDirectory, existing ? "cli-transcript-restart.json" : "cli-transcript.json"), cliTranscriptRaw, { mode: 0o600 });
+  await writeFile(join(input.evidenceDirectory, existing ? "cli-records-restart.json" : "cli-records.json"), cliRecordsRaw, { mode: 0o600 });
+  console.log(JSON.stringify({
+    evidence: existing ? "interactive session read-back after restart" : "interactive session and transcript",
+    mode, sandboxId: input.sandboxId, sessionId: transcript.session.id, turns: transcript.turns.length,
+    outcomeRefId: saved.outcomeRef.id, productTaskCount: taskCount, evaluationTrialCount: trialCount,
+    evidencePath,
+  }));
 }
 
 async function runEnquiryOutcome(input: {
@@ -510,18 +694,50 @@ async function main() {
     const setupApp = await buildPlatformApp({ config, pool, logging: false, testModelProviderOptions: { discoveryFetch: deterministicDiscovery } });
     try {
       await setupApp.listen({ host: "127.0.0.1", port: setupPort });
-      sandboxSetup = await setupSandbox({
-        baseUrl: setupOrigin,
-        origin,
-        organizationId: organization.id,
-        ownerSession: session.token,
-        model: { providerId: "openrouter", name: "Controlled Harbor provider", apiKey: modelKey!, modelId },
-        knowledge: { title: "Opening hours", content: sourceContent, visibility: enquiryOutcome ? "public" : sourceVisibility },
-        agent: { name: enquiryOutcome ? "Enquiry fixture" : "Grounded FAQ fixture", configuration: configuration as unknown as Record<string, unknown>, instructions: configuration.instructions, ...(enquiryOutcome ? { responsibilities: ["enquiries" as const] } : {}) },
-        website: enquiryOutcome ? { allowedOrigins: [websiteOrigin] } : undefined,
-        member: { email: memberAccount.email, session: memberSession.token },
-        controlPlane: { apiUrl: process.env.EVALS_API_URL!, operatorToken: process.env.EVALS_OPERATOR_TOKEN!, sandboxId: sandboxId!, workspaceRefId: sandboxWorkspaceRefId },
-      });
+      if (interactiveOutcome) {
+        const setupFile = join(privateDirectory, "interactive-setup.json");
+        await writeFile(setupFile, JSON.stringify({
+          model: { providerId: "openrouter", name: "Controlled Harbor provider", modelId },
+          knowledge: { title: "Opening hours", content: sourceContent, visibility: sourceVisibility },
+          agent: {
+            name: process.env.AGENTS_EVAL_INTERACTIVE_AGENT_NAME ?? "Interactive fixture",
+            configuration: configuration as unknown as Record<string, unknown>,
+            instructions: configuration.instructions,
+          },
+          member: { email: memberAccount.email },
+          workspaceLabel: organization.name,
+        }, null, 2), { mode: 0o600 });
+        const setupRaw = await runEvalsCli(["setup", "--sandbox", sandboxId!, "--file", setupFile, "--json"], {
+          ...process.env,
+          EVALS_API_URL: process.env.EVALS_API_URL!,
+          EVALS_OPERATOR_TOKEN: process.env.EVALS_OPERATOR_TOKEN!,
+          EVALS_SANDBOX_ID: sandboxId!,
+          AGENTS_BASE_URL: setupOrigin,
+          AGENTS_ORIGIN: origin,
+          AGENTS_ORGANIZATION_ID: organization.id,
+          AGENTS_OWNER_SESSION: session.token,
+          AGENTS_MEMBER_SESSION: memberSession.token,
+          AGENTS_MODEL_API_KEY: modelKey!,
+          AGENTS_SESSION_COOKIE_NAME: "agents_session",
+        });
+        const parsed = JSON.parse(setupRaw) as SandboxSetupResult & { workspaceRefId: string };
+        sandboxWorkspaceRefId = parsed.workspaceRefId;
+        const { workspaceRefId: _workspaceRefId, ...rest } = parsed;
+        sandboxSetup = rest;
+      } else {
+        sandboxSetup = await setupSandbox({
+          baseUrl: setupOrigin,
+          origin,
+          organizationId: organization.id,
+          ownerSession: session.token,
+          model: { providerId: "openrouter", name: "Controlled Harbor provider", apiKey: modelKey!, modelId },
+          knowledge: { title: "Opening hours", content: sourceContent, visibility: enquiryOutcome ? "public" : sourceVisibility },
+          agent: { name: enquiryOutcome ? "Enquiry fixture" : "Grounded FAQ fixture", configuration: configuration as unknown as Record<string, unknown>, instructions: configuration.instructions, ...(enquiryOutcome ? { responsibilities: ["enquiries" as const] } : {}) },
+          website: enquiryOutcome ? { allowedOrigins: [websiteOrigin] } : undefined,
+          member: { email: memberAccount.email, session: memberSession.token },
+          controlPlane: { apiUrl: process.env.EVALS_API_URL!, operatorToken: process.env.EVALS_OPERATOR_TOKEN!, sandboxId: sandboxId!, workspaceRefId: sandboxWorkspaceRefId },
+        });
+      }
     } finally {
       await setupApp.close();
     }
@@ -682,6 +898,25 @@ async function main() {
     [HARNESS_RELEASE]: { ingressUrl, adminUrl, workflowName: WORKFLOW_NAME },
     [SHARED_HARNESS_RELEASE]: { ingressUrl, adminUrl, workflowName: SHARED_WORKFLOW_NAME },
   } });
+  if (interactiveOutcome) {
+    assert.ok(sandboxSetup?.agentRefId, "Interactive outcome requires a control-plane agent reference");
+    assert.ok(sandboxWorkspaceRefId, "Interactive outcome requires a workspace reference");
+    await runInteractiveOutcome({
+      origin,
+      ownerSession: session.token,
+      organizationId: organization.id,
+      sandboxId: sandboxId!,
+      workspaceRefId: sandboxWorkspaceRefId,
+      agentRefId: sandboxSetup.agentRefId,
+      agentId: agent.id,
+      versionId: version.id,
+      evidenceDirectory: process.env.AGENTS_EVAL_SANDBOX_EVIDENCE_DIR ?? join(root, ".audit", "sandbox", sandboxId!),
+      evalsApiUrl: process.env.EVALS_API_URL!,
+      operatorToken: process.env.EVALS_OPERATOR_TOKEN!,
+      setupSteps: sandboxSetup.steps,
+    });
+    return;
+  }
   if (enquiryOutcome) {
     assert.ok(sandboxSetup?.deploymentId, "Enquiry outcome requires a published website deployment");
     assert.ok(sandboxSetup?.agentRefId, "Enquiry outcome requires a control-plane agent reference");
