@@ -13,6 +13,7 @@ import { MemberChannels } from "../product/assistant/member-channels";
 import { PostgresKnowledgeObjectStore } from "../capabilities/knowledge/postgres-object-store";
 import { registerCustomerRecordRoutes } from "../product/customer-records/routes";
 import { registerOverviewRoutes } from "../product/overview/routes";
+import { registerInboxAnalyticsRoutes } from "../product/analytics/routes";
 import { CustomerRecordStore } from "../product/customer-records/store";
 import {EnquiryStore} from "../capabilities/enquiries/enquiries";
 import {registerEnquiryRoutes} from "../product/enquiries/routes";
@@ -360,6 +361,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   registerProviderRoutes(app,{providers,resolveScope,resolveCallbackAccount:async request=>(await account(request)).id});
   registerCustomerRecordRoutes(app,{store:new CustomerRecordStore(pool),resolveScope});
   registerOverviewRoutes(app,{pool,resolveScope});
+  registerInboxAnalyticsRoutes(app,{pool,resolveScope});
   registerSupportAlertRoutes(app,pool,resolveScope);
   registerSupportPresenceRoutes(app,pool,resolveScope);
   registerEnquiryRoutes(app,{store:enquiries,resolveScope,resolveTask:async request=>{const {task}=await humanTask(request);return {taskId:task.id,principal:task.principal};}});

@@ -1,13 +1,13 @@
 import { createContext, useContext, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, NavLink, Navigate, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Robot01Icon, AiChat02Icon, DashboardSquare01Icon, Task01Icon, BookOpen01Icon, Plug01Icon, CalendarClockIcon, Settings01Icon, Menu01Icon, Logout01Icon, SidebarLeft01Icon, InboxIcon, UserGroupIcon } from "@hugeicons/core-free-icons";
+import { Robot01Icon, AiChat02Icon, DashboardSquare01Icon, Task01Icon, BookOpen01Icon, Plug01Icon, CalendarClockIcon, Settings01Icon, Menu01Icon, Logout01Icon, SidebarLeft01Icon, InboxIcon, UserGroupIcon, Analytics01Icon, LockKeyholeIcon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, ApiError, message, type Session } from "./api";
+import { api, ApiError, message, organizationPath, type Session } from "./api";
 import { AppSwitcher, buildKasitekAppLinks } from "@kasitek-labs/ui/app-switcher";
 import { InboxAlertsButton, InboxAlertsDialog, useInboxAlerts } from "./inbox-alerts";
 import { AssistantLauncher } from "./assistant-launcher";
@@ -42,12 +42,21 @@ export function WorkspaceShell() {
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [billingFeatures, setBillingFeatures] = useState<Record<string, boolean> | null>(null);
   const load = async () => {
     setError("");
     try { const result = await api<Session>("/api/session"); setSession(result); const saved = sessionStorage.getItem("agents.organization"); setOrganizationId(result.organizations.find(org => org.id === saved)?.id ?? result.organizations[0]?.id ?? ""); }
     catch (e) { if (e instanceof ApiError && e.status === 401) setSignedOut(true); else setError(message(e)); }
   };
   useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    if (!organizationId) { setBillingFeatures(null); return; }
+    let live = true;
+    api<{ snapshot?: { features?: Record<string, boolean> } }>(`${organizationPath(organizationId)}/billing`)
+      .then(result => { if (live) setBillingFeatures(result.snapshot?.features ?? null); })
+      .catch(() => { if (live) setBillingFeatures(null); });
+    return () => { live = false; };
+  }, [organizationId]);
   async function createWorkspace(event: FormEvent) {
     event.preventDefault(); setBusy(true);
     try { const result = await api<{ organization: { id: string } }>("/api/organizations", { name }); await load(); setOrganizationId(result.organization.id); sessionStorage.setItem("agents.organization", result.organization.id); setWorkspaceOpen(false); setName(""); toast.success("Workspace created"); }
@@ -69,10 +78,12 @@ export function WorkspaceShell() {
     </div>
     {session?.organizations.length ? <select aria-label="Workspace" className="workspace-select" value={organizationId} onChange={event => event.target.value === "new" ? setWorkspaceOpen(true) : selectWorkspace(event.target.value)}>{session.organizations.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}<option value="new">Create workspace</option></select> : null}
     <nav aria-label="Main navigation" className="workspace-navigation">{([
-      ["/app/overview", "Overview", DashboardSquare01Icon], ["assistant", "Ask AI", AiChat02Icon], ["/app/agents", "Agents", Robot01Icon], ["/app/inbox", "Inbox", InboxIcon], ["/app/customers", "Customers", UserGroupIcon], ["/app/tasks", "Tasks", Task01Icon], ["/app/knowledge", "Knowledge", BookOpen01Icon], ["/app/connections", "Connections", Plug01Icon], ["/app/automations", "Automations", CalendarClockIcon], ["/app/settings", "Settings", Settings01Icon],
-    ] as const).map(([path, label, icon]) => path === "assistant"
-      ? <button key={String(path)} type="button" aria-label={label} title={label} aria-current={assistantOpen ? "page" : undefined} onClick={() => { setNavigationOpen(false); setAssistantOpen(true); }} className={`workspace-nav-link ${assistantOpen ? "is-active" : ""}`}><HugeiconsIcon icon={icon} size={18} strokeWidth={1.6} aria-hidden="true" /><span>{String(label)}</span></button>
-      : <NavLink key={String(path)} to={String(path)} aria-label={label} title={label} onClick={() => setNavigationOpen(false)} className={({ isActive }) => `workspace-nav-link ${isActive ? "is-active" : ""}`}><HugeiconsIcon icon={icon} size={18} strokeWidth={1.6} aria-hidden="true" /><span>{String(label)}</span></NavLink>)}</nav>
+      ["/app/overview", "Overview", DashboardSquare01Icon], ["assistant", "Ask AI", AiChat02Icon], ["/app/agents", "Agents", Robot01Icon], ["/app/inbox", "Inbox", InboxIcon], ["/app/analytics", "Analytics", Analytics01Icon], ["/app/customers", "Customers", UserGroupIcon], ["/app/tasks", "Tasks", Task01Icon], ["/app/knowledge", "Knowledge", BookOpen01Icon], ["/app/connections", "Connections", Plug01Icon], ["/app/automations", "Automations", CalendarClockIcon], ["/app/settings", "Settings", Settings01Icon],
+    ] as const).map(([path, label, icon]) => {
+      if (path === "assistant") return <button key={String(path)} type="button" aria-label={label} title={label} aria-current={assistantOpen ? "page" : undefined} onClick={() => { setNavigationOpen(false); setAssistantOpen(true); }} className={`workspace-nav-link ${assistantOpen ? "is-active" : ""}`}><HugeiconsIcon icon={icon} size={18} strokeWidth={1.6} aria-hidden="true" /><span>{String(label)}</span></button>;
+      const locked = path === "/app/analytics" && billingFeatures?.["agents.feature.analytics"] === false;
+      return <NavLink key={String(path)} to={locked ? "/app/upgrade" : String(path)} aria-label={locked ? `${label} requires an upgrade` : label} title={locked ? `${label} requires an upgrade` : label} onClick={() => setNavigationOpen(false)} className={({ isActive }) => `workspace-nav-link ${isActive && !locked ? "is-active" : ""}`}><HugeiconsIcon icon={icon} size={18} strokeWidth={1.6} aria-hidden="true" /><span>{String(label)}</span>{locked ? <HugeiconsIcon icon={LockKeyholeIcon} size={14} aria-label={`${label} requires an upgrade`} style={{ marginLeft: "auto" }} /> : null}</NavLink>;
+    })}</nav>
     {organizationId ? <InboxAlertsButton unread={alerts.data?.unread ?? 0} onClick={openAlerts} /> : null}
     <div className="workspace-account"><span className="account-avatar">{(session?.account.displayName || session?.account.email || "A").slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{session?.account.displayName || "Account"}</p><p className="truncate text-xs text-muted-foreground">{session?.account.email}</p></div><Button aria-label="Sign out" title="Sign out" size="icon" variant="ghost" onClick={() => void logout()} disabled={!session || busy}><HugeiconsIcon icon={Logout01Icon} size={16} /></Button></div>
   </>;

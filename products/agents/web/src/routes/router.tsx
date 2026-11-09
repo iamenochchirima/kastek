@@ -18,6 +18,7 @@ import { ConnectionsPage } from "@/platform/connections";
 import { CustomersPage } from "@/platform/customer-records";
 import { InboxPage } from "@/platform/inbox";
 import { OverviewPage } from "@/platform/overview";
+import { InboxAnalyticsPage } from "@/platform/analytics";
 import { CustomerReturn } from "@/platform/customer-return";
 import { McpConsent } from "@/platform/mcp-consent";
 import { McpWebsiteReview } from "@/platform/mcp-website-review";
@@ -57,6 +58,7 @@ export const router = createBrowserRouter([
     ] },
     { path: "tasks", Component: TasksPage },
     { path: "inbox", Component: InboxPage },
+    { path: "analytics", Component: InboxAnalyticsPage },
     { path: "customers", Component: CustomersPage },
     { path: "settings", Component: SettingsPage },
     { path: "upgrade", Component: UpgradePage },
