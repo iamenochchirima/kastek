@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import { ArrowRight, ArrowUpRight, Check, Minus, Sparkles } from "lucide-react";
 
@@ -23,7 +24,15 @@ function signupHref(plan: AvailablePlan): string {
   return `/signup?returnTo=${encodeURIComponent(`/upgrade/${plan.key}`)}`;
 }
 
-function PublicPlanCard({ plan }: { plan: AvailablePlan }) {
+function PublicPlanCard({
+  plan,
+  selected,
+  onSelect,
+}: {
+  plan: AvailablePlan;
+  selected: boolean;
+  onSelect: () => void;
+}) {
   const presentation = presentationFor(plan);
   const isFree = Number(plan.amountMinor ?? 0) === 0;
   const featured = presentation.recommended === true;
@@ -37,9 +46,25 @@ function PublicPlanCard({ plan }: { plan: AvailablePlan }) {
   const available = isFree || plan.checkoutReady;
 
   return (
-    <article className={`${styles.card} ${featured ? styles.cardFeatured : ""}`}>
+    <article
+      className={`${styles.card} ${featured ? styles.cardFeatured : ""} ${selected ? styles.cardSelected : ""}`}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      style={{ cursor: "pointer" }}
+    >
       {featured ? <span className={styles.ribbon}>{presentation.ribbon ?? "Most popular"}</span> : null}
-      <h2 className={styles.cardName}>{plan.name}</h2>
+      <div className={styles.cardTop}>
+        <h2 className={styles.cardName}>{plan.name}</h2>
+        {selected ? <span className={styles.selectedBadge}>Selected</span> : null}
+      </div>
       <p className={styles.tagline}>{presentation.tagline}</p>
 
       <p className={styles.price}>{formatPrice(plan.amountMinor, plan.currency)}</p>
@@ -74,7 +99,7 @@ function PublicPlanCard({ plan }: { plan: AvailablePlan }) {
         {available ? (
           <Link
             to={signupHref(plan)}
-            className={`${styles.cta} ${featured ? styles.ctaFeatured : ""}`}
+            className={styles.cta}
           >
             <span>{isFree ? "Get started" : `Choose ${plan.name}`}</span>
             <ArrowRight size={16} />
@@ -128,6 +153,13 @@ export function PublicPricingPage({
   plans: AvailablePlan[];
   configured: boolean;
 }) {
+  const [selected, setSelected] = useState<string | null>(
+    () =>
+      plans.find((plan) => presentationFor(plan).recommended)?.key ??
+      plans[0]?.key ??
+      null,
+  );
+
   return (
     <div className={landing.landing}>
       <header className={landing.nav}>
@@ -157,7 +189,14 @@ export function PublicPricingPage({
         <section className={styles.plansSection} aria-label="Growth plans">
           {plans.length ? (
             <div className={styles.planGrid}>
-              {plans.map((plan) => <PublicPlanCard key={plan.key} plan={plan} />)}
+              {plans.map((plan) => (
+                <PublicPlanCard
+                  key={plan.key}
+                  plan={plan}
+                  selected={selected === plan.key}
+                  onSelect={() => setSelected(plan.key)}
+                />
+              ))}
             </div>
           ) : (
             <p className={landing.intro}>

@@ -25,7 +25,15 @@ function signupHref(): string {
   return "/signup?returnTo=%2Fapp%2Fupgrade";
 }
 
-function PlanCard({ plan }: { plan: Plan }) {
+function PlanCard({
+  plan,
+  selected,
+  onSelect,
+}: {
+  plan: Plan;
+  selected: boolean;
+  onSelect: () => void;
+}) {
   const presentation = presentationFor(plan);
   const isFree = Number(plan.amountMinor) === 0;
   const features = agentsFeatureGroups(plan).filter((group) => group.included);
@@ -40,17 +48,38 @@ function PlanCard({ plan }: { plan: Plan }) {
   return (
     <article
       className={cn(
-        "flex h-full flex-col overflow-hidden rounded-2xl border bg-[#fffdf8] shadow-[0_1px_2px_rgba(16,24,40,.04),0_18px_40px_-28px_rgba(16,24,40,.22)]",
-        presentation.recommended ? "border-[#245ed2]/40" : "border-[#e7e2d8]",
+        "flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border bg-[#fffdf8] shadow-[0_1px_2px_rgba(16,24,40,.04),0_18px_40px_-28px_rgba(16,24,40,.22)] outline-none transition-shadow focus-visible:ring-[3px] focus-visible:ring-[#245ed2]/30",
+        selected
+          ? "border-[#245ed2] ring-2 ring-[#245ed2]/15"
+          : presentation.recommended
+            ? "border-[#245ed2]/40"
+            : "border-[#e7e2d8]",
       )}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
     >
       {presentation.recommended ? (
-        <div className="bg-[#202530] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white">
+        <div className="bg-[#245ed2] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white">
           {presentation.ribbon ?? "Most popular"}
         </div>
       ) : null}
       <div className="flex flex-1 flex-col p-5">
-        <h2 className="text-lg font-semibold tracking-tight text-[#171a22]">{plan.name}</h2>
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="text-lg font-semibold tracking-tight text-[#171a22]">{plan.name}</h2>
+          {selected ? (
+            <span className="shrink-0 rounded-full bg-[#245ed2] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-white">
+              Selected
+            </span>
+          ) : null}
+        </div>
         <p className="mt-1 text-sm leading-5 text-[#6b6b64]">{presentation.tagline}</p>
 
         <div className="mt-6 flex items-end gap-1.5">
@@ -109,11 +138,34 @@ function PlanCard({ plan }: { plan: Plan }) {
   );
 }
 
-function ResellerCard({ plan }: { plan: Plan }) {
+function ResellerCard({
+  plan,
+  selected,
+  onSelect,
+}: {
+  plan: Plan;
+  selected: boolean;
+  onSelect: () => void;
+}) {
   const presentation = presentationFor(plan);
   const available = plan.checkoutReady;
   return (
-    <article className="overflow-hidden rounded-2xl border border-[#245ed2]/30 bg-gradient-to-br from-[#eef4ff] via-white to-white shadow-[0_1px_2px_rgba(16,24,40,.04),0_18px_40px_-28px_rgba(16,24,40,.22)]">
+    <article
+      className={cn(
+        "cursor-pointer overflow-hidden rounded-2xl border bg-gradient-to-br from-[#eef4ff] via-white to-white shadow-[0_1px_2px_rgba(16,24,40,.04),0_18px_40px_-28px_rgba(16,24,40,.22)] outline-none transition-shadow focus-visible:ring-[3px] focus-visible:ring-[#245ed2]/30",
+        selected ? "border-[#245ed2] ring-2 ring-[#245ed2]/15" : "border-[#245ed2]/30",
+      )}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+    >
       <div className="grid gap-6 p-6 lg:grid-cols-[1.25fr_1fr] lg:items-center">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -121,6 +173,11 @@ function ResellerCard({ plan }: { plan: Plan }) {
             <span className="rounded-full border border-[#245ed2]/25 bg-[#e8f0ff] px-2.5 py-0.5 text-[11px] font-medium text-[#245ed2]">
               For agencies
             </span>
+            {selected ? (
+              <span className="rounded-full bg-[#245ed2] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-white">
+                Selected
+              </span>
+            ) : null}
           </div>
           <p className="mt-2 max-w-xl text-sm leading-6 text-[#6b6b64]">{presentation.tagline}</p>
           <div className="mt-5 flex flex-wrap gap-2 text-xs">
@@ -213,6 +270,12 @@ export function PricingPage() {
   );
   const reseller = plans.find((plan) => plan.key === "agents-reseller");
   const mainPlans = plans.filter((plan) => plan.key !== "agents-reseller");
+  const [selected, setSelected] = useState<string | null>(() => null);
+  const activeSelection =
+    selected ??
+    plans.find((plan) => presentationFor(plan).recommended)?.key ??
+    plans[0]?.key ??
+    null;
 
   return (
     <div className="landing-v2">
@@ -258,7 +321,14 @@ export function PricingPage() {
             <div className="rounded-2xl border border-[#e7e2d8] bg-[#fffdf8] p-6 text-sm text-[#6b6b64]">Loading plans…</div>
           ) : plans.length ? (
             <div className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {mainPlans.map((plan) => <PlanCard key={plan.key} plan={plan} />)}
+              {mainPlans.map((plan) => (
+                <PlanCard
+                  key={plan.key}
+                  plan={plan}
+                  selected={activeSelection === plan.key}
+                  onSelect={() => setSelected(plan.key)}
+                />
+              ))}
             </div>
           ) : (
             <div className="rounded-2xl border border-[#e7e2d8] bg-[#fffdf8] p-6 text-sm text-[#6b6b64]">
@@ -269,7 +339,11 @@ export function PricingPage() {
 
         {reseller ? (
           <section className="mx-auto mt-4 max-w-6xl px-4">
-            <ResellerCard plan={reseller} />
+            <ResellerCard
+              plan={reseller}
+              selected={activeSelection === reseller.key}
+              onSelect={() => setSelected(reseller.key)}
+            />
           </section>
         ) : null}
 
