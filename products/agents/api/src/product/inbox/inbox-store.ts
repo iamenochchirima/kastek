@@ -96,14 +96,25 @@ export class InboxStore {
     if (row.deployment_id !== scope.deploymentId || (row.session_id !== scope.sessionId && await this.ports.followupAccess?.(db, scope, id) !== id)) denied();
     return row;
   }
+  private async findOpen(db: Db, scope: VisitorScope): Promise<CustomerConversation | null> {
+    await this.visitor(db, scope);
+    const recovered = await this.ports.followupAccess?.(db, scope);
+    if (recovered) return this.visitorConversation(db, scope, recovered);
+    return (await db.query<CustomerConversation>("SELECT * FROM agents_platform.customer_conversations WHERE deployment_id=$1 AND session_id=$2", [scope.deploymentId, scope.sessionId])).rows[0] ?? null;
+  }
+  async find(scope: VisitorScope): Promise<CustomerConversation | null> {
+    return transaction(this.pool, db => this.findOpen(db, scope));
+  }
+  private async openInTransaction(db: PoolClient, scope: VisitorScope): Promise<CustomerConversation> {
+    const deployment = await this.visitor(db, scope);
+    const existing = await this.findOpen(db, scope);
+    if (existing) return existing;
+    return (await db.query<CustomerConversation>(`INSERT INTO agents_platform.customer_conversations(id,organization_id,deployment_id,agent_id,version_id,session_id)
+      VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(deployment_id,session_id) DO UPDATE SET session_id=excluded.session_id RETURNING *`,
+    [randomUUID(), deployment.organization_id, scope.deploymentId, deployment.agent_id, deployment.version_id, scope.sessionId])).rows[0]!;
+  }
   async open(scope: VisitorScope): Promise<CustomerConversation> {
-    return transaction(this.pool, async db => { const deployment = await this.visitor(db, scope);
-      const recovered = await this.ports.followupAccess?.(db, scope);
-      if (recovered) return this.visitorConversation(db, scope, recovered);
-      return (await db.query<CustomerConversation>(`INSERT INTO agents_platform.customer_conversations(id,organization_id,deployment_id,agent_id,version_id,session_id)
-        VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(deployment_id,session_id) DO UPDATE SET session_id=excluded.session_id RETURNING *`,
-      [randomUUID(), deployment.organization_id, scope.deploymentId, deployment.agent_id, deployment.version_id, scope.sessionId])).rows[0]!;
-    });
+    return transaction(this.pool, db => this.openInTransaction(db, scope));
   }
   private async append(db: PoolClient, row: CustomerConversation, input: { key: string; digest: string; kind: CustomerMessage["author_kind"]; body: string; accountId?: string; taskId?: string }): Promise<CustomerMessage> {
     const message = (await db.query<CustomerMessage>(`INSERT INTO agents_platform.customer_messages(id,conversation_id,sequence,author_kind,author_account_id,body,request_key,request_digest,task_id,ownership_generation)
@@ -140,7 +151,18 @@ export class InboxStore {
     }
   }
   async ingress(scope: VisitorScope, id: string, input: { requestKey: string; body: string }) {
+    return transaction(this.pool, db => this.ingressInTransaction(db, scope, id, input));
+  }
+  async firstMessage(scope: VisitorScope, input: { requestKey: string; body: string }, expectedExecutionId?: string) {
     return transaction(this.pool, async db => {
+      const location = (await db.query("SELECT organization_id FROM agents_platform.website_deployments WHERE id=$1", [scope.deploymentId])).rows[0] ?? denied();
+      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [location.organization_id]);
+      const conversation = await this.openInTransaction(db, scope);
+      if (expectedExecutionId && expectedExecutionId !== conversation.execution_conversation_id) throw new PlatformError("CONVERSATION_SCOPE_DENIED", 403, "Customer conversation is unavailable");
+      return this.ingressInTransaction(db, scope, conversation.id, input);
+    });
+  }
+  private async ingressInTransaction(db: PoolClient, scope: VisitorScope, id: string, input: { requestKey: string; body: string }) {
       const location = (await db.query("SELECT organization_id FROM agents_platform.website_deployments WHERE id=$1", [scope.deploymentId])).rows[0] ?? denied();
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [location.organization_id]);
       const deployment = await this.visitor(db, scope);
@@ -158,7 +180,6 @@ export class InboxStore {
         await db.query("INSERT INTO agents_platform.customer_task_links(task_id,conversation_id,input_message_id,ownership_generation) VALUES($1,$2,$3,$4)", [task.id, id, message.id, row.ownership_generation]);
       } else await this.admitWaitingStatus(db,row,message,scope.sessionId);
       return { conversation: row, message, replayed: false };
-    });
   }
   async ingressChannel(input: { deploymentId: string; externalConversationId: string; senderId: string; requestKey: string; body: string; requireHandoff?: boolean }) {
     if (![input.externalConversationId, input.senderId].every(value => typeof value === "string" && value.length > 0 && value.length <= 512 && !/[\u0000-\u001f\u007f]/.test(value)) ||
@@ -290,7 +311,7 @@ export class InboxStore {
       const search = filters.search?.trim() || null;
       const scopeKey = { kind: "customer-inbox-v3", ...scope, state: filters.state ?? null, agentId: filters.agentId ?? null, assigned: filters.assigned ?? null, channel: filters.channel ?? null, connectionId: filters.connectionId ?? null, search, ...(sort === "oldest" ? { sort } : {}) };
       const anchor = this.cursors.read(filters.cursor, scopeKey);
-      const rows = (await db.query<CustomerConversation & { cursor_position: string }>(`SELECT c.*,a.name AS agent_name,cn.id connection_id,cn.name connection_name,cn.asset_id,identity.customer_name,identity.customer_contact_id,assignee.display_name AS assignee_display_name,
+      const rows = (await db.query<CustomerConversation & { cursor_position: string }>(`SELECT c.*,a.name AS agent_name,a.avatar AS agent_avatar,cn.id connection_id,cn.name connection_name,cn.asset_id,identity.customer_name,identity.customer_contact_id,assignee.display_name AS assignee_display_name,
         CASE WHEN c.channel_kind='website' THEN (wd.id IS NOT NULL AND wd.revoked_at IS NULL AND wd.paused=false)
           ELSE (cd.id IS NOT NULL AND cd.state='active' AND cn.id IS NOT NULL AND cn.state='active') END AS channel_available,
         last_message.id AS last_message_id,last_message.task_id AS last_message_task_id,last_message.request_key AS last_message_request_key,last_message.body AS last_message_body,last_message.author_kind AS last_message_author_kind,last_message.created_at AS last_message_created_at,last_message.ownership_generation AS last_message_ownership_generation,c.updated_at::text AS cursor_position FROM agents_platform.customer_conversations c JOIN agents_platform.agents a ON a.id=c.agent_id
@@ -299,11 +320,17 @@ export class InboxStore {
         LEFT JOIN agents_platform.accounts assignee ON assignee.id=c.assignee_account_id
         ${customerIdentityJoin}
         LEFT JOIN LATERAL (SELECT id,task_id,request_key,body,author_kind,created_at,ownership_generation FROM agents_platform.customer_messages WHERE conversation_id=c.id ORDER BY sequence DESC LIMIT 1) last_message ON true
-        WHERE c.organization_id=$1 AND ($2::text IS NULL OR c.state=$2 OR ($2='human_requested' AND EXISTS(SELECT 1 FROM agents_platform.human_assistance_requests h WHERE h.conversation_id=c.id AND h.status IN ('requested','human_owned')))) AND ($3::uuid IS NULL OR c.agent_id=$3)
+        WHERE c.organization_id=$1 AND (last_message.id IS NOT NULL OR c.state<>'automation_active' OR c.assignee_account_id IS NOT NULL
+          OR EXISTS(SELECT 1 FROM agents_platform.human_assistance_requests h WHERE h.conversation_id=c.id)
+          OR EXISTS(SELECT 1 FROM agents_platform.customer_record_enquiries e WHERE e.customer_conversation_id=c.id)
+          OR EXISTS(SELECT 1 FROM agents_platform.customer_commands cmd WHERE cmd.conversation_id=c.id)
+          OR EXISTS(SELECT 1 FROM agents_platform.customer_task_links link WHERE link.conversation_id=c.id))
+        AND ($2::text IS NULL OR c.state=$2 OR ($2='human_requested' AND EXISTS(SELECT 1 FROM agents_platform.human_assistance_requests h WHERE h.conversation_id=c.id AND h.status IN ('requested','human_owned')))) AND ($3::uuid IS NULL OR c.agent_id=$3)
         AND ($4::text IS NULL OR ($4='mine' AND c.assignee_account_id=$5) OR ($4='unassigned' AND c.assignee_account_id IS NULL))
         AND ($10::text IS NULL OR c.channel_kind=$10)
         AND ($11::uuid IS NULL OR cn.id=$11)
         AND ($12::text IS NULL OR strpos(lower(coalesce(identity.customer_name,'')),lower($12))>0 OR strpos(lower(a.name),lower($12))>0
+          OR strpos(lower('Customer #'||c.reference_number::text),lower($12))>0
           OR c.id IN (SELECT m.conversation_id FROM agents_platform.customer_messages m
             JOIN agents_platform.customer_conversations owned ON owned.id=m.conversation_id
             WHERE owned.organization_id=$1 AND m.author_kind IN ('visitor','human') AND strpos(lower(m.body),lower($12))>0))

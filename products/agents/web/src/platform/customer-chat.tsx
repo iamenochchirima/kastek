@@ -7,6 +7,7 @@ import { ErrorMessage } from "./shell";
 
 export function CustomerChat({ path, token, deploymentId }: { path: string; token: string; deploymentId: string }) {
   const [timeline, setTimeline] = useState<CustomerTimeline | null>(null), [body, setBody] = useState(""), [error, setError] = useState(""), [busy, setBusy] = useState(false);
+  const [initialized, setInitialized] = useState(false);
   const [notifications, setNotifications] = useState(false), [notificationBusy, setNotificationBusy] = useState(false);
   const readSequence = useRef("");
   const key = `agents.customer.pending.${deploymentId}.${token}`, [pending, setPending] = useState<{ requestKey: string; body: string } | null>(() => readStored(key));
@@ -22,8 +23,8 @@ export function CustomerChat({ path, token, deploymentId }: { path: string; toke
     } catch (error) { if (current()) { setTimeline(null); throw error; } }
   }
   useEffect(() => { let live = true; generation.current++; conversation.current = null; pageRef.current = null; setBefore(null); setTimeline(null);
-    setNotifications(false); readSequence.current = "";
-    api<{ conversation: InboxConversation }>(`${path}/customer-conversations`, {}, "POST", token).then(async result => { if (!live) return; conversation.current = result.conversation.id; void api<{state:string}>(`${path}/customer-conversations/${result.conversation.id}/followup`,undefined,"GET",token).then(value=>{if(live)setNotifications(value.state==="verified")}).catch(()=>{}); await refresh(result.conversation.id); }).catch(e => { if (live) setError(message(e)); });
+    setNotifications(false); setInitialized(false); readSequence.current = "";
+    api<{ conversation: InboxConversation | null }>(`${path}/customer-conversations`, {}, "POST", token).then(async result => { if (!live) return; setInitialized(true); if (!result.conversation) return; conversation.current = result.conversation.id; void api<{state:string}>(`${path}/customer-conversations/${result.conversation.id}/followup`,undefined,"GET",token).then(value=>{if(live)setNotifications(value.state==="verified")}).catch(()=>{}); await refresh(result.conversation.id); }).catch(e => { if (live) setError(message(e)); });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Invalidate requests from the old visitor session.
     return () => { live = false; generation.current++; conversation.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -48,12 +49,12 @@ export function CustomerChat({ path, token, deploymentId }: { path: string; toke
     try { await api(`${path}/customer-conversations/${conversation.current}/followup/revoke`,{},"POST",token); setNotifications(false); }
     catch (e) { setError(message(e)); } finally { setNotificationBusy(false); }
   }
-  async function send(event?: FormEvent) { event?.preventDefault(); if (!conversation.current || busy) return; const id = conversation.current, acceptedGeneration = generation.current, input = pending ?? { requestKey: crypto.randomUUID(), body: body.trim() }; if (!input.body) return;
-    const current = () => generation.current === acceptedGeneration && conversation.current === id;
+  async function send(event?: FormEvent) { event?.preventDefault(); if (!initialized || busy) return; const id = conversation.current, acceptedGeneration = generation.current, input = pending ?? { requestKey: crypto.randomUUID(), body: body.trim() }; if (!input.body) return;
+    let activeId = id; const current = () => generation.current === acceptedGeneration && conversation.current === activeId;
     setPending(input); writeStored(key, input); setBusy(true); setError("");
-    try { await api(`${path}/customer-conversations/${id}/messages`, input, "POST", token); if (!current()) return; setPending(null); writeStored(key, null); setBody(""); await refresh(id); }
+    try { const result = await api<{conversation: InboxConversation}>(id ? `${path}/customer-conversations/${id}/messages` : `${path}/customer-conversations/messages`, input, "POST", token); if (!current()) return; activeId = result.conversation.id; conversation.current = activeId; setPending(null); writeStored(key, null); setBody(""); await refresh(activeId); }
     catch (e) { if (!current()) return; setError(message(e)); if (e instanceof ApiError && e.status < 500) { setPending(null); writeStored(key, null); setBody(input.body); } }
-    finally { if (current()) setBusy(false); }
+    finally { if (generation.current === acceptedGeneration) setBusy(false); }
   }
-  return <section className="space-y-4"><p className="text-xs text-muted-foreground" role="status">{timeline?.conversation.state === "human_owned" ? "With support" : timeline?.conversation.state === "handoff_pending" ? "Waiting for support" : timeline?.conversation.state === "resolved" ? "Conversation resolved" : "Assistant"}</p>{notifications ? <Button variant="outline" size="sm" disabled={notificationBusy} onClick={() => void stopNotifications()}>{notificationBusy ? "Turning off…" : "Turn off email notifications"}</Button> : null}<ErrorMessage value={error} /><HistoryNavigation timeline={timeline} earlier={!!timeline?.earlierBefore} latest={before === null} onEarlier={() => historyPage(timeline?.earlierBefore ?? null)} onLatest={() => historyPage(null)} /><CustomerMessages messages={timeline?.messages ?? []} /><form onSubmit={event => void send(event)} className="space-y-3"><label className="block space-y-2 text-sm"><span>Message</span><Textarea rows={3} maxLength={8000} value={pending?.body ?? body} onChange={event => setBody(event.target.value)} disabled={busy || !!pending || timeline?.conversation.state === "resolved"} /></label><Button type="submit" disabled={!timeline || busy || (!pending && !body.trim()) || timeline.conversation.state === "resolved"}>{busy ? "Sending…" : pending ? "Retry message" : "Send message"}</Button></form></section>;
+  return <section className="space-y-4"><p className="text-xs text-muted-foreground" role="status">{timeline?.conversation.state === "human_owned" ? "With support" : timeline?.conversation.state === "handoff_pending" ? "Waiting for support" : timeline?.conversation.state === "resolved" ? "Conversation resolved" : "Assistant"}</p>{notifications ? <Button variant="outline" size="sm" disabled={notificationBusy} onClick={() => void stopNotifications()}>{notificationBusy ? "Turning off…" : "Turn off email notifications"}</Button> : null}<ErrorMessage value={error} /><HistoryNavigation timeline={timeline} earlier={!!timeline?.earlierBefore} latest={before === null} onEarlier={() => historyPage(timeline?.earlierBefore ?? null)} onLatest={() => historyPage(null)} /><CustomerMessages messages={timeline?.messages ?? []} /><form onSubmit={event => void send(event)} className="space-y-3"><label className="block space-y-2 text-sm"><span>Message</span><Textarea rows={3} maxLength={8000} value={pending?.body ?? body} onChange={event => setBody(event.target.value)} disabled={busy || !!pending || timeline?.conversation.state === "resolved"} /></label><Button type="submit" disabled={!initialized || busy || (!pending && !body.trim()) || timeline?.conversation.state === "resolved"}>{busy ? "Sending…" : pending ? "Retry message" : "Send message"}</Button></form></section>;
 }

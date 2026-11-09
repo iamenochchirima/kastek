@@ -11,12 +11,13 @@ const uuid = z.uuid(), sequence = z.string().regex(/^(0|[1-9][0-9]{0,17})$/), re
 const page = z.object({ after: sequence.default("0"), before: revision.optional(), limit: z.coerce.number().int().min(1).max(100).default(100) });
 export function inboxConversation(row: CustomerConversation) {
   const channel=row as CustomerConversation & {connection_id?:string;connection_name?:string;asset_id?:string};
-  return { id: row.id, agentId: row.agent_id, deploymentId: row.deployment_id, versionId: row.version_id, channel: row.channel_kind ?? "website",
+  return { id: row.id, referenceNumber: row.reference_number, agentId: row.agent_id, deploymentId: row.deployment_id, versionId: row.version_id, channel: row.channel_kind ?? "website",
     channelDeploymentId: row.channel_deployment_id, externalConversationId: row.external_conversation_id,
     connectionId:channel.connection_id??null,connectionName:channel.connection_name??null,assetId:channel.asset_id??null,
     humanRequest: row.humanRequest ?? null,
     state: row.state, assigneeAccountId: row.assignee_account_id, assigneeDisplayName: row.assignee_display_name ?? null, revision: row.revision, ownershipGeneration: row.ownership_generation,
     createdAt: row.created_at, updatedAt: row.updated_at, agentName: (row as CustomerConversation & { agent_name?: string }).agent_name,
+    agentAvatar: (row as CustomerConversation & { agent_avatar?: string }).agent_avatar,
     customerName: row.customer_name ?? null, customerContactId: row.customer_contact_id ?? null,
     ...(row.channel_available === undefined ? {} : { channelAvailable: row.channel_available }),
     lastMessage: row.last_message_body != null && row.last_message_author_kind && row.last_message_created_at
@@ -99,7 +100,14 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
   const website = "/api/website/:deploymentId/customer-conversations";
   app.post(website, async (request, reply) => {
     const scope = await options.resolveVisitor(request, reply); await options.publicRate?.(scope.deploymentId);
-    return { conversation: visitorConversation(await options.inbox.open(scope)) };
+    const existing = await options.inbox.find(scope);
+    return { conversation: existing ? visitorConversation(existing) : null };
+  });
+  app.post(`${website}/messages`, async (request, reply) => {
+    const scope = await options.resolveVisitor(request, reply); await options.publicRate?.(scope.deploymentId);
+    const input = z.strictObject({ requestKey: z.string().min(1).max(100), body: z.string().trim().min(1).max(8000) }).parse(request.body);
+    const result = await options.inbox.firstMessage(scope, input);
+    return reply.code(result.replayed ? 200 : 201).send({ conversation: visitorConversation(result.conversation), message: message(result.message, false), replayed: result.replayed });
   });
   app.get(`${website}/:conversationId/messages`, async (request, reply) => {
     const scope = await options.resolveVisitor(request, reply), input = page.parse(request.query), result = await options.inbox.readVisitor(scope, params(request).conversationId, input.after, input.limit, input.before);

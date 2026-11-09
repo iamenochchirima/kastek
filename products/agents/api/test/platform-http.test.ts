@@ -193,9 +193,11 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     const invalid=await request(`${path}/channel-session`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload:{...payload,origin:"https://evil.example"}});expect(invalid.status).toBe(403);
     const visitor={token:scope.body.token,origin:payload.origin},website=`/api/website/${payload.deploymentId}/customer-conversations`;
     const opened=await request(website,{...visitor,method:"POST",payload:{}});expect(opened.status).toBe(200);
+    expect(opened.body.conversation).toBeNull();
     const message={requestKey:"lost-channel-ack",body:"When do you open?"};
-    const accepted=await request(`${website}/${opened.body.conversation.id}/messages`,{...visitor,method:"POST",payload:message});expect(accepted.status).toBe(201);
-    expect((await request(`${website}/${opened.body.conversation.id}/messages`,{...visitor,method:"POST",payload:message})).body.replayed).toBe(true);
+    const accepted=await request(`${website}/messages`,{...visitor,method:"POST",payload:message});expect(accepted.status).toBe(201);
+    const conversationId=accepted.body.conversation.id;
+    expect((await request(`${website}/messages`,{...visitor,method:"POST",payload:message})).body.replayed).toBe(true);
     const history=await request(`${path}/channel-history`,{cookie:f.cookie});expect(history.status).toBe(200);expect(history.body.messages).toHaveLength(1);expect(history.body.rootTaskIds).toHaveLength(1);
     const root=history.body.rootTaskIds[0];
     const status=await request(`${f.base}/tasks/${root}`,{cookie:f.cookie});expect(status.status).toBe(200);expect(status.body.task.evaluationTrialId).toBe(prepared.body.trial.id);
@@ -206,7 +208,7 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     expect((await request(`${f.base}/tasks/${root}/history-export`,{cookie:other.cookie})).status).toBe(403);
     expect((await pool.query("SELECT allocated_tokens FROM agents_platform.evaluation_trials WHERE id=$1",[prepared.body.trial.id])).rows[0].allocated_tokens).toBe(16384);
     expect((await request(`${path}/revoke`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload:{}})).status).toBe(200);
-    expect((await request(`${website}/${opened.body.conversation.id}/messages`,{...visitor,method:"POST",payload:{...message,requestKey:"after-revoke"}})).status).toBe(401);
+    expect((await request(`${website}/${conversationId}/messages`,{...visitor,method:"POST",payload:{...message,requestKey:"after-revoke"}})).status).toBe(401);
     expect((await request(`${f.base}/tasks/${root}/history-export`,{cookie:f.cookie})).status).toBe(200);
   });
 

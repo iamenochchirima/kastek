@@ -3,7 +3,7 @@ import type {PreferredSupportContact} from "../../contracts/human-assistance";
 
 export type HumanRequestView={id:string;status:"requested"|"human_owned"|"completed"|"withdrawn";requestedAt:string;brief:{reason:string;brief:string};contact:PreferredSupportContact|null;humanOnly:boolean;workflow?:{name:string;status:"active"|"suspended"|"completed"|"cancelled";missing:string[]}};
 export interface CustomerConversation {
-  id: string; organization_id: string; deployment_id: string | null; agent_id: string; version_id: string; session_id: string | null;
+  id: string; reference_number: string; organization_id: string; deployment_id: string | null; agent_id: string; version_id: string; session_id: string | null;
   channel_kind: ChannelKind; channel_deployment_id: string | null; external_conversation_id: string | null; external_sender_id: string | null;
   execution_conversation_id: string | null; state: "automation_active" | "handoff_pending" | "human_owned" | "resolved";
   assignee_account_id: string | null; revision: string; ownership_generation: string; next_sequence: string;

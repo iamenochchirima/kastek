@@ -959,11 +959,9 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     await publicRate(deployment.id);
     if (authority.principal.kind !== "visitor") throw new PlatformError("ACCESS_DENIED", 403, "Access denied");
     const scope={deploymentId:deployment.id,sessionId:authority.principal.sessionId};
-    const conversation=await inbox.open(scope);
-    if(input.conversationId&&input.conversationId!==conversation.execution_conversation_id)throw new PlatformError("CONVERSATION_SCOPE_DENIED",403,"Customer conversation is unavailable");
-    const result=await inbox.ingress(scope,conversation.id,{requestKey:input.requestKey,body:input.input});
+    const result=await inbox.firstMessage(scope,{requestKey:input.requestKey,body:input.input},input.conversationId);
     const task=result.message.task_id?await store.getTask(authority,result.message.task_id):null;
-    return reply.code(result.replayed?200:202).send({task:task?await readableTask(task):null,customerConversationId:conversation.id,state:result.conversation.state});
+    return reply.code(result.replayed?200:202).send({task:task?await readableTask(task):null,customerConversationId:result.conversation.id,state:result.conversation.state});
   });
   app.get("/api/website/:deploymentId/tasks/:taskId", async (request, reply) => {
     const { deployment, websiteOrigin } = await websiteContext(request, reply), authority = await websiteAuthority(request, deployment, websiteOrigin);

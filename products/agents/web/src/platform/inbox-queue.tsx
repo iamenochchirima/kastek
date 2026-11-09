@@ -1,6 +1,7 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Chatting01Icon, Facebook01Icon, Globe02Icon, InstagramIcon, Search01Icon, TelegramIcon, UserIcon, WhatsappIcon } from "@hugeicons/core-free-icons";
 import { Button } from "@/components/ui/button";
+import { AgentAvatar } from "./agent-avatar";
 import { Input } from "@/components/ui/input";
 import { ErrorMessage, Loading } from "./shell";
 import type { InboxConversation } from "./inbox";
@@ -25,7 +26,7 @@ export function InboxQueue({ items, selected, search, filtered, error, hasMore, 
       const displayTime = item.lastMessage?.createdAt ?? item.updatedAt;
       return <button type="button" key={item.id} onClick={() => onSelect(item.id)} aria-pressed={selected === item.id} className={`inbox-conversation ${selected === item.id ? "is-selected" : ""}`}>
         <span className="inbox-queue-avatar" aria-hidden="true">{customer ? customer.split(/\s+/).slice(0, 2).map(part => part[0]).join("").toLocaleUpperCase() : <HugeiconsIcon icon={UserIcon} size={19} />}</span>
-        <span className="inbox-conversation-content"><span className="inbox-conversation-title"><span className="truncate">{customer || "Customer"}</span></span>{item.agentName ? <span className="sr-only">Agent {item.agentName}</span> : null}
+        <span className="inbox-conversation-content"><span className="inbox-conversation-title"><span className="truncate">{customer || (item.referenceNumber ? `Customer #${item.referenceNumber}` : "Customer")}</span></span>{item.agentName ? <span className="inbox-queue-agent" title={item.agentName}><AgentAvatar id={item.agentAvatar} size={20} /><span className="inbox-queue-agent-name">{item.agentName}</span></span> : null}
           <span className="inbox-queue-preview">{preview || (item.lastMessage ? "Message" : "No messages yet")}</span>
           {item.humanRequest?.status === "requested" ? <span className="inbox-queue-unavailable">Support requested</span> : null}{item.channelAvailable === false ? <span className="inbox-queue-unavailable">Channel unavailable</span> : null}
         </span><span className="inbox-queue-channel" aria-label={channels[item.channel]}><HugeiconsIcon icon={channelIcons[item.channel]} size={18} aria-hidden="true" /></span><span className="inbox-queue-end"><time dateTime={displayTime}>{new Date(displayTime).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time><span className={`inbox-queue-status status-${item.state}`}>{statuses[item.state]}</span></span>

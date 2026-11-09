@@ -4,11 +4,11 @@ import { websiteWidgetScript } from "../src/adapters/channels/website/widget";
 
 const { chromium, expect: browserExpect } = createRequire(__filename)("../../web/node_modules/@playwright/test");
 
-async function fixture(initialFailure?: { status: number; code: string; message: string }, deferredReply = false, holdSend = false) {
+async function fixture(initialFailure?: { status: number; code: string; message: string }, deferredReply = false, holdSend = false, lazy = false) {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   const messages: { id: string; authorKind: string; body: string }[] = [], submitted: { requestKey: string; body: string }[] = [];
-  let failure = initialFailure, reads = 0, failNextRead = false, responseStatus: string | null = null;
+  let failure = initialFailure, reads = 0, firstSends = 0, failNextRead = false, responseStatus: string | null = null;
   let releaseSend!: () => void; const sendGate = new Promise<void>(resolve => { releaseSend = resolve; });
   await page.clock.install();
   await page.route("http://localhost/**", async (route: any) => {
@@ -17,16 +17,17 @@ async function fixture(initialFailure?: { status: number; code: string; message:
     if (path.endsWith("/widget.js")) return route.fulfill({ contentType: "application/javascript", body: websiteWidgetScript("fixture") });
     if (path === "/api/website/fixture") return route.fulfill({ json: { name: "Assistant", appearance: { greeting: "How can we help?" } } });
     if (path.endsWith("/session")) return route.fulfill({ json: { token: "visitor-session" } });
-    if (path.endsWith("/customer-conversations")) return route.fulfill({ json: { conversation: { id: "conversation" } } });
+    if (path.endsWith("/customer-conversations")) return route.fulfill({ json: { conversation: lazy && !messages.length ? null : { id: "conversation" } } });
     if (path.endsWith("/messages")) {
       if (request.method() === "POST") {
         submitted.push(request.postDataJSON());
+        if (path.endsWith("/customer-conversations/messages")) firstSends++;
         if (holdSend) await sendGate;
         if (failure) return route.fulfill({ status: failure.status, json: { error: { code: failure.code, message: failure.message } } });
         messages.push({ id: "visitor-1", authorKind: "visitor", body: request.postDataJSON().body });
         if (deferredReply) responseStatus = "working";
         else messages.push({ id: "assistant-1", authorKind: "assistant", body: "Hello!" });
-        return route.fulfill({ json: { message: { id: "visitor-1" } } });
+        return route.fulfill({ json: { conversation: { id: "conversation" }, message: { id: "visitor-1" } } });
       }
       reads++;
       if (failNextRead) { failNextRead = false; return route.fulfill({ status: 503, json: { error: { message: "History temporarily unavailable" } } }); }
@@ -42,10 +43,24 @@ async function fixture(initialFailure?: { status: number; code: string; message:
   }
   await page.goto("http://localhost/");
   await open();
-  return { browser, page, submitted, open, releaseSend, reads: () => reads, recover: () => { failure = undefined; }, rejectNextRead: () => { failNextRead = true; }, response: (status: string | null) => { responseStatus = status; } };
+  return { browser, page, submitted, open, releaseSend, firstSends: () => firstSends, reads: () => reads, recover: () => { failure = undefined; }, rejectNextRead: () => { failNextRead = true; }, response: (status: string | null) => { responseStatus = status; } };
 }
 
 describe("website widget send feedback", () => {
+  it("opens without creating a conversation and sends the first message once", async () => {
+    const context = await fixture(undefined, false, false, true);
+    try {
+      expect(context.firstSends()).toBe(0);
+      await browserExpect(context.page.getByText("How can we help?")).toBeVisible();
+      await context.page.getByRole("textbox", { name: "Message", exact: true }).fill("Hi");
+      await context.page.getByRole("button", { name: "Send", exact: true }).click();
+      await browserExpect(context.page.getByRole("log")).toContainText("Hello!");
+      expect(context.firstSends()).toBe(1);
+      await context.page.reload(); await context.open();
+      await browserExpect(context.page.getByRole("log")).toContainText("Hi");
+      expect(context.firstSends()).toBe(1);
+    } finally { await context.browser.close(); }
+  }, 20_000);
   it("shows a message immediately and replaces it with the accepted message", async () => {
     const { browser, page, releaseSend } = await fixture(undefined, false, true);
     try {

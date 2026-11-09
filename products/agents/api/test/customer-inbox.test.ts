@@ -64,6 +64,26 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     return inbox.command({ ...f.scope, accountId }, f.conversation.id, { commandId: randomUUID(), expectedRevision: current.conversation.revision, action, ...extra });
   }
   function binding(f: Awaited<ReturnType<typeof fixture>>, messageId: string, generation = "1"): ChannelBinding { return { customerConversationId: f.conversation.id, ownershipGeneration: generation, inputMessageId: messageId }; }
+  it("defers conversations until the first message and gives them stable workspace references", async () => {
+    const f = await fixture();
+    expect((await inbox.list(f.scope, { limit: 30 })).items).toHaveLength(0);
+    const sessionId = randomUUID(), token = randomBytes(32).toString("base64url");
+    await pool.query("INSERT INTO agents_platform.website_sessions(id,deployment_id,token_hash,origin) VALUES($1,$2,$3,$4)", [sessionId, f.deployment.id, createHash("sha256").update(token).digest("hex"), origin]);
+    grants.set(sessionId, (await platform.createWebsiteGrant({ deploymentId: f.deployment.id, origin, sessionId })).id);
+    const visitor = { deploymentId: f.deployment.id, sessionId };
+    expect(await inbox.find(visitor)).toBeNull();
+    expect((await pool.query("SELECT id FROM agents_platform.customer_conversations WHERE session_id=$1", [sessionId])).rowCount).toBe(0);
+    const input = { requestKey: randomUUID(), body: "Hello" };
+    const [first, retry] = await Promise.all([inbox.firstMessage(visitor, input), inbox.firstMessage(visitor, input)]);
+    expect(first.conversation.id).toBe(retry.conversation.id);
+    expect(first.message.id).toBe(retry.message.id);
+    expect([first.replayed, retry.replayed].sort()).toEqual([false, true]);
+    expect(first.conversation.reference_number).not.toBe(f.conversation.reference_number);
+    expect((await inbox.find(visitor))?.reference_number).toBe(first.conversation.reference_number);
+    const listed = await inbox.list(f.scope, { limit: 30 });
+    expect(listed.items.map(item => item.id)).toEqual([first.conversation.id]);
+    expect(listed.items[0]?.reference_number).toBe(first.conversation.reference_number);
+  });
   it("records after-hours help without transferring ownership and fences only actual takeover", async()=>{
     const f=await fixture(true,true),turn=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"I need a person. Please contact me at person@example.test"});
     const taskId=turn.message.task_id!,bound=binding(f,turn.message.id),operationId=randomUUID();
@@ -219,6 +239,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   });
   it("reports the website channel as unavailable when paused or revoked", async () => {
     const f = await fixture();
+    await inbox.ingress(f.visitor, f.conversation.id, {requestKey:randomUUID(),body:"Hello"});
     expect((await inbox.readStaff(f.scope, f.conversation.id)).channelAvailable).toBe(true);
     expect((await inbox.list(f.scope, {limit: 30})).items[0]?.channel_available).toBe(true);
     await pool.query("UPDATE agents_platform.website_deployments SET paused=true WHERE id=$1", [f.deployment.id]);
@@ -390,6 +411,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await expect(inbox.readVisitor(a.visitor, b.conversation.id)).rejects.toMatchObject({ code: "INBOX_ACCESS_DENIED" });
     await expect(inbox.readStaff(a.scope, b.conversation.id)).rejects.toMatchObject({ code: "INBOX_ACCESS_DENIED" });
     await expect(inbox.readStaff(a.scope, randomUUID())).rejects.toMatchObject({ code: "INBOX_NOT_FOUND" });
+    await inbox.ingress(a.visitor, a.conversation.id, {requestKey:randomUUID(),body:"Hello"});
     expect((await inbox.list(a.scope, { limit: 30 })).items).toHaveLength(1);
   });
   it("serves bounded HTTP timelines, validates mutations and omits staff identities for visitors", async () => {
@@ -407,12 +429,15 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   });
   it("orders activity by exact timestamp then identity with signed filter/account/workspace-bound cursors", async () => {
     const f = await fixture(), ids = ["00000000-0000-4000-8000-000000000001", "ffffffff-ffff-4fff-8fff-ffffffffffff", "88888888-8888-4888-8888-888888888888"];
+    await inbox.ingress(f.visitor, f.conversation.id, {requestKey:randomUUID(),body:"Hello"});
     await pool.query("UPDATE agents_platform.customer_conversations SET updated_at='2025-01-01' WHERE id=$1", [f.conversation.id]);
     for (const [index,id] of ids.entries()) {
       const session = randomUUID();
       await pool.query("INSERT INTO agents_platform.website_sessions(id,deployment_id,token_hash,origin) VALUES($1,$2,$3,$4)", [session,f.deployment.id,createHash("sha256").update(randomUUID()).digest("hex"),origin]);
       await pool.query(`INSERT INTO agents_platform.customer_conversations(id,organization_id,deployment_id,agent_id,version_id,session_id,updated_at)
         VALUES($1,$2,$3,$4,$5,$6,$7)`, [id,f.org.id,f.deployment.id,f.agent.id,f.version.id,session,index===0?"2025-02-01T00:00:00.123456Z":"2025-01-15T00:00:00.654321Z"]);
+      await pool.query(`INSERT INTO agents_platform.customer_messages(id,conversation_id,sequence,author_kind,body,request_key,request_digest,ownership_generation)
+        VALUES($1,$2,1,'visitor','Hello',$3,$4,1)`, [randomUUID(),id,randomUUID(),randomUUID()]);
     }
     const first = await inbox.list(f.scope,{limit:1}); expect(first.items.map(row=>row.id)).toEqual([ids[0]]); expect(first.nextCursor).toBeTruthy();
     const oldest = await inbox.list(f.scope,{limit:1,sort:"oldest"});
