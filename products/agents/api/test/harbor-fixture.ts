@@ -356,6 +356,28 @@ async function main() {
   const baseline={fixtureSha256,...(connectorFixtureSha256?{connectorFixtureSha256}:{}),schemaVersion:"kasitek-harbor-baseline.v1",suite,verifierScenario,harbor:"0.24.0",atif:"1.8",model:"nvidia/nemotron-3-super-120b-a12b:free",correctnessThreshold:1,entries:baselineEntries};
   const baselineDigest=createHash("sha256").update(JSON.stringify(baseline)).digest("hex");
   await writeFile(join(build,"baseline.json"),JSON.stringify({...baseline,digest:baselineDigest},null,2),{mode:0o600});
+  const evaluator = process.env.AGENTS_HARBOR_EVALUATOR ?? "harbor";
+  assert.ok(["harbor","core"].includes(evaluator), "Select a supported evaluator");
+  if (evaluator === "core") {
+    assert.equal(suite, "faq-grounded", "Core evaluator currently supports the grounded FAQ suite");
+    assert.equal(attempts, 1, "Core evaluator supports one prepared scope");
+    assert.equal(lifecycle, "none", "Core evaluator does not run lifecycle scenarios");
+    assert.equal(verifierScenario, "none", "Core evaluator does not run verifier probes");
+    const instruction = (await readFile(join(suitePath, "instruction.md"), "utf8")).trim();
+    const resultPath = join(build, "core-result.json");
+    const python = process.env.AGENTS_EVALS_PYTHON ?? join(process.env.HOME ?? "", ".local/share/uv/tools/harbor/bin/python");
+    const coreProcess = spawn(python, [join(adapter, "verification", "core_eval.py"), "--scope", preparedScope, "--instruction", instruction, "--result", resultPath], {
+      cwd: root, stdio: "inherit",
+      env: { PATH: process.env.PATH, HOME: process.env.HOME, LANG: process.env.LANG, PYTHONPATH: join(adapter, "src"), KASITEK_EVALUATION_SESSION: session.token },
+    });
+    const [coreCode] = await once(coreProcess, "exit");
+    assert.equal(coreCode, 0, "Core evaluator failed");
+    const coreResult = JSON.parse(await readFile(resultPath, "utf8"));
+    assert.equal(coreResult.status, "passed");
+    await writeFile(join(build, "acceptance.json"), JSON.stringify({ status: "passed", suite, attempts: 1, evaluator: "local-core", modelMode: "deterministic-provider-fixture", harborVersion: null, restateVersion: "1.7.13", database: { name: databaseName, host: new URL(databaseUrl).host, role: new URL(databaseUrl).username }, reward: { grounded_faq: 1 }, taskCount: 1, providerCalls: 1, compositionDigest: version.effective_composition.digest, sourceRevisionId: source.id, coreResultPath: resultPath, ownerServicesChanged: false }, null, 2), { mode: 0o600 });
+    console.log(JSON.stringify({ evidence: "core native execution + local evaluator", modelMode: "deterministic-provider-fixture", reward: { grounded_faq: 1 }, proof: join(build, "acceptance.json") }));
+    return;
+  }
   harbor = spawn(process.env.AGENTS_HARBOR_BINARY ?? "/home/enock/.local/share/uv/tools/harbor/bin/harbor", ["run", "--path", suitePath, "--agent", "kasitek_harbor.agent:KasitekAgent", ...(suite==="faq-paraphrase-v3"?["--verifier","kasitek_harbor.verifier:RecordedNativeVerifier"]:[]), "--agent-kwarg", `scope_path=${preparedScope}`, "--agent-kwarg", `root_token_limit=${rootTokenLimit}`, ...(lifecycle==="cancel"?["--agent-kwarg","trial_timeout_sec=1"]:[]), ...(lifecycle==="evaluator-restart"?["--agent-kwarg",`recovery_id=${fixtureId}`]:[]), ...(deployment ? ["--agent-kwarg", `channel=${JSON.stringify({deployment_id:deployment.id,origin:"https://harbor-widget.example"})}`] : []), ...(followUp ? ["--agent-kwarg", `follow_ups=${JSON.stringify([{id:"confirm-hours",instruction:"What are the opening hours?"}])}`] : []), "--n-concurrent", "1", "--n-attempts", String(attempts), "--max-retries", "0", "--jobs-dir", jobs, "--job-name", "native-faq", "--quiet", "--yes"],
     { cwd: root, stdio: "inherit", env: { PATH: process.env.PATH, HOME: process.env.HOME, LANG: process.env.LANG, DOCKER_HOST: process.env.DOCKER_HOST, PYTHONPATH: join(adapter, "src"), KASITEK_EVALUATION_SESSION: session.token, KASITEK_VERIFIER_RECEIVER_URL: verifierOrigin, KASITEK_VERIFIER_READ_KEY: verifierKey, ...analysis?.verifierEnvironment,...connector?.verifierEnvironment } });
   if(lifecycle==="evaluator-restart") {
