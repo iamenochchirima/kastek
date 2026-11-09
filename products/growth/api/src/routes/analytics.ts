@@ -5,8 +5,11 @@ import { ApiError } from '../error.js';
 import { extractUser,resolveActiveOrgId } from '../identity/session.js';
 import { requireMember } from '../services/orgs.js';
 import { reportForOrganization } from '../services/analytics-reporting.js';
+import { billingEnforcementEnabled, requireCapability } from '../services/billing.js';
 import { parseChronoTimestamp } from '../chrono-timestamp.js';
 const bad=()=>new ApiError(400,'bad_request','Invalid request');
+const OVERVIEW_METRIC_SET='overview.summary@1';
+export function analyticsQueryNeedsPlan(input:ReportQueryInput):boolean{return input.metric_set!==OVERVIEW_METRIC_SET||(input.metrics?.length??0)>0||(input.breakdowns?.length??0)>0;}
 export function parseReportQuery(value:unknown):ReportQueryInput {
  if(!value||typeof value!=='object'||Array.isArray(value))throw bad();const data=value as Record<string,unknown>;
  const allowed=new Set(['range_start','range_end','timezone','interval','metrics','metric_set','breakdowns','filters','include_descendants','comparison']);if(Object.keys(data).some(key=>!allowed.has(key)))throw bad();
@@ -23,5 +26,5 @@ async function gateway(request:FastifyRequest,context:CoreContext,userId:string,
 }
 export function registerAnalyticsRoutes(app:FastifyInstance,context:CoreContext):void {
  app.get('/api/analytics/catalog',async request=>{const auth=await scope(request,context);return gateway(request,context,auth.userId,auth.orgId);});
- app.post('/api/analytics/query',async request=>{const auth=await scope(request,context);const input=parseReportQuery(request.body);if(input.include_descendants)throw new ApiError(400,'bad_request','Core organization reports do not support descendant scopes');return gateway(request,context,auth.userId,auth.orgId,input);});
+ app.post('/api/analytics/query',async request=>{const auth=await scope(request,context);const input=parseReportQuery(request.body);if(input.include_descendants)throw new ApiError(400,'bad_request','Core organization reports do not support descendant scopes');if(analyticsQueryNeedsPlan(input)&&billingEnforcementEnabled())await requireCapability(context.pool,auth.orgId,'feature.analytics.view');return gateway(request,context,auth.userId,auth.orgId,input);});
 }

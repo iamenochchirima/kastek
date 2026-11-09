@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { requireCapability, requireResourceLimit } from "../src/services/billing.js";
+import { analyticsQueryNeedsPlan } from "../src/routes/analytics.js";
 
 test("seat and channel guards allow within the plan and deny above it", async () => {
   await requireResourceLimit(null as never, "org-guard", "limit.team_seats", 2);
@@ -25,4 +26,33 @@ test("content capabilities deny missing plan features", async () => {
     /not included/,
   );
   await requireCapability(null as never, "org-content", "feature.content.publish");
+});
+
+test("overview analytics stays free while full reports require the plan", () => {
+  const base = {
+    range_start: "2026-11-01T00:00:00.000Z",
+    range_end: "2026-11-09T00:00:00.000Z",
+    timezone: "UTC",
+    metrics: [],
+    breakdowns: [],
+    filters: {},
+    include_descendants: false,
+  };
+  assert.equal(
+    analyticsQueryNeedsPlan({ ...base, metric_set: "overview.summary@1" }),
+    false,
+  );
+  assert.equal(
+    analyticsQueryNeedsPlan({
+      ...base,
+      metric_set: "overview.summary@1",
+      metrics: ["conversation.messages.received@1"],
+    }),
+    true,
+  );
+  assert.equal(
+    analyticsQueryNeedsPlan({ ...base, metric_set: "campaign.delivery@1" }),
+    true,
+  );
+  assert.equal(analyticsQueryNeedsPlan(base), true);
 });

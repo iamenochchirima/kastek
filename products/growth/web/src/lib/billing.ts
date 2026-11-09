@@ -230,6 +230,13 @@ export function fetchBillingSummary() {
   return fetchCoreJson<BillingSummary>("/api/billing/summary");
 }
 
+export function planAllowsAnalytics(summary: BillingSummary | null): boolean {
+  return (
+    summary?.features.find((feature) => feature.key === "feature.analytics.view")
+      ?.enabled !== false
+  );
+}
+
 export function fetchBillingPlans() {
   return fetchCoreJson<{ plans: AvailablePlan[] }>("/api/billing/plans");
 }

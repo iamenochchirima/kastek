@@ -125,7 +125,7 @@ const navigationGroups: NavigationGroup[] = [
     label: "Content",
     items: [
       { name: "Posts", href: "/content", icon: Sparkles, featureKey: "feature.content.manage" },
-      { name: "Analytics", href: "/content/analytics", icon: Grid2x2 },
+      { name: "Analytics", href: "/content/analytics", icon: Grid2x2, featureKey: "feature.analytics.view" },
     ],
   },
   {
