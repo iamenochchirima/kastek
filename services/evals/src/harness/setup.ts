@@ -23,6 +23,9 @@ export interface SandboxSetupInput {
     instructions: string;
     rootTokenLimit?: number;
   };
+  website?: {
+    allowedOrigins: string[];
+  };
   member: {
     email: string;
     session: string;
@@ -46,6 +49,7 @@ export interface SandboxSetupResult {
   compositionDigest: string;
   modelRoutesDigest: string;
   memberAccountId: string;
+  deploymentId: string | null;
   agentRefId: string | null;
   steps: string[];
 }
@@ -155,6 +159,15 @@ export async function setupSandbox(input: SandboxSetupInput): Promise<SandboxSet
     sourceId = String(existingSource.id);
     sourceRevisionId = String(approvedRevision.id);
     knowledgeJobId = String(approvedRevision.id);
+    if (input.knowledge.visibility === "public" && existingSource.visibility !== "public") {
+      await product(input.ownerSession, "POST", `${orgBase}/knowledge/sources/${encodeURIComponent(sourceId)}/policy`, {
+        operationId: randomUUID(),
+        expectedGeneration: existingSource.generation,
+        action: "visibility",
+        visibility: "public",
+      }, "publish knowledge visibility");
+      steps.push("knowledge visibility published");
+    }
     steps.push("knowledge source reused");
   } else {
     const imported = await product(input.ownerSession, "POST", `${orgBase}/knowledge/imports`, {
@@ -276,6 +289,24 @@ export async function setupSandbox(input: SandboxSetupInput): Promise<SandboxSet
   if (!(readBack.versions ?? []).some((item: Json) => item.id === versionId)) {
     throw new SandboxSetupError("read back agent", null, null, "Published version is missing from the agent read");
   }
+  let deploymentId: string | null = null;
+  if (input.website) {
+    const existing = (readBack.deployments ?? []).find((item: Json) =>
+      item.versionId === versionId &&
+      !item.revokedAt &&
+      input.website!.allowedOrigins.every((origin) => (item.allowedOrigins ?? []).includes(origin)));
+    if (existing) {
+      deploymentId = String(existing.id);
+      steps.push("website deployment reused");
+    } else {
+      const deployed = await product(input.ownerSession, "POST", `${orgBase}/agents/${encodeURIComponent(agentId)}/deployments`, {
+        versionId,
+        allowedOrigins: input.website.allowedOrigins,
+      }, "publish website deployment");
+      deploymentId = String(deployed.deployment.id);
+      steps.push("website deployment published");
+    }
+  }
   const readSources = await product(input.ownerSession, "GET", `${orgBase}/knowledge/sources`, undefined, "read knowledge");
   if (!(readSources.sources ?? []).some((item: Json) =>
     item.id === sourceId && item.revisions?.some((revision: Json) => revision.id === sourceRevisionId && revision.state === "approved"))) {
@@ -335,6 +366,7 @@ export async function setupSandbox(input: SandboxSetupInput): Promise<SandboxSet
     compositionDigest,
     modelRoutesDigest,
     memberAccountId,
+    deploymentId,
     agentRefId,
     steps,
   };

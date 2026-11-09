@@ -18,3 +18,23 @@ it("keeps persistent sandbox business setup on the product HTTP APIs", async () 
   }
   expect(branch).toContain("setupSandbox");
 });
+
+it("keeps the enquiry outcome runner on product and control-plane APIs", async () => {
+  const source = await readFile(new URL("./harbor-fixture.ts", import.meta.url), "utf8");
+  const start = source.indexOf("async function runEnquiryOutcome");
+  const end = source.indexOf("async function main()", start);
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+  const runner = source.slice(start, end);
+  for (const forbidden of [
+    "store.createAgent",
+    "store.createVersion",
+    "modelProviders.create",
+    "publishFixtureSource",
+  ]) {
+    expect(runner).not.toContain(forbidden);
+  }
+  expect(runner).toContain("/api/website/");
+  expect(runner).toContain("/v1/sandboxes/");
+  expect(runner).toContain("customer-records/enquiries");
+});

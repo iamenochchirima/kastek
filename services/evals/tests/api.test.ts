@@ -57,7 +57,7 @@ before(async () => {
   pool = createPool(databaseUrl);
   app = buildApi(pool, config, { logger: false });
   await pool.query(
-    "TRUNCATE evals.agent_refs, evals.workspace_refs, evals.sandbox_versions, evals.sandboxes CASCADE",
+    "TRUNCATE evals.outcome_refs, evals.agent_refs, evals.workspace_refs, evals.sandbox_versions, evals.sandboxes CASCADE",
   );
 });
 
@@ -260,6 +260,113 @@ test("records and reads agent references for a sandbox", { skip }, async () => {
   const unknown = await app!.inject({
     method: "POST",
     url: "/v1/sandboxes/00000000-0000-4000-8000-000000000000/agents",
+    headers: auth,
+    payload,
+  });
+  assert.equal(unknown.statusCode, 404);
+});
+
+test("records and reads outcome references for an agent", { skip }, async () => {
+  const created = await app!.inject({ method: "POST", url: "/v1/sandboxes", headers: auth, payload: {} });
+  const sandboxId = (created.json() as { sandbox: { id: string } }).sandbox.id;
+  const workspace = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/workspaces`,
+    headers: auth,
+    payload: { productWorkspaceId: "workspace-outcome-ref", label: "Outcome workspace" },
+  });
+  const workspaceRefId = (workspace.json() as { workspaceRef: { id: string } }).workspaceRef.id;
+  const agent = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/agents`,
+    headers: auth,
+    payload: {
+      workspaceRefId,
+      productAgentId: "agent-outcome",
+      productVersionId: "version-outcome",
+      sourceIds: ["source-outcome"],
+      compositionDigest: "a".repeat(64),
+      modelRoutesDigest: "b".repeat(64),
+    },
+  });
+  const agentRefId = (agent.json() as { agentRef: { id: string } }).agentRef.id;
+  const payload = {
+    workspaceRefId,
+    agentRefId,
+    kind: "enquiry",
+    productOutcomeId: "enquiry-123",
+    productRecordId: "record-123",
+    status: "submitted",
+    taskId: "task-123",
+    requestDigest: "c".repeat(64),
+    responseDigest: "d".repeat(64),
+  };
+  const recorded = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/outcomes`,
+    headers: auth,
+    payload,
+  });
+  assert.equal(recorded.statusCode, 201);
+  const outcome = (recorded.json() as {
+    outcomeRef: {
+      id: string;
+      kind: string;
+      productOutcomeId: string;
+      productRecordId: string;
+      status: string;
+      taskId: string;
+      requestDigest: string;
+      responseDigest: string;
+    };
+  }).outcomeRef;
+  assert.equal(outcome.kind, "enquiry");
+  assert.equal(outcome.productOutcomeId, "enquiry-123");
+  assert.equal(outcome.productRecordId, "record-123");
+  assert.equal(outcome.status, "submitted");
+  assert.equal(outcome.taskId, "task-123");
+  assert.equal(outcome.requestDigest, "c".repeat(64));
+  assert.equal(outcome.responseDigest, "d".repeat(64));
+
+  const listed = await app!.inject({
+    method: "GET",
+    url: `/v1/sandboxes/${sandboxId}/outcomes`,
+    headers: auth,
+  });
+  assert.equal(listed.statusCode, 200);
+  assert.equal((listed.json() as { outcomeRefs: Array<{ id: string }> }).outcomeRefs.length, 1);
+
+  const fetched = await app!.inject({
+    method: "GET",
+    url: `/v1/sandboxes/${sandboxId}/outcomes/${outcome.id}`,
+    headers: auth,
+  });
+  assert.equal(fetched.statusCode, 200);
+  assert.equal((fetched.json() as { outcomeRef: { id: string } }).outcomeRef.id, outcome.id);
+
+  const duplicate = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/outcomes`,
+    headers: auth,
+    payload,
+  });
+  assert.equal(duplicate.statusCode, 409);
+  assert.equal((duplicate.json() as { code: string }).code, "OUTCOME_REF_EXISTS");
+
+  const other = await app!.inject({ method: "POST", url: "/v1/sandboxes", headers: auth, payload: {} });
+  const otherSandboxId = (other.json() as { sandbox: { id: string } }).sandbox.id;
+  const wrongAgent = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${otherSandboxId}/outcomes`,
+    headers: auth,
+    payload: { ...payload, workspaceRefId, agentRefId },
+  });
+  assert.equal(wrongAgent.statusCode, 400);
+  assert.equal((wrongAgent.json() as { code: string }).code, "WORKSPACE_REF_NOT_FOUND");
+
+  const unknown = await app!.inject({
+    method: "POST",
+    url: "/v1/sandboxes/00000000-0000-4000-8000-000000000000/outcomes",
     headers: auth,
     payload,
   });

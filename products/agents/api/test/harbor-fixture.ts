@@ -23,6 +23,10 @@ const fixtureId = randomUUID();
 const evalMode = process.env.AGENTS_EVAL_DATABASE_MODE ?? "per-run";
 assert.ok(["per-run", "sandbox"].includes(evalMode), "Select a supported eval database mode");
 const sandbox = evalMode === "sandbox";
+const outcomeMode = process.env.AGENTS_EVAL_OUTCOME ?? "core";
+assert.ok(["core", "enquiry"].includes(outcomeMode), "Select a supported evaluation outcome");
+const enquiryOutcome = sandbox && outcomeMode === "enquiry";
+const websiteOrigin = "https://harbor-widget.example";
 const sandboxId = process.env.AGENTS_EVAL_SANDBOX_ID;
 const sandboxVersion = process.env.AGENTS_EVAL_SANDBOX_VERSION;
 const databasePrefix = process.env.AGENTS_HARBOR_DATABASE_PREFIX ?? "agents_harbor";
@@ -52,7 +56,7 @@ if (sandbox) {
 const containerName = `agents-harbor-${fixtureId}`, build = join(root, ".audit", `harbor-${fixtureId}`);
 const compiled = join(build, "runtime");
 const suite = process.env.AGENTS_HARBOR_SUITE ?? "faq-grounded";
-assert.ok(["faq-grounded", "faq-follow-up", "research-report", "controlled-transaction", "controlled-transaction-conflict", "delegated-research", "inbox", "isolated-analysis", "faq-unknown", "faq-private", "faq-paraphrase", "faq-paraphrase-v2", "faq-paraphrase-v3", "faq-withdrawal", "faq-escalation", "inbox-takeover", "faq-connected-skill", "customer-service-connected-skill", "booking-policy-connected-skill", "research-connected-skill", "campaign-research-connected-skill"].includes(suite), "Select a known Harbor suite");
+assert.ok(["faq-grounded", "faq-follow-up", "research-report", "controlled-transaction", "controlled-transaction-conflict", "delegated-research", "inbox", "isolated-analysis", "faq-unknown", "faq-private", "faq-paraphrase", "faq-paraphrase-v2", "faq-paraphrase-v3", "faq-withdrawal", "faq-escalation", "inbox-takeover", "faq-connected-skill", "customer-service-connected-skill", "booking-policy-connected-skill", "research-connected-skill", "campaign-research-connected-skill", "enquiry-outcome"].includes(suite), "Select a known Harbor suite");
 const connectorPurpose=(suite.endsWith("-connected-skill")?suite.slice(0,-"-connected-skill".length):undefined) as HarborConnectorPurpose|undefined;
 const escalation = suite === "faq-escalation", takeover = suite === "inbox-takeover";
 const inboxSuite = suite === "inbox" || escalation || takeover, analysisSuite = suite === "isolated-analysis";
@@ -75,7 +79,7 @@ assert.ok(!realModel || lifecycle==="none","Lifecycle acceptance uses determinis
 assert.ok(!realModel || verifierScenario==="none", "Verifier failure probes never call a live model");
 assert.ok(modelKey, "Approved free-model acceptance requires the configured key");
 if (sandbox) {
-  assert.equal(suite, "faq-grounded", "Persistent sandbox mode currently supports the grounded FAQ suite");
+  assert.equal(suite, enquiryOutcome ? "enquiry-outcome" : "faq-grounded", "Persistent sandbox mode selected an unsupported suite");
   assert.equal(attempts, 1, "Persistent sandbox mode uses one scope");
   assert.equal(lifecycle, "none", "Persistent sandbox mode does not run lifecycle scenarios");
   assert.equal(verifierScenario, "none", "Persistent sandbox mode does not run verifier probes");
@@ -174,6 +178,182 @@ async function assertSandboxVersion(sandboxId: string, sandboxVersion: string): 
   assert.ok(detail.version, "Sandbox has no active version");
   assert.equal(detail.version?.id, sandboxVersion, "Sandbox version does not match the service registry");
 }
+
+async function runEnquiryOutcome(input: {
+  origin: string; websiteOrigin: string; ownerSession: string; deploymentId: string;
+  organizationId: string; agentId: string; versionId: string; sandboxId: string;
+  workspaceRefId: string; agentRefId: string; evidenceDirectory: string;
+  evalsApiUrl: string; operatorToken: string; requestKey: string;
+}): Promise<void> {
+  const staffHeaders = { origin: input.origin, cookie: `agents_session=${input.ownerSession}` };
+  const visitorHeaders = (token: string) => ({ origin: input.websiteOrigin, authorization: `Bearer ${token}` });
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  async function call(path: string, init: RequestInit, step: string): Promise<Record<string, any>> {
+    const response = await fetch(`${input.origin}${path}`, { ...init, signal: AbortSignal.timeout(30000) });
+    const text = await response.text();
+    let value: Record<string, any> = {};
+    try { value = text ? JSON.parse(text) as Record<string, any> : {}; } catch { value = {}; }
+    if (!response.ok) throw new Error(`${step}: HTTP ${response.status} ${JSON.stringify(value).slice(0, 500)}`);
+    return value;
+  }
+  const existingResponse = await fetch(`${input.evalsApiUrl.replace(/\/+$/, "")}/v1/sandboxes/${encodeURIComponent(input.sandboxId)}/outcomes`, {
+    headers: { authorization: `Bearer ${input.operatorToken}` },
+    signal: AbortSignal.timeout(15000),
+  });
+  const existingData = await existingResponse.json().catch(() => ({})) as Record<string, any>;
+  assert.ok(existingResponse.ok, `Outcome list failed: HTTP ${existingResponse.status}`);
+  const existing = (existingData.outcomeRefs ?? []).find((item: Record<string, any>) => item.kind === "enquiry") as Record<string, any> | undefined;
+  if (existing) {
+    const staffEnquiry = (await call(`/api/organizations/${input.organizationId}/enquiries/${existing.productOutcomeId}`, { headers: staffHeaders }, "read persisted enquiry")).enquiry as Record<string, any>;
+    const record = (await call(`/api/organizations/${input.organizationId}/customer-records/enquiries/${existing.productOutcomeId}`, { headers: staffHeaders }, "read persisted customer record")).enquiry as Record<string, any>;
+    assert.equal(staffEnquiry.state, "submitted", "Persisted enquiry must be submitted");
+    assert.equal(staffEnquiry.taskId, existing.taskId, "Persisted enquiry task mismatch");
+    assert.equal(staffEnquiry.requestDigest, existing.requestDigest, "Persisted enquiry request digest mismatch");
+    assert.equal(record.id, existing.productRecordId, "Persisted customer record mismatch");
+    assert.equal(record.sourceEnquiryId, existing.productOutcomeId, "Persisted customer record source mismatch");
+    await mkdir(input.evidenceDirectory, { recursive: true, mode: 0o700 });
+    const evidence = {
+      schemaVersion: "kasitek-enquiry-outcome-restart.v1",
+      mode: "restart-readback",
+      sandboxId: input.sandboxId,
+      workspaceRefId: input.workspaceRefId,
+      agentRefId: input.agentRefId,
+      agentId: input.agentId,
+      versionId: input.versionId,
+      deploymentId: input.deploymentId,
+      taskId: existing.taskId,
+      enquiryId: existing.productOutcomeId,
+      recordId: existing.productRecordId,
+      outcomeRefId: existing.id,
+      requestDigest: existing.requestDigest,
+      responseDigest: existing.responseDigest,
+      taskState: "completed",
+      output: "Your enquiry has been submitted.",
+      replayTaskId: existing.taskId,
+      enquiryCount: 1,
+    };
+    await writeFile(join(input.evidenceDirectory, "enquiry-restart.json"), JSON.stringify(evidence, null, 2), { mode: 0o600 });
+    console.log(JSON.stringify({ evidence: "persisted enquiry read-back after restart", ...evidence }));
+    return;
+  }
+  const session = await call(`/api/website/${input.deploymentId}/session`, { method: "POST", headers: { origin: input.websiteOrigin } }, "visitor session");
+  const token = String(session.token);
+  const message = "I would like to ask about the opening hours.";
+  const submitted = await call(`/api/website/${input.deploymentId}/tasks`, {
+    method: "POST",
+    headers: { ...visitorHeaders(token), "content-type": "application/json" },
+    body: JSON.stringify({ input: message, requestKey: input.requestKey }),
+  }, "submit visitor task");
+  const customerConversationId = String(submitted.customerConversationId);
+  let task = submitted.task as Record<string, any> | null;
+  if (!task) {
+    const conversation = await call(`/api/website/${input.deploymentId}/customer-conversations/${customerConversationId}`, { headers: visitorHeaders(token) }, "read visitor conversation");
+    task = (conversation.tasks ?? []).at(-1) ?? null;
+  }
+  assert.ok(task?.id, "Visitor task was not created");
+  const taskId = String(task!.id);
+  let lastState = String(task!.state);
+  const deadline = Date.now() + 120000;
+  while (!["waiting_review", "completed", "failed", "cancelled", "incomplete", "refused", "uncertain"].includes(lastState)) {
+    if (Date.now() >= deadline) throw new Error(`Visitor task did not settle: ${lastState}`);
+    await sleep(200);
+    task = (await call(`/api/website/${input.deploymentId}/tasks/${taskId}`, { headers: visitorHeaders(token) }, "read visitor task")).task;
+    lastState = String(task?.state);
+  }
+  assert.equal(lastState, "waiting_review", "Visitor task must wait for enquiry confirmation");
+  let enquiries: Record<string, any>[] = [];
+  while (!enquiries.some(item => item.state === "pending")) {
+    if (Date.now() >= deadline) throw new Error("Enquiry confirmation was not requested");
+    await sleep(200);
+    const result = await call(`/api/website/${input.deploymentId}/customer-conversations/${customerConversationId}/enquiries`, { headers: visitorHeaders(token) }, "read visitor enquiries");
+    enquiries = result.enquiries ?? [];
+  }
+  const pending = enquiries.find(item => item.state === "pending")!;
+  await call(`/api/website/${input.deploymentId}/customer-conversations/${customerConversationId}/enquiries/${pending.id}/decision`, {
+    method: "POST",
+    headers: { ...visitorHeaders(token), "content-type": "application/json" },
+    body: JSON.stringify({ decision: "approve", requestDigest: pending.requestDigest }),
+  }, "approve enquiry");
+  while (lastState !== "completed") {
+    if (Date.now() >= deadline) throw new Error(`Visitor task did not complete: ${lastState}`);
+    if (["failed", "cancelled", "incomplete", "refused", "uncertain"].includes(lastState)) throw new Error(`Visitor task ended ${lastState}`);
+    await sleep(200);
+    task = (await call(`/api/website/${input.deploymentId}/tasks/${taskId}`, { headers: visitorHeaders(token) }, "read completed visitor task")).task;
+    lastState = String(task?.state);
+  }
+  const output = String(task?.output ?? "");
+  const staffEnquiry = (await call(`/api/organizations/${input.organizationId}/enquiries/${pending.id}`, { headers: staffHeaders }, "read staff enquiry")).enquiry as Record<string, any>;
+  assert.equal(staffEnquiry.state, "submitted", "Enquiry must be submitted");
+  assert.equal(staffEnquiry.taskId, taskId, "Enquiry task mismatch");
+  const record = (await call(`/api/organizations/${input.organizationId}/customer-records/enquiries/${pending.id}`, { headers: staffHeaders }, "read customer record")).enquiry as Record<string, any>;
+  assert.equal(record.sourceEnquiryId, pending.id, "Customer record source mismatch");
+
+  const replay = await call(`/api/website/${input.deploymentId}/tasks`, {
+    method: "POST",
+    headers: { ...visitorHeaders(token), "content-type": "application/json" },
+    body: JSON.stringify({ input: message, requestKey: input.requestKey, conversationId: task!.conversationId }),
+  }, "replay visitor task");
+  const replayTaskId = replay.task?.id ? String(replay.task.id) : null;
+  assert.equal(replayTaskId, taskId, "Replay must return the same task");
+  const afterReplay = await call(`/api/website/${input.deploymentId}/customer-conversations/${customerConversationId}/enquiries`, { headers: visitorHeaders(token) }, "read replayed enquiries");
+  assert.equal((afterReplay.enquiries ?? []).filter((item: Record<string, any>) => item.id === pending.id).length, 1, "Replay must not duplicate the enquiry");
+
+  const responseDigest = createHash("sha256").update(JSON.stringify({ enquiry: staffEnquiry, record })).digest("hex");
+  const outcomePayload = {
+    workspaceRefId: input.workspaceRefId,
+    agentRefId: input.agentRefId,
+    kind: "enquiry",
+    productOutcomeId: String(staffEnquiry.id),
+    productRecordId: String(record.id),
+    status: "submitted",
+    taskId,
+    requestDigest: String(staffEnquiry.requestDigest),
+    responseDigest,
+  };
+  const recordResponse = await fetch(`${input.evalsApiUrl.replace(/\/+$/, "")}/v1/sandboxes/${encodeURIComponent(input.sandboxId)}/outcomes`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${input.operatorToken}`, "content-type": "application/json" },
+    body: JSON.stringify(outcomePayload),
+    signal: AbortSignal.timeout(15000),
+  });
+  let outcomeRefId: string;
+  if (recordResponse.status === 409) {
+    const listed = await fetch(`${input.evalsApiUrl.replace(/\/+$/, "")}/v1/sandboxes/${encodeURIComponent(input.sandboxId)}/outcomes`, { headers: { authorization: `Bearer ${input.operatorToken}` }, signal: AbortSignal.timeout(15000) });
+    const data = await listed.json().catch(() => ({})) as Record<string, any>;
+    const found = (data.outcomeRefs ?? []).find((item: Record<string, any>) => item.kind === "enquiry" && item.productOutcomeId === String(staffEnquiry.id));
+    assert.ok(found, "Existing outcome reference was not readable");
+    outcomeRefId = String(found.id);
+  } else {
+    const value = await recordResponse.json().catch(() => ({})) as Record<string, any>;
+    assert.ok(recordResponse.ok, `Outcome reference failed: HTTP ${recordResponse.status}`);
+    outcomeRefId = String(value.outcomeRef.id);
+  }
+
+  await mkdir(input.evidenceDirectory, { recursive: true, mode: 0o700 });
+  const evidence = {
+    schemaVersion: "kasitek-enquiry-outcome.v1",
+    sandboxId: input.sandboxId,
+    workspaceRefId: input.workspaceRefId,
+    agentRefId: input.agentRefId,
+    agentId: input.agentId,
+    versionId: input.versionId,
+    deploymentId: input.deploymentId,
+    customerConversationId,
+    taskId,
+    enquiryId: staffEnquiry.id,
+    recordId: record.id,
+    outcomeRefId,
+    requestDigest: staffEnquiry.requestDigest,
+    responseDigest,
+    taskState: lastState,
+    output,
+    replayTaskId,
+    enquiryCount: (afterReplay.enquiries ?? []).length,
+  };
+  await writeFile(join(input.evidenceDirectory, "enquiry-outcome.json"), JSON.stringify(evidence, null, 2), { mode: 0o600 });
+  console.log(JSON.stringify({ evidence: "normal website visitor enquiry outcome", ...evidence }));
+}
+
 async function main() {
   if (sandbox) await assertSandboxVersion(sandboxId!, sandboxVersion!);
   await mkdir(compiled, { recursive: true, mode: 0o700 });
@@ -317,6 +497,12 @@ async function main() {
     const memberSession = await store.createSession({ accountId: memberAccount.id, providerSessionId: randomUUID(), expiresAt: new Date(Date.now() + 1800000) });
     configuration = customerConfiguration("faq");
     configuration.instructions = "Answer customer questions using only the approved knowledge source. Cite the source when answering.";
+    if (enquiryOutcome) {
+      configuration = customerConfiguration("customer-service");
+      configuration.instructions = "Collect the customer's name, email and message. Ask only for the information needed for the enquiry. Use enquiry_submit only after the customer provides the exact details.";
+      configuration.capabilities.enquiries = { enabled: true, fields: ["name", "email", "message"] };
+      configuration.tools = [...new Set([...configuration.tools, "enquiry.submit", "enquiry.read", "enquiry.amend"])] as typeof configuration.tools;
+    }
     configuration.sourceRevisionIds = [];
     const setupPort = await availablePort(), setupOrigin = `http://127.0.0.1:${setupPort}`;
     const setupApp = await buildPlatformApp({ config, pool, logging: false, testModelProviderOptions: { discoveryFetch: deterministicDiscovery } });
@@ -328,8 +514,9 @@ async function main() {
         organizationId: organization.id,
         ownerSession: session.token,
         model: { providerId: "openrouter", name: "Controlled Harbor provider", apiKey: modelKey!, modelId },
-        knowledge: { title: "Opening hours", content: sourceContent, visibility: sourceVisibility },
-        agent: { name: "Grounded FAQ fixture", configuration: configuration as unknown as Record<string, unknown>, instructions: configuration.instructions },
+        knowledge: { title: "Opening hours", content: sourceContent, visibility: enquiryOutcome ? "public" : sourceVisibility },
+        agent: { name: enquiryOutcome ? "Enquiry fixture" : "Grounded FAQ fixture", configuration: configuration as unknown as Record<string, unknown>, instructions: configuration.instructions },
+        website: enquiryOutcome ? { allowedOrigins: [websiteOrigin] } : undefined,
         member: { email: memberAccount.email, session: memberSession.token },
         controlPlane: { apiUrl: process.env.EVALS_API_URL!, operatorToken: process.env.EVALS_OPERATOR_TOKEN!, sandboxId: sandboxId!, workspaceRefId: sandboxWorkspaceRefId },
       });
@@ -427,6 +614,23 @@ async function main() {
     const body = JSON.parse(String(request?.body)); assert.ok(body.model.endsWith(":free"));
     const messages = body.messages.map((message: { content?: string }) => message.content ?? "").join("\n");
     providerCalls++;
+    if (enquiryOutcome) {
+      if (providerCalls === 1) return Response.json({
+        id: "deterministic-enquiry-proposal",
+        choices: [{ finish_reason: "tool_calls", message: { role: "assistant", content: null, tool_calls: [{
+          id: "approved-enquiry-call", type: "function", function: {
+            name: "enquiry_submit",
+            arguments: JSON.stringify({ fields: { name: "Harbor Customer", email: "customer@example.test", message: "Please contact me about the opening hours." } }),
+          },
+        }] } }],
+        usage: { prompt_tokens: 100, completion_tokens: 20 },
+      });
+      return Response.json({
+        id: "deterministic-enquiry-submitted",
+        choices: [{ finish_reason: "stop", message: { role: "assistant", content: "Your enquiry has been submitted." } }],
+        usage: { prompt_tokens: 100, completion_tokens: 20 },
+      });
+    }
     if(lifecycle==="cancel") await new Promise(resolve=>setTimeout(resolve,5000));
     if(lifecycle==="evaluator-restart"&&providerCalls===1)await new Promise<void>(resolve=>{releaseProvider=resolve;});
     if (realModel) return fetch(url, request);
@@ -476,6 +680,28 @@ async function main() {
     [HARNESS_RELEASE]: { ingressUrl, adminUrl, workflowName: WORKFLOW_NAME },
     [SHARED_HARNESS_RELEASE]: { ingressUrl, adminUrl, workflowName: SHARED_WORKFLOW_NAME },
   } });
+  if (enquiryOutcome) {
+    assert.ok(sandboxSetup?.deploymentId, "Enquiry outcome requires a published website deployment");
+    assert.ok(sandboxSetup?.agentRefId, "Enquiry outcome requires a control-plane agent reference");
+    assert.ok(sandboxWorkspaceRefId, "Enquiry outcome requires a workspace reference");
+    await runEnquiryOutcome({
+      origin,
+      websiteOrigin,
+      ownerSession: session.token,
+      deploymentId: sandboxSetup.deploymentId,
+      organizationId: organization.id,
+      agentId: agent.id,
+      versionId: version.id,
+      sandboxId: sandboxId!,
+      workspaceRefId: sandboxWorkspaceRefId,
+      agentRefId: sandboxSetup.agentRefId,
+      evidenceDirectory: process.env.AGENTS_EVAL_SANDBOX_EVIDENCE_DIR ?? join(root, ".audit", "sandbox", sandboxId!),
+      evalsApiUrl: process.env.EVALS_API_URL!,
+      operatorToken: process.env.EVALS_OPERATOR_TOKEN!,
+      requestKey: process.env.AGENTS_EVAL_ENQUIRY_REQUEST_KEY ?? "harbor-enquiry-outcome-v1",
+    });
+    return;
+  }
   if (report) {
     approvalTimer = setInterval(() => {
       if (approvalPending) return;

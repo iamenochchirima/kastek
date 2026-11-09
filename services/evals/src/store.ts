@@ -380,3 +380,159 @@ export async function getAgentRef(
   );
   return result.rows[0] ? mapAgentRef(result.rows[0] as Row) : null;
 }
+
+export type OutcomeKind = "enquiry" | "booking" | "record";
+export type OutcomeStatus = "submitted" | "completed" | "unknown";
+
+export interface OutcomeRef {
+  id: string;
+  sandboxId: string;
+  workspaceRefId: string;
+  agentRefId: string;
+  kind: OutcomeKind;
+  productOutcomeId: string;
+  productRecordId: string | null;
+  status: OutcomeStatus;
+  taskId: string | null;
+  requestDigest: string;
+  responseDigest: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export class OutcomeRefError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "OutcomeRefError";
+  }
+}
+
+export interface CreateOutcomeRefInput {
+  workspaceRefId: string;
+  agentRefId: string;
+  kind: OutcomeKind;
+  productOutcomeId: string;
+  productRecordId?: string;
+  status: OutcomeStatus;
+  taskId?: string;
+  requestDigest: string;
+  responseDigest: string;
+}
+
+function mapOutcomeRef(row: Row): OutcomeRef {
+  return {
+    id: String(row.id),
+    sandboxId: String(row.sandbox_id),
+    workspaceRefId: String(row.workspace_ref_id),
+    agentRefId: String(row.agent_ref_id),
+    kind: row.kind as OutcomeKind,
+    productOutcomeId: String(row.product_outcome_id),
+    productRecordId: row.product_record_id == null ? null : String(row.product_record_id),
+    status: row.status as OutcomeStatus,
+    taskId: row.task_id == null ? null : String(row.task_id),
+    requestDigest: String(row.request_digest),
+    responseDigest: String(row.response_digest),
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+  };
+}
+
+export async function createOutcomeRef(
+  pool: Pool,
+  sandboxId: string,
+  input: CreateOutcomeRefInput,
+): Promise<OutcomeRef> {
+  return transaction(pool, async (client) => {
+    const sandbox = await client.query(
+      "SELECT 1 FROM evals.sandboxes WHERE id=$1",
+      [sandboxId],
+    );
+    if (!sandbox.rows[0]) {
+      throw new OutcomeRefError("SANDBOX_NOT_FOUND", "Sandbox not found");
+    }
+    const workspace = await client.query(
+      "SELECT 1 FROM evals.workspace_refs WHERE id=$1 AND sandbox_id=$2",
+      [input.workspaceRefId, sandboxId],
+    );
+    if (!workspace.rows[0]) {
+      throw new OutcomeRefError(
+        "WORKSPACE_REF_NOT_FOUND",
+        "Workspace reference does not belong to this sandbox",
+      );
+    }
+    const agent = await client.query(
+      "SELECT 1 FROM evals.agent_refs WHERE id=$1 AND sandbox_id=$2 AND workspace_ref_id=$3",
+      [input.agentRefId, sandboxId, input.workspaceRefId],
+    );
+    if (!agent.rows[0]) {
+      throw new OutcomeRefError(
+        "AGENT_REF_NOT_FOUND",
+        "Agent reference does not belong to this sandbox and workspace",
+      );
+    }
+    const existing = await client.query(
+      `SELECT 1 FROM evals.outcome_refs
+       WHERE sandbox_id=$1 AND kind=$2 AND product_outcome_id=$3`,
+      [sandboxId, input.kind, input.productOutcomeId],
+    );
+    if (existing.rows[0]) {
+      throw new OutcomeRefError(
+        "OUTCOME_REF_EXISTS",
+        "That product outcome is already recorded for this sandbox",
+      );
+    }
+    const result = await client.query(
+      `INSERT INTO evals.outcome_refs(
+         id, sandbox_id, workspace_ref_id, agent_ref_id, kind,
+         product_outcome_id, product_record_id, status, task_id,
+         request_digest, response_digest
+       ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       RETURNING *`,
+      [
+        randomUUID(),
+        sandboxId,
+        input.workspaceRefId,
+        input.agentRefId,
+        input.kind,
+        input.productOutcomeId,
+        input.productRecordId ?? null,
+        input.status,
+        input.taskId ?? null,
+        input.requestDigest,
+        input.responseDigest,
+      ],
+    );
+    await client.query(
+      "UPDATE evals.sandboxes SET updated_at=now() WHERE id=$1",
+      [sandboxId],
+    );
+    return mapOutcomeRef(result.rows[0] as Row);
+  });
+}
+
+export async function listOutcomeRefs(
+  pool: Pool,
+  sandboxId: string,
+): Promise<OutcomeRef[]> {
+  const result = await pool.query(
+    `SELECT * FROM evals.outcome_refs
+     WHERE sandbox_id=$1 ORDER BY created_at DESC, id DESC`,
+    [sandboxId],
+  );
+  return result.rows.map((row) => mapOutcomeRef(row as Row));
+}
+
+export async function getOutcomeRef(
+  pool: Pool,
+  sandboxId: string,
+  outcomeRefId: string,
+): Promise<OutcomeRef | null> {
+  const result = await pool.query(
+    "SELECT * FROM evals.outcome_refs WHERE sandbox_id=$1 AND id=$2",
+    [sandboxId, outcomeRefId],
+  );
+  return result.rows[0] ? mapOutcomeRef(result.rows[0] as Row) : null;
+}

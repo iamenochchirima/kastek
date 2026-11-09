@@ -13,9 +13,15 @@ import {
   createAgentRef,
   createSandbox,
   getAgentRef,
+  getOutcomeRef,
   getSandbox,
   listAgentRefs,
+  listOutcomeRefs,
   listSandboxes,
+  createOutcomeRef,
+  OutcomeRefError,
+  type OutcomeKind,
+  type OutcomeStatus,
 } from "./store.js";
 import { captureSandboxVersion } from "./version.js";
 
@@ -208,6 +214,15 @@ export function buildApi(
         code: error.code,
       });
     }
+    if (error instanceof OutcomeRefError) {
+      const status =
+        error.code === "OUTCOME_REF_EXISTS" ? 409 :
+        error.code === "SANDBOX_NOT_FOUND" || error.code === "AGENT_REF_NOT_FOUND" ? 404 : 400;
+      return reply.code(status).send({
+        error: error.message,
+        code: error.code,
+      });
+    }
     if (error instanceof AgentRefError) {
       const status =
         error.code === "AGENT_REF_EXISTS" ? 409 :
@@ -366,6 +381,67 @@ export function buildApi(
       });
     }
     return { agentRef: ref };
+  });
+
+  app.post("/v1/sandboxes/:id/outcomes", async (request, reply) => {
+    const params = request.params as { id: string };
+    const sandboxId = uuid(params.id, "id");
+    const body = bodyObject(request.body);
+    const kind = requiredText(body.kind, "kind", 32) as OutcomeKind;
+    if (!["enquiry", "booking", "record"].includes(kind)) {
+      throw new HttpError(400, "invalid_field", "kind must be enquiry, booking or record");
+    }
+    const status = requiredText(body.status, "status", 32) as OutcomeStatus;
+    if (!["submitted", "completed", "unknown"].includes(status)) {
+      throw new HttpError(400, "invalid_field", "status must be submitted, completed or unknown");
+    }
+    const outcome = await createOutcomeRef(pool, sandboxId, {
+      workspaceRefId: uuid(
+        requiredText(body.workspaceRefId, "workspaceRefId", 64),
+        "workspaceRefId",
+      ),
+      agentRefId: uuid(
+        requiredText(body.agentRefId, "agentRefId", 64),
+        "agentRefId",
+      ),
+      kind,
+      productOutcomeId: requiredText(body.productOutcomeId, "productOutcomeId", 200),
+      productRecordId: optionalText(body.productRecordId, "productRecordId", 200),
+      status,
+      taskId: optionalText(body.taskId, "taskId", 200),
+      requestDigest: sha256(body.requestDigest, "requestDigest"),
+      responseDigest: sha256(body.responseDigest, "responseDigest"),
+    });
+    return reply.code(201).send({ outcomeRef: outcome });
+  });
+
+  app.get("/v1/sandboxes/:id/outcomes", async (request, reply) => {
+    const params = request.params as { id: string };
+    const sandboxId = uuid(params.id, "id");
+    if (!(await getSandbox(pool, sandboxId))) {
+      return reply.code(404).send({
+        error: "Sandbox not found",
+        code: "not_found",
+      });
+    }
+    return { outcomeRefs: await listOutcomeRefs(pool, sandboxId) };
+  });
+
+  app.get("/v1/sandboxes/:id/outcomes/:outcomeRefId", async (request, reply) => {
+    const params = request.params as { id: string; outcomeRefId: string };
+    const sandboxId = uuid(params.id, "id");
+    const outcome = await getOutcomeRef(
+      pool,
+      sandboxId,
+      uuid(params.outcomeRefId, "outcomeRefId"),
+    );
+    if (!outcome) {
+      return reply.code(404).send({
+        error: "Outcome reference not found",
+        code: "not_found",
+      });
+    }
+    return { outcomeRef: outcome };
   });
 
   return app;

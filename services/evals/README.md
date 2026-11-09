@@ -142,6 +142,35 @@ curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/agents" \
 versions return `409 AGENT_REF_EXISTS`; a workspace reference from another sandbox
 is rejected.
 
+### Record and read outcome references
+
+An outcome reference links a submitted product outcome to the exact sandbox,
+workspace, agent version and task. It is independent of the task transcript.
+
+```sh
+curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/outcomes" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{
+    "workspaceRefId":"<workspace-ref-id>",
+    "agentRefId":"<agent-ref-id>",
+    "kind":"enquiry",
+    "productOutcomeId":"<enquiry-id>",
+    "productRecordId":"<customer-record-id>",
+    "status":"submitted",
+    "taskId":"<task-id>",
+    "requestDigest":"<64-hex>",
+    "responseDigest":"<64-hex>"
+  }'
+
+curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/outcomes" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN"
+```
+
+`GET /v1/sandboxes/:id/outcomes/:outcomeRefId` reads one reference. A duplicate
+sandbox/kind/product outcome returns `409 OUTCOME_REF_EXISTS`. The reference
+must belong to the same sandbox, workspace and agent reference.
+
 ### Normal-API setup client
 
 `services/evals/src/harness/setup.ts` configures a sandbox through the normal Agents
