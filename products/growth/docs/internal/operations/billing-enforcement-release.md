@@ -49,7 +49,7 @@ Post-release review date: 14 days after live publication.
   `https://billing-dev.kasitek.co.za/webhooks/paystack`.
 - Public pricing: both pages verified for canonical metadata, mouse and keyboard selection, and
   mobile overflow at 390px.
-- Boundaries pass; affected typechecks and builds pass.
+- Boundaries pass; full `pnpm typecheck:all` passes; affected builds and Labs lint/build pass.
 
 ## Analytics and logging
 
