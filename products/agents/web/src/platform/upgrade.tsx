@@ -143,9 +143,11 @@ function PlanCard({
               ? "Opening…"
               : current
                 ? "Current plan"
-                : plan.checkoutReady
-                  ? actionLabel
-                  : "Checkout unavailable"}
+                : isFree
+                  ? "Free plan"
+                  : plan.checkoutReady
+                    ? actionLabel
+                    : "Checkout unavailable"}
           </Button>
           <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
             <span>{presentation.support}</span>

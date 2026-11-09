@@ -65,7 +65,7 @@ export function metric(
 ): string {
   const value = limitValue(plan, key);
   if (value === null || value === 0) return empty;
-  return `${value.toLocaleString()} ${unit}`;
+  return `${value.toLocaleString()} ${value === 1 ? unit : `${unit}s`}`;
 }
 
 export function metricNumber(plan: Plan, key: string): string {
@@ -161,7 +161,7 @@ export const AGENTS_COMPARISON: ComparisonGroup[] = [
     rows: [
       {
         label: "Team seats",
-        cell: (plan) => valueText(metric(plan, "limit.agent_seats", "seats")),
+        cell: (plan) => valueText(metric(plan, "limit.agent_seats", "seat")),
       },
     ],
   },
@@ -170,11 +170,11 @@ export const AGENTS_COMPARISON: ComparisonGroup[] = [
     rows: [
       {
         label: "Agents",
-        cell: (plan) => valueText(metric(plan, "limit.agent_count", "agents")),
+        cell: (plan) => valueText(metric(plan, "limit.agent_count", "agent")),
       },
       {
         label: "Channels",
-        cell: (plan) => valueText(metric(plan, "limit.agent_channels", "channels")),
+        cell: (plan) => valueText(metric(plan, "limit.agent_channels", "channel")),
       },
       {
         label: "AI usage",
@@ -193,7 +193,7 @@ export const AGENTS_COMPARISON: ComparisonGroup[] = [
       { label: "Knowledge uploads and training", cell: () => included(true) },
       {
         label: "Website crawl pages per month",
-        cell: (plan) => valueText(metric(plan, "limit.crawl_pages", "pages")),
+        cell: (plan) => valueText(metric(plan, "limit.crawl_pages", "page")),
       },
     ],
   },

@@ -66,7 +66,7 @@ export function planMetric(
 ): string {
   const value = limitValue(plan, key);
   if (value === null || value === 0) return empty;
-  return `${value.toLocaleString()} ${unit}`;
+  return `${value.toLocaleString()} ${value === 1 ? unit : `${unit}s`}`;
 }
 
 export function formatPrice(
@@ -175,12 +175,12 @@ export const GROWTH_COMPARISON: ComparisonGroup[] = [
       {
         label: "Team seats",
         cell: (plan) =>
-          valueText(planMetric(plan, "limit.team_seats", "seats")),
+          valueText(planMetric(plan, "limit.team_seats", "seat")),
       },
       {
         label: "Connected channels",
         cell: (plan) =>
-          valueText(planMetric(plan, "limit.connected_channels", "channels")),
+          valueText(planMetric(plan, "limit.connected_channels", "channel")),
       },
     ],
   },
@@ -221,7 +221,7 @@ export const GROWTH_COMPARISON: ComparisonGroup[] = [
       {
         label: "Recipients per month",
         cell: (plan) =>
-          valueText(planMetric(plan, "limit.campaign_recipients", "recipients")),
+          valueText(planMetric(plan, "limit.campaign_recipients", "recipient")),
       },
     ],
   },
@@ -239,7 +239,7 @@ export const GROWTH_COMPARISON: ComparisonGroup[] = [
       {
         label: "Posts per month",
         cell: (plan) =>
-          valueText(planMetric(plan, "limit.social_publishes", "posts")),
+          valueText(planMetric(plan, "limit.social_publishes", "post")),
       },
     ],
   },
@@ -271,7 +271,7 @@ export const GROWTH_COMPARISON: ComparisonGroup[] = [
       {
         label: "API requests per month",
         cell: (plan) =>
-          valueText(planMetric(plan, "limit.public_api_requests", "requests")),
+          valueText(planMetric(plan, "limit.public_api_requests", "request")),
       },
     ],
   },
