@@ -262,6 +262,8 @@ describe.skipIf(!parent)("workspace members and invitations", () => {
     const first = await fixture("Cross organization one");
     const second = await fixture("Cross organization two");
     expect((await request(first.ownerSession.token, "GET", `${second.base}/members`)).status).toBe(403);
+    expect((await request(first.ownerSession.token, "GET", `${second.base}/enquiries`)).status).toBe(403);
+    expect((await request(first.ownerSession.token, "GET", `${second.base}/customer-records/enquiries/00000000-0000-4000-8000-000000000000`)).status).toBe(403);
     const unknown = await request(first.ownerSession.token, "POST", `${first.base}/members`, {
       email: `unknown-${randomUUID()}@example.test`,
     });
