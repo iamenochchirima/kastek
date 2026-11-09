@@ -329,7 +329,7 @@ export class InboxStore {
         AND ($10::text IS NULL OR c.channel_kind=$10)
         AND ($11::uuid IS NULL OR cn.id=$11)
         AND ($12::text IS NULL OR strpos(lower(coalesce(identity.customer_name,'')),lower($12))>0 OR strpos(lower(a.name),lower($12))>0
-          OR strpos(lower('Customer #'||c.reference_number::text),lower($12))>0
+          OR strpos(lower('Chat #'||c.reference_number::text),lower($12))>0
           OR c.id IN (SELECT m.conversation_id FROM agents_platform.customer_messages m
             JOIN agents_platform.customer_conversations owned ON owned.id=m.conversation_id
             WHERE owned.organization_id=$1 AND m.author_kind IN ('visitor','human') AND strpos(lower(m.body),lower($12))>0))

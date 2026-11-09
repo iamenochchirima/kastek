@@ -83,6 +83,8 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const listed = await inbox.list(f.scope, { limit: 30 });
     expect(listed.items.map(item => item.id)).toEqual([first.conversation.id]);
     expect(listed.items[0]?.reference_number).toBe(first.conversation.reference_number);
+    const searched = await inbox.list(f.scope, { limit: 30, search: `Chat #${first.conversation.reference_number}` });
+    expect(searched.items.map(item => item.id)).toEqual([first.conversation.id]);
   });
   it("records after-hours help without transferring ownership and fences only actual takeover", async()=>{
     const f=await fixture(true,true),turn=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"I need a person. Please contact me at person@example.test"});
