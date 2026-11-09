@@ -3,45 +3,32 @@ import Link from "next/link";
 import { Bot, Cable, PanelsTopLeft, Workflow } from "lucide-react";
 import { InnerHero } from "@/components/labs-inner-page";
 import { LabsInnerShell } from "@/components/labs-site-chrome";
-import { appUrl } from "@/lib/site-config";
+import { productUrls } from "@/lib/site-config";
 
 export const metadata: Metadata = {
-  title: "Pricing | Kasitek Labs",
+  title: "Plans | Kasitek Labs",
   description:
-    "Monthly Kasitek plans and scoped pricing for agents, integrations and custom software.",
+    "Growth and Agents plans live on their product sites. Custom delivery is scoped separately.",
 };
 
-const productTiers = [
-  {
-    name: "Basic",
-    monthly: "$25 / month",
-    description: "For one business starting with the core Kasitek workspace.",
-    features: [
-      "One workspace and brand",
-      "Core communication, content and automation",
-      "Guided setup",
-    ],
-  },
+const products = [
   {
     name: "Growth",
-    monthly: "$45 / month",
-    featured: true,
-    description: "For a team running more channels and automated work.",
-    features: [
-      "More channels and usage",
-      "Advanced workflow configuration",
-      "Priority delivery support",
-    ],
+    description: "Customer conversations, campaigns, content and bookings.",
+    href: `${productUrls.growth}/pricing`,
+    icon: PanelsTopLeft,
   },
   {
-    name: "Scale",
-    monthly: "$75 / month",
-    description: "For larger teams and more involved integrations.",
-    features: [
-      "Expanded team access",
-      "Advanced routing and integrations",
-      "Tailored rollout",
-    ],
+    name: "Agents",
+    description: "Customer-service agents, knowledge and a shared inbox.",
+    href: `${productUrls.agents}/pricing`,
+    icon: Bot,
+  },
+  {
+    name: "Agency",
+    description: "Client workspaces and partner delivery. Agency is in early access.",
+    href: "/contact",
+    icon: Workflow,
   },
 ];
 
@@ -69,43 +56,45 @@ const customWork = [
   },
 ];
 
-export default function PricingPage() {
+export default function PlansPage() {
   return (
     <LabsInnerShell>
       <InnerHero
-        context="Pricing"
-        title={<>Pricing.</>}
-        introduction="Monthly plans for Kasitek. Custom delivery is scoped separately."
+        context="Plans"
+        title={<>Product plans.</>}
+        introduction="Growth and Agents have their own plans. Choose a product to see current pricing."
         compact
       />
 
       <section className="inner-section">
         <div className="inner-section-heading">
-          <h2>Kasitek.</h2>
-          <p>Monthly platform plans.</p>
+          <h2>Products.</h2>
+          <p>Plan details, limits and checkout live on each product site.</p>
         </div>
         <div className="editorial-grid editorial-grid-three">
-          {productTiers.map((tier) => (
-            <article
-              className={`editorial-card price-card${tier.featured ? " is-featured" : ""}`}
-              key={tier.name}
-            >
-              <h2>{tier.name}</h2>
-              <div className="price">{tier.monthly}</div>
-              <p>{tier.description}</p>
+          {products.map((product) => (
+            <article className="editorial-card" key={product.name}>
+              <h2>{product.name}</h2>
+              <p>{product.description}</p>
               <ul>
-                {tier.features.map((feature) => (
-                  <li key={feature}>— {feature}</li>
-                ))}
+                <li>— Current plans and prices</li>
+                <li>— Limits and included features</li>
+                <li>— Monthly billing</li>
               </ul>
-              <a
-                className="button button-dark"
-                href={appUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Get started
-              </a>
+              {product.href.startsWith("http") ? (
+                <a
+                  className="button button-dark"
+                  href={product.href}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View {product.name} plans
+                </a>
+              ) : (
+                <Link className="button button-dark" href={product.href}>
+                  Talk to us
+                </Link>
+              )}
             </article>
           ))}
         </div>

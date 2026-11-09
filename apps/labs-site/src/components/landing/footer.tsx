@@ -32,6 +32,9 @@ export function Footer() {
           <Link href="/about">
             {"About"}
           </Link>
+          <Link href="/pricing">
+            {"Plans"}
+          </Link>
           <Link href="/contact">
             {"Contact"}
           </Link>

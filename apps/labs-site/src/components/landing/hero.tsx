@@ -63,6 +63,9 @@ export function Hero() {
               </a>
             </div>
           </details>
+          <Link href="/pricing">
+            {"Plans"}
+          </Link>
           <a href="#studio">
             {"The studio"}
           </a>

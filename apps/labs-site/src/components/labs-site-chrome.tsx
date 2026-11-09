@@ -35,7 +35,7 @@ export function LabsHeader({ home = false, tone = "dark" }: LabsHeaderProps) {
         <Link href="/waitlist">Growth</Link>
         <a href={`${sectionPrefix}#studio`}>Services</a>
         <Link href="/waitlist">Agency</Link>
-        <Link href="/pricing">Pricing</Link>
+        <Link href="/pricing">Plans</Link>
         <Link href="/get-quote">Get a quote</Link>
       </nav>
 
@@ -52,7 +52,7 @@ export function LabsHeader({ home = false, tone = "dark" }: LabsHeaderProps) {
           <Link href="/waitlist">Growth</Link>
           <a href={`${sectionPrefix}#studio`}>Services</a>
           <Link href="/waitlist">Agency</Link>
-          <Link href="/pricing">Pricing</Link>
+          <Link href="/pricing">Plans</Link>
           <Link href="/early-access">Early access</Link>
           <Link href="/get-quote">Get a quote</Link>
           {/* <a href={appUrl} target="_blank" rel="noreferrer">Get started ↗</a> */}
@@ -101,7 +101,7 @@ export function LabsFooter() {
           <div className="footer-column">
             <p>Platform</p>
             <Link href="/waitlist">Agents</Link>
-            <Link href="/pricing">Pricing</Link>
+            <Link href="/pricing">Plans</Link>
             <Link href="/waitlist">Request product access</Link>
           </div>
           <div className="footer-column">
