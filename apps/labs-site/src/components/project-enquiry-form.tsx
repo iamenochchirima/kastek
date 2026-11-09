@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { AsYouType, parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js";
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { phoneCountries } from "@/lib/phone-countries";
 
 type EnquiryMode = "contact" | "quote";
@@ -85,21 +85,19 @@ export function ProjectEnquiryForm({ mode }: ProjectEnquiryFormProps) {
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [email, setEmail] = useState("");
   const [businessType, setBusinessType] = useState("");
-  const [services, setServices] = useState<string[]>([]);
+  const [services, setServices] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    const search = new URLSearchParams(window.location.search);
+    const requested = search.get("service") ?? search.get("type");
+    if (!requested) return [];
+    const match = serviceAliases[requested.trim().toLowerCase()];
+    const service = serviceOptions.find((option) => option.value === match);
+    return service && !service.comingSoon ? [service.value] : [];
+  });
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-
-  useEffect(() => {
-    const search = new URLSearchParams(window.location.search);
-    const requested = search.get("service") ?? search.get("type");
-    if (!requested) return;
-
-    const match = serviceAliases[requested.trim().toLowerCase()];
-    const service = serviceOptions.find((option) => option.value === match);
-    if (service && !service.comingSoon) setServices([service.value]);
-  }, []);
 
   function toggleService(value: string) {
     setServices((current) =>
