@@ -15,7 +15,7 @@ export function Landing() {
   return <div className="marketing">
     <nav className="marketing-nav" aria-label="Public navigation">
       <Link to="/" className="marketing-brand">kasitek<span>/ agents</span></Link>
-      <div><Link to={signedIn ? "/app/agents" : "/login"}>{signedIn ? "Open workspace" : "Sign in"}<ArrowUpRight size={14} aria-hidden="true" /></Link></div>
+      <div className="flex items-center gap-4"><Link to="/pricing">Pricing</Link><Link to={signedIn ? "/app/agents" : "/login"}>{signedIn ? "Open workspace" : "Sign in"}<ArrowUpRight size={14} aria-hidden="true" /></Link></div>
     </nav>
     <main>
       <section className="marketing-hero">
@@ -33,6 +33,6 @@ export function Landing() {
         </div>
       </section>
     </main>
-    <footer><span>© {new Date().getFullYear()} KasiTek</span><Link to={signedIn ? "/app/agents" : "/login"}>Open your workspace<ArrowUpRight size={14} aria-hidden="true" /></Link></footer>
+    <footer><span>© {new Date().getFullYear()} KasiTek</span><div className="flex items-center gap-4"><Link to="/pricing">Pricing</Link><Link to={signedIn ? "/app/agents" : "/login"}>Open your workspace<ArrowUpRight size={14} aria-hidden="true" /></Link></div></footer>
   </div>;
 }

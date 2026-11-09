@@ -13,6 +13,7 @@ import { AgentDirectory, AgentWelcome } from "@/platform/agent-directory";
 import { TasksPage } from "@/platform/tasks";
 import { SettingsPage } from "@/platform/settings";
 import { UpgradePage } from "@/platform/upgrade";
+import { PricingPage } from "@/platform/pricing";
 import { ConnectionsPage } from "@/platform/connections";
 import { CustomersPage } from "@/platform/customer-records";
 import { InboxPage } from "@/platform/inbox";
@@ -35,6 +36,7 @@ function NotFound() {
 export const router = createBrowserRouter([
   { path: "/", Component: Landing },
   { path: "/landingv2", Component: LandingV2Route },
+  { path: "/pricing", Component: PricingPage },
   { path: "/signup", Component: Signup },
   { path: "/login", Component: Login },
   { path: "/app/oauth/consent", Component: McpConsent },

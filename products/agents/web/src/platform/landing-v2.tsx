@@ -50,7 +50,7 @@ export function LandingV2() {
         <Glow paused={motionPaused} />
         <header className="lv2-header">
           <Link to="/landingv2" className="lv2-brand" aria-label="Agents home">Agents <small>by KasiTek</small></Link>
-          <nav className="lv2-desktop-nav" aria-label="Product navigation"><a href="#product">Product</a><a href="#personal">Personal</a></nav>
+          <nav className="lv2-desktop-nav" aria-label="Product navigation"><a href="#product">Product</a><a href="#personal">Personal</a><Link to="/pricing">Pricing</Link></nav>
           <div className="lv2-header-actions"><Link to="/login" className="lv2-signin">Sign in</Link><CreateAgent dark>Get started</CreateAgent><Button ref={menuTrigger} type="button" variant="ghost" size="icon" className="lv2-menu-trigger" aria-label={menuOpen ? "Close navigation" : "Open navigation"} aria-expanded={menuOpen} aria-controls="lv2-mobile-navigation" onClick={() => setMenuOpen(!menuOpen)}><HugeiconsIcon icon={menuOpen ? Cancel01Icon : Menu01Icon} size={20} aria-hidden="true" /></Button></div>
           <nav id="lv2-mobile-navigation" className="lv2-mobile-nav" aria-label="Mobile navigation" hidden={!menuOpen}><a href="#product" onClick={() => setMenuOpen(false)}>Product</a><a href="#personal" onClick={() => setMenuOpen(false)}>Personal</a><Link to="/login">Sign in</Link></nav>
         </header>
@@ -74,6 +74,6 @@ export function LandingV2() {
       <section className="lv2-faq lv2-container" aria-label="Frequently asked questions">{faqs.map(faq => <details key={faq.question} id={faq.id}><summary>{faq.question}<span aria-hidden="true">+</span></summary><p>{faq.answer}</p></details>)}</section>
       <section className="lv2-closing" aria-labelledby="lv2-closing-heading"><Glow paused={motionPaused} /><h2 id="lv2-closing-heading">Put your agent to work.</h2><CreateAgent /></section>
     </main>
-    <footer className="lv2-footer lv2-container"><Link to="/landingv2" className="lv2-footer-brand">Agents <small>by KasiTek</small></Link><nav aria-label="Footer navigation"><a href="#product">Product</a><a href="#personal">Personal</a><Link to="/login">Sign in</Link></nav><div className="lv2-footer-legal"><a href="https://kasitek.co.za/privacy-policy">Privacy</a><a href="https://kasitek.co.za/terms">Terms</a></div><p className="lv2-preview-note">Product illustrations contain example information.</p></footer>
+    <footer className="lv2-footer lv2-container"><Link to="/landingv2" className="lv2-footer-brand">Agents <small>by KasiTek</small></Link><nav aria-label="Footer navigation"><a href="#product">Product</a><a href="#personal">Personal</a><Link to="/pricing">Pricing</Link><Link to="/login">Sign in</Link></nav><div className="lv2-footer-legal"><a href="https://kasitek.co.za/privacy-policy">Privacy</a><a href="https://kasitek.co.za/terms">Terms</a></div><p className="lv2-preview-note">Product illustrations contain example information.</p></footer>
   </div>;
 }
