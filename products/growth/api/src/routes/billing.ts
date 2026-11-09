@@ -22,6 +22,7 @@ export function registerBillingRoutes(
 ): void {
   const service = billingServiceConfig(context.config.env);
   if (!service) {
+    app.get("/api/public/plans", async () => ({ configured: false, plans: [] }));
     for (const [method, path] of BILLING_ROUTES)
       app.route({
         method,

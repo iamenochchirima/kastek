@@ -27,6 +27,43 @@ function numberValue(value: unknown): number {
 
 
 
+function publicPlan(plan: Awaited<ReturnType<typeof billingPlans>>[number]) {
+  return {
+    key: plan.key,
+    productKey: plan.product,
+    name: plan.name,
+    description: plan.description ?? null,
+    interval: "MONTHLY" as const,
+    currency: plan.currency,
+    amountMinor: numberValue(plan.amountMinor),
+    creditsPerPeriod:
+      plan.creditsPerPeriod == null ? null : numberValue(plan.creditsPerPeriod),
+    checkoutReady: plan.checkoutReady,
+    highlights: plan.entitlements
+      .filter(
+        (item) =>
+          item.visibleToCustomer &&
+          item.kind === "feature" &&
+          item.value === true,
+      )
+      .slice(0, 6)
+      .map((item) => item.name),
+    entitlements: plan.entitlements
+      .filter((item) => item.visibleToCustomer)
+      .map((item) => ({
+        key: item.key,
+        name: item.name,
+        description: item.description,
+        kind: item.kind === "meter" ? "limit" : item.kind,
+        value: item.value,
+        unit: item.unit,
+        displayGroup: item.displayGroup,
+        displayOrder: item.displayOrder,
+        metadata: item.metadata,
+      })),
+  };
+}
+
 export function registerBillingServiceRoutes(
   app: FastifyInstance,
   context: CoreContext,
@@ -191,46 +228,21 @@ export function registerBillingServiceRoutes(
     return startServiceTrial(service, org);
   });
 
+  app.get("/api/public/plans", async (_request, reply) => {
+    reply.header("cache-control", "public, max-age=60");
+    try {
+      const plans = await billingPlans(service, "ZAR");
+      return { configured: true, plans: plans.map(publicPlan) };
+    } catch {
+      return { configured: false, plans: [] };
+    }
+  });
+
   app.get("/api/billing/plans", async (request) => {
     const { org } = await access(request);
     const currency = await billingAccountCurrency(service, org).catch(() => null);
     const plans = await billingPlans(service, currency ?? undefined);
-    return {
-      plans: plans.map((plan) => ({
-        key: plan.key,
-        productKey: plan.product,
-        name: plan.name,
-        description: plan.description ?? null,
-        interval: "MONTHLY",
-        currency: plan.currency,
-        amountMinor: numberValue(plan.amountMinor),
-        creditsPerPeriod:
-          plan.creditsPerPeriod == null ? null : numberValue(plan.creditsPerPeriod),
-        checkoutReady: plan.checkoutReady,
-        highlights: plan.entitlements
-          .filter(
-            (item) =>
-              item.visibleToCustomer &&
-              item.kind === "feature" &&
-              item.value === true,
-          )
-          .slice(0, 6)
-          .map((item) => item.name),
-        entitlements: plan.entitlements
-          .filter((item) => item.visibleToCustomer)
-          .map((item) => ({
-            key: item.key,
-            name: item.name,
-            description: item.description,
-            kind: item.kind === "meter" ? "limit" : item.kind,
-            value: item.value,
-            unit: item.unit,
-            displayGroup: item.displayGroup,
-            displayOrder: item.displayOrder,
-            metadata: item.metadata,
-          })),
-      })),
-    };
+    return { plans: plans.map(publicPlan) };
   });
 
   app.get("/api/billing/plans/:planKey", async (request) => {
@@ -241,31 +253,7 @@ export function registerBillingServiceRoutes(
       (request.params as { planKey: string }).planKey,
       currency ?? undefined,
     );
-    return {
-      key: plan.key,
-      productKey: plan.product,
-      name: plan.name,
-      description: plan.description ?? null,
-      interval: "MONTHLY",
-      currency: plan.currency,
-      amountMinor: numberValue(plan.amountMinor),
-      creditsPerPeriod:
-        plan.creditsPerPeriod == null ? null : numberValue(plan.creditsPerPeriod),
-      checkoutReady: plan.checkoutReady,
-      entitlements: plan.entitlements
-        .filter((item) => item.visibleToCustomer)
-        .map((item) => ({
-          key: item.key,
-          name: item.name,
-          description: item.description,
-          kind: item.kind === "meter" ? "limit" : item.kind,
-          value: item.value,
-          unit: item.unit,
-          displayGroup: item.displayGroup,
-          displayOrder: item.displayOrder,
-          metadata: item.metadata,
-        })),
-    };
+    return publicPlan(plan);
   });
 
   app.post("/api/billing/checkout", async (request) => {

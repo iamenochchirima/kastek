@@ -236,6 +236,8 @@ available for support operations.
 ## Product billing surfaces
 
 - Growth shows plan pricing, AI usage, invoices, trial start, checkout, and renewal controls.
+- Growth exposes `GET /api/public/plans` for the public `/pricing` page. It returns only active,
+  customer-visible catalog plans and does not require a workspace session.
 - Agents settings shows the current plan, AI usage, plan prices, checkout, invoices, and open
   billing issues.
 - Agency Billing remains read-only while its paid plan stays draft.

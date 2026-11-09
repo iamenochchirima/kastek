@@ -98,7 +98,7 @@ are excluded from this block.
 
 ### Workspace and agent chat
 
-The public landing leads to registration and sign-in. The target workspace includes Inbox,
+The public landing and `/pricing` page lead to registration and sign-in. The target workspace includes Inbox,
 Agents, Customers, Knowledge, Connections, Tasks, Automations, and Settings. Inbox is the customer-service
 workspace. Every agent also opens a job-based workspace with Overview, Conversations, Capabilities,
 Knowledge, Behaviour, Chat widget, Deploy and Settings. Direct operator chat and task history

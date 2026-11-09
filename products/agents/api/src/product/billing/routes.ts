@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { BillingPlanSummary } from "@kasitek-labs/contracts";
 import { PlatformError } from "../../contracts/contracts";
 import type { Pool } from "pg";
 import {
@@ -8,6 +9,31 @@ import {
 
 type Scope = { accountId: string; organizationId: string };
 
+function publicPlan(plan: BillingPlanSummary) {
+  return {
+    key: plan.key,
+    name: plan.name,
+    description: plan.description,
+    product: plan.product,
+    currency: plan.currency,
+    amountMinor: plan.amountMinor,
+    creditsPerPeriod: plan.creditsPerPeriod,
+    checkoutReady: plan.checkoutReady,
+    entitlements: plan.entitlements
+      .filter((item) => item.visibleToCustomer)
+      .map((item) => ({
+        key: item.key,
+        name: item.name,
+        description: item.description,
+        kind: item.kind === "meter" ? "limit" : item.kind,
+        value: item.value,
+        unit: item.unit,
+        displayGroup: item.displayGroup,
+        displayOrder: item.displayOrder,
+      })),
+  };
+}
+
 export function registerBillingRoutes(
   app: FastifyInstance,
   options: {
@@ -16,6 +42,17 @@ export function registerBillingRoutes(
     resolveScope(request: FastifyRequest): Promise<Scope>;
   },
 ): void {
+  app.get("/api/public/plans", async (_request, reply) => {
+    reply.header("cache-control", "public, max-age=60");
+    const client = agentsBillingClient();
+    if (!client) return { configured: false, plans: [] };
+    try {
+      return { configured: true, plans: (await client.plans()).map(publicPlan) };
+    } catch {
+      return { configured: false, plans: [] };
+    }
+  });
+
   app.get("/api/organizations/:organizationId/billing", async (request) => {
     const scope = await options.resolveScope(request);
     const client = agentsBillingClient();
@@ -98,28 +135,7 @@ export function registerBillingRoutes(
       configured: true,
       account,
       invoices,
-      plans: plans.map((plan) => ({
-        key: plan.key,
-        name: plan.name,
-        description: plan.description,
-        product: plan.product,
-        currency: plan.currency,
-        amountMinor: plan.amountMinor,
-        creditsPerPeriod: plan.creditsPerPeriod,
-        checkoutReady: plan.checkoutReady,
-        entitlements: plan.entitlements
-          .filter((item) => item.visibleToCustomer)
-          .map((item) => ({
-            key: item.key,
-            name: item.name,
-            description: item.description,
-            kind: item.kind === "meter" ? "limit" : item.kind,
-            value: item.value,
-            unit: item.unit,
-            displayGroup: item.displayGroup,
-            displayOrder: item.displayOrder,
-          })),
-      })),
+      plans: plans.map(publicPlan),
       usage,
       snapshot,
       modelUsage,

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generatedBy": "scripts/refresh-route-contracts.ts",
-  "routeCount": 379,
+  "routeCount": 380,
   "routes": [
     "DELETE /api/admin/invoices/:id",
     "DELETE /api/admin/leads/:id",
@@ -132,6 +132,7 @@
     "GET /api/orgs/:id/members",
     "GET /api/product-tour",
     "GET /api/profile",
+    "GET /api/public/plans",
     "GET /api/realtime/whatsapp",
     "GET /api/social/channels",
     "GET /api/social/channels/:id/tiktok-creator-info",
