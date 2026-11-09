@@ -7,6 +7,7 @@ export interface VerifiedTransaction {
   amountMinor: bigint | null;
   currency: string | null;
   customerId: string | null;
+  providerCustomerId: string | null;
   subscriptionId: string | null;
   providerTransactionId: string | null;
   providerAuthorizationId: string | null;
@@ -65,6 +66,10 @@ export interface BillingProvider {
   }): Promise<{ authorizationUrl: string; reference: string }>;
   verifyTransaction(reference: string): Promise<VerifiedTransaction>;
   verifySubscription(subscriptionId: string): Promise<VerifiedSubscription>;
+  resolveSubscriptionId(input: {
+    providerCustomerId: string;
+    planCode: string;
+  }): Promise<string | null>;
   setSubscriptionEnabled(subscriptionId: string, enabled: boolean): Promise<void>;
   verifyWebhook(payload: Buffer, signature: string): boolean;
   parseWebhook(value: unknown): ProviderEvent;
@@ -107,6 +112,7 @@ export function parseVerifiedTransaction(value: unknown): VerifiedTransaction {
     amountMinor: i64(data.amount),
     currency: optionalText(data.currency)?.toUpperCase() ?? null,
     customerId: optionalText(jsonObject(data.customer).customer_code),
+    providerCustomerId: external(jsonObject(data.customer).id),
     subscriptionId: subscriptionCode(data),
     providerTransactionId: external(data.id),
     providerAuthorizationId: external(
@@ -216,6 +222,26 @@ export class PaystackProvider implements BillingProvider {
     return parseVerifiedSubscription(
       await this.request(`/subscription/${encodeURIComponent(subscriptionId)}`),
     );
+  }
+
+  async resolveSubscriptionId(input: {
+    providerCustomerId: string;
+    planCode: string;
+  }): Promise<string | null> {
+    const data = await this.request(
+      `/subscription?customer=${encodeURIComponent(input.providerCustomerId)}&perPage=100`,
+    );
+    if (!Array.isArray(data)) return null;
+    let fallback: string | null = null;
+    for (const row of data) {
+      const value = jsonObject(row);
+      const code = subscriptionCode(value);
+      const planCode = optionalText(jsonObject(value.plan).plan_code);
+      if (!code || planCode !== input.planCode) continue;
+      if (optionalText(value.status) === "active") return code;
+      fallback ??= code;
+    }
+    return fallback;
   }
 
   async setSubscriptionEnabled(

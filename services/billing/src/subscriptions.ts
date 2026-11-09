@@ -98,12 +98,28 @@ export async function activateCheckout(
   if (plan.product_key !== checkout.product_key)
     conflict("Checkout plan product does not match the account product");
 
+  let providerSubscriptionId = verification.subscriptionId;
+  if (
+    !providerSubscriptionId &&
+    verification.providerCustomerId &&
+    plan.paystack_plan_code
+  ) {
+    try {
+      providerSubscriptionId = await provider.resolveSubscriptionId({
+        providerCustomerId: verification.providerCustomerId,
+        planCode: plan.paystack_plan_code,
+      });
+    } catch {
+      // The subscription-created webhook remains the fallback for the code.
+    }
+  }
+
   let periodStart = new Date();
   let periodEnd = addMonth(periodStart);
-  if (verification.subscriptionId) {
+  if (providerSubscriptionId) {
     try {
       const providerSubscription = await provider.verifySubscription(
-        verification.subscriptionId,
+        providerSubscriptionId,
       );
       if (providerSubscription.currentPeriodStart)
         periodStart = providerSubscription.currentPeriodStart;
@@ -115,7 +131,7 @@ export async function activateCheckout(
     }
   }
 
-  return transaction(pool, async (client) => {
+  const activation = await transaction(pool, async (client) => {
     const locked = await client.query<CheckoutRow>(
       `SELECT id, reference, idempotency_key, billing_account_id, plan_version_id,
               product_key, provider, status, authorization_url, return_url,
@@ -131,9 +147,12 @@ export async function activateCheckout(
       const invoice = await findInvoiceByCheckout(client, current.id);
       if (invoice?.subscription_id)
         return {
-          subscriptionId: invoice.subscription_id,
-          invoiceId: invoice.id,
-          status: "completed",
+          result: {
+            subscriptionId: invoice.subscription_id,
+            invoiceId: invoice.id,
+            status: "completed" as const,
+          },
+          canceledProviderSubscriptions: [],
         };
       const subscription = await currentSubscription(
         client,
@@ -142,19 +161,25 @@ export async function activateCheckout(
       );
       if (!subscription) conflict("Completed checkout has no subscription");
       return {
-        subscriptionId: subscription.id,
-        invoiceId: invoice?.id ?? "",
-        status: "completed",
+        result: {
+          subscriptionId: subscription.id,
+          invoiceId: invoice?.id ?? "",
+          status: "completed" as const,
+        },
+        canceledProviderSubscriptions: [],
       };
     }
     if (current.status !== "pending") conflict("Checkout is not pending");
 
-    const canceled = await client.query<{ id: string }>(
+    const canceled = await client.query<{
+      id: string;
+      provider_subscription_id: string | null;
+    }>(
       `UPDATE billing.subscriptions
           SET status='canceled', canceled_at=now(), cancel_at_period_end=false, updated_at=now()
         WHERE billing_account_id=$1 AND product_key=$2
           AND status IN ('trialing','active','past_due','grace')
-        RETURNING id`,
+        RETURNING id, provider_subscription_id`,
       [current.billing_account_id, current.product_key],
     );
     for (const previous of canceled.rows)
@@ -179,7 +204,7 @@ export async function activateCheckout(
         current.product_key,
         provider.name,
         verification.customerId,
-        verification.subscriptionId ?? `${provider.name}-charge:${current.reference}`,
+        providerSubscriptionId ?? `${provider.name}-charge:${current.reference}`,
         periodStart,
         periodEnd,
       ],
@@ -248,7 +273,7 @@ export async function activateCheckout(
         verification.providerTransactionId,
         JSON.stringify({
           customerId: verification.customerId,
-          subscriptionId: verification.subscriptionId,
+          subscriptionId: providerSubscriptionId,
           amountMinor: expectedAmount.toString(),
           currency: checkout.expected_currency,
         }),
@@ -285,8 +310,36 @@ export async function activateCheckout(
       `plan:${subscriptionId}:${periodStart.toISOString()}`,
     );
     await bumpEntitlementRevision(client, current.billing_account_id);
-    return { subscriptionId, invoiceId: invoice.id, status: "completed" };
+    return {
+      result: { subscriptionId, invoiceId: invoice.id, status: "completed" as const },
+      canceledProviderSubscriptions: canceled.rows
+        .map((row) => row.provider_subscription_id)
+        .filter(
+          (code): code is string =>
+            code != null && !code.startsWith(`${provider.name}-charge:`),
+        ),
+    };
   });
+
+  for (const previousProviderSubscriptionId of activation.canceledProviderSubscriptions) {
+    try {
+      await provider.setSubscriptionEnabled(previousProviderSubscriptionId, false);
+    } catch (error) {
+      await recordIssue(pool, {
+        billingAccountId: checkout.billing_account_id,
+        provider: provider.name,
+        resourceType: "subscription",
+        resourceId: previousProviderSubscriptionId,
+        issueType: "provider_subscription_disable_failed",
+        details: {
+          checkoutReference: checkout.reference,
+          message: error instanceof Error ? error.message.slice(0, 500) : "unknown",
+        },
+      });
+    }
+  }
+
+  return activation.result;
 }
 
 export async function grantPlanCredits(
@@ -890,6 +943,7 @@ export async function processProviderEvent(
           amountMinor: event.amountMinor,
           currency: event.currency,
           customerId: event.customerId,
+          providerCustomerId: null,
           subscriptionId: event.subscriptionId,
           providerTransactionId: event.transactionId,
           providerAuthorizationId: null,

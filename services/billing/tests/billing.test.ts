@@ -32,6 +32,8 @@ interface FakeTransaction {
   email: string;
   customer: string;
   subscription: string;
+  providerCustomerId?: string;
+  omitSubscription?: boolean;
   periodStart: string;
   periodEnd: string;
   status: string;
@@ -41,6 +43,7 @@ class FakePaystack {
   server!: Server;
   url!: string;
   transactions = new Map<string, FakeTransaction>();
+  disabled: string[] = [];
 
   async start(): Promise<void> {
     this.server = createServer((request, response) => this.handle(request, response));
@@ -109,9 +112,27 @@ class FakePaystack {
           reference,
           amount: value.amount,
           currency: value.currency,
-          customer: { customer_code: value.customer },
-          subscription: { subscription_code: value.subscription },
+          customer: {
+            customer_code: value.customer,
+            ...(value.providerCustomerId ? { id: Number(value.providerCustomerId) } : {}),
+          },
+          ...(value.omitSubscription
+            ? {}
+            : { subscription: { subscription_code: value.subscription } }),
         },
+      });
+    }
+    if (request.method === "GET" && url.pathname === "/subscription") {
+      const customer = url.searchParams.get("customer") ?? "unknown";
+      return send(200, {
+        status: true,
+        data: [
+          {
+            subscription_code: `SUB_RESOLVED_${customer}_PLN_RESOLVE`,
+            status: "active",
+            plan: { plan_code: "PLN_RESOLVE" },
+          },
+        ],
       });
     }
     if (request.method === "GET" && url.pathname.startsWith("/subscription/")) {
@@ -134,8 +155,12 @@ class FakePaystack {
     if (
       request.method === "POST" &&
       ["/subscription/disable", "/subscription/enable"].includes(url.pathname)
-    )
+    ) {
+      const payload = JSON.parse(await this.body(request)) as { code?: string };
+      if (url.pathname === "/subscription/disable" && payload.code)
+        this.disabled.push(payload.code);
       return send(200, { status: true, data: {} });
+    }
     return send(404, { status: false, message: "Not found" });
   }
 }
@@ -454,6 +479,212 @@ test("account, free plan, checkout, tax invoice, usage, renewal and refund", { s
   });
   assert.equal(accountView.statusCode, 200, accountView.body);
   assert.equal(accountView.json().account.id, accountId);
+});
+
+test("checkout resolves a missing provider subscription code and cancellation works", { skip }, async () => {
+  const planBody = {
+    product: "growth",
+    key: "growth-resolve-test",
+    name: "Growth Resolve Test",
+    amountMinor: "35000",
+    currency: "ZAR",
+    taxInclusive: true,
+    taxRateBps: 1500,
+    creditsPerPeriod: "1000",
+    paystackPlanCode: "PLN_RESOLVE",
+    active: true,
+    entitlements: [{ key: "feature.inbox.access", value: true }],
+  };
+  const plan = await app.inject({
+    method: "POST",
+    url: "/admin/plans",
+    headers: adminHeaders("POST", "/admin/plans", planBody),
+    payload: planBody,
+  });
+  assert.equal(plan.statusCode, 200, plan.body);
+  const published = await app.inject({
+    method: "POST",
+    url: `/admin/plan-versions/${plan.json().versionId}/publish`,
+    headers: adminHeaders("POST", `/admin/plan-versions/${plan.json().versionId}/publish`, {}),
+    payload: {},
+  });
+  assert.equal(published.statusCode, 200, published.body);
+
+  const accountBody = {
+    product: "growth",
+    tenantId: "org-resolve",
+    name: "Resolve Org",
+    billingEmail: "resolve@example.test",
+  };
+  const account = await app.inject({
+    method: "POST",
+    url: "/internal/accounts/ensure",
+    headers: productHeaders("POST", "/internal/accounts/ensure", accountBody),
+    payload: accountBody,
+  });
+  assert.equal(account.statusCode, 200, account.body);
+
+  const checkoutBody = {
+    product: "growth",
+    tenantId: "org-resolve",
+    planKey: "growth-resolve-test",
+    email: "resolve@example.test",
+    idempotencyKey: "checkout-resolve",
+    returnUrl: "http://localhost:3000/billing?payment=complete",
+  };
+  const checkout = await app.inject({
+    method: "POST",
+    url: "/internal/checkout",
+    headers: productHeaders("POST", "/internal/checkout", checkoutBody),
+    payload: checkoutBody,
+  });
+  assert.equal(checkout.statusCode, 200, checkout.body);
+  const reference = checkout.json().reference as string;
+
+  fake.setTransaction(reference, {
+    amount: 35000,
+    currency: "ZAR",
+    email: "resolve@example.test",
+    customer: "CUS_RESOLVE",
+    subscription: "SUB_UNUSED",
+    providerCustomerId: "987654",
+    omitSubscription: true,
+    periodStart: "2026-12-01T00:00:00.000Z",
+    periodEnd: "2027-01-01T00:00:00.000Z",
+    status: "success",
+  });
+
+  const verified = await app.inject({
+    method: "POST",
+    url: `/internal/checkout/${reference}/verify`,
+    headers: productHeaders("POST", `/internal/checkout/${reference}/verify`, {
+      tenantId: "org-resolve",
+    }),
+    payload: { tenantId: "org-resolve" },
+  });
+  assert.equal(verified.statusCode, 200, verified.body);
+  assert.equal(verified.json().status, "completed");
+
+  const subscription = await pool.query<{
+    id: string;
+    provider_subscription_id: string;
+  }>(
+    `SELECT s.id, s.provider_subscription_id
+       FROM billing.subscriptions s
+       JOIN billing.accounts a ON a.id=s.billing_account_id
+      WHERE a.billing_email='resolve@example.test' AND s.status='active'`,
+  );
+  assert.equal(
+    subscription.rows[0]?.provider_subscription_id,
+    "SUB_RESOLVED_987654_PLN_RESOLVE",
+  );
+
+  const canceled = await app.inject({
+    method: "POST",
+    url: `/internal/subscriptions/${subscription.rows[0]!.id}/cancel`,
+    headers: productHeaders(
+      "POST",
+      `/internal/subscriptions/${subscription.rows[0]!.id}/cancel`,
+      { tenantId: "org-resolve" },
+    ),
+    payload: { tenantId: "org-resolve" },
+  });
+  assert.equal(canceled.statusCode, 200, canceled.body);
+  assert.equal(canceled.json().cancelAtPeriodEnd, true);
+});
+
+test("a plan change disables the previous Paystack subscription", { skip }, async () => {
+  for (const [key, name, planCode] of [
+    ["growth-change-a", "Growth Change A", "PLN_CHANGE_A"],
+    ["growth-change-b", "Growth Change B", "PLN_CHANGE_B"],
+  ]) {
+    const planBody = {
+      product: "growth",
+      key,
+      name,
+      amountMinor: "35000",
+      currency: "ZAR",
+      taxInclusive: true,
+      taxRateBps: 1500,
+      creditsPerPeriod: "1000",
+      paystackPlanCode: planCode,
+      active: true,
+      entitlements: [{ key: "feature.inbox.access", value: true }],
+    };
+    const plan = await app.inject({
+      method: "POST",
+      url: "/admin/plans",
+      headers: adminHeaders("POST", "/admin/plans", planBody),
+      payload: planBody,
+    });
+    assert.equal(plan.statusCode, 200, plan.body);
+    const published = await app.inject({
+      method: "POST",
+      url: `/admin/plan-versions/${plan.json().versionId}/publish`,
+      headers: adminHeaders("POST", `/admin/plan-versions/${plan.json().versionId}/publish`, {}),
+      payload: {},
+    });
+    assert.equal(published.statusCode, 200, published.body);
+  }
+
+  const accountBody = {
+    product: "growth",
+    tenantId: "org-change",
+    name: "Change Org",
+    billingEmail: "change@example.test",
+  };
+  const account = await app.inject({
+    method: "POST",
+    url: "/internal/accounts/ensure",
+    headers: productHeaders("POST", "/internal/accounts/ensure", accountBody),
+    payload: accountBody,
+  });
+  assert.equal(account.statusCode, 200, account.body);
+
+  async function buy(planKey: string, idempotencyKey: string) {
+    const checkoutBody = {
+      product: "growth",
+      tenantId: "org-change",
+      planKey,
+      email: "change@example.test",
+      idempotencyKey,
+      returnUrl: "http://localhost:3000/billing?payment=complete",
+    };
+    const checkout = await app.inject({
+      method: "POST",
+      url: "/internal/checkout",
+      headers: productHeaders("POST", "/internal/checkout", checkoutBody),
+      payload: checkoutBody,
+    });
+    assert.equal(checkout.statusCode, 200, checkout.body);
+    const reference = checkout.json().reference as string;
+    const verified = await app.inject({
+      method: "POST",
+      url: `/internal/checkout/${reference}/verify`,
+      headers: productHeaders("POST", `/internal/checkout/${reference}/verify`, {
+        tenantId: "org-change",
+      }),
+      payload: { tenantId: "org-change" },
+    });
+    assert.equal(verified.statusCode, 200, verified.body);
+    assert.equal(verified.json().status, "completed");
+    return reference;
+  }
+
+  const firstReference = await buy("growth-change-a", "change-a");
+  await buy("growth-change-b", "change-b");
+  assert.ok(fake.disabled.includes(`SUB_${firstReference}`));
+
+  const active = await pool.query<{ plan_key: string; count: string }>(
+    `SELECT p.key AS plan_key, count(*)::text AS count
+       FROM billing.subscriptions s
+       JOIN billing.accounts a ON a.id=s.billing_account_id
+       JOIN billing.plan_versions v ON v.id=s.plan_version_id
+       JOIN billing.plans p ON p.id=v.plan_id
+      WHERE a.billing_email='change@example.test' AND s.status='active'
+      GROUP BY p.key`,
+  );
+  assert.deepEqual(active.rows, [{ plan_key: "growth-change-b", count: "1" }]);
 });
 
 test("amount mismatch is rejected and recorded", { skip }, async () => {

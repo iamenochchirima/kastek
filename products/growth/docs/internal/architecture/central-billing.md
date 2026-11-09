@@ -61,8 +61,19 @@ account. If a later verified payment returns a different customer code, the paym
 activates the subscription and the service records a `provider_customer_mismatch` reconciliation
 issue instead of silently replacing the payer.
 
+Paystack can return a successful charge without a subscription code. Activation resolves the code
+from the numeric customer ID and the plan, then stores it on the subscription. If resolution fails,
+the `subscription.create` webhook remains the fallback that fills the code later.
+
 One billing account can hold subscriptions for Growth, Agents, and Agency. Invoices remain
 per subscription in v1 and are grouped by product in product billing surfaces.
+
+## Cancellation
+
+Cancelling a paid subscription disables renewal at Paystack and keeps local access until the end
+of the paid period. Paystack rejects re-enabling a disabled subscription, so reactivation only
+works while the provider still permits it. A customer who cancels and later wants to resume needs
+a new checkout.
 
 ## Account linking
 
@@ -213,7 +224,7 @@ Product-facing:
 | `POST /internal/checkout` | Create a Paystack checkout using the account payer identity. |
 | `POST /internal/checkout/:reference/verify` | Verify and activate a checkout. |
 | `POST /internal/subscriptions/:id/cancel` | Disable renewal at Paystack and keep access to period end. |
-| `POST /internal/subscriptions/:id/reactivate` | Re-enable renewal. |
+| `POST /internal/subscriptions/:id/reactivate` | Re-enable renewal when Paystack still permits it. |
 | `GET /internal/account` | Account, links, subscriptions, invoices, open issues, and AI usage. |
 | `GET /internal/invoices` | All invoices, including recurring invoices. |
 | `GET /internal/credits` | AI usage balance and ledger. |
