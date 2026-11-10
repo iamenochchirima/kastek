@@ -103,7 +103,7 @@ import { PlatformStore } from "../product/agents/store";
 import { MemberStore } from "../product/members/store";
 import { registerMemberRoutes } from "../product/members/routes";
 import { invitationEmailConfig } from "../product/members/email";
-import { permissionsFor } from "../product/members/permissions";
+import { permissionsFor, requirePermission } from "../product/members/permissions";
 import { transaction } from "../infrastructure/database";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
 import { customerOfferings } from "../product/offerings/offerings";
@@ -482,6 +482,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.post(`${base}/agents`, async (request, reply) => {
     const user = await account(request);
     const organization = organizationId(request);
+    await requirePermission(pool, { accountId: user.id, organizationId: organization }, "agents.manage");
     const agents = await pool.query<{ count: string }>(
       `SELECT count(*)::text AS count FROM agents_platform.agents
         WHERE organization_id=$1 AND deleted_at IS NULL`,
@@ -514,30 +515,40 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       readiness:{state:reasons.length ? "unavailable" : "ready",reasons}}]};
   });
   app.delete(`${base}/agents/:agentId`, async (request, reply) => {
-    await store.deleteAgent((await account(request)).id, organizationId(request), uuid.parse(parameters(request).agentId));
+    const user = await account(request), org = organizationId(request);
+    await requirePermission(pool, { accountId: user.id, organizationId: org }, "agents.delete");
+    await store.deleteAgent(user.id, org, uuid.parse(parameters(request).agentId));
     return reply.code(204).send();
   });
   app.get(`${base}/agents/:agentId/setup-readiness`, async request => ({ readiness: await creationOperations.readiness({ accountId: (await account(request)).id, organizationId: organizationId(request) }, uuid.parse(parameters(request).agentId)) }));
   app.put(`${base}/agents/:agentId`, async (request) => {
+    const user = await account(request), org = organizationId(request);
+    await requirePermission(pool, { accountId: user.id, organizationId: org }, "agents.manage");
     const input = z.strictObject({ name: z.string().min(1).max(120).optional(), avatar: agentAvatarSchema.optional(),
       configuration: agentConfigurationSchema, expectedRevision: z.number().int().positive() }).parse(request.body);
-    return { agent: dto(await store.updateDraft({ ...input, accountId: (await account(request)).id,
-      organizationId: organizationId(request), agentId: uuid.parse(parameters(request).agentId) })) };
+    return { agent: dto(await store.updateDraft({ ...input, accountId: user.id,
+      organizationId: org, agentId: uuid.parse(parameters(request).agentId) })) };
   });
   app.patch(`${base}/agents/:agentId`, async (request) => {
+    const user = await account(request), org = organizationId(request);
+    await requirePermission(pool, { accountId: user.id, organizationId: org }, "agents.manage");
     const input = z.strictObject({ name: z.string().min(1).max(120).optional(), avatar: agentAvatarSchema.optional() })
       .refine(value => value.name !== undefined || value.avatar !== undefined, { message: "Nothing to update" }).parse(request.body);
-    return { agent: dto(await creationOperations.profile({ accountId: (await account(request)).id,
-      organizationId: organizationId(request) }, uuid.parse(parameters(request).agentId), input)) };
+    return { agent: dto(await creationOperations.profile({ accountId: user.id,
+      organizationId: org }, uuid.parse(parameters(request).agentId), input)) };
   });
   app.put(`${base}/agents/:agentId/capabilities`, async (request) => {
-    const result = await creationOperations.setCapabilities({ accountId: (await account(request)).id,
-      organizationId: organizationId(request) }, uuid.parse(parameters(request).agentId), request.body);
+    const user = await account(request), org = organizationId(request);
+    await requirePermission(pool, { accountId: user.id, organizationId: org }, "agents.manage");
+    const result = await creationOperations.setCapabilities({ accountId: user.id,
+      organizationId: org }, uuid.parse(parameters(request).agentId), request.body);
     return { agent: dto(result.agent), snapshot: dto(result.snapshot) };
   });
   app.post(`${base}/agents/:agentId/configuration`, async request => {
-    const result = await creationOperations.save({ accountId: (await account(request)).id,
-      organizationId: organizationId(request) }, uuid.parse(parameters(request).agentId), request.body);
+    const user = await account(request), org = organizationId(request);
+    await requirePermission(pool, { accountId: user.id, organizationId: org }, "agents.manage");
+    const result = await creationOperations.save({ accountId: user.id,
+      organizationId: org }, uuid.parse(parameters(request).agentId), request.body);
     request.log.info({ event: "agent.configuration.saved", agentId: result.agent.id, snapshotId: result.snapshot.id,
       organizationId: result.agent.organization_id }, "Agent configuration saved");
     return { agent: dto(result.agent), snapshot: dto(result.snapshot), deployments: result.deployments.map(dto) };
@@ -612,6 +623,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.post(`${base}/agents/:agentId/versions`, async (request, reply) => {
     const input = z.strictObject({ expectedRevision: z.number().int().positive() }).parse(request.body);
     const user = await account(request), org = organizationId(request), agentId = uuid.parse(parameters(request).agentId);
+    await requirePermission(pool, { accountId: user.id, organizationId: org }, "agents.manage");
     const agent = await store.getAgent(user.id, org, agentId);
     await assertBindings(agentConfigurationSchema.parse(agent.draft));
     return reply.code(201).send({ version: dto(await store.createVersion({ ...input, accountId: user.id,
@@ -619,7 +631,9 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.post(`${base}/agents/:agentId/deployments`, async (request, reply) => {
     const input = z.strictObject({ versionId: uuid.optional(), allowedOrigins: z.array(z.string()).min(1).max(10) }).parse(request.body);
-    const scope = { accountId: (await account(request)).id, organizationId: organizationId(request), agentId: uuid.parse(parameters(request).agentId), allowedOrigins: input.allowedOrigins };
+    const accountId = (await account(request)).id, organizationIdValue = organizationId(request);
+    await requirePermission(pool, { accountId, organizationId: organizationIdValue }, "deploy.manage");
+    const scope = { accountId, organizationId: organizationIdValue, agentId: uuid.parse(parameters(request).agentId), allowedOrigins: input.allowedOrigins };
     const deployment = input.versionId ? await store.publishWebsite({ ...scope, versionId: input.versionId }) : await store.publishCurrentWebsite(scope);
     return reply.code(201).send({ deployment: dto(deployment) });
   });

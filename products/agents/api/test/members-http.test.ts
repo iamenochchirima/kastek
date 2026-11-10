@@ -361,6 +361,33 @@ describe.skipIf(!parent)("workspace members and invitations", () => {
     expect(removed.status).toBe(200);
   });
 
+  it("keeps agent configuration with owners and admins", async () => {
+    emailFails = false;
+    const f = await fixture("Agent authority");
+    const member = await account(`agent-member-${randomUUID()}@example.test`, "Member");
+    const adminAccount = await account(`agent-admin-${randomUUID()}@example.test`, "Admin");
+    await request(f.ownerSession.token, "POST", `${f.base}/members`, { email: member.email, role: "member" });
+    await request(f.ownerSession.token, "POST", `${f.base}/members`, { email: adminAccount.email, role: "admin" });
+
+    const created = await request(f.ownerSession.token, "POST", `${f.base}/agents`, { name: "Support agent" });
+    expect(created.status).toBe(201);
+    const agentId = created.body.agent.id;
+
+    const memberSession = await session(member.id);
+    const adminSession = await session(adminAccount.id);
+
+    expect((await request(memberSession.token, "POST", `${f.base}/agents`, { name: "Denied agent" })).status).toBe(403);
+    expect((await request(memberSession.token, "PATCH", `${f.base}/agents/${agentId}`, { name: "Renamed" })).status).toBe(403);
+    expect((await request(memberSession.token, "DELETE", `${f.base}/agents/${agentId}`)).status).toBe(403);
+
+    const renamed = await request(adminSession.token, "PATCH", `${f.base}/agents/${agentId}`, { name: "Admin renamed" });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.agent.name).toBe("Admin renamed");
+
+    const memberRead = await request(memberSession.token, "GET", `${f.base}/agents`);
+    expect(memberRead.status).toBe(200);
+  });
+
   it("keeps billing with owners", async () => {
     emailFails = false;
     const f = await fixture("Billing authority");
