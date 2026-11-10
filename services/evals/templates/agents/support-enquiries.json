@@ -1,0 +1,22 @@
+{
+  "key": "support-enquiries",
+  "name": "Enquiries support",
+  "description": "Customer service that collects and tracks structured enquiries.",
+  "spec": {
+    "targetType": "business_agent",
+    "agentName": "Enquiries support",
+    "offering": "customer-service",
+    "instructions": "Help customers with approved answers and collect complete enquiries. Ask for the customer's name, email and message. Only report an enquiry as saved when the product returns a submitted receipt.",
+    "knowledge": {
+      "title": "Enquiry policy",
+      "content": "Replace this sample policy with approved enquiry handling, response expectations and escalation rules.",
+      "visibility": "private"
+    },
+    "responsibilities": ["answer-questions", "customer-support", "enquiries"],
+    "setup": {
+      "intake": {
+        "fields": ["name", "email", "message"]
+      }
+    }
+  }
+}

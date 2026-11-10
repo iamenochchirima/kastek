@@ -1,0 +1,42 @@
+{
+  "key": "support-full",
+  "name": "Full customer service",
+  "description": "Customer service with knowledge, handoff, bookings, enquiries and support hours.",
+  "spec": {
+    "targetType": "business_agent",
+    "agentName": "Full customer service",
+    "offering": "customer-service",
+    "instructions": "Provide complete customer support from approved knowledge. Collect enquiries, help with appointment requests only through authorized tools, and hand off when policy or availability is uncertain. Never invent a booking or saved enquiry.",
+    "knowledge": {
+      "title": "Customer service policy",
+      "content": "Replace this sample policy with approved support rules, service descriptions, response targets and escalation guidance.",
+      "visibility": "private"
+    },
+    "responsibilities": ["answer-questions", "customer-support", "bookings", "enquiries"],
+    "setup": {
+      "booking": {
+        "durationMinutes": 30,
+        "notes": "Confirm the customer's preferred date and time before proposing an appointment."
+      },
+      "intake": {
+        "fields": ["name", "email", "message"]
+      },
+      "supportHours": {
+        "timeZone": "Africa/Johannesburg",
+        "intervals": [
+          { "day": 1, "start": "09:00", "end": "17:00" },
+          { "day": 2, "start": "09:00", "end": "17:00" },
+          { "day": 3, "start": "09:00", "end": "17:00" },
+          { "day": 4, "start": "09:00", "end": "17:00" },
+          { "day": 5, "start": "09:00", "end": "17:00" }
+        ]
+      },
+      "behaviour": {
+        "agentName": "Full customer service",
+        "language": "English",
+        "tone": "professional",
+        "handoffInstructions": "Offer a human handoff when the request exceeds policy or calendar authority."
+      }
+    }
+  }
+}

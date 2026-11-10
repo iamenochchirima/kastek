@@ -41,6 +41,7 @@ import {
 } from "./product-models.js";
 import { restartSandboxRuntime } from "./runtime.js";
 import { SandboxSyncError, syncSandbox } from "./sandbox-sync.js";
+import { AgentTemplateError, listAgentTemplates } from "./agent-templates.js";
 import {
   AgentProfileError,
   createProfile,
@@ -260,6 +261,12 @@ export function buildApi(
   );
 
   app.setErrorHandler((error, request, reply) => {
+    if (error instanceof AgentTemplateError) {
+      return reply.code(error.statusCode).send({
+        error: error.message,
+        code: error.code,
+      });
+    }
     if (error instanceof SandboxSyncError) {
       return reply.code(error.statusCode).send({
         error: error.message,
@@ -675,6 +682,10 @@ export function buildApi(
     }
     return { outcomeRef: outcome };
   });
+
+  app.get("/v1/agent-templates", async () => ({
+    templates: await listAgentTemplates(config),
+  }));
 
   app.get("/v1/sandboxes/:id/agent-profiles", async (request) => {
     const params = request.params as { id: string };

@@ -73,6 +73,11 @@ product's built-in knowledge and handoff tools. External calendar credentials ar
 copied into the sandbox; a calendar connection fixture remains a separate
 provider-integration step.
 
+Common configurations are file-backed templates under
+`services/evals/templates/agents/`. The Evals client exposes them through the
+**Template** picker in **New profile**; selecting one fills the form, which can still
+be edited. Templates are validated on load and never include channels.
+
 ## Sandbox sync
 
 The sandbox detail page's **Update sandbox** action applies current agents schema
@@ -184,4 +189,20 @@ provisioning run finishes or fails.
 | Documentation | This page, Evals service and client READMEs, and ARCHITECTURE.md. |
 | Validation | Eval suite 29/29; live platform Assistant and customer-service business-agent profiles published and registered; sandbox sync applied migrations, restarted the runtime, smoke-checked and recorded a new sandbox version. Calendar credential fixture remains pending. |
 | Rollback | Remove the profile/sync routes and UI. Existing published agent versions remain valid. A failed sync is recorded; the current runtime is restarted from the current source. |
+| Post-release review | Review before evaluation datasets and runs. |
+
+## Agent template catalogue release record
+
+| Field | Decision |
+| --- | --- |
+| Change | Add a file-backed agent template catalogue and a template picker in the Evals **New profile** dialog. |
+| Owner | Engineering. |
+| Risk | Standard: control-plane configuration presets only; applying a template uses the existing profile and Agents APIs. |
+| Affected surfaces | Evaluation service template loader and `GET /v1/agent-templates`, Evals client profile dialog, service and client documentation. No product database, runtime or sandbox schema change. |
+| Migration | None. Templates are JSON files under `services/evals/templates/agents/`. |
+| Rollout | Rebuild and restart the eval service and client. Existing profiles and sandboxes are unchanged; no sandbox sync is required for the catalogue itself. |
+| Analytics and logs | The template endpoint uses normal request logging. Template validation failures return `template_invalid`. No customer analytics event is added. |
+| Documentation | This page, `services/evals/README.md` and `apps/evals/README.md`. |
+| Validation | Eval suite 35/35, including template catalogue and invalid/duplicate template tests. Live `support-full` template applied to the Agents sandbox produced a published agent with all four responsibilities, enquiry tools and support hours; enquiries readiness is `ready`, bookings correctly require an authorized calendar policy, and private knowledge remains flagged only for customer-facing website use. |
+| Rollback | Remove the template endpoint, picker and template files. Profiles created from templates remain valid immutable profile versions. |
 | Post-release review | Review before evaluation datasets and runs. |

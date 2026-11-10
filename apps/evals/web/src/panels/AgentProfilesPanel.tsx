@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Bot, Plus, X } from "lucide-react";
-import type { AgentProfileDetail, AgentProfileSpec, AgentSetupStep, AgentTargetType } from "../../../shared/types";
+import type { AgentProfileDetail, AgentProfileSpec, AgentSetupStep, AgentTargetType, AgentTemplate } from "../../../shared/types";
 import { api, errorMessage, formatDate, shortId } from "../api";
 import { EmptyState, ErrorBox, Loading, StatusBadge } from "../components";
 
@@ -44,10 +44,15 @@ export function AgentProfilesPanel({
     setupJson: "{}",
   };
   const [form, setForm] = useState(defaultForm);
+  const [templates, setTemplates] = useState<AgentTemplate[]>([]);
+  const [templateKey, setTemplateKey] = useState("");
+  const [templateError, setTemplateError] = useState<string | null>(null);
+  const selectedTemplate = templates.find((template) => template.key === templateKey);
 
   function openCreate() {
     setEditingProfileId(null);
     setForm(defaultForm);
+    setTemplateKey("");
     setFormError(null);
     setOpen(true);
   }
@@ -55,6 +60,7 @@ export function AgentProfilesPanel({
   function openVersion(profile: AgentProfileDetail) {
     const spec = profile.version.spec;
     setEditingProfileId(profile.id);
+    setTemplateKey("");
     setForm({
       targetType: spec.targetType,
       agentName: spec.agentName,
@@ -77,6 +83,24 @@ export function AgentProfilesPanel({
       .catch((value) => { if (!cancelled) setError(errorMessage(value)); });
     return () => { cancelled = true; };
   }, [sandboxId, refresh]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api<{ templates: AgentTemplate[] }>("/api/agent-templates")
+      .then((value) => {
+        if (!cancelled) {
+          setTemplates(value.templates);
+          setTemplateError(null);
+        }
+      })
+      .catch((value) => {
+        if (!cancelled) {
+          setTemplates([]);
+          setTemplateError(errorMessage(value));
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!profiles) return;
@@ -190,6 +214,28 @@ export function AgentProfilesPanel({
     }));
   }
 
+  function selectTemplate(key: string) {
+    setTemplateKey(key);
+    setFormError(null);
+    const template = templates.find((item) => item.key === key);
+    if (!template) {
+      setForm(defaultForm);
+      return;
+    }
+    const spec = template.spec;
+    setForm({
+      targetType: spec.targetType,
+      agentName: spec.agentName,
+      instructions: spec.instructions,
+      knowledgeTitle: spec.knowledge.title,
+      knowledgeContent: spec.knowledge.content,
+      responsibilities: spec.responsibilities,
+      offering: spec.offering === "customer-service" ? "customer-service" : "custom",
+      configurationJson: JSON.stringify(spec.configuration ?? {}, null, 2),
+      setupJson: JSON.stringify(spec.setup ?? {}, null, 2),
+    });
+  }
+
   if (error && !profiles) return <ErrorBox message={error} />;
   if (!profiles) return <Loading label="Loading agent profiles" />;
 
@@ -268,19 +314,40 @@ export function AgentProfilesPanel({
             </div>
             <form onSubmit={create}>
               <div className="modal-body">
+                {!editingProfileId && (
+                  <label className="field">
+                    <span className="field-label">Template</span>
+                    <select
+                      className="select"
+                      value={templateKey}
+                      onChange={(event) => selectTemplate(event.target.value)}
+                      disabled={creating}
+                    >
+                      <option value="">Blank profile</option>
+                      {templates.map((template) => (
+                        <option key={template.key} value={template.key}>{template.name}</option>
+                      ))}
+                    </select>
+                    {selectedTemplate && <span className="field-hint">{selectedTemplate.description}</span>}
+                  </label>
+                )}
+                {templateError && <ErrorBox message={templateError} />}
                 <label className="field">
                   <span className="field-label">Target</span>
                   <select
                     className="select"
                     value={form.targetType}
-                    onChange={(event) => setForm((current) => ({
-                      ...current,
-                      targetType: event.target.value as AgentTargetType,
-                      agentName: event.target.value === "platform_assistant" ? "Assistant" : "Customer support",
-                      responsibilities: event.target.value === "platform_assistant"
-                        ? ["answer-questions"]
-                        : ["answer-questions", "customer-support", "bookings"],
-                    }))}
+                    onChange={(event) => {
+                      setTemplateKey("");
+                      setForm((current) => ({
+                        ...current,
+                        targetType: event.target.value as AgentTargetType,
+                        agentName: event.target.value === "platform_assistant" ? "Assistant" : "Customer support",
+                        responsibilities: event.target.value === "platform_assistant"
+                          ? ["answer-questions"]
+                          : ["answer-questions", "customer-support", "bookings"],
+                      }));
+                    }}
                     disabled={creating}
                   >
                     <option value="business_agent">New business agent</option>
@@ -298,7 +365,10 @@ export function AgentProfilesPanel({
                     <select
                       className="select"
                       value={form.offering}
-                      onChange={(event) => setForm((current) => ({ ...current, offering: event.target.value as "customer-service" | "custom" }))}
+                      onChange={(event) => {
+                        setTemplateKey("");
+                        setForm((current) => ({ ...current, offering: event.target.value as "customer-service" | "custom" }));
+                      }}
                       disabled={creating}
                     >
                       <option value="customer-service">Customer service offering</option>

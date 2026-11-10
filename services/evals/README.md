@@ -283,6 +283,38 @@ the platform Assistant draft. The first tool capability uses the product's built
 knowledge and handoff tools. External calendar credentials are not copied into the
 sandbox; a calendar connection fixture remains a separate provider-integration step.
 
+### Agent templates
+
+Common agent configurations live as JSON files in
+`services/evals/templates/agents/`. Each file has a stable key, a display name, a
+description and a complete profile spec:
+
+```json
+{
+  "key": "support-basic",
+  "name": "Support agent — basic",
+  "description": "Customer-service offering with policy answers and human handoff.",
+  "spec": {
+    "targetType": "business_agent",
+    "agentName": "Support agent",
+    "instructions": "...",
+    "knowledge": { "title": "Support policy", "content": "..." },
+    "responsibilities": ["answer-questions", "customer-support"]
+  }
+}
+```
+
+The catalogue is available at `GET /v1/agent-templates` and is exposed in the
+client's **New profile** dialog as **Template**. Selecting a template fills the
+form; every field remains editable before the profile is created. Templates cover
+the platform Assistant, basic and full customer service, bookings intent,
+enquiries, a strict policy assistant, a FAQ specialist and a custom research
+agent.
+
+Templates are validated when loaded. Malformed JSON, duplicate keys, invalid keys
+and invalid profile specs fail the endpoint with `template_invalid` rather than
+applying a partial configuration.
+
 ### Sandbox sync
 
 `POST /v1/sandboxes/:id/sync` applies current product migrations, force-restarts the

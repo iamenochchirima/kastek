@@ -200,6 +200,7 @@ app.post("/api/sandboxes/:id/runtime/restart", async (request) => {
   const { id } = request.params as { id: string };
   return service(`/v1/sandboxes/${encodeURIComponent(id)}/runtime/restart`, { method: "POST" });
 });
+app.get("/api/agent-templates", async () => service("/v1/agent-templates"));
 app.get("/api/sandboxes/:id/agent-profiles", async (request) => {
   const { id } = request.params as { id: string };
   return service(`/v1/sandboxes/${encodeURIComponent(id)}/agent-profiles`);

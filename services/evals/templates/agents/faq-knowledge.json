@@ -1,0 +1,19 @@
+{
+  "key": "faq-knowledge",
+  "name": "FAQ specialist",
+  "description": "A generic knowledge agent with search/read tools and no business actions.",
+  "spec": {
+    "targetType": "business_agent",
+    "agentName": "FAQ specialist",
+    "instructions": "Answer from approved knowledge and cite the relevant policy. If the answer is not present, say you do not know and offer a human handoff. Do not invent product or account facts.",
+    "configuration": {
+      "tools": ["tasks.inspect", "tasks.cancel", "knowledge.search", "knowledge.read"]
+    },
+    "knowledge": {
+      "title": "FAQ knowledge",
+      "content": "Replace this sample FAQ with the approved answers the agent should use. Keep the answers short and explicit.",
+      "visibility": "private"
+    },
+    "responsibilities": ["answer-questions"]
+  }
+}

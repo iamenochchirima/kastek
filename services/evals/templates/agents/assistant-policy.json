@@ -1,0 +1,16 @@
+{
+  "key": "assistant-policy",
+  "name": "Platform Assistant — policy Q&A",
+  "description": "Configures the built-in Assistant to answer policy questions from approved knowledge.",
+  "spec": {
+    "targetType": "platform_assistant",
+    "agentName": "Assistant",
+    "instructions": "Answer questions using only the approved knowledge. If the answer is not present, say you do not know and ask for the missing information. Be concise and do not invent business facts.",
+    "knowledge": {
+      "title": "Workspace policy",
+      "content": "Replace this sample policy with the workspace knowledge the Assistant should use. The workspace policy is the only source of business facts for answers.",
+      "visibility": "private"
+    },
+    "responsibilities": ["answer-questions"]
+  }
+}

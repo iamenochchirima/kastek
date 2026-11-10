@@ -956,3 +956,18 @@ test("creates and versions an agent setup profile", { skip }, async () => {
   assert.equal(listed.statusCode, 200, listed.body);
   assert.equal((listed.json() as { profiles: unknown[] }).profiles.length, 1);
 });
+
+test("lists built-in agent templates", { skip }, async () => {
+  const response = await app!.inject({
+    method: "GET",
+    url: "/v1/agent-templates",
+    headers: auth,
+  });
+  assert.equal(response.statusCode, 200, response.body);
+  const templates = (response.json() as {
+    templates: Array<{ key: string; spec: { targetType: string } }>;
+  }).templates;
+  assert.ok(templates.length >= 8);
+  assert.ok(templates.some((template) => template.key === "support-full"));
+  assert.ok(templates.some((template) => template.spec.targetType === "platform_assistant"));
+});

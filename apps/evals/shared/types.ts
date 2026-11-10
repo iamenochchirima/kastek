@@ -284,3 +284,10 @@ export interface AgentProfileDetail extends AgentProfile {
   version: AgentProfileVersion;
   latestRun: AgentSetupRun | null;
 }
+
+export interface AgentTemplate {
+  key: string;
+  name: string;
+  description: string;
+  spec: AgentProfileSpec;
+}
