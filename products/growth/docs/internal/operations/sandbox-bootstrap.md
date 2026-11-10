@@ -60,6 +60,37 @@ checks.
 The product processes are detached from the provisioner service. Restarting the
 control plane does not stop running sandbox APIs and workers.
 
+## Product agents and chat
+
+The Evals client lists agents from the product workspace through normal product APIs.
+A Growth sandbox shows its four default agents after `agent-setup` reaches `ready`.
+An Agents sandbox shows its workspace agents, including the platform Assistant.
+
+Each product agent is registered as a control-plane agent reference keyed by its
+feature revision or published product version. Chat creates or continues a normal
+product conversation, waits for the product task to settle, and records the session,
+turn and digests in the control plane. Transcript text remains in the product runtime
+and is read back through the product API.
+
+This is also the first evaluation target path: an evaluation run can select one of
+these registered agent references instead of creating an agent ad hoc.
+
+### Product-agent chat release record
+
+| Field | Decision |
+| --- | --- |
+| Change | List product agents in the Evals client and chat with them through normal product APIs. |
+| Owner | Engineering. |
+| Risk | Standard: interactive access uses normal workspace permissions and sandbox owner sessions. |
+| Affected surfaces | Evals service and client, Growth agent conversations/tasks, Agents conversations/tasks, control-plane session references. |
+| Migration | None. Existing `agent_refs`, `interactive_sessions` and `interactive_turns` tables are reused. |
+| Rollout | Rebuild and restart the Evals service and client. Existing sandboxes must already have the current product schema for chat. |
+| Analytics and logs | Service logs record chat task outcomes and session references. Transcript text is not copied into Evals logs. |
+| Documentation | This page, `services/evals/README.md` and `apps/evals/README.md`. |
+| Validation | Eval tests 28/28; live Growth product-agent listing and chat returned four ready agents, recorded a control-plane session and continued the conversation to two turns. |
+| Rollback | Remove the product-agent/chat routes from the client and service. Existing control-plane session references remain readable. |
+| Post-release review | Review before Phase 4 evaluation runs start. |
+
 ## Deleting sandboxes
 
 `DELETE /v1/sandboxes/:id` removes runtime resources for one sandbox. Deleting

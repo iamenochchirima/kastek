@@ -227,6 +227,37 @@ is best effort because a non-empty bucket may require manual cleanup.
 Provisioning sandboxes cannot be deleted until their current step fails or
 finishes.
 
+### Product agents and chat
+
+The service reads the product workspace through the normal product API and registers
+each available agent as an immutable control-plane reference. Growth returns its
+default agents (`Growth assistant`, `Research`, `Content`, `Campaigns`). Agents
+returns the workspace agents, including the platform Assistant.
+
+```sh
+curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/product-agents" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN"
+```
+
+Start or continue a conversation through the product API:
+
+```sh
+curl -sS -X POST "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/chat" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{"agentRefId":"<agent-ref>","message":"Hello"}'
+```
+
+Include `sessionId` to continue an existing conversation. The service records the
+product task and digests in the control plane. Read the full product transcript with:
+
+```sh
+curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/sessions/$SESSION_ID/messages" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN"
+```
+
+The client uses these routes for its Agents tab and chat page.
+
 ### Register a workspace
 
 ```sh

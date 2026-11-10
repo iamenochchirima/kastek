@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { createServer, type Server } from "node:http";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import type { FastifyInstance } from "fastify";
@@ -737,4 +741,133 @@ test("requires explicit confirmation before deleting all sandboxes", { skip }, a
   assert.ok((all.json() as { sandboxes: Array<{ sandbox: { status: string } }> }).sandboxes.every(
     (item) => item.sandbox.status === "retired",
   ));
+});
+
+
+test("lists product agents and chats through the Growth product API", { skip }, async () => {
+  const sandbox = await app!.inject({
+    method: "POST",
+    url: "/v1/sandboxes",
+    headers: auth,
+    payload: { product: "growth" },
+  });
+  const sandboxId = (sandbox.json() as { sandbox: { id: string } }).sandbox.id;
+  await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/workspaces`,
+    headers: auth,
+    payload: { productWorkspaceId: "growth-org-test", label: "Growth test" },
+  });
+
+  const server: Server = createServer((request, response) => {
+    const url = new URL(request.url ?? "/", "http://localhost");
+    const send = (status: number, body: unknown) => {
+      response.writeHead(status, { "content-type": "application/json" });
+      response.end(JSON.stringify(body));
+    };
+    if (url.pathname === "/api/agents/bootstrap") {
+      return send(200, {
+        features: [
+          {
+            id: "assistant",
+            name: "Growth assistant",
+            description: "Test assistant",
+            revision: 1,
+            ready: true,
+            avatar: "moss",
+            model: { label: "Test model", provider: "test", modelId: "test/model" },
+            specialists: [],
+          },
+        ],
+        setup: { state: "ready", code: null },
+        model: { label: "Test model", ready: true },
+      });
+    }
+    if (url.pathname === "/api/agents/conversations" && request.method === "POST") {
+      return send(201, { conversation: { id: "conversation-test", featureId: "assistant" } });
+    }
+    if (url.pathname === "/api/agents/conversations/conversation-test/messages" && request.method === "POST") {
+      return send(202, { replayed: false, task: { id: "task-test", conversationId: "conversation-test", state: "accepted" } });
+    }
+    if (url.pathname === "/api/agents/tasks/task-test") {
+      return send(200, {
+        task: {
+          id: "task-test",
+          conversationId: "conversation-test",
+          state: "completed",
+          output: "Hello from Growth",
+        },
+      });
+    }
+    if (url.pathname === "/api/agents/conversations/conversation-test") {
+      return send(200, {
+        conversation: { id: "conversation-test", featureId: "assistant" },
+        messages: [
+          { id: "task-test:user", role: "user", text: "Hello", taskId: "task-test", createdAt: "2026-11-10T00:00:00.000Z" },
+          { id: "task-test:assistant", role: "assistant", text: "Hello from Growth", taskId: "task-test", createdAt: "2026-11-10T00:00:01.000Z" },
+        ],
+      });
+    }
+    return send(404, { error: "Not found" });
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Fixture failed to listen");
+  const directory = await mkdtemp(join(tmpdir(), "evals-product-"));
+  const sessionFile = join(directory, "owner-session.json");
+  await writeFile(sessionFile, JSON.stringify({
+    origin: `http://127.0.0.1:${address.port}`,
+    organizationId: "growth-org-test",
+    organizationName: "Growth test",
+    session: "growth-session-test",
+  }), { mode: 0o600 });
+  try {
+    await updateSandboxProvisioning(pool!, sandboxId, {
+      status: "ready",
+      runtime: { sessionFile, organizationId: "growth-org-test" },
+    });
+
+    const agents = await app!.inject({
+      method: "GET",
+      url: `/v1/sandboxes/${sandboxId}/product-agents`,
+      headers: auth,
+    });
+    assert.equal(agents.statusCode, 200, agents.body);
+    const productAgents = (agents.json() as {
+      agents: Array<{ refId: string; name: string; ready: boolean; productAgentId: string }>;
+    }).agents;
+    assert.equal(productAgents.length, 1);
+    assert.equal(productAgents[0]!.name, "Growth assistant");
+    assert.equal(productAgents[0]!.productAgentId, "assistant");
+    assert.equal(productAgents[0]!.ready, true);
+
+    const chat = await app!.inject({
+      method: "POST",
+      url: `/v1/sandboxes/${sandboxId}/chat`,
+      headers: auth,
+      payload: { agentRefId: productAgents[0]!.refId, message: "Hello" },
+    });
+    assert.equal(chat.statusCode, 200, chat.body);
+    const result = chat.json() as {
+      session: { id: string; state: string; turnCount: number };
+      messages: Array<{ role: string; text: string }>;
+    };
+    assert.equal(result.session.state, "completed");
+    assert.equal(result.session.turnCount, 1);
+    assert.deepEqual(result.messages.map((item) => [item.role, item.text]), [
+      ["user", "Hello"],
+      ["assistant", "Hello from Growth"],
+    ]);
+
+    const messages = await app!.inject({
+      method: "GET",
+      url: `/v1/sandboxes/${sandboxId}/sessions/${result.session.id}/messages`,
+      headers: auth,
+    });
+    assert.equal(messages.statusCode, 200, messages.body);
+    assert.equal((messages.json() as { messages: unknown[] }).messages.length, 2);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
 });

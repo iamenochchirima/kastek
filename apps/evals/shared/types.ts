@@ -157,3 +157,35 @@ export interface ServiceHealth {
     status: string;
   };
 }
+
+export interface ProductAgent {
+  refId: string;
+  product: "agents" | "growth";
+  productAgentId: string;
+  productVersionId: string;
+  workspaceRefId: string;
+  name: string;
+  description: string | null;
+  avatar: string | null;
+  ready: boolean;
+  revision: string | null;
+  model: { label: string; provider?: string; modelId?: string } | null;
+  specialists: Array<{ id: string; name: string; state: string }>;
+  source: "growth-feature" | "agents-agent";
+}
+
+export interface ProductChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  createdAt: string;
+  taskId: string | null;
+  sources: Array<Record<string, unknown>>;
+}
+
+export interface ProductChatResult {
+  session: InteractiveSession;
+  turn: InteractiveTurn;
+  messages: ProductChatMessage[];
+  productTaskState: string;
+}

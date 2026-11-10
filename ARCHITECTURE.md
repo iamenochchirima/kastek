@@ -58,8 +58,10 @@ use the same normal task path. Evaluation trials remain isolated per-run scopes 
 reserve the agent for one trial, so the two paths are not mixed on one agent. The
 service is local and development only until hosted lifecycle and retention controls
 land. Provisioned sandboxes use real central-billing sandbox plans rather than
-disabled billing. Confirmed deletion stops runtime processes, drops product
-databases, removes local files and retires the registry record. See
+disabled billing. The client lists product agents through normal product APIs,
+records interactive sessions and digests, and leaves transcript text in the product
+runtime. Confirmed deletion stops runtime processes, drops product databases,
+removes local files and retires the registry record. See
 `services/evals/README.md`.
 
 ## Billing boundary

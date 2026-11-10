@@ -34,7 +34,7 @@ export default function SessionsPage() {
         {sessions.length === 0 ? <EmptyState title="No sessions yet" /> : (
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>Session</th><th>Sandbox</th><th>State</th><th>Turns</th><th>Conversation</th><th>Last activity</th></tr></thead>
+              <thead><tr><th>Session</th><th>Sandbox</th><th>State</th><th>Turns</th><th>Conversation</th><th>Last activity</th><th /></tr></thead>
               <tbody>
                 {sessions.map((session) => (
                   <tr key={session.id}>
@@ -48,6 +48,11 @@ export default function SessionsPage() {
                     <td>{session.turnCount}</td>
                     <td className="mono muted">{shortId(session.productConversationId)}</td>
                     <td className="muted">{formatDate(session.lastActivityAt)}</td>
+                    <td>
+                      <Link className="text-link" to={`/sandboxes/${session.sandboxId}/chat/${session.agentRefId}?session=${session.id}`}>
+                        Open chat
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>

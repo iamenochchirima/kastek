@@ -33,6 +33,12 @@ import {
 import { captureSandboxVersion } from "./version.js";
 import { provisionLocalSandbox } from "./provisioner/local.js";
 import { provisionGrowthPair } from "./provisioner/growth.js";
+import { listProductAgents } from "./product-agents.js";
+import {
+  chatWithProductAgent,
+  ProductChatError,
+  productMessages,
+} from "./product-chat.js";
 import {
   deleteAllSandboxes,
   deleteSandbox,
@@ -239,6 +245,12 @@ export function buildApi(
   );
 
   app.setErrorHandler((error, request, reply) => {
+    if (error instanceof ProductChatError) {
+      return reply.code(error.statusCode).send({
+        error: error.message,
+        code: error.code,
+      });
+    }
     if (error instanceof SandboxLifecycleError) {
       return reply.code(error.statusCode).send({
         error: error.message,
@@ -623,6 +635,40 @@ export function buildApi(
       });
     }
     return { outcomeRef: outcome };
+  });
+
+  app.get("/v1/sandboxes/:id/product-agents", async (request) => {
+    const params = request.params as { id: string };
+    const sandboxId = uuid(params.id, "id");
+    return { agents: await listProductAgents(config, pool, sandboxId) };
+  });
+
+  app.post("/v1/sandboxes/:id/chat", async (request) => {
+    const params = request.params as { id: string };
+    const body = bodyObject(request.body);
+    return chatWithProductAgent(config, pool, {
+      sandboxId: uuid(params.id, "id"),
+      agentRefId: uuid(
+        requiredText(body.agentRefId, "agentRefId", 64),
+        "agentRefId",
+      ),
+      ...(body.sessionId == null
+        ? {}
+        : { sessionId: uuid(requiredText(body.sessionId, "sessionId", 64), "sessionId") }),
+      message: requiredText(body.message, "message", 131_072),
+    });
+  });
+
+  app.get("/v1/sandboxes/:id/sessions/:sessionId/messages", async (request) => {
+    const params = request.params as { id: string; sessionId: string };
+    return {
+      messages: await productMessages(
+        config,
+        pool,
+        uuid(params.id, "id"),
+        uuid(params.sessionId, "sessionId"),
+      ),
+    };
   });
 
   app.post("/v1/sandboxes/:id/sessions", async (request, reply) => {

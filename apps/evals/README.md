@@ -31,7 +31,7 @@ pnpm --filter @kasitek/evals start
 ## Pages
 
 - **Sandboxes** — recorded sandboxes, their status, and workspace, agent, session and outcome counts. **Create sandbox** provisions a local Agents environment or a Growth sandbox with its paired Agents runtime. Each card and detail page has a confirmed delete action; **Delete all** requires typing `DELETE`.
-- **Sandbox detail** — version, provisioning progress, workspaces, agent references, sessions, outcomes, the paired sandbox link and a confirmed delete action.
+- **Sandbox detail** — tabbed Overview, Agents, Sessions and Outcomes views. Product agents are listed from the sandbox workspace and can be opened in a chat page. Sessions link back to their conversation. The Overview tab holds version, provisioning, workspaces and the paired sandbox link.
 - **Sessions** — interactive sessions across sandboxes.
 - **Session detail** — task references, states and transcript digests.
 - **Outcomes** — saved business results across sandboxes.
@@ -49,6 +49,9 @@ The client server exposes:
 - `DELETE /api/sandboxes/:id`
 - `DELETE /api/sandboxes` with `{"confirm":"DELETE"}`
 - `GET /api/sandboxes/:id`
+- `GET /api/sandboxes/:id/product-agents`
+- `POST /api/sandboxes/:id/chat`
+- `GET /api/sandboxes/:id/sessions/:sessionId/messages`
 - `GET /api/sessions`
 - `GET /api/sandboxes/:id/sessions/:sessionId`
 - `GET /api/outcomes`
@@ -63,5 +66,8 @@ S3/MinIO credentials, a running Restate admin endpoint, Docker socket access,
 signed Growth/Agents keys, and a non-production billing service with sandbox plans
 and `EVALS_BILLING_SANDBOX_URL`/`EVALS_BILLING_SANDBOX_SECRET` configured. The dialog creates a real isolated environment. It is not
 a record-only form. Growth creates a Growth database/API/workspace plus a paired
-Agents runtime. Delete stops the runtime processes, drops product databases and
-removes local sandbox files. Deleting either half of a Growth pair deletes both.
+Agents runtime. Product-agent listing and chat use the sandbox owner session and
+normal product APIs; Evals records session references and digests, while transcript
+text stays in the product runtime. Delete stops the runtime processes, drops product
+databases and removes local sandbox files. Deleting either half of a Growth pair
+deletes both.

@@ -182,6 +182,29 @@ app.post("/api/sandboxes", async (request, reply) => {
   });
   return reply.code(202).send(value);
 });
+app.get("/api/sandboxes/:id/product-agents", async (request) => {
+  const { id } = request.params as { id: string };
+  return service(`/v1/sandboxes/${encodeURIComponent(id)}/product-agents`);
+});
+app.post("/api/sandboxes/:id/chat", async (request) => {
+  const { id } = request.params as { id: string };
+  const body = request.body as { agentRefId?: unknown; message?: unknown; sessionId?: unknown } | null;
+  if (!body || typeof body.agentRefId !== "string" || typeof body.message !== "string" || !body.message.trim()) {
+    throw new ServiceError(400, "agentRefId and message are required");
+  }
+  return service(`/v1/sandboxes/${encodeURIComponent(id)}/chat`, {
+    method: "POST",
+    body: JSON.stringify({
+      agentRefId: body.agentRefId,
+      message: body.message.trim(),
+      ...(typeof body.sessionId === "string" && body.sessionId ? { sessionId: body.sessionId } : {}),
+    }),
+  });
+});
+app.get("/api/sandboxes/:id/sessions/:sessionId/messages", async (request) => {
+  const { id, sessionId } = request.params as { id: string; sessionId: string };
+  return service(`/v1/sandboxes/${encodeURIComponent(id)}/sessions/${encodeURIComponent(sessionId)}/messages`);
+});
 app.delete("/api/sandboxes", async (request) => {
   const body = request.body as { confirm?: unknown } | null;
   if (!body || body.confirm !== "DELETE") {
