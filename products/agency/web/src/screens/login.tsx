@@ -8,7 +8,6 @@ import { useRouter } from "@/lib/navigation";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
-import { TenantBrandMark } from "@/components/tenant-brand";
 import { useTenantContext } from "@/lib/tenant-context-provider";
 import { tenantFetch } from "@/lib/api";
 import { AuthShell } from "@/components/auth-shell";
@@ -32,7 +31,7 @@ type ContinueResponse = {
 export default function Login() {
   const router = useRouter();
   const { login, isAuthenticated, defaultRoute } = useAuth();
-  const { brandName, tagline, context, isLoading } = useTenantContext();
+  const { brandName, context, isLoading } = useTenantContext();
   const [stage, setStage] = useState<"email" | "password" | "setup_link_sent" | "partner_login" | "choose_audience">("email");
   const [email, setEmail] = useState("");
   const [audience, setAudience] = useState<"tenant" | "client" | "partner" | null>(null);
@@ -165,46 +164,38 @@ export default function Login() {
     );
   }
 
-  const heading =
+  const title =
     stage === "email"
-      ? "Access your portal."
+      ? brandName === "Portal"
+        ? "Sign in to your portal."
+        : `Sign in to ${brandName}.`
       : stage === "password"
         ? "Enter your password."
         : stage === "partner_login"
-          ? "Agency partner account."
+          ? "Partner sign in."
           : stage === "choose_audience"
             ? "Choose your account."
             : "Check your inbox.";
   const description =
     stage === "email"
-      ? `Use the email address connected to ${brandName}.`
-      : stage === "partner_login"
-        ? "This business is connected to your KasiTek partner account. Continue with secure partner sign-in."
-        : stage === "choose_audience"
-          ? "This email has more than one account in this business. Choose which one to use."
-          : stage === "password"
-            ? "This email already has access. Enter the password to continue."
-            : "We have sent a secure setup link so you can finish creating your access.";
+      ? "Use the email connected to this workspace."
+      : stage === "password"
+        ? "This email already has access. Enter the password to continue."
+        : stage === "partner_login"
+          ? "This business is connected to your KasiTek partner account."
+          : stage === "choose_audience"
+            ? "This email has more than one account in this business."
+            : "We have sent a secure setup link to finish creating your access.";
 
   return (
     <AuthShell>
-      <div className="text-center">
-        <div className="flex justify-center">
-          <TenantBrandMark className="ring-1 ring-[#5b5bf033] shadow-lg shadow-[#5b5bf01f]" />
-        </div>
-        <h1 className="auth-card-title mt-5">
-          {brandName === "Portal" ? "Welcome to your portal." : `Welcome to ${brandName}.`}
-        </h1>
-        <p className="auth-card-description">{tagline}</p>
-      </div>
+      <h1 className="auth-card-title">{title}</h1>
+      <p className="auth-card-description">{description}</p>
 
-      <div className="mt-8">
-        <h2 className="text-[13px] font-medium text-[#171a22]">{heading}</h2>
-        <p className="mt-1 text-[13px] leading-5 text-[#626874]">{description}</p>
-
+      <div className="mt-6">
         {stage === "email" ? (
           <Form {...emailForm}>
-            <form onSubmit={emailForm.handleSubmit(onContinue)} className="mt-5 space-y-4">
+            <form onSubmit={emailForm.handleSubmit(onContinue)} className="space-y-4">
               <FormField
                 control={emailForm.control}
                 name="email"
@@ -223,11 +214,7 @@ export default function Login() {
                 <p className="auth-error">{emailForm.formState.errors.root.message}</p>
               ) : null}
 
-              <button
-                type="submit"
-                className="auth-primary"
-                disabled={emailForm.formState.isSubmitting}
-              >
+              <button type="submit" className="auth-primary" disabled={emailForm.formState.isSubmitting}>
                 {emailForm.formState.isSubmitting ? "Checking access..." : "Continue"}
                 <ArrowRight size={17} aria-hidden="true" />
               </button>
@@ -237,7 +224,7 @@ export default function Login() {
 
         {stage === "password" ? (
           <Form {...passwordForm}>
-            <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="mt-5 space-y-4">
+            <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
               <div className="rounded-lg border border-[#171a221f] bg-[#f8f6ef] px-4 py-3 text-sm">
                 <div className="font-medium text-[#171a22]">{email}</div>
                 <div className="text-[#626874]">
@@ -271,11 +258,7 @@ export default function Login() {
                 >
                   Back
                 </button>
-                <button
-                  type="submit"
-                  className="auth-primary flex-1"
-                  disabled={passwordForm.formState.isSubmitting}
-                >
+                <button type="submit" className="auth-primary flex-1" disabled={passwordForm.formState.isSubmitting}>
                   {passwordForm.formState.isSubmitting ? "Signing in..." : "Sign in"}
                 </button>
               </div>
@@ -284,11 +267,10 @@ export default function Login() {
         ) : null}
 
         {stage === "setup_link_sent" ? (
-          <div className="mt-5 space-y-4">
+          <div className="space-y-4">
             <div className="auth-note">
               We have sent a secure setup link to{" "}
-              <span className="font-medium text-[#171a22]">{email}</span>. Check
-              your email to finish setting up your access.
+              <span className="font-medium text-[#171a22]">{email}</span>.
             </div>
             <button
               type="button"
@@ -301,11 +283,10 @@ export default function Login() {
         ) : null}
 
         {stage === "partner_login" ? (
-          <div className="mt-5 space-y-4">
+          <div className="space-y-4">
             <div className="auth-note">
               <span className="font-medium text-[#171a22]">{email}</span> signs
-              in through KasiTek Login. This account does not use a separate
-              portal password.
+              in through KasiTek Login, not a separate portal password.
             </div>
             <a
               href={`/api/tenant/api/partner/auth/start?returnTo=${encodeURIComponent(context.workspace?.slug ? `/portal/${context.workspace.slug}` : "/app/businesses")}`}
@@ -325,7 +306,7 @@ export default function Login() {
         ) : null}
 
         {stage === "choose_audience" ? (
-          <div className="mt-5 space-y-3">
+          <div className="space-y-3">
             {availableAudiences.map((available) => (
               <button
                 key={available}

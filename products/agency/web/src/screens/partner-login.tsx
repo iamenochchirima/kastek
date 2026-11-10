@@ -20,8 +20,7 @@ export default function PartnerLoginScreen({
   }
   return (
     <AuthShell>
-      <p className="auth-kicker">One KasiTek account</p>
-      <h1 className="auth-card-title mt-3">
+      <h1 className="auth-card-title">
         {register ? "Make it your business." : "Welcome back."}
       </h1>
       <p className="auth-card-description">

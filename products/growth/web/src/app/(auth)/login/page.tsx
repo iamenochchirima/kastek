@@ -23,10 +23,9 @@ export async function clientLoader(route: ClientLoaderFunctionArgs) {
 export default function LoginPage() {
   return (
     <div>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#617168]">Workspace access</p>
-      <h1 className="auth-card-title mt-3">Welcome back.</h1>
+      <h1 className="auth-card-title">Welcome back.</h1>
       <p className="auth-card-description">
-        Sign in to pick up your conversations, campaigns and content.
+        Sign in to your KasiTek workspace. Email, Google and passkeys are supported.
       </p>
       <div className="auth-card-form">
         <Suspense fallback={null}>
