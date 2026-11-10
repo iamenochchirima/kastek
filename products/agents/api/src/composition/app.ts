@@ -103,6 +103,7 @@ import { PlatformStore } from "../product/agents/store";
 import { MemberStore } from "../product/members/store";
 import { registerMemberRoutes } from "../product/members/routes";
 import { invitationEmailConfig } from "../product/members/email";
+import { permissionsFor } from "../product/members/permissions";
 import { transaction } from "../infrastructure/database";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
 import { customerOfferings } from "../product/offerings/offerings";
@@ -445,7 +446,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.get("/api/session", async (request) => {
     const user = await account(request);
     await store.ensureInitialWorkspace(user.id);
-    const organizations=await store.listOrganizations(user.id);
+    const organizations=(await store.listOrganizations(user.id)).map(organization => ({ ...organization, permissions: permissionsFor(organization.role) }));
     for(const organization of organizations)if(organization.role==="owner")await initializeOwnerModel(user.id,organization.id);
     return { account: { id: user.id, email: user.email, displayName: user.display_name }, organizations };
   });

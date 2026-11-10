@@ -4,7 +4,7 @@ import { PiBookOpen as BookOpen, PiCheck as Check, PiFileText as FileText, PiGit
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { api, message, organizationPath, type Catalogue, type CatalogueItem, type Configuration, type SkillPackage } from "./api";
+import { api, hasPermission, message, organizationPath, type Catalogue, type CatalogueItem, type Configuration, type SkillPackage } from "./api";
 import { ErrorMessage, Loading, useWorkspace } from "./shell";
 import { CuratedSkillPreview, SkillImport, SkillPreview } from "./skill-library";
 import { SkillRequirements } from "./skill-requirements";
@@ -39,7 +39,7 @@ export function AgentCatalogue({ organizationId, agentId, kind, draftRevision, c
   const connectionLock = useRef(false);
   const [connecting, setConnecting] = useState(false);
   const { session } = useWorkspace();
-  const canReview = session.organizations.find(organization => organization.id === organizationId)?.role === "owner";
+  const canReview = hasPermission(session.organizations.find(organization => organization.id === organizationId), "agents.manage");
   const skillsPath = `${organizationPath(organizationId)}/agents/${encodeURIComponent(agentId)}/skills/packages`;
   const path = `${organizationPath(organizationId)}/catalogue/${kind}?agentId=${encodeURIComponent(agentId)}`;
   const [data, setData] = useState<Catalogue | null>(null);

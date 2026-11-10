@@ -107,6 +107,18 @@ describe.skipIf(!parent)("workspace members and invitations", () => {
     return { owner, org, ownerSession, base: `/api/organizations/${org.id}` };
   }
 
+  it("exposes workspace permissions in the session", async () => {
+    const f = await fixture("Session permissions");
+    const session = await request(f.ownerSession.token, "GET", "/api/session");
+    expect(session.status).toBe(200);
+    expect(session.body.organizations[0]).toMatchObject({
+      id: f.org.id,
+      role: "owner",
+    });
+    expect(session.body.organizations[0].permissions).toContain("billing.manage");
+    expect(session.body.organizations[0].permissions).toContain("channels.manage");
+  });
+
   it("lists members and enforces role-based management", async () => {
     emailFails = false;
     const f = await fixture("Members permissions");

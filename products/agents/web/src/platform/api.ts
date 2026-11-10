@@ -47,7 +47,13 @@ export type CustomerSetup = {
 export type Agent = { setup?: CustomerSetup | null; setupStep?: string | null; offering?: "faq" | "customer-service" | "booking" | null; id: string; name: string; avatar: string; draft: Configuration; draftRevision: number; updatedAt: string };
 export type Version = { id: string; number: number; configuration: Configuration; createdAt?: string };
 export type Deployment = { id: string; versionId: string; allowedOrigins: string[] };
-export type Organization = { id: string; name: string; role: string };
+export type Organization = { id: string; name: string; role: string; permissions?: string[] };
+export function hasPermission(organization: Organization | undefined, permission: string): boolean {
+  if (!organization) return false;
+  // Older API responses omit permissions; they only knew owner/member.
+  if (Array.isArray(organization.permissions)) return organization.permissions.includes(permission);
+  return organization.role === "owner";
+}
 export type Session = { account: { id: string; email: string; displayName: string }; organizations: Organization[] };
 export type Memory = { id: string; kind: "semantic" | "episodic"; content: string; status: "candidate" | "accepted" | "forgotten"; revision: number; createdAt: string; updatedAt: string; sourceTaskId: string | null };
 export type Skill = { id: string; name: string; description: string; body: string; revision: number; contentDigest: string; createdAt: string };

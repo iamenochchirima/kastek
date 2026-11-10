@@ -11,7 +11,7 @@ import { SupportedConnections } from "./supported-connections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { api, message, organizationPath, type CapabilityBinding, type CatalogCandidate, type Connection, type ConnectionList, type ConnectionProfile, type ResourceHandle } from "./api";
+import { api, hasPermission, message, organizationPath, type CapabilityBinding, type CatalogCandidate, type Connection, type ConnectionList, type ConnectionProfile, type ResourceHandle } from "./api";
 import { localDateTime } from "./time";
 import { ErrorMessage, Loading, useWorkspace } from "./shell";
 
@@ -80,9 +80,9 @@ export function ConnectionsPage() {
   return <section className="management-page"><div className="management-header"><h1>Connections</h1><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => { setView("tools"); setApiOpen(true); }}>Custom API</Button><Button onClick={() => { setView("tools"); setRemoteOpen(true); }}>Add custom MCP</Button><Button variant="outline" onClick={() => open("create")} disabled={!data || !profiles.length}>Add connection</Button></div></div>{returnTo ? <Link className="mb-5 inline-block text-sm underline underline-offset-4" to={returnTo}>Back to agent</Link> : null}{!dialog ? <ErrorMessage value={error} /> : null}
     <div className="connection-toolbar"><label className="connection-search"><Search size={16} aria-hidden="true"/><Input aria-label="Search connections" placeholder="Search connections" value={query} onChange={event => setQuery(event.target.value)} /></label></div>
     <nav className="connection-views" aria-label="Connection types">{(["all", "channels", "tools"] as const).map(value => <button type="button" key={value} aria-current={view === value ? "page" : undefined} onClick={() => setView(value)}>{value === "all" ? "All" : value === "channels" ? "Channels" : "Tools"}</button>)}</nav>
-    {view !== "tools" ? <CustomerChannels query={query} defaultAgentId={searchParams.get("agentId") ?? undefined} organizationId={organizationId} owner={session.organizations.find(organization => organization.id === organizationId)?.role === "owner"} /> : null}
+    {view !== "tools" ? <CustomerChannels query={query} defaultAgentId={searchParams.get("agentId") ?? undefined} organizationId={organizationId} owner={hasPermission(session.organizations.find(organization => organization.id === organizationId), "channels.manage")} /> : null}
     {view !== "channels" ? <><h2 className="connection-section-title">Business tools</h2>
-    <SupportedConnections query={query} organizationPath={organizationPath(organizationId)} owner={session.organizations.find(organization => organization.id === organizationId)?.role === "owner"} />
+    <SupportedConnections query={query} organizationPath={organizationPath(organizationId)} owner={hasPermission(session.organizations.find(organization => organization.id === organizationId), "credentials.manage")} />
     {data?.connections.length ? <h3 className="connection-section-title mt-6">Existing connections</h3> : null}
     {!data && !error ? <Loading /> : data?.connections.length ? <div className="management-list">{data.connections.filter(connection => `${connection.name} ${connection.targetLabel}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).map(connection => {
       const expired = new Date(connection.expiresAt).getTime() <= Date.now();

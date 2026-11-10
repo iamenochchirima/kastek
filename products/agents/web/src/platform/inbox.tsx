@@ -11,7 +11,7 @@ import { InboxMessages } from "./inbox-messages";
 import { InboxHandoff, focusAfterHandoff, inboxAssigneeName } from "./inbox-handoff";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { api, ApiError, message, organizationPath, readStored, writeStored } from "./api";
+import { api, ApiError, hasPermission, message, organizationPath, readStored, writeStored } from "./api";
 import { InboxBookings } from "./inbox-bookings";
 import { ChannelSupport } from "./channel-support";
 import { InboxChannelAvailability, InboxCustomerRecord } from "./inbox-availability";
@@ -83,7 +83,7 @@ export function InboxPage() {
   const pollingList = useRef(false);
   const pendingKey = `agents.inbox.pending.${session.account.id}.${organizationId}.${selected}`;
   const draftKey = `agents.inbox.draft.${session.account.id}.${organizationId}.${selected}`;
-  const owner = session.organizations.find(org => org.id === organizationId)?.role === "owner";
+  const owner = hasPermission(session.organizations.find(org => org.id === organizationId), "conversations.assign");
   const mine = timeline?.conversation.assigneeAccountId === session.account.id;
   const messageAuthors = members.some(member => member.id === session.account.id) ? members : [...members, { id: session.account.id, displayName: session.account.displayName || "You" }];
   async function loadList(more = false) {

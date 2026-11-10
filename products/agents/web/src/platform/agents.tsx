@@ -10,7 +10,7 @@ import { PiPlus as Plus, PiUploadSimple as Upload } from "react-icons/pi";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { api, ApiError, message, organizationPath, type Agent, type Configuration, type KnowledgeSource, type KnowledgeSources, type Version } from "./api";
+import { api, ApiError, hasPermission, message, organizationPath, type Agent, type Configuration, type KnowledgeSource, type KnowledgeSources, type Version } from "./api";
 import { ErrorMessage, Loading, useWorkspace } from "./shell";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { normalizeAgentSection, useAgentDirectory } from "./agent-directory";
@@ -226,8 +226,8 @@ export function AgentEditor() {
       {behaviourTab === "tools" ? <><AgentCatalogue key={`${agent.id}.tools`} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} kind="tools" configuration={configuration} onChange={setConfiguration} onBeforeConnect={beforeConnect} /><AgentProcedures key={agent.id} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} configuration={configuration} onChange={setConfiguration} disabled={busy} /><CustomerRecordTools configuration={configuration} onChange={setConfiguration} />{configuration.executionKind === "business" && !agent.offering ? <TaskControlTools configuration={configuration} onChange={setConfiguration} /> : null}</> : null}
       {behaviourTab === "skills" ? <AgentCatalogue key={`${agent.id}.skills`} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} kind="skills" configuration={configuration} onChange={setConfiguration} onBeforeConnect={beforeConnect} /> : null}
     </section> :
-    section === "widget" ? <section className="agent-section agent-widget-page"><header className="agent-section-heading"><div><h1>Chat widget</h1><p>Customize the website chat window.</p></div></header><WebsiteChannelSettings organizationId={organizationId} agentId={agent.id} owner={session.organizations.find(org => org.id === organizationId)?.role === "owner"} /></section> :
-    section === "deploy" ? <section className="agent-section agent-deploy-page"><header className="agent-section-heading"><div><h1>Deploy</h1><p>Connect the channels customers use.</p></div></header><AgentChannels organizationId={organizationId} agentId={agent.id} owner={session.organizations.find(org => org.id === organizationId)?.role === "owner"} hideWebsite /></section> :
+    section === "widget" ? <section className="agent-section agent-widget-page"><header className="agent-section-heading"><div><h1>Chat widget</h1><p>Customize the website chat window.</p></div></header><WebsiteChannelSettings organizationId={organizationId} agentId={agent.id} owner={hasPermission(session.organizations.find(org => org.id === organizationId), "deploy.manage")} /></section> :
+    section === "deploy" ? <section className="agent-section agent-deploy-page"><header className="agent-section-heading"><div><h1>Deploy</h1><p>Connect the channels customers use.</p></div></header><AgentChannels organizationId={organizationId} agentId={agent.id} owner={hasPermission(session.organizations.find(org => org.id === organizationId), "channels.manage")} hideWebsite /></section> :
     section === "settings" ? <AgentSettings organizationId={organizationId} agent={agent} onUpdated={updated => { setAgent(updated); setName(updated.name); refresh(); }} onDelete={() => { setDeleteError(""); setDeleteOpen(true); }} /> :
     null}
     </div>
