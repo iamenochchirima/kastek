@@ -24,6 +24,7 @@ const skip = databaseUrl ? false : "Set BILLING_TEST_DATABASE_URL to a disposabl
 const INTERNAL_SECRET = "billing-test-internal-secret-000000000000";
 const SNAPSHOT_SECRET = "billing-test-snapshot-secret-000000000000";
 const ADMIN_SECRET = "billing-test-admin-secret-0000000000000000";
+const SANDBOX_SECRET = "billing-test-sandbox-secret-0000000000000";
 const PAYSTACK_SECRET = "sk_test_billing_fixture";
 
 interface FakeTransaction {
@@ -229,6 +230,7 @@ before(async () => {
     BILLING_INTERNAL_SECRET: INTERNAL_SECRET,
     BILLING_SNAPSHOT_SECRET: SNAPSHOT_SECRET,
     KASITEK_ADMIN_SERVICE_SECRET: ADMIN_SECRET,
+    BILLING_SANDBOX_SECRET: SANDBOX_SECRET,
     BILLING_ADMIN_AUDIENCE: "billing",
     BILLING_RETURN_ORIGINS: "http://localhost:3000",
     BILLING_FREE_PLANS_JSON: '{"growth":"growth-free","agents":"agents-free","agency":"agency-free"}',
@@ -261,6 +263,169 @@ test("billing service health and catalog", { skip }, async () => {
   const body = catalog.json();
   assert.ok(body.products.some((product: { key: string }) => product.key === "growth"));
   assert.ok(body.plans.some((plan: { key: string }) => plan.key === "growth-free"));
+});
+
+test("sandbox plans stay out of product plans and require a sandbox account", { skip }, async () => {
+  const plans = await app.inject({
+    method: "GET",
+    url: "/internal/plans?product=agents",
+    headers: productHeaders("GET", "/internal/plans", undefined, "agents"),
+  });
+  assert.equal(plans.statusCode, 200, plans.body);
+  assert.ok(
+    !plans.json().plans.some((plan: { key: string }) => plan.key === "agents-sandbox-unlimited"),
+  );
+
+  const hidden = await app.inject({
+    method: "GET",
+    url: "/internal/plans/agents-sandbox-unlimited?product=agents",
+    headers: productHeaders("GET", "/internal/plans/agents-sandbox-unlimited", undefined, "agents"),
+  });
+  assert.equal(hidden.statusCode, 404, hidden.body);
+
+  const catalog = await app.inject({
+    method: "GET",
+    url: "/admin/catalog",
+    headers: adminHeaders("GET", "/admin/catalog", undefined, "admin:read"),
+  });
+  assert.equal(catalog.statusCode, 200, catalog.body);
+  assert.ok(
+    catalog.json().plans.some((plan: { key: string }) => plan.key === "agents-sandbox-unlimited"),
+  );
+
+  const productionBody = {
+    product: "agents",
+    tenantId: "org-sandbox-production",
+    name: "Production workspace",
+    billingEmail: "production@example.test",
+  };
+  const production = await app.inject({
+    method: "POST",
+    url: "/internal/accounts/ensure",
+    headers: productHeaders("POST", "/internal/accounts/ensure", productionBody, "agents"),
+    payload: productionBody,
+  });
+  assert.equal(production.statusCode, 200, production.body);
+  const guard = await app.inject({
+    method: "POST",
+    url: `/admin/accounts/${production.json().accountId}/subscriptions/assign`,
+    headers: adminHeaders(
+      "POST",
+      `/admin/accounts/${production.json().accountId}/subscriptions/assign`,
+      { planKey: "agents-sandbox-unlimited", reason: "sandbox guard test" },
+    ),
+    payload: { planKey: "agents-sandbox-unlimited", reason: "sandbox guard test" },
+  });
+  assert.equal(guard.statusCode, 400, guard.body);
+  assert.match(guard.json().error, /sandbox accounts/);
+
+  const conflictBody = {
+    product: "agents",
+    tenantId: "org-sandbox-production",
+    name: "Production workspace",
+    billingEmail: "production@example.test",
+    planKey: "agents-sandbox-unlimited",
+  };
+  const conflict = await app.inject({
+    method: "POST",
+    url: "/internal/sandbox/entitlement",
+    headers: { "content-type": "application/json", "x-billing-sandbox-secret": SANDBOX_SECRET },
+    payload: conflictBody,
+  });
+  assert.equal(conflict.statusCode, 409, conflict.body);
+});
+
+test("sandbox entitlement is authorized, audited and readable by normal product billing", { skip }, async () => {
+  const body = {
+    product: "agents",
+    tenantId: "org-sandbox-entitled",
+    name: "Sandbox workspace",
+    billingEmail: "sandbox@example.test",
+    planKey: "agents-sandbox-unlimited",
+  };
+  const missing = await app.inject({
+    method: "POST",
+    url: "/internal/sandbox/entitlement",
+    headers: { "content-type": "application/json" },
+    payload: body,
+  });
+  assert.equal(missing.statusCode, 401, missing.body);
+
+  const wrong = await app.inject({
+    method: "POST",
+    url: "/internal/sandbox/entitlement",
+    headers: { "content-type": "application/json", "x-billing-sandbox-secret": "wrong-secret" },
+    payload: body,
+  });
+  assert.equal(wrong.statusCode, 401, wrong.body);
+
+  const publicPlan = await app.inject({
+    method: "POST",
+    url: "/internal/sandbox/entitlement",
+    headers: { "content-type": "application/json", "x-billing-sandbox-secret": SANDBOX_SECRET },
+    payload: { ...body, tenantId: "org-sandbox-public-plan", planKey: "agents-free" },
+  });
+  assert.equal(publicPlan.statusCode, 400, publicPlan.body);
+
+  const created = await app.inject({
+    method: "POST",
+    url: "/internal/sandbox/entitlement",
+    headers: { "content-type": "application/json", "x-billing-sandbox-secret": SANDBOX_SECRET },
+    payload: body,
+  });
+  assert.equal(created.statusCode, 200, created.body);
+  const accountId = created.json().accountId as string;
+
+  const account = await pool.query<{ environment: string }>(
+    "SELECT environment FROM billing.accounts WHERE id=$1",
+    [accountId],
+  );
+  assert.equal(account.rows[0]?.environment, "sandbox");
+  const audit = await pool.query(
+    "SELECT 1 FROM billing.audit WHERE actor_id='sandbox-provisioner' AND action='sandbox.entitlement.assign' AND resource_id=$1",
+    [accountId],
+  );
+  assert.equal(audit.rowCount, 1);
+
+  const ensure = await app.inject({
+    method: "POST",
+    url: "/internal/accounts/ensure",
+    headers: productHeaders("POST", "/internal/accounts/ensure", body, "agents"),
+    payload: body,
+  });
+  assert.equal(ensure.statusCode, 200, ensure.body);
+
+  const entitlement = await app.inject({
+    method: "GET",
+    url: "/internal/entitlements?product=agents&tenantId=org-sandbox-entitled",
+    headers: productHeaders("GET", "/internal/entitlements", undefined, "agents"),
+  });
+  assert.equal(entitlement.statusCode, 200, entitlement.body);
+  const snapshot = entitlement.json().snapshot;
+  assert.equal(snapshot.plan.key, "agents-sandbox-unlimited");
+  assert.equal(snapshot.limits["limit.agent_seats"], null);
+  assert.equal(snapshot.limits["limit.agent_tokens"], null);
+  assert.equal(snapshot.features["agents.feature.manage"], true);
+  assert.equal(snapshot.credits.available, "1000000000000");
+});
+
+test("sandbox secret is rejected in production", { skip: !databaseUrl }, () => {
+  assert.throws(
+    () =>
+      loadConfig({
+        ...process.env,
+        BILLING_ENVIRONMENT: "production",
+        BILLING_DATABASE_URL: databaseUrl,
+        BILLING_PUBLIC_URL: "http://localhost:4500",
+        BILLING_INTERNAL_SECRET: INTERNAL_SECRET,
+        BILLING_SNAPSHOT_SECRET: SNAPSHOT_SECRET,
+        BILLING_SANDBOX_SECRET: SANDBOX_SECRET,
+        BILLING_RETURN_ORIGINS: "http://localhost:3000",
+        PAYSTACK_MODE: "test",
+        PAYSTACK_TEST_SECRET_KEY: PAYSTACK_SECRET,
+      }),
+    /Sandbox billing secret is unavailable in production/,
+  );
 });
 
 test("account, free plan, checkout, tax invoice, usage, renewal and refund", { skip }, async () => {

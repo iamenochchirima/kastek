@@ -111,6 +111,8 @@ export interface BillingAccountEnsureInput {
   ownerSubject?: string | null;
   currency?: string;
   metadata?: Record<string, unknown>;
+  /** Internal sandbox accounts are the only accounts eligible for sandbox plans. */
+  environment?: "production" | "sandbox";
 }
 
 export interface BillingAccountEnsureResult {

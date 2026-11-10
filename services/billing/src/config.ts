@@ -8,6 +8,7 @@ export interface BillingConfig {
   publicUrl: string;
   internalSecret: string;
   snapshotSecret: string;
+  sandboxSecret: string | null;
   adminSecret: string | null;
   adminAudience: string;
   paystack: {
@@ -114,6 +115,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BillingConfig 
   if (!returnOrigins.length)
     throw new Error("BILLING_RETURN_ORIGINS must contain at least one origin");
 
+  const sandboxSecret = env.BILLING_SANDBOX_SECRET?.trim() || null;
+  if (sandboxSecret && Buffer.byteLength(sandboxSecret) < 32)
+    throw new Error("BILLING_SANDBOX_SECRET requires at least 32 bytes");
+  if (sandboxSecret && environment === "production")
+    throw new Error("Sandbox billing secret is unavailable in production");
+
   return {
     environment,
     databaseUrl,
@@ -122,6 +129,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BillingConfig 
     publicUrl,
     internalSecret: secret(env, "BILLING_INTERNAL_SECRET"),
     snapshotSecret: secret(env, "BILLING_SNAPSHOT_SECRET"),
+    sandboxSecret,
     adminSecret: env.KASITEK_ADMIN_SERVICE_SECRET?.trim() || null,
     adminAudience: env.BILLING_ADMIN_AUDIENCE ?? "billing",
     paystack: paystackKey

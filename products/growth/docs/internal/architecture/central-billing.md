@@ -3,7 +3,7 @@ id: central-billing
 title: Central billing service
 sidebar_position: 4
 owner: platform-engineering
-last_reviewed: 2026-11-08
+last_reviewed: 2026-11-10
 ---
 
 # Central billing service
@@ -171,6 +171,32 @@ Growth seats, channels, campaign recipients, social publishes and public API req
 Agents agents, channels, crawl pages, handoff, assignment, badge removal and team seats are enforced.
 Agency limits remain `display_only` while Agency is deferred.
 
+### Sandbox accounts and plans
+
+Evaluation sandboxes use the same billing service and entitlement checks as customer workspaces. They
+are not a billing bypass:
+
+- `billing.accounts.environment` is `sandbox`; ordinary accounts default to `production`.
+- `billing.plans.audience` is `sandbox`; ordinary plans default to `public`.
+- `growth-sandbox-unlimited`, `agents-sandbox-unlimited`, and `agency-sandbox-unlimited` are active,
+  zero-priced sandbox plans. They grant every current product feature, null internal limits, and
+  `1,000,000,000,000` micro-USD of test credit.
+- Sandbox plans are omitted from `GET /internal/plans`, `GET /internal/plans/:planKey`, and product
+  plan lists. They remain visible in `GET /admin/catalog` for operators.
+- A sandbox plan can only be assigned to a sandbox account. An ordinary account cannot be converted
+  by attaching a sandbox plan.
+- Product servers call `POST /internal/accounts/ensure` without an environment. Billing resolves an
+  existing sandbox account normally, but explicit environment input must match the stored account.
+
+`POST /internal/sandbox/entitlement` creates or resolves the sandbox customer and assigns the
+product's sandbox plan. It requires `x-billing-sandbox-secret` matching `BILLING_SANDBOX_SECRET`,
+records `sandbox.entitlement.assign` in `billing.audit`, and is unavailable when
+`BILLING_ENVIRONMENT=production`. The evaluation provisioner records the resulting account,
+subscription, plan key, and plan version on the sandbox runtime.
+
+Null internal limits do not remove hard safety controls, provider rate limits, context limits,
+storage limits, or real compute and model costs.
+
 ## AI usage credits
 
 AI usage is denominated in USD internally. Growth workspace agents settle under the
@@ -219,8 +245,9 @@ Product-facing:
 | `GET` or `POST /internal/entitlements` | Return the signed entitlement snapshot. |
 | `POST /internal/usage` | Record idempotent product usage and debit AI usage. |
 | `GET /internal/usage` | Current-month meter totals and recent events. |
-| `GET /internal/plans?currency=ZAR` | Active plans for the authenticated product, filtered by currency. |
+| `GET /internal/plans?currency=ZAR` | Active public plans for the authenticated product, filtered by currency. |
 | `GET /internal/plans/:planKey?currency=ZAR` | Current plan version and customer-visible entitlements. |
+| `POST /internal/sandbox/entitlement` | Attach a sandbox plan to a sandbox account for the evaluation provisioner. |
 | `POST /internal/checkout` | Create a Paystack checkout using the account payer identity. |
 | `POST /internal/checkout/:reference/verify` | Verify and activate a checkout. |
 | `POST /internal/subscriptions/:id/cancel` | Disable renewal at Paystack and keep access to period end. |
@@ -392,5 +419,5 @@ credit grants, and transitions expired trials and grace periods. Agency usage ou
 | Rollback | Disable checkout by retiring the affected plan versions. Restore the previous active version where a rollback is needed. Billing data remains in the service database. Removing product billing variables disables billing; it does not restore local billing. |
 | Analytics and logs | Structured worker and request logs; no card data or full webhook payloads in logs. Usage forwarding failures remain in outboxes with retry state. |
 | Documentation | This page, `services/billing/README.md`, `ARCHITECTURE.md`, and product billing support runbooks. |
-| Validation | Billing typecheck/build and 16/16 integration tests; Growth typecheck/build and 180 passing tests; Agents, Agency, Admin, Growth web, Agents web, and Agency web typecheck/build; fresh billing migrate and seed; boundary check; Paystack sandbox plans published and Growth Starter checkout completed with paid invoice, active subscription and USD 10.00 AI usage. |
+| Validation | Billing typecheck/build and 24/24 integration tests, including sandbox plan visibility, environment guards, endpoint authorization, and a fresh sandbox entitlement; Growth typecheck/build and 180 passing tests; Agents, Agency, Admin, Growth web, Agents web, and Agency web typecheck/build; fresh billing migrate and seed; boundary check; Paystack sandbox plans published and Growth Starter checkout completed with paid invoice, active subscription and USD 10.00 AI usage. |
 | Open decisions | Live Paystack keys and a public webhook URL, a USD-capable provider, self-serve top-ups, Agents and Agency product guards for currently display-only limits, and custom-work invoice migration. |

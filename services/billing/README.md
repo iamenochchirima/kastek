@@ -34,6 +34,9 @@ Agency, Analytics, Operations, or Admin data.
 at least 32 bytes. `PAYSTACK_MODE=live` fails closed if `PAYSTACK_LIVE_SECRET_KEY` is missing; it
 never falls back to a test key.
 
+`BILLING_SANDBOX_SECRET` enables the evaluation sandbox endpoint. It must be at least 32 bytes and
+is rejected when `BILLING_ENVIRONMENT=production`.
+
 ## Money and tax
 
 All amounts are integer minor units. ZAR is the default and monthly is the only enabled interval.
@@ -75,6 +78,25 @@ Admin endpoints: `GET /admin/catalog`, `POST /admin/products`, `POST /admin/capa
 `POST /admin/plans/:planKey/clone`, `PUT /admin/plan-versions/:id`,
 `PUT /admin/plan-versions/:id/entitlements`, `POST /admin/plan-versions/:id/schedule`,
 `POST /admin/plan-versions/:id/publish`, and `POST /admin/plan-versions/:id/retire`.
+
+## Sandbox entitlements
+
+Sandbox accounts and plans use the same catalog, subscription, credit, and snapshot path as
+customer accounts:
+
+- `billing.accounts.environment` is `production` or `sandbox`.
+- `billing.plans.audience` is `public` or `sandbox`.
+- `growth-sandbox-unlimited`, `agents-sandbox-unlimited`, and `agency-sandbox-unlimited` grant all
+  current features, null internal limits, and `1,000,000,000,000` micro-USD of test credit.
+- Sandbox plans are hidden from product plan lists and plan details. They remain in the admin
+  catalog.
+- Sandbox plans can only be assigned to sandbox accounts.
+
+`POST /internal/sandbox/entitlement` authenticates with `x-billing-sandbox-secret`, resolves or
+creates the sandbox billing account, assigns the product's sandbox plan, and writes
+`sandbox.entitlement.assign` to `billing.audit`. Product servers continue to call
+`POST /internal/accounts/ensure` normally; an existing sandbox account is returned even when the
+product omits `environment`, while an explicit environment mismatch is rejected.
 
 ## Account linking and payer identity
 
@@ -127,5 +149,6 @@ The integration fixture covers signed product authority, free-plan assignment, c
 account linking, checkout, VAT invoice math, AI usage debit and daily usage aggregation,
 recurring charge visibility, full-refund credit revocation, amount mismatch reconciliation,
 dynamic plan publication, plan-version pinning, trial administration, display-only limit
-validation, and invalid webhook signatures. It uses a local fake Paystack HTTP server; no
+validation, sandbox plan visibility and assignment guards, sandbox endpoint authorization,
+production secret refusal, and invalid webhook signatures. It uses a local fake Paystack HTTP server; no
 real payment is made.

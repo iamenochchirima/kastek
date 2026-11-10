@@ -15,6 +15,7 @@ export interface AccountRow {
   id: string;
   name: string;
   status: string;
+  environment: string;
   currency: string;
   tax_rate_bps: number;
   vat_number: string | null;
@@ -34,7 +35,7 @@ export async function getAccountForTenant(
   tenantId: string,
 ): Promise<{ account: AccountRow; linkId: string; role: string }> {
   const result = await pool.query<AccountRow & { link_id: string; role: string }>(
-    `SELECT a.id, a.name, a.status, a.currency, a.tax_rate_bps, a.vat_number,
+    `SELECT a.id, a.name, a.status, a.environment, a.currency, a.tax_rate_bps, a.vat_number,
             a.billing_email, a.billing_email_normalized, a.owner_issuer,
             a.owner_subject, a.billing_address, a.provider_customer_id,
             a.entitlements_revision::text, a.metadata,
@@ -54,7 +55,7 @@ export async function getAccountById(
   accountId: string,
 ): Promise<AccountRow> {
   const result = await pool.query<AccountRow>(
-    `SELECT id, name, status, currency, tax_rate_bps, vat_number, billing_email,
+    `SELECT id, name, status, environment, currency, tax_rate_bps, vat_number, billing_email,
             billing_email_normalized, owner_issuer, owner_subject, billing_address,
             provider_customer_id, entitlements_revision::text, metadata
        FROM billing.accounts WHERE id=$1`,
@@ -84,6 +85,10 @@ export async function ensureAccount(
   const product = input.product;
   if (!["growth", "agents", "agency"].includes(product))
     bad("Product is invalid");
+  const requestedEnvironment = input.environment;
+  if (requestedEnvironment && !["production", "sandbox"].includes(requestedEnvironment))
+    bad("Account environment is invalid");
+  const environment = requestedEnvironment ?? "production";
   const tenantId = text(input.tenantId, "Tenant id", 256);
   const name = text(input.name, "Account name", 200);
   const email = text(input.billingEmail, "Billing email", 320);
@@ -100,7 +105,7 @@ export async function ensureAccount(
       `account-link:${product}:${tenantId}`,
     ]);
     const existing = await client.query<AccountRow & { link_id: string }>(
-      `SELECT a.id, a.name, a.status, a.currency, a.tax_rate_bps, a.vat_number,
+      `SELECT a.id, a.name, a.status, a.environment, a.currency, a.tax_rate_bps, a.vat_number,
               a.billing_email, a.billing_email_normalized, a.owner_issuer,
               a.owner_subject, a.billing_address, a.provider_customer_id,
               a.entitlements_revision::text, a.metadata, l.id AS link_id
@@ -109,18 +114,21 @@ export async function ensureAccount(
         WHERE l.product=$1 AND l.tenant_id=$2 AND l.status='active'`,
       [product, tenantId],
     );
-    if (existing.rows[0])
+    if (existing.rows[0]) {
+      if (requestedEnvironment && existing.rows[0].environment !== requestedEnvironment)
+        conflict("Billing account environment does not match this request");
       return {
         accountId: existing.rows[0].id,
         product,
         tenantId,
         revision: existing.rows[0].entitlements_revision,
       };
+    }
 
     const currency = (input.currency ?? config.defaultCurrency).toUpperCase();
     if (ownerIssuer && ownerSubject) {
       const candidate = await client.query<AccountRow>(
-        `SELECT id, name, status, currency, tax_rate_bps, vat_number, billing_email,
+        `SELECT id, name, status, environment, currency, tax_rate_bps, vat_number, billing_email,
                 billing_email_normalized, owner_issuer, owner_subject, billing_address,
                 provider_customer_id, entitlements_revision::text, metadata
            FROM billing.accounts
@@ -131,6 +139,8 @@ export async function ensureAccount(
       );
       const account = candidate.rows[0];
       if (account) {
+        if (requestedEnvironment && account.environment !== requestedEnvironment)
+          conflict("Billing account environment does not match this request");
         const productLink = await client.query(
           `SELECT 1 FROM billing.account_links
             WHERE billing_account_id=$1 AND product=$2 AND status='active'`,
@@ -163,12 +173,13 @@ export async function ensureAccount(
     const accountId = `acct_${randomUUID()}`;
     await client.query(
       `INSERT INTO billing.accounts(
-         id, name, currency, tax_rate_bps, billing_email,
+         id, name, environment, currency, tax_rate_bps, billing_email,
          billing_email_normalized, owner_issuer, owner_subject, metadata
-       ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+       ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [
         accountId,
         name,
+        environment,
         currency,
         config.taxRateBps,
         email,

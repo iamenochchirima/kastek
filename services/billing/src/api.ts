@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import Fastify, {
   type FastifyInstance,
   type FastifyRequest,
@@ -20,6 +21,7 @@ import {
   clonePlan,
   createPlanDraft,
   createPlanVersionDraft,
+  getActivePlanVersion,
   getLatestPlanVersion,
   getPlanDetails,
   getPlanVersionById,
@@ -91,6 +93,19 @@ import {
   text,
 } from "./util.js";
 
+function requireSandboxSecret(request: FastifyRequest, config: BillingConfig): void {
+  if (!config.sandboxSecret || config.environment === "production") {
+    throw new HttpError(503, "Sandbox billing is unavailable", "sandbox_billing_unavailable");
+  }
+  const supplied = request.headers["x-billing-sandbox-secret"];
+  const value = typeof supplied === "string" ? supplied : "";
+  const left = createHash("sha256").update(value).digest();
+  const right = createHash("sha256").update(config.sandboxSecret).digest();
+  if (!value || !timingSafeEqual(left, right) || value.length !== config.sandboxSecret.length) {
+    throw new HttpError(401, "Sandbox billing authorization failed", "unauthorized");
+  }
+}
+
 export async function buildApi(
   pool: Pool,
   config: BillingConfig,
@@ -110,6 +125,7 @@ export async function buildApi(
         "req.headers.cookie",
         "req.headers.x-kasitek-admin-authority",
         "req.headers.x-kasitek-billing-authority",
+        "req.headers.x-billing-sandbox-secret",
         "req.headers.x-paystack-signature",
       ],
     },
@@ -214,6 +230,50 @@ export async function buildApi(
       config,
     );
     return result;
+  });
+
+  app.post("/internal/sandbox/entitlement", async (request) => {
+    requireSandboxSecret(request as FastifyRequest, config);
+    const body = objectValue(request.body);
+    if (!body) throw new HttpError(400, "Request body is required", "invalid_request");
+    const product = text(body.product, "Product", 20) as BillingProduct;
+    if (!["growth", "agents", "agency"].includes(product)) bad("Product is invalid");
+    const planKey = text(body.planKey, "Plan key", 80);
+    const plan = await getActivePlanVersion(pool, planKey);
+    if (plan.product_key !== product) bad("Plan product does not match the account product");
+    if (plan.plan_audience !== "sandbox") bad("Only sandbox plans can be assigned here");
+    const account = await ensureAccount(
+      pool,
+      {
+        product,
+        tenantId: text(body.tenantId, "Tenant id", 256),
+        name: text(body.name, "Account name", 200),
+        billingEmail: text(body.billingEmail, "Billing email", 320),
+        ownerIssuer: optionalText(body.ownerIssuer, 255),
+        ownerSubject: optionalText(body.ownerSubject, 255),
+        environment: "sandbox",
+        metadata: { sandbox: true },
+      },
+      config,
+    );
+    const subscription = await assignPlan(pool, {
+      accountId: account.accountId,
+      planKey,
+      status: "active",
+      reason: "Sandbox entitlement",
+    });
+    await audit(pool, "sandbox-provisioner", "sandbox.entitlement.assign", "billing_account", account.accountId, {
+      product,
+      tenantId: body.tenantId,
+      planKey,
+    });
+    return {
+      accountId: account.accountId,
+      product,
+      planKey,
+      planVersion: plan.version,
+      subscription,
+    };
   });
 
   app.get("/internal/entitlements", async (request) => {

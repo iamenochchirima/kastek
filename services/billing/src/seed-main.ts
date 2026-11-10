@@ -77,6 +77,7 @@ export interface SeedPlan {
   description: string;
   amountMinor: number;
   active: boolean;
+  audience?: "public" | "sandbox";
   credits: number | null;
   entitlements: Array<{
     key: string;
@@ -310,6 +311,59 @@ export const PLANS: SeedPlan[] = [
     ],
   },
   {
+    product: "growth",
+    key: "growth-sandbox-unlimited",
+    name: "Growth sandbox unlimited",
+    description: "Internal evaluation entitlement. Not a customer plan.",
+    amountMinor: 0,
+    active: true,
+    audience: "sandbox",
+    credits: 1_000_000_000_000,
+    entitlements: [
+      ...GROWTH_PAID_FEATURES.map((key) => ({ key, value: true })),
+      { key: "limit.team_seats", value: null },
+      { key: "limit.connected_channels", value: null },
+      { key: "limit.campaign_recipients", value: null },
+      { key: "limit.social_publishes", value: null },
+      { key: "limit.agent_deployments", value: null },
+      { key: "limit.public_api_requests", value: null },
+    ],
+  },
+  {
+    product: "agents",
+    key: "agents-sandbox-unlimited",
+    name: "Agents sandbox unlimited",
+    description: "Internal evaluation entitlement. Not a customer plan.",
+    amountMinor: 0,
+    active: true,
+    audience: "sandbox",
+    credits: 1_000_000_000_000,
+    entitlements: [
+      ...AGENTS_ALL_FEATURES.map((key) => ({ key, value: true })),
+      { key: "limit.agent_seats", value: null },
+      { key: "limit.agent_tokens", value: null },
+      { key: "limit.crawl_pages", value: null },
+      { key: "limit.agent_count", value: null },
+      { key: "limit.agent_channels", value: null },
+    ],
+  },
+  {
+    product: "agency",
+    key: "agency-sandbox-unlimited",
+    name: "Agency sandbox unlimited",
+    description: "Internal evaluation entitlement. Not a customer plan.",
+    amountMinor: 0,
+    active: true,
+    audience: "sandbox",
+    credits: 1_000_000_000_000,
+    entitlements: [
+      { key: "agency.feature.agents", value: true },
+      { key: "limit.agency_workspaces", value: null },
+      { key: "limit.agency_staff", value: null },
+      { key: "limit.agency_agent_commands", value: null },
+    ],
+  },
+  {
     product: "agency",
     key: "agency-partner",
     name: "Agency Partner",
@@ -360,8 +414,8 @@ async function seedPlan(client: PoolClient, plan: SeedPlan): Promise<void> {
   const planId = `pln_${randomUUID()}`;
   const versionId = `plv_${randomUUID()}`;
   await client.query(
-    `INSERT INTO billing.plans(id, product_key, key, name, description, status)
-     VALUES($1,$2,$3,$4,$5,$6)`,
+    `INSERT INTO billing.plans(id, product_key, key, name, description, status, audience)
+     VALUES($1,$2,$3,$4,$5,$6,$7)`,
     [
       planId,
       plan.product,
@@ -369,6 +423,7 @@ async function seedPlan(client: PoolClient, plan: SeedPlan): Promise<void> {
       plan.name,
       plan.description,
       plan.active ? "active" : "draft",
+      plan.audience ?? "public",
     ],
   );
   await client.query(

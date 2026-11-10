@@ -385,12 +385,15 @@ export async function assignPlan(
   },
 ): Promise<SubscriptionRow> {
   return transaction(pool, async (client) => {
-    const account = await client.query<{ id: string; currency: string }>(
-      `SELECT id, currency FROM billing.accounts WHERE id=$1 FOR UPDATE`,
+    const account = await client.query<{ id: string; currency: string; environment: string }>(
+      `SELECT id, currency, environment FROM billing.accounts WHERE id=$1 FOR UPDATE`,
       [input.accountId],
     );
     if (!account.rows[0]) missing("Billing account not found");
     const plan = await getActivePlanVersion(client, input.planKey, account.rows[0].currency);
+    if (plan.plan_audience === "sandbox" && account.rows[0].environment !== "sandbox") {
+      bad("Sandbox plans can only be assigned to sandbox accounts");
+    }
     const status = input.status ?? "active";
     const start = input.periodStart ?? new Date();
     const end =

@@ -27,6 +27,7 @@ export interface PlanVersionRow {
   plan_name: string;
   plan_description: string | null;
   plan_status: string;
+  plan_audience: "public" | "sandbox";
   product_key: BillingProduct;
   version: number;
   status: "draft" | "scheduled" | "active" | "retired";
@@ -69,7 +70,8 @@ export interface CapabilityRow {
 }
 
 const VERSION_COLUMNS = `v.id, v.plan_id, p.key AS plan_key, p.name AS plan_name,
-  p.description AS plan_description, p.status AS plan_status, p.product_key,
+  p.description AS plan_description, p.status AS plan_status,
+  p.audience AS plan_audience, p.product_key,
   v.version, v.status, v.interval, v.currency, v.amount_minor::text,
   v.tax_inclusive, v.tax_rate_bps, v.credits_per_period::text,
   v.paystack_plan_code, v.active, v.effective_from, v.effective_to,
@@ -230,7 +232,8 @@ export async function listPlans(
     `SELECT DISTINCT ON (p.id) ${VERSION_COLUMNS}
        FROM billing.plan_versions v
        JOIN billing.plans p ON p.id=v.plan_id
-      WHERE p.status='active' AND v.status='active' AND v.active=true
+      WHERE p.status='active' AND p.audience='public'
+        AND v.status='active' AND v.active=true
         AND v.effective_from<=now()
         AND (v.effective_to IS NULL OR v.effective_to>now())
         AND ($1::text IS NULL OR p.product_key=$1)
@@ -260,6 +263,7 @@ export async function getPlanDetails(
   currency?: string,
 ): Promise<BillingPlanSummary> {
   const version = await getActivePlanVersion(pool, planKey, currency);
+  if (version.plan_audience === "sandbox") missing("Plan not found");
   return planSummary(
     version,
     await getPlanEntitlements(pool, version.id),
