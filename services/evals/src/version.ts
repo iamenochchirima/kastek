@@ -67,6 +67,30 @@ function checksum(value: string | undefined, name: string): string {
   return normalized;
 }
 
+async function growthSchema(
+  repoRoot: string,
+): Promise<{ schemaVersion: string; migrationChecksum: string }> {
+  const directory = join(repoRoot, "products/growth/database/prisma/migrations");
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = entries
+    .filter((entry) => entry.isDirectory() && /^\d{14}_[a-z0-9_]+$/.test(entry.name))
+    .map((entry) => entry.name)
+    .sort();
+  if (!files.length) {
+    throw new SandboxGuardError(
+      "VERSION_MANIFEST_INCOMPLETE",
+      "Growth schema migrations were not found",
+    );
+  }
+  const contents = await Promise.all(
+    files.map((name) => readFile(join(directory, name, "migration.sql"), "utf8")),
+  );
+  return {
+    schemaVersion: `prisma-${files[files.length - 1]}`.slice(0, 120),
+    migrationChecksum: digest(contents.join("\n")),
+  };
+}
+
 async function agentsSchema(
   repoRoot: string,
 ): Promise<{ schemaVersion: string; migrationChecksum: string }> {
@@ -141,8 +165,11 @@ function adapterVersions(
 export async function captureSandboxVersion(
   config: EvalsConfig,
   overrides: SandboxManifestOverrides = {},
+  product: "agents" | "growth" = "agents",
 ): Promise<SandboxManifest> {
-  const computedSchema = await agentsSchema(config.repoRoot);
+  const computedSchema = product === "growth"
+    ? await growthSchema(config.repoRoot)
+    : await agentsSchema(config.repoRoot);
   const codeRevision =
     overrides.codeRevision ??
     config.codeRevisionOverride ??
@@ -164,6 +191,7 @@ export async function captureSandboxVersion(
         identityMode: config.identityMode,
         networkPolicy: config.networkPolicy,
         modelId: config.modelId,
+        product,
       }),
     );
   const modelRoutesDigest =
@@ -172,6 +200,7 @@ export async function captureSandboxVersion(
       canonical({
         modelMode: config.modelMode,
         modelId: config.modelId,
+        product,
       }),
     );
   const adapters = adapterVersions(

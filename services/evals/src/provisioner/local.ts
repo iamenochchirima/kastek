@@ -14,17 +14,18 @@ import {
   type ProvisioningStep,
 } from "../store.js";
 
-interface LocalProvisioningInput {
+export interface LocalProvisioningInput {
   sandboxId: string;
   workspaceName: string;
   label?: string;
+  growthProductApiUrl?: string;
 }
 
-interface ProductEnv {
+export interface ProductEnv {
   [key: string]: string | undefined;
 }
 
-interface StartedRuntime {
+export interface StartedRuntime {
   api: ChildProcess;
   worker: ChildProcess;
   apiPort: number;
@@ -37,7 +38,7 @@ interface StartedRuntime {
 
 const running = new Map<string, StartedRuntime>();
 
-function databaseUrl(base: string, database: string): string {
+export function databaseUrl(base: string, database: string): string {
   const url = new URL(base);
   url.pathname = `/${encodeURIComponent(database)}`;
   return url.toString();
@@ -63,7 +64,7 @@ function hmac(key: string | Uint8Array, value: string): Buffer {
   return createHmac("sha256", key).update(value).digest();
 }
 
-async function ensureBucket(
+export async function ensureBucket(
   endpoint: string,
   region: string,
   accessKeyId: string,
@@ -99,7 +100,7 @@ async function ensureBucket(
   await response.body?.cancel();
 }
 
-async function availablePort(): Promise<number> {
+export async function availablePort(): Promise<number> {
   const server = createServer();
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -112,7 +113,7 @@ async function availablePort(): Promise<number> {
   return port;
 }
 
-async function waitFor(
+export async function waitFor(
   check: () => Promise<boolean>,
   label: string,
   timeoutMs = 60_000,
@@ -129,7 +130,7 @@ async function waitFor(
   throw new Error(`${label} did not become ready within ${timeoutMs}ms`);
 }
 
-function waitForPort(port: number, timeoutMs = 60_000): Promise<void> {
+export function waitForPort(port: number, timeoutMs = 60_000): Promise<void> {
   return waitFor(async () => new Promise<boolean>((resolve) => {
     const socket = createConnection({ port, host: "127.0.0.1" });
     socket.once("connect", () => {
@@ -140,8 +141,7 @@ function waitForPort(port: number, timeoutMs = 60_000): Promise<void> {
   }), `Worker port ${port}`, timeoutMs);
 }
 
-function productEnvironment(config: EvalsConfig): ProductEnv {
-  const productDir = join(config.repoRoot, "products/agents/api");
+export function productEnvironment(config: EvalsConfig, productDir = join(config.repoRoot, "products/agents/api")): ProductEnv {
   const files = [
     join(productDir, ".env"),
     join(productDir, ".env.evals"),
@@ -171,6 +171,7 @@ function childEnvironment(
   bucket: string,
   apiPort: number,
   workerPort: number,
+  growthProductApiUrl?: string,
 ): ProductEnv {
   const env = productEnvironment(config);
   const base = productEnvironment(config);
@@ -198,6 +199,7 @@ function childEnvironment(
     RESTATE_WORKER_PORT: String(workerPort),
     RESTATE_WORKER_HOST: "0.0.0.0",
     KASITEK_RELEASE_ID: process.env.KASITEK_RELEASE_ID || "local-sandbox",
+    ...(growthProductApiUrl ? { GROWTH_PRODUCT_API_URL: growthProductApiUrl } : {}),
     AGENTS_SANDBOX_ID: sandboxId,
     AGENTS_CONNECTION_ACTIVE_KEY: base.AGENTS_CONNECTION_ACTIVE_KEY,
     AGENTS_CONNECTION_KEYS: base.AGENTS_CONNECTION_KEYS,
@@ -205,13 +207,13 @@ function childEnvironment(
   };
 }
 
-function startProductProcess(
+export function startProductProcess(
   config: EvalsConfig,
+  productDir: string,
   script: string,
   env: ProductEnv,
   logFile: string,
 ): ChildProcess {
-  const productDir = join(config.repoRoot, "products/agents/api");
   const loader = join(productDir, "node_modules/tsx/dist/loader.mjs");
   const fd = openSync(logFile, "a", 0o600);
   try {
@@ -225,13 +227,13 @@ function startProductProcess(
   }
 }
 
-function runProductScript(
+export function runProductScript(
   config: EvalsConfig,
+  productDir: string,
   script: string,
   env: ProductEnv,
   timeoutMs = 120_000,
 ): Promise<{ code: number | null; stdout: string; stderr: string }> {
-  const productDir = join(config.repoRoot, "products/agents/api");
   const loader = join(productDir, "node_modules/tsx/dist/loader.mjs");
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ["--import", loader, script], {
@@ -255,7 +257,7 @@ function runProductScript(
   });
 }
 
-async function updateSteps(
+export async function updateSteps(
   pool: Pool,
   sandboxId: string,
   steps: ProvisioningStep[],
@@ -263,7 +265,7 @@ async function updateSteps(
   await updateSandboxProvisioning(pool, sandboxId, { steps });
 }
 
-function markStep(
+export function markStep(
   steps: ProvisioningStep[],
   name: string,
   status: ProvisioningStep["status"],
@@ -279,7 +281,7 @@ function markStep(
   return next;
 }
 
-async function createDatabase(config: EvalsConfig, name: string): Promise<void> {
+export async function createDatabase(config: EvalsConfig, name: string): Promise<void> {
   const admin = new Pool({
     connectionString: databaseUrl(config.evalDatabaseUrl, "postgres"),
     max: 1,
@@ -291,7 +293,7 @@ async function createDatabase(config: EvalsConfig, name: string): Promise<void> 
   }
 }
 
-async function dropDatabase(config: EvalsConfig, name: string): Promise<void> {
+export async function dropDatabase(config: EvalsConfig, name: string): Promise<void> {
   const admin = new Pool({
     connectionString: databaseUrl(config.evalDatabaseUrl, "postgres"),
     max: 1,
@@ -303,7 +305,7 @@ async function dropDatabase(config: EvalsConfig, name: string): Promise<void> {
   }
 }
 
-function restateWorkerHost(): string {
+export function restateWorkerHost(): string {
   const override = process.env.EVALS_LOCAL_RESTATE_WORKER_HOST?.trim();
   if (override) return override;
   try {
@@ -317,7 +319,7 @@ function restateWorkerHost(): string {
   }
 }
 
-async function registerWorker(config: EvalsConfig, workerPort: number): Promise<string> {
+export async function registerWorker(config: EvalsConfig, workerPort: number): Promise<string> {
   const host = restateWorkerHost();
   const response = await fetch(`${config.localProvisioning!.restateAdminUrl.replace(/\/+$/, "")}/deployments`, {
     method: "POST",
@@ -333,7 +335,7 @@ async function registerWorker(config: EvalsConfig, workerPort: number): Promise<
   return value.id ?? `http://${host}:${workerPort}`;
 }
 
-async function stopRuntime(runtime: StartedRuntime | undefined): Promise<void> {
+export async function stopRuntime(runtime: StartedRuntime | undefined): Promise<void> {
   if (!runtime) return;
   for (const child of [runtime.api, runtime.worker]) {
     if (child.exitCode === null && child.signalCode === null) {
@@ -379,7 +381,7 @@ export async function provisionLocalSandbox(
       AGENTS_MIGRATION_DATABASE_URL: databaseUrl(config.evalDatabaseUrl, productDatabase),
       AGENTS_BILLING_ENFORCEMENT: "0",
     };
-    const setup = await runProductScript(config, "src/composition/setup.ts", migrationEnv);
+    const setup = await runProductScript(config, join(config.repoRoot, "products/agents/api"), "src/composition/setup.ts", migrationEnv);
     if (setup.code !== 0) {
       throw new Error(`Agents schema setup failed: ${setup.stderr.slice(0, 500)}`);
     }
@@ -402,9 +404,9 @@ export async function provisionLocalSandbox(
     await updateSteps(pool, input.sandboxId, steps);
     const apiPort = await availablePort();
     const workerPort = await availablePort();
-    const env = childEnvironment(config, input.sandboxId, productDatabase, bucket, apiPort, workerPort);
-    const api = startProductProcess(config, "src/composition/server.ts", env, join(directory, "api.log"));
-    const worker = startProductProcess(config, "src/composition/worker.ts", env, join(directory, "worker.log"));
+    const env = childEnvironment(config, input.sandboxId, productDatabase, bucket, apiPort, workerPort, input.growthProductApiUrl);
+    const api = startProductProcess(config, join(config.repoRoot, "products/agents/api"), "src/composition/server.ts", env, join(directory, "api.log"));
+    const worker = startProductProcess(config, join(config.repoRoot, "products/agents/api"), "src/composition/worker.ts", env, join(directory, "worker.log"));
     runtime = {
       api,
       worker,
@@ -430,7 +432,7 @@ export async function provisionLocalSandbox(
     steps = markStep(steps, "workspace", "running");
     await updateSteps(pool, input.sandboxId, steps);
     const ownerEmail = `sandbox-owner-${input.sandboxId.slice(0, 8)}@example.local`;
-    const bootstrap = await runProductScript(config, "src/composition/bootstrap-sandbox.ts", {
+    const bootstrap = await runProductScript(config, join(config.repoRoot, "products/agents/api"), "src/composition/bootstrap-sandbox.ts", {
       ...env,
       AGENTS_BOOTSTRAP_EMAIL: ownerEmail,
       AGENTS_BOOTSTRAP_WORKSPACE_NAME: input.workspaceName,

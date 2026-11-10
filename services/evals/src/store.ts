@@ -47,10 +47,18 @@ export interface WorkspaceRef {
   createdAt: string;
 }
 
+export interface SandboxPair {
+  id: string;
+  growthSandboxId: string;
+  agentsSandboxId: string;
+  createdAt: string;
+}
+
 export interface SandboxDetail {
   sandbox: Sandbox;
   version: SandboxVersion | null;
   workspaceRefs: WorkspaceRef[];
+  pair: SandboxPair | null;
 }
 
 export interface CreateSandboxInput {
@@ -112,6 +120,15 @@ function mapVersion(row: Row): SandboxVersion {
     createdAt: iso(row.created_at),
     activatedAt: iso(row.activated_at),
     retiredAt: row.retired_at == null ? null : iso(row.retired_at),
+  };
+}
+
+function mapSandboxPair(row: Row): SandboxPair {
+  return {
+    id: String(row.id),
+    growthSandboxId: String(row.growth_sandbox_id),
+    agentsSandboxId: String(row.agents_sandbox_id),
+    createdAt: iso(row.created_at),
   };
 }
 
@@ -218,6 +235,7 @@ export async function createSandbox(
       sandbox: mapSandbox(sandboxResult.rows[0] as Row),
       version: mapVersion(versionResult.rows[0] as Row),
       workspaceRefs: refs,
+      pair: null,
     };
   });
 }
@@ -238,6 +256,7 @@ export async function listSandboxes(
         sandbox,
         version: await currentVersion(pool, sandbox.id),
         workspaceRefs: await workspaceRefs(pool, sandbox.id),
+        pair: await getSandboxPair(pool, sandbox.id),
       };
     }),
   );
@@ -257,6 +276,7 @@ export async function getSandbox(
     sandbox,
     version: await currentVersion(pool, sandbox.id),
     workspaceRefs: await workspaceRefs(pool, sandbox.id),
+    pair: await getSandboxPair(pool, sandbox.id),
   };
 }
 
@@ -931,4 +951,68 @@ export async function updateSandboxProvisioning(
     ],
   );
   return result.rows[0] ? mapSandbox(result.rows[0] as Row) : null;
+}
+
+export class SandboxPairError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "SandboxPairError";
+  }
+}
+
+export async function createSandboxPair(
+  pool: Pool,
+  growthSandboxId: string,
+  agentsSandboxId: string,
+): Promise<SandboxPair> {
+  return transaction(pool, async (client) => {
+    const result = await client.query(
+      "SELECT id, product FROM evals.sandboxes WHERE id=ANY($1::uuid[])",
+      [[growthSandboxId, agentsSandboxId]],
+    );
+    const products = new Map(result.rows.map((row) => [String(row.id), String(row.product)]));
+    if (!products.has(growthSandboxId) || !products.has(agentsSandboxId)) {
+      throw new SandboxPairError("SANDBOX_NOT_FOUND", "Sandbox not found");
+    }
+    if (products.get(growthSandboxId) !== "growth" || products.get(agentsSandboxId) !== "agents") {
+      throw new SandboxPairError("PRODUCT_MISMATCH", "A pair requires one Growth and one Agents sandbox");
+    }
+    const existing = await client.query(
+      `SELECT * FROM evals.sandbox_pairs
+       WHERE growth_sandbox_id=$1 OR agents_sandbox_id=$2 FOR UPDATE`,
+      [growthSandboxId, agentsSandboxId],
+    );
+    if (existing.rows[0]) {
+      const pair = mapSandboxPair(existing.rows[0] as Row);
+      if (
+        pair.growthSandboxId === growthSandboxId &&
+        pair.agentsSandboxId === agentsSandboxId
+      ) {
+        return pair;
+      }
+      throw new SandboxPairError("PAIR_CONFLICT", "One of these sandboxes is already paired");
+    }
+    const inserted = await client.query(
+      `INSERT INTO evals.sandbox_pairs(id, growth_sandbox_id, agents_sandbox_id)
+       VALUES($1,$2,$3) RETURNING *`,
+      [randomUUID(), growthSandboxId, agentsSandboxId],
+    );
+    return mapSandboxPair(inserted.rows[0] as Row);
+  });
+}
+
+export async function getSandboxPair(
+  pool: Pool,
+  sandboxId: string,
+): Promise<SandboxPair | null> {
+  const result = await pool.query(
+    `SELECT * FROM evals.sandbox_pairs
+     WHERE growth_sandbox_id=$1 OR agents_sandbox_id=$1
+     ORDER BY created_at DESC LIMIT 1`,
+    [sandboxId],
+  );
+  return result.rows[0] ? mapSandboxPair(result.rows[0] as Row) : null;
 }

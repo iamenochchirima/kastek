@@ -119,10 +119,18 @@ export interface SandboxSummary {
   };
 }
 
+export interface SandboxPair {
+  id: string;
+  growthSandboxId: string;
+  agentsSandboxId: string;
+  createdAt: string;
+}
+
 export interface SandboxDetail extends SandboxSummary {
   agents: AgentRef[];
   sessions: InteractiveSession[];
   outcomes: OutcomeRef[];
+  pair: SandboxPair | null;
 }
 
 export interface SessionSummary extends InteractiveSession {

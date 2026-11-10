@@ -56,6 +56,16 @@ export default function SandboxDetailPage() {
         {typeof detail.sandbox.runtime.productApiUrl === "string" && (
           <div className="meta-card"><span>Product API</span><strong className="mono">{detail.sandbox.runtime.productApiUrl}</strong></div>
         )}
+        {detail.pair && (
+          <div className="meta-card">
+            <span>Paired sandbox</span>
+            <strong>
+              <Link to={`/sandboxes/${detail.pair.growthSandboxId === detail.sandbox.id ? detail.pair.agentsSandboxId : detail.pair.growthSandboxId}`}>
+                {shortId(detail.pair.growthSandboxId === detail.sandbox.id ? detail.pair.agentsSandboxId : detail.pair.growthSandboxId)}
+              </Link>
+            </strong>
+          </div>
+        )}
       </section>
 
       {detail.sandbox.provisioningSteps.length > 0 && detail.sandbox.status !== "ready" && (

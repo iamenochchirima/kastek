@@ -22,6 +22,7 @@ This is the canonical home for private Kasitek documentation.
 - [Release Process](./operations/release-process.md)
 - [Platform Versioning](./operations/platform-versioning.md)
 - [Environments](./operations/environments.md)
+- [Evaluation sandbox bootstrap](./operations/sandbox-bootstrap.md)
 - [Railway Deployment Topology](./operations/deployment-topology.md)
 - [Observability](./operations/observability.md)
 - [Agents technical docs](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/README.md)

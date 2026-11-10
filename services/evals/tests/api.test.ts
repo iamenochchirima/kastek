@@ -7,7 +7,7 @@ import { buildApi } from "../src/api.js";
 import type { EvalsConfig } from "../src/config.js";
 import { createPool } from "../src/db.js";
 import { migrate } from "../src/migrate.js";
-import { updateSandboxProvisioning } from "../src/store.js";
+import { createSandboxPair, updateSandboxProvisioning } from "../src/store.js";
 
 const databaseUrl = process.env.EVALS_TEST_DATABASE_URL;
 const skip = databaseUrl
@@ -62,7 +62,7 @@ before(async () => {
   pool = createPool(databaseUrl);
   app = buildApi(pool, config, { logger: false });
   await pool.query(
-    "TRUNCATE evals.interactive_turns, evals.interactive_sessions, evals.outcome_refs, evals.agent_refs, evals.workspace_refs, evals.sandbox_versions, evals.sandboxes CASCADE",
+    "TRUNCATE evals.sandbox_pairs, evals.interactive_turns, evals.interactive_sessions, evals.outcome_refs, evals.agent_refs, evals.workspace_refs, evals.sandbox_versions, evals.sandboxes CASCADE",
   );
 });
 
@@ -182,7 +182,7 @@ test("rejects an unsupported product", { skip }, async () => {
     method: "POST",
     url: "/v1/sandboxes",
     headers: auth,
-    payload: { product: "growth" },
+    payload: { product: "agency" },
   });
   assert.equal(response.statusCode, 400);
   assert.equal(
@@ -591,4 +591,44 @@ test("stores provisioning progress and runtime metadata", { skip }, async () => 
   assert.equal(updated.provisioningSteps[1]!.name, "workspace");
   assert.equal(updated.provisionedAt, "2026-11-09T20:00:00.000Z");
   assert.equal(updated.runtime.productApiUrl, "http://127.0.0.1:4000");
+});
+
+test("pairs one Growth sandbox with one Agents sandbox", { skip }, async () => {
+  const growth = await app!.inject({
+    method: "POST",
+    url: "/v1/sandboxes",
+    headers: auth,
+    payload: { product: "growth" },
+  });
+  const growthId = (growth.json() as { sandbox: { id: string } }).sandbox.id;
+  const agents = await app!.inject({
+    method: "POST",
+    url: "/v1/sandboxes",
+    headers: auth,
+    payload: { product: "agents" },
+  });
+  const agentsId = (agents.json() as { sandbox: { id: string } }).sandbox.id;
+  const pair = await createSandboxPair(pool!, growthId, agentsId);
+  assert.equal(pair.growthSandboxId, growthId);
+  assert.equal(pair.agentsSandboxId, agentsId);
+
+  const detail = await app!.inject({
+    method: "GET",
+    url: `/v1/sandboxes/${growthId}`,
+    headers: auth,
+  });
+  assert.equal(detail.statusCode, 200);
+  assert.equal((detail.json() as { pair: { agentsSandboxId: string } }).pair.agentsSandboxId, agentsId);
+
+  const secondAgents = await app!.inject({
+    method: "POST",
+    url: "/v1/sandboxes",
+    headers: auth,
+    payload: { product: "agents" },
+  });
+  const secondAgentsId = (secondAgents.json() as { sandbox: { id: string } }).sandbox.id;
+  await assert.rejects(
+    () => createSandboxPair(pool!, growthId, secondAgentsId),
+    (error: unknown) => (error as { code?: string }).code === "PAIR_CONFLICT",
+  );
 });

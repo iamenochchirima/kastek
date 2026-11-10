@@ -87,3 +87,9 @@ test("rejects empty adapter versions", async () => {
       error.code === "VERSION_MANIFEST_INCOMPLETE",
   );
 });
+
+test("captures the Growth schema lineage", async () => {
+  const manifest = await captureSandboxVersion(config, {}, "growth");
+  assert.match(manifest.schemaVersion, /^prisma-\d{14}_/);
+  assert.match(manifest.migrationChecksum, /^[a-f0-9]{64}$/);
+});

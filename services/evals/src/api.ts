@@ -27,10 +27,12 @@ import {
   getInteractiveSession,
   InteractiveSessionError,
   listInteractiveSessions,
+  SandboxPairError,
   type InteractiveSessionState,
 } from "./store.js";
 import { captureSandboxVersion } from "./version.js";
 import { provisionLocalSandbox } from "./provisioner/local.js";
+import { provisionGrowthPair } from "./provisioner/growth.js";
 
 class HttpError extends Error {
   constructor(
@@ -238,6 +240,15 @@ export function buildApi(
         code: error.code,
       });
     }
+    if (error instanceof SandboxPairError) {
+      const status =
+        error.code === "PAIR_CONFLICT" ? 409 :
+        error.code === "SANDBOX_NOT_FOUND" ? 404 : 400;
+      return reply.code(status).send({
+        error: error.message,
+        code: error.code,
+      });
+    }
     if (error instanceof InteractiveSessionError) {
       const status =
         error.code === "SESSION_CONFLICT" || error.code === "TURN_CONFLICT" ? 409 :
@@ -299,14 +310,14 @@ export function buildApi(
     const product = body.product == null
       ? "agents"
       : requiredText(body.product, "product", 32);
-    if (product !== "agents") {
+    if (!["agents", "growth"].includes(product)) {
       throw new HttpError(
         400,
         "unsupported_product",
-        "Phase 1 only supports the Agents product",
+        "Supported products are agents and growth",
       );
     }
-    const manifest = await captureSandboxVersion(config, {
+    const manifestOverrides = {
       codeRevision: optionalText(body.codeRevision, "codeRevision", 200),
       imageDigest: optionalText(body.imageDigest, "imageDigest", 200),
       schemaVersion: optionalText(body.schemaVersion, "schemaVersion", 120),
@@ -323,7 +334,9 @@ export function buildApi(
         64,
       ),
       adapterVersions: adapterVersions(body.adapterVersions),
-    });
+    };
+    const manifestFor = (target: "agents" | "growth") =>
+      captureSandboxVersion(config, manifestOverrides, target);
     if (body.provision === true) {
       if (!config.localProvisioning) {
         return reply.code(503).send({
@@ -340,6 +353,51 @@ export function buildApi(
       }
       const workspaceName = requiredText(body.workspaceName, "workspaceName", 120);
       const label = optionalText(body.label, "label", 200);
+      if (product === "growth") {
+        const growthManifest = await manifestFor("growth");
+        const agentsManifest = await manifestFor("agents");
+        const growth = await createSandbox(pool, {
+          product: "growth",
+          manifest: growthManifest,
+          status: "provisioning",
+          profile,
+          provisioningSteps: [
+            { name: "agents", status: "pending" },
+            { name: "database", status: "pending" },
+            { name: "schema", status: "pending" },
+            { name: "runtime", status: "pending" },
+            { name: "workspace", status: "pending" },
+            { name: "pairing", status: "pending" },
+            { name: "agent-setup", status: "pending" },
+          ],
+        });
+        const agents = await createSandbox(pool, {
+          product: "agents",
+          manifest: agentsManifest,
+          status: "provisioning",
+          profile,
+          provisioningSteps: [
+            { name: "database", status: "pending" },
+            { name: "schema", status: "pending" },
+            { name: "storage", status: "pending" },
+            { name: "runtime", status: "pending" },
+            { name: "workspace", status: "pending" },
+          ],
+        });
+        void provisionGrowthPair(config, pool, {
+          growthSandboxId: growth.sandbox.id,
+          agentsSandboxId: agents.sandbox.id,
+          workspaceName,
+          ...(label ? { label } : {}),
+        }).catch((error: unknown) => {
+          request.log.error(
+            { event: "sandbox.growth.provision.failed", sandboxId: growth.sandbox.id },
+            error instanceof Error ? error.message : "unknown",
+          );
+        });
+        return reply.code(202).send(growth);
+      }
+      const manifest = await manifestFor("agents");
       const detail = await createSandbox(pool, {
         product,
         manifest,
@@ -365,6 +423,7 @@ export function buildApi(
       });
       return reply.code(202).send(detail);
     }
+    const manifest = await manifestFor(product as "agents" | "growth");
     const detail = await createSandbox(pool, {
       product,
       manifest,

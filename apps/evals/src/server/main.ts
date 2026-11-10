@@ -165,14 +165,15 @@ app.setErrorHandler((error, _request, reply) => {
 app.get("/api/health", async () => health());
 app.get("/api/sandboxes", async () => listSandboxes());
 app.post("/api/sandboxes", async (request, reply) => {
-  const body = request.body as { label?: unknown; workspaceName?: unknown } | null;
+  const body = request.body as { label?: unknown; workspaceName?: unknown; product?: unknown } | null;
   if (!body || typeof body.workspaceName !== "string" || !body.workspaceName.trim()) {
     return reply.code(400).send({ error: "workspaceName is required" });
   }
+  const product = body.product === "growth" ? "growth" : "agents";
   const value = await service<SandboxDetail>("/v1/sandboxes", {
     method: "POST",
     body: JSON.stringify({
-      product: "agents",
+      product,
       provision: true,
       profile: "local",
       workspaceName: body.workspaceName.trim(),

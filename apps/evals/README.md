@@ -30,8 +30,8 @@ pnpm --filter @kasitek/evals start
 
 ## Pages
 
-- **Sandboxes** — recorded sandboxes, their status, and workspace, agent, session and outcome counts. The **Create sandbox** action provisions a local Agents environment and polls until it is ready.
-- **Sandbox detail** — version, provisioning progress, workspaces, agent references, sessions and outcomes.
+- **Sandboxes** — recorded sandboxes, their status, and workspace, agent, session and outcome counts. **Create sandbox** provisions a local Agents environment or a Growth sandbox with its paired Agents runtime.
+- **Sandbox detail** — version, provisioning progress, workspaces, agent references, sessions, outcomes and the paired sandbox link.
 - **Sessions** — interactive sessions across sandboxes.
 - **Session detail** — task references, states and transcript digests.
 - **Outcomes** — saved business results across sandboxes.
@@ -56,6 +56,8 @@ server; a missing token returns a clear `503` instead of exposing an unauthentic
 control plane.
 
 Creating a sandbox requires the local provisioner configuration on the service:
-PostgreSQL database-create access, local S3/MinIO credentials, a running Restate
-admin endpoint, and Docker socket access. The dialog creates a real isolated Agents
-database, bucket, API, worker and workspace. It is not a record-only form.
+PostgreSQL database-create access, Growth Prisma migration privileges, local
+S3/MinIO credentials, a running Restate admin endpoint, Docker socket access and
+signed Growth/Agents keys. The dialog creates a real isolated environment. It is not
+a record-only form. Growth creates a Growth database/API/workspace plus a paired
+Agents runtime.

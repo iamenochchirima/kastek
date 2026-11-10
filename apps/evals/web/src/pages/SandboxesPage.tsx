@@ -12,6 +12,7 @@ export default function SandboxesPage() {
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
+  const [product, setProduct] = useState<"agents" | "growth">("agents");
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -37,6 +38,7 @@ export default function SandboxesPage() {
       const created = await api<SandboxDetail>("/api/sandboxes", {
         method: "POST",
         body: JSON.stringify({
+          product,
           label: label.trim() || undefined,
           workspaceName: workspaceName.trim(),
         }),
@@ -113,17 +115,23 @@ export default function SandboxesPage() {
             </div>
             <form onSubmit={create}>
               <div className="modal-body">
-                <div className="meta-grid modal-meta">
-                  <div className="meta-card"><span>Product</span><strong>Agents</strong></div>
-                  <div className="meta-card"><span>Profile</span><strong>Local</strong></div>
-                </div>
                 <label className="field">
-                  <span className="field-label">Workspace name</span>
+                  <span className="field-label">Product</span>
+                  <select className="select" value={product} onChange={(event) => setProduct(event.target.value as "agents" | "growth")} disabled={creating}>
+                    <option value="agents">Agents</option>
+                    <option value="growth">Growth</option>
+                  </select>
+                  <span className="field-hint">
+                    {product === "growth" ? "Creates a Growth sandbox and paired Agents runtime." : "Creates one Agents sandbox."}
+                  </span>
+                </label>
+                <label className="field">
+                  <span className="field-label">{product === "growth" ? "Business name" : "Workspace name"}</span>
                   <input
                     className="input"
                     value={workspaceName}
                     onChange={(event) => setWorkspaceName(event.target.value)}
-                    placeholder="Acme support"
+                    placeholder={product === "growth" ? "Acme business" : "Acme support"}
                     autoFocus
                     disabled={creating}
                   />

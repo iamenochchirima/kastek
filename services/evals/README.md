@@ -117,7 +117,7 @@ curl -sS http://127.0.0.1:4600/v1/sandboxes \
   -d '{}'
 ```
 
-Optional fields: `product` (`agents` only), `codeRevision`, `imageDigest`,
+Optional fields: `product` (`agents` or `growth`), `codeRevision`, `imageDigest`,
 `schemaVersion`, `migrationChecksum`, `configDigest`, `runtimeVersion`,
 `modelRoutesDigest`, `adapterVersions`, and an initial `workspaceRef`.
 
@@ -144,6 +144,10 @@ The response is `202` with status `provisioning`. Poll
 `GET /v1/sandboxes/:id` until status is `ready` or `failed`. Each result includes
 ordered `provisioningSteps` and, when ready, the local `runtime` metadata.
 
+For `product: "growth"`, the request creates a Growth sandbox and a paired
+Agents runtime sandbox. The Growth runtime uses the signed Growth → Agents
+service keys and records the pair in `GET /v1/sandboxes/:id`.
+
 The local provisioner currently:
 
 1. Creates `agents_sandbox_<id>` on the local PostgreSQL server.
@@ -156,11 +160,24 @@ The local provisioner currently:
 7. Writes a local owner session file under `.audit/sandboxes/<sandbox-id>/`
    with mode `0600`; the token is not stored in the control plane.
 
+For a Growth pair it then:
+
+1. Creates `growth_sandbox_<id>` and applies the Growth Prisma migrations.
+2. Starts a dedicated Growth API with its own port.
+3. Bootstraps the Growth owner, business organization, BusinessProfile and a
+   local owner session through `src/bootstrap-sandbox.ts`.
+4. Starts the `growth-agent-setup-worker` against the paired Agents API.
+5. Waits for Growth agent setup to reach `ready` and records the Growth
+   business workspace on the paired Agents sandbox.
+6. Records the Growth/Agents pair and both session files.
+
 Local provisioning requires the product environment files, PostgreSQL access to
-create databases, MinIO/S3 credentials, a running Restate admin endpoint, Docker
-socket access to discover the bridge gateway, and the product `tsx` loader. It is a
-development/local provisioner, not the Phase 5 hosted lifecycle. Destroy and
-retention are not implemented yet.
+create databases, Growth Prisma migration privileges, MinIO/S3 credentials, a
+running Restate admin endpoint, Docker socket access to discover the bridge
+gateway, and the product `tsx` loaders. Growth pairing also requires the existing
+signed Growth/Agents keys and managed model profile. It is a development/local
+provisioner, not the Phase 5 hosted lifecycle. Growth web, non-agent Growth
+workers, destroy and retention are not implemented yet.
 
 ### List and inspect
 
