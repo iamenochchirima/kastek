@@ -243,7 +243,18 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof z.ZodError) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "Check the request fields" } });
-    if (error instanceof PlatformError) return reply.code(error.statusCode).send({ error: { code: error.code, message: error.message } });
+    if (error instanceof PlatformError) {
+      if (error.code === "INSUFFICIENT_ROLE" || error.code === "ROLE_ESCALATION_DENIED") {
+        request.log.warn({
+          event: "workspace.permission_denied",
+          code: error.code,
+          method: request.method,
+          route: request.routeOptions.url,
+          organizationId: (request.params as { organizationId?: string } | undefined)?.organizationId,
+        }, "Workspace permission denied");
+      }
+      return reply.code(error.statusCode).send({ error: { code: error.code, message: error.message } });
+    }
     const statusCode = (error as { statusCode?: number }).statusCode;
     if (statusCode && statusCode >= 400 && statusCode < 500) return reply.code(statusCode).send({ error: { code: "INVALID_REQUEST", message: "Invalid request" } });
     request.log.error({ event: "platform.request.failed", code: "INTERNAL_ERROR" }, "Request failed");
