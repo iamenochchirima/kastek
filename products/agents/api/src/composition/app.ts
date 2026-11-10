@@ -978,8 +978,10 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.get("/api/website/:deploymentId/widget.js", async (request, reply) => {
     const deploymentId = uuid.parse(parameters(request).deploymentId);
-    await store.getWebsiteDeployment(deploymentId);
-    return reply.type("application/javascript; charset=utf-8").send(websiteWidgetScript(deploymentId));
+    const deployment = await store.getWebsiteDeployment(deploymentId);
+    return reply.type("application/javascript; charset=utf-8").send(
+      websiteWidgetScript(deploymentId, websiteAppearanceSchema.parse(deployment.appearance)),
+    );
   });
   app.post("/api/website/:deploymentId/session", async (request, reply) => {
     const { deployment, websiteOrigin } = await websiteContext(request, reply);
