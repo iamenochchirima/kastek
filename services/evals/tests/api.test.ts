@@ -971,3 +971,105 @@ test("lists built-in agent templates", { skip }, async () => {
   assert.ok(templates.some((template) => template.key === "support-full"));
   assert.ok(templates.some((template) => template.spec.targetType === "platform_assistant"));
 });
+
+test("maps Agents conversation tasks into chat messages", { skip }, async () => {
+  const sandbox = await app!.inject({
+    method: "POST",
+    url: "/v1/sandboxes",
+    headers: auth,
+    payload: { product: "agents" },
+  });
+  const sandboxId = (sandbox.json() as { sandbox: { id: string } }).sandbox.id;
+  const workspace = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/workspaces`,
+    headers: auth,
+    payload: { productWorkspaceId: "agents-chat-org", label: "Agents chat" },
+  });
+  const workspaceRefId = (workspace.json() as { workspaceRef: { id: string } }).workspaceRef.id;
+  const agent = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/agents`,
+    headers: auth,
+    payload: {
+      workspaceRefId,
+      productAgentId: "agent-chat-test",
+      productVersionId: "version-chat-test",
+      sourceIds: [],
+      compositionDigest: "e".repeat(64),
+      modelRoutesDigest: "f".repeat(64),
+    },
+  });
+  const agentRefId = (agent.json() as { agentRef: { id: string } }).agentRef.id;
+
+  const server: Server = createServer((request, response) => {
+    const url = new URL(request.url ?? "/", "http://localhost");
+    const send = (status: number, body: unknown) => {
+      response.writeHead(status, { "content-type": "application/json" });
+      response.end(JSON.stringify(body));
+    };
+    if (url.pathname === "/api/organizations/agents-chat-org/tasks" && request.method === "POST") {
+      return send(202, { task: { id: "task-chat-test", conversationId: "conversation-chat-test", state: "accepted" } });
+    }
+    if (url.pathname === "/api/organizations/agents-chat-org/tasks/task-chat-test") {
+      return send(200, {
+        task: {
+          id: "task-chat-test",
+          conversationId: "conversation-chat-test",
+          state: "completed",
+          output: "Hello from Agents",
+        },
+      });
+    }
+    if (url.pathname === "/api/organizations/agents-chat-org/conversations/conversation-chat-test") {
+      return send(200, {
+        tasks: [{
+          id: "task-chat-test",
+          state: "completed",
+          input: "Hello Agents",
+          output: "Hello from Agents",
+          createdAt: "2026-11-10T00:00:00.000Z",
+          updatedAt: "2026-11-10T00:00:01.000Z",
+        }],
+      });
+    }
+    return send(404, { error: "Not found" });
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Fixture failed to listen");
+  const directory = await mkdtemp(join(tmpdir(), "evals-agents-chat-"));
+  const sessionFile = join(directory, "owner-session.json");
+  await writeFile(sessionFile, JSON.stringify({
+    origin: `http://127.0.0.1:${address.port}`,
+    organizationId: "agents-chat-org",
+    organizationName: "Agents chat",
+    session: "agents-session-test",
+  }), { mode: 0o600 });
+  try {
+    await updateSandboxProvisioning(pool!, sandboxId, {
+      status: "ready",
+      runtime: { sessionFile, organizationId: "agents-chat-org" },
+    });
+    const chat = await app!.inject({
+      method: "POST",
+      url: `/v1/sandboxes/${sandboxId}/chat`,
+      headers: auth,
+      payload: { agentRefId, message: "Hello Agents" },
+    });
+    assert.equal(chat.statusCode, 200, chat.body);
+    const result = chat.json() as {
+      session: { state: string; turnCount: number };
+      messages: Array<{ role: string; text: string }>;
+    };
+    assert.equal(result.session.state, "completed");
+    assert.equal(result.session.turnCount, 1);
+    assert.deepEqual(result.messages.map((item) => [item.role, item.text]), [
+      ["user", "Hello Agents"],
+      ["assistant", "Hello from Agents"],
+    ]);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});

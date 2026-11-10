@@ -1,4 +1,5 @@
 import * as restate from "@restatedev/restate-sdk";
+import { restateServiceName } from "../../contracts/restate-names";
 import { randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import { PlatformError,requestDigest } from "../../contracts/contracts";
@@ -170,7 +171,7 @@ export class IngestionService {
 }
 
 export function createIngestionWorkflow(service: IngestionService) {
-  return restate.workflow({ name: INGESTION_WORKFLOW, options: { workflowRetention: { days: 7 }, journalRetention: { days: 7 } }, handlers: {
+  return restate.workflow({ name: restateServiceName(INGESTION_WORKFLOW), options: { workflowRetention: { days: 7 }, journalRetention: { days: 7 } }, handlers: {
     run: async (ctx: restate.WorkflowContext, input: { jobId: string }) => {
       if (ctx.key !== input.jobId) throw new restate.TerminalError("Import identity mismatch", { errorCode: 400 });
       const jobId = input.jobId;
@@ -251,7 +252,7 @@ export async function dispatchImportsOnce(pool: Pool, ingressUrl: string, reques
     AND (j.raw_state='available' OR j.authorized_url IS NOT NULL) ORDER BY j.created_at LIMIT 10`)).rows;
   for (const row of rows) {
     await pool.query("UPDATE agents_platform.ingestion_outbox SET dispatch_attempts=dispatch_attempts+1,available_at=now()+interval '5 seconds' WHERE job_id=$1", [row.job_id]);
-    const response = await request(`${ingressUrl.replace(/\/$/, "")}/restate/send/${INGESTION_WORKFLOW}/${row.job_id}/run`, {
+    const response = await request(`${ingressUrl.replace(/\/$/, "")}/restate/send/${restateServiceName(INGESTION_WORKFLOW)}/${row.job_id}/run`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jobId: row.job_id }), signal: AbortSignal.timeout(5000) });
     if (!response.ok) throw failure("INGESTION_DISPATCH_FAILED");
     const result = await response.json() as { invocationId?: unknown };

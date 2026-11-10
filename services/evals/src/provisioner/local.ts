@@ -239,6 +239,7 @@ export function childEnvironment(
     RESTATE_WORKER_PORT: String(workerPort),
     RESTATE_WORKER_HOST: "0.0.0.0",
     KASITEK_RELEASE_ID: process.env.KASITEK_RELEASE_ID || "local-sandbox",
+    AGENTS_RESTATE_NAMESPACE: `sbx-${sandboxId.replace(/-/g, "").slice(0, 12)}`,
     ...(growthProductApiUrl ? { GROWTH_PRODUCT_API_URL: growthProductApiUrl } : {}),
     AGENTS_SANDBOX_ID: sandboxId,
     AGENTS_CONNECTION_ACTIVE_KEY: base.AGENTS_CONNECTION_ACTIVE_KEY,
@@ -367,7 +368,7 @@ export async function registerWorker(config: EvalsConfig, workerPort: number): P
   const response = await fetch(`${config.localProvisioning!.restateAdminUrl.replace(/\/+$/, "")}/deployments`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ uri: `http://${host}:${workerPort}`, use_http_11: false }),
+    body: JSON.stringify({ uri: `http://${host}:${workerPort}`, use_http_11: false, force: true }),
     signal: AbortSignal.timeout(30_000),
   });
   const text = await response.text();

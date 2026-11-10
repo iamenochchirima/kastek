@@ -1,4 +1,5 @@
 import * as restate from "@restatedev/restate-sdk";
+import { restateServiceName } from "../../contracts/restate-names";
 import type { Pool } from "pg";
 import { PlatformError, requestDigest } from "../../contracts/contracts";
 import { CONTEXT_COMPACTION_WORKFLOW, SHARED_HARNESS_RELEASE } from "../../contracts/execution";
@@ -47,7 +48,7 @@ async function frozenJob(pool:Pool,jobId:string,taskId:string) {
 
 /** Runs one immutable prefix through the existing model, capacity, receipt and CAS boundaries. */
 export function createContextCompactionWorkflow(pool:Pool,options:ContextCompactionOptions) {
-  return restate.workflow({name:CONTEXT_COMPACTION_WORKFLOW,handlers:{
+  return restate.workflow({name:restateServiceName(CONTEXT_COMPACTION_WORKFLOW),handlers:{
     run:async(ctx:restate.WorkflowContext,input:{jobId:string;taskId:string}):Promise<CompactionJobOutcome>=>{
       if(ctx.key!==input.jobId||typeof input.taskId!=="string")throw new restate.TerminalError("Compaction identity mismatch",{errorCode:400});
       await options.product?.prepareExecution?.(input.taskId);

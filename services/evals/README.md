@@ -159,7 +159,8 @@ The local provisioner currently:
 3. Creates a dedicated object-storage bucket.
 4. Starts a dedicated Agents API and worker with its own ports, detached from the
    control-plane process.
-5. Registers the worker with the local Restate deployment.
+5. Registers the worker with the local Restate deployment, forcing discovery of
+   the sandbox's namespaced services.
 6. Bootstraps an owner and workspace through the product-owned
    `bootstrap-sandbox` command.
 7. Calls `POST /internal/sandbox/entitlement` to attach
@@ -189,6 +190,13 @@ sandbox plans seeded and `BILLING_SANDBOX_SECRET` configured. Growth pairing als
 signed Growth/Agents keys and managed model profile. It is a development/local
 provisioner, not the Phase 5 hosted lifecycle. Growth web, non-agent Growth
 workers, hosted lifecycle and retention are not implemented yet.
+
+All sandbox workers share the local Restate server. To prevent one sandbox from
+taking over another sandbox's workflows, each Agents runtime registers its
+services under the stable prefix `sbx-<sandbox-id>`. The product keeps the
+logical workflow names in its published compositions; only Restate registration
+and dispatch use the prefixed name. Worker registration forces rediscovery so a
+restarted worker replaces its previous service revision.
 
 ### List and inspect
 
@@ -336,6 +344,10 @@ The service reads the product workspace through the normal product API and regis
 each available agent as an immutable control-plane reference. Growth returns its
 default agents (`Growth assistant`, `Research`, `Content`, `Campaigns`). Agents
 returns the workspace agents, including the platform Assistant.
+
+Agents conversation reads return settled tasks rather than a message list. The
+service maps each task input and output to user and assistant messages, so the
+chat response and session message endpoint expose the transcript.
 
 ```sh
 curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/product-agents" \

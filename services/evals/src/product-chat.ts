@@ -89,6 +89,38 @@ function messagesFrom(value: Json): ProductChatMessage[] {
     }));
 }
 
+/** Agents conversation reads return settled tasks, not a message list. */
+function messagesFromTasks(value: Json): ProductChatMessage[] {
+  const tasks = Array.isArray(value.tasks) ? value.tasks as Json[] : [];
+  return tasks.flatMap((task) => {
+    if (typeof task.id !== "string") return [];
+    const createdAt = String(task.createdAt ?? new Date().toISOString());
+    const updatedAt = String(task.updatedAt ?? createdAt);
+    const messages: ProductChatMessage[] = [];
+    if (typeof task.input === "string" && task.input.trim()) {
+      messages.push({
+        id: `${task.id}:user`,
+        role: "user",
+        text: task.input,
+        createdAt,
+        taskId: task.id,
+        sources: [],
+      });
+    }
+    if (typeof task.output === "string" && task.output.trim()) {
+      messages.push({
+        id: `${task.id}:assistant`,
+        role: "assistant",
+        text: task.output,
+        createdAt: updatedAt,
+        taskId: task.id,
+        sources: [],
+      });
+    }
+    return messages;
+  });
+}
+
 async function waitForTask(
   request: () => Promise<Json>,
   taskId: string,
@@ -130,7 +162,8 @@ async function agentsMessages(
     "GET",
     `/api/organizations/${encodeURIComponent(session.organizationId)}/conversations/${encodeURIComponent(conversationId)}`,
   );
-  return messagesFrom(value);
+  const messages = messagesFrom(value);
+  return messages.length ? messages : messagesFromTasks(value);
 }
 
 async function recordTurn(

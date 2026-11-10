@@ -90,6 +90,15 @@ assignment before retaining optional continuation receipts. The final assembled 
 its selected model policy before it can become a new context snapshot. Existing immutable snapshots
 and accepted request identities are not rewritten by this packing correction.
 
+## Sandbox service namespaces
+
+Evaluation sandboxes share one local Restate server. Set `AGENTS_RESTATE_NAMESPACE` to a
+stable per-sandbox token when a sandbox worker must coexist with another worker on the
+same Restate instance. The worker registers `<namespace>-<logical workflow>` and the
+dispatcher invokes that physical name. Published compositions and task records keep the
+logical workflow names, so agents created before the namespace change remain readable.
+Leave the variable unset for a normal single-worker deployment.
+
 ## Retention, archive and index maintenance
 
 | Records | Current retention and removal behavior |

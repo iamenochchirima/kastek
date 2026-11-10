@@ -87,6 +87,12 @@ a new immutable sandbox version. Growth updates both the Growth runtime and its
 paired Agents runtime. Active conversations block the update. Existing workspace
 data and historical evidence are preserved.
 
+Sandbox workers share one local Restate server, so each Agents runtime registers
+its services under a stable `sbx-<sandbox-id>` prefix. The prefix is applied only
+at the Restate registration and dispatch boundary; published compositions keep
+the logical workflow names. Worker registration forces rediscovery so restarts
+replace stale service revisions instead of reusing them.
+
 ## Product agents and chat
 
 The Evals client lists agents from the product workspace through normal product APIs.
@@ -206,4 +212,22 @@ provisioning run finishes or fails.
 | Documentation | This page, `services/evals/README.md` and `apps/evals/README.md`. |
 | Validation | Eval suite 35/35, including template catalogue and invalid/duplicate template tests. Live `support-full` template applied to the Agents sandbox produced a published agent with all four responsibilities, enquiry tools and support hours; enquiries readiness is `ready`, bookings correctly require an authorized calendar policy, and private knowledge remains flagged only for customer-facing website use. |
 | Rollback | Remove the template endpoint, picker and template files. Profiles created from templates remain valid immutable profile versions. |
+| Post-release review | Review before evaluation datasets and runs. |
+
+## Standalone Agents chat isolation release record
+
+| Field | Decision |
+| --- | --- |
+| Change | Namespace each sandbox's Restate services and map Agents task input/output into chat messages. |
+| Owner | Engineering. |
+| Risk | Standard: runtime routing and transcript presentation; no schema or permission change. |
+| Affected surfaces | Evals provisioner and chat adapter, Agents worker registration, dispatcher, workflow definitions, customer-followup readiness, Evals documentation. |
+| Migration | None. |
+| Root cause | Sandbox workers shared one Restate instance and registered the same global service names. A worker from another sandbox, or a stale deployment, received invocations for tasks it could not load. Agents conversation reads also return tasks rather than messages, so the chat response was empty even after a successful run. |
+| Fix | Prefix registered and dispatched Restate service names with a stable `sbx-<sandbox-id>` namespace while keeping logical workflow names in product records. Force worker registration to rediscover services. Map settled task input/output to user/assistant chat messages when no message list is returned. |
+| Rollout | Rebuild the eval service and Agents API, then sync or force-restart each sandbox runtime. Each runtime adopts its namespace on restart. |
+| Analytics and logs | Worker registration still records the deployment ID. Chat execution continues to use the existing task and session records. No customer analytics event is added. |
+| Documentation | This page, `services/evals/README.md` and the Agents shared-runtime runbook. |
+| Validation | Eval suite 36/36; focused Agents restate-name and dispatcher tests 6/6. Live standalone Agents chat completed with mapped user/assistant messages. A custom knowledge agent answered `ORBIT-42` through its knowledge tool. Growth chat completed after its paired worker registered a separate namespace. Both sandboxes registered distinct `sbx-aba713a07365-*` and `sbx-dd61895ba563-*` service sets, and standalone chat still completed after the paired worker registration. |
+| Rollback | Unset the namespace, restart and force-register the worker. Tasks already pinned to namespaced services remain readable; settle or cancel them before removing the namespace. |
 | Post-release review | Review before evaluation datasets and runs. |

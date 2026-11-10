@@ -1,11 +1,12 @@
 import * as restate from "@restatedev/restate-sdk";
+import { restateServiceName } from "../../contracts/restate-names";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { cancelExpiredReceiptRoot, settleReceipt, type Publisher } from "./handoff-pending-receipt";
 
 export const HANDOFF_RECEIPT_WORKFLOW = "AgentsHandoffReceiptV1";
 export function createReceiptWorkflow(pool: Pool, fallback: string, publish: Publisher) {
-  return restate.workflow({ name: HANDOFF_RECEIPT_WORKFLOW, handlers: { run: async (ctx: restate.WorkflowContext, input: { taskId: string }) => {
+  return restate.workflow({ name: restateServiceName(HANDOFF_RECEIPT_WORKFLOW), handlers: { run: async (ctx: restate.WorkflowContext, input: { taskId: string }) => {
     if (!z.uuid().safeParse(input.taskId).success || ctx.key !== input.taskId) throw new restate.TerminalError("Invalid handoff receipt",{errorCode:400});
     for (let attempt = 0; ; attempt++) {
       const deadline = await ctx.run(`deadline:${attempt}`, async () => {
@@ -28,7 +29,7 @@ export function createReceiptWorkflow(pool: Pool, fallback: string, publish: Pub
 export async function dispatchReceiptsOnce(pool: Pool, ingressUrl: string, request: typeof fetch = fetch) {
   const rows = (await pool.query("SELECT task_id FROM agents_platform.pending_handoff_receipts WHERE dispatched_at IS NULL AND outcome IS NULL ORDER BY created_at,task_id LIMIT 20")).rows;
   for (const row of rows) {
-    const response = await request(`${ingressUrl.replace(/\/$/, "")}/restate/send/${HANDOFF_RECEIPT_WORKFLOW}/${row.task_id}/run`, {
+    const response = await request(`${ingressUrl.replace(/\/$/, "")}/restate/send/${restateServiceName(HANDOFF_RECEIPT_WORKFLOW)}/${row.task_id}/run`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId: row.task_id }), signal: AbortSignal.timeout(5000),
     });
     if (!response.ok || !(await response.json() as { invocationId?: string }).invocationId?.startsWith("inv_")) throw new Error("HANDOFF_RECEIPT_DISPATCH_FAILED");

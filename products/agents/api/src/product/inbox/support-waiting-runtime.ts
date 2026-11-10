@@ -1,10 +1,11 @@
 import * as restate from "@restatedev/restate-sdk";
+import { restateServiceName } from "../../contracts/restate-names";
 import type { Pool } from "pg";
 import { SupportWaitingService } from "./support-waiting";
 
 export const SUPPORT_WAITING_WORKFLOW = "AgentsSupportWaitingV1";
 export function createSupportWaitingWorkflow(service: SupportWaitingService) {
-  return restate.workflow({ name: SUPPORT_WAITING_WORKFLOW, handlers: { run: async (ctx: restate.WorkflowContext, input: { taskId: string }) => {
+  return restate.workflow({ name: restateServiceName(SUPPORT_WAITING_WORKFLOW), handlers: { run: async (ctx: restate.WorkflowContext, input: { taskId: string }) => {
     for (let tick = 0; ; tick++) {
       const next = await ctx.run(`waiting:${tick}`, async () => (await service.advance(input.taskId))?.getTime() ?? null);
       if (next === null) return;
@@ -17,7 +18,7 @@ export function createSupportWaitingWorkflow(service: SupportWaitingService) {
 export async function dispatchSupportWaitingOnce(pool: Pool, ingressUrl: string, request: typeof fetch = fetch): Promise<void> {
   const rows = (await pool.query(`SELECT task_id FROM agents_platform.support_waiting WHERE dispatched_at IS NULL AND completed_at IS NULL ORDER BY requested_at,task_id LIMIT 20`)).rows;
   for (const row of rows) {
-    const response = await request(`${ingressUrl.replace(/\/$/, "")}/restate/send/${SUPPORT_WAITING_WORKFLOW}/${row.task_id}/run`, {
+    const response = await request(`${ingressUrl.replace(/\/$/, "")}/restate/send/${restateServiceName(SUPPORT_WAITING_WORKFLOW)}/${row.task_id}/run`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId: row.task_id }), signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) throw new Error("SUPPORT_WAITING_DISPATCH_FAILED");

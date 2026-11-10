@@ -1,6 +1,7 @@
 import {recordOperationsWorkerHeartbeat} from "@kasitek-labs/server-support/operations-source";
 import { randomUUID } from "node:crypto";
 import {CONTEXT_COMPACTION_WORKFLOW,dispatcherPhases,type DispatcherPhase} from "../../contracts/execution";
+import {restateServiceName} from "../../contracts/restate-names";
 import {advanceCapacity} from "../scheduling/capacity";
 import { claimDispatchBatch,parallelEach,type DispatchPolicy } from "../scheduling/dispatch-claims";
 import type { Pool } from "pg";
@@ -48,7 +49,7 @@ async function dispatchRootBatch(pool:Pool,options:DispatcherOptions,{request,ro
           (await pool.query(`SELECT attempts FROM agents_platform.task_outbox WHERE task_id=$1`, [row.task_id])).rows[0]?.attempts === 1) {
         await settleTask(pool, row.task_id, { state: "cancelled" });
       } else {
-        const response = await request(`${route.ingressUrl.replace(/\/$/, "")}/restate/send/${route.workflowName}/${row.task_id}/run`, {
+        const response = await request(`${route.ingressUrl.replace(/\/$/, "")}/restate/send/${restateServiceName(route.workflowName)}/${row.task_id}/run`, {
           method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ taskId: row.task_id }), signal: AbortSignal.timeout(5000),
         });
@@ -58,7 +59,7 @@ async function dispatchRootBatch(pool:Pool,options:DispatcherOptions,{request,ro
         // Bind the accepted workflow identity independently of the submission response.
         const lookup = await request(`${route.ingressUrl.replace(/\/$/, "")}/restate/lookup`, {
           method:"POST",headers:{"content-type":"application/json"},
-          body:JSON.stringify({target:"workflow",workflowName:route.workflowName,workflowKey:row.task_id}),signal:AbortSignal.timeout(5000),
+          body:JSON.stringify({target:"workflow",workflowName:restateServiceName(route.workflowName),workflowKey:row.task_id}),signal:AbortSignal.timeout(5000),
         });
         if(!lookup.ok)throw new Error("RUNTIME_LOOKUP_PENDING");
         const body=await lookup.json() as {invocationId?:unknown};
@@ -92,7 +93,7 @@ async function dispatchControls(pool:Pool,options:DispatcherOptions,{request,rou
   await drainBatch(controls,8,async control=>{
     const route=routes[control.harness_release]!;
     try {
-      const response = await request(`${route.ingressUrl.replace(/\/$/, "")}/${route.workflowName}/${control.task_id}/${control.kind==="review"?"review":"resume"}`, {
+      const response = await request(`${route.ingressUrl.replace(/\/$/, "")}/${restateServiceName(route.workflowName)}/${control.task_id}/${control.kind==="review"?"review":"resume"}`, {
         method: "POST", headers: {"content-type":"application/json", "idempotency-key":`continue:${control.task_id}:${control.generation}${control.kind==="authority"&&control.derived_renewal?":"+control.grant_id:""}`},
         body:JSON.stringify({generation:Number(control.generation)}), signal:AbortSignal.timeout(5000) });
       if(response.ok) await pool.query("UPDATE agents_platform.task_controls SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL WHERE task_id=$1 AND generation=$2 AND lease_owner=$3",[control.task_id,control.generation,controlOwner]);
@@ -193,7 +194,7 @@ async function publishCapacityNotifications(pool:Pool,options:DispatcherOptions,
  await drainBatch(notifications,8,async row=>{
  const route=routes[row.harness_release]!;
  try{
-  const target=row.compaction_job_id?{workflow:CONTEXT_COMPACTION_WORKFLOW,key:row.compaction_job_id}:{workflow:route.workflowName,key:row.task_id};
+  const target=row.compaction_job_id?{workflow:restateServiceName(CONTEXT_COMPACTION_WORKFLOW),key:row.compaction_job_id}:{workflow:restateServiceName(route.workflowName),key:row.task_id};
   const response=await request(`${route.ingressUrl.replace(/\/$/,"")}/${target.workflow}/${encodeURIComponent(target.key)}/capacity`,{
   method:"POST",headers:{"content-type":"application/json","idempotency-key":`capacity:${row.request_id}:${row.generation}`},
   body:JSON.stringify({requestId:row.request_id,generation:row.generation}),signal:AbortSignal.timeout(5000)});

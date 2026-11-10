@@ -1,4 +1,5 @@
 import * as restate from '@restatedev/restate-sdk';
+import { restateServiceName } from '../../contracts/restate-names';
 import type { Pool } from 'pg';
 import { z } from 'zod';
 import { supportStatusV2 } from '../../capabilities/support-status-v2';
@@ -17,7 +18,7 @@ const statusAnswer = z.strictObject({reply:z.string().trim().min(1).max(1000).nu
 
 /** Runs one tool-free turn over the visitor's message and verified support facts. */
 export function createSupportStatusWorkflow(pool:Pool,options:BusinessOptions & {publishSupportStatus:(taskId:string)=>Promise<boolean>}) {
-  return restate.workflow({name:SUPPORT_STATUS_WORKFLOW,handlers:{run:async(ctx:restate.WorkflowContext,input:{taskId:string}):Promise<TaskOutcome>=>{
+  return restate.workflow({name:restateServiceName(SUPPORT_STATUS_WORKFLOW),handlers:{run:async(ctx:restate.WorkflowContext,input:{taskId:string}):Promise<TaskOutcome>=>{
     if(ctx.key!==input.taskId)throw new restate.TerminalError('Task identity mismatch',{errorCode:400});
     const taskId=input.taskId;
     await ctx.run('bind-status-invocation',async()=>{

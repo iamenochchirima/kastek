@@ -11,6 +11,7 @@ import { visibleTaskControlTools } from "../../capabilities/task-control";
 import {validateBuiltinArguments,validateBuiltinResult} from "../../capabilities/tool-contracts";
 import { builtinArgumentFeedback, externalArgumentFeedback } from "../../capabilities/tool-argument-feedback";
 import * as restate from "@restatedev/restate-sdk";
+import { restateServiceName } from "../../contracts/restate-names";
 import type { Pool } from "pg";
 import { z } from "zod";
 import type { ConnectedExecutor,ConnectedObservation } from "../../capabilities/connected-tools/connected-executor";
@@ -563,7 +564,7 @@ export async function awaitBackgroundCompaction(ctx:restate.WorkflowContext,pool
   try {
     // Retain the original call for already-journaled work. Restate rejects it when
     // the preceding one-way send already started this workflow.
-    return await ctx.workflowClient<ContextCompactionWorkflow>({name:CONTEXT_COMPACTION_WORKFLOW},job.id).run({jobId:job.id,taskId:job.taskId});
+    return await ctx.workflowClient<ContextCompactionWorkflow>({name:restateServiceName(CONTEXT_COMPACTION_WORKFLOW)},job.id).run({jobId:job.id,taskId:job.taskId});
   } catch(error) {
     if(!duplicateWorkflow(error))throw error;
     try { return await ctx.invocation(await job.invocation.invocationId).attach<CompactionJobOutcome>(); }
@@ -611,7 +612,7 @@ export function preparationFailureCode(error: unknown): string | null {
 }
 
 export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, runtime: {release:string;workflow:string} = {release:HARNESS_RELEASE,workflow:WORKFLOW_NAME}) {
-  return restate.workflow({ name: runtime.workflow, options: { workflowRetention: { days: 7 }, journalRetention: { days: 7 } }, handlers: {
+  return restate.workflow({ name: restateServiceName(runtime.workflow), options: { workflowRetention: { days: 7 }, journalRetention: { days: 7 } }, handlers: {
     run: async (ctx: restate.WorkflowContext, input: { taskId: string }) => {
       if (ctx.key !== input.taskId) throw new restate.TerminalError("Task identity mismatch", { errorCode: 400 });
       const taskId = input.taskId;
@@ -850,7 +851,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               catch(error){if(error instanceof PlatformError||error instanceof ModelOperationError)return {ok:false as const,code:error.code};throw error;}
             });
             if(planned.ok&&planned.job){
-              const invocation=ctx.workflowSendClient<ContextCompactionWorkflow>({name:CONTEXT_COMPACTION_WORKFLOW},planned.job.id).run({jobId:planned.job.id,taskId:planned.job.taskId});
+              const invocation=ctx.workflowSendClient<ContextCompactionWorkflow>({name:restateServiceName(CONTEXT_COMPACTION_WORKFLOW)},planned.job.id).run({jobId:planned.job.id,taskId:planned.job.taskId});
               backgroundJob={id:planned.job.id,taskId:planned.job.taskId,invocation};
             }else if(!planned.ok)backgroundUnavailable=true;
           }
@@ -1144,7 +1145,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
             if(result.ok && name==="agents.delegate") {
               const children=result.value as DelegatedChild[];
               await ctx.run(`children-wait:${step}:${callIndex}`,()=>pool.query("UPDATE agents_platform.tasks SET state='waiting_children',updated_at=now() WHERE id=$1 AND state='running'",[taskId]).then(()=>undefined));
-              const pending=children.map(child=>ctx.workflowClient<{run:(ctx:restate.WorkflowContext,input:{taskId:string})=>Promise<TaskOutcome>}>({name:child.workflow??runtime.workflow},child.taskId).run({taskId:child.taskId}));
+              const pending=children.map(child=>ctx.workflowClient<{run:(ctx:restate.WorkflowContext,input:{taskId:string})=>Promise<TaskOutcome>}>({name:restateServiceName(child.workflow??runtime.workflow)},child.taskId).run({taskId:child.taskId}));
               for(const [index,invocation] of pending.entries()) {
                 try{await invocation;}catch(error){
                   if(!(error instanceof restate.TerminalError)) throw error;
