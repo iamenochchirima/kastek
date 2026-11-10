@@ -48,8 +48,8 @@ export default function SandboxDetailPage() {
     let cancelled = false;
     setProductAgents(null);
     setAgentsError(null);
-    api<ProductAgent[]>(`/api/sandboxes/${encodeURIComponent(id)}/product-agents`)
-      .then((value) => { if (!cancelled) setProductAgents(value); })
+    api<{ agents: ProductAgent[] }>(`/api/sandboxes/${encodeURIComponent(id)}/product-agents`)
+      .then((value) => { if (!cancelled) setProductAgents(value.agents); })
       .catch((value) => { if (!cancelled) setAgentsError(errorMessage(value)); });
     return () => { cancelled = true; };
   }, [detail?.sandbox.status, id]);

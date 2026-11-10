@@ -21,10 +21,10 @@ export default function SandboxAgentChatPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    api<ProductAgent[]>(`/api/sandboxes/${encodeURIComponent(id)}/product-agents`)
-      .then((agents) => {
+    api<{ agents: ProductAgent[] }>(`/api/sandboxes/${encodeURIComponent(id)}/product-agents`)
+      .then((value) => {
         if (cancelled) return;
-        const found = agents.find((item) => item.refId === agentRefId);
+        const found = value.agents.find((item) => item.refId === agentRefId);
         if (!found) throw new Error("Agent not found in this sandbox");
         setAgent(found);
       })
