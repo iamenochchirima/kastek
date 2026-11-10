@@ -230,7 +230,6 @@ export function ModelPickerDialog({
               >
                 <span className="model-option-main">
                   <strong>{defaultLabel}</strong>
-                  <span>Organization default</span>
                 </span>
                 {pending === "organization_default" && <Check size={16} />}
               </button>
@@ -250,7 +249,6 @@ export function ModelPickerDialog({
                     >
                       <span className="model-option-main">
                         <strong>{model.label}</strong>
-                        <span>{model.modelId}</span>
                       </span>
                       {pending === value && <Check size={16} />}
                     </button>

@@ -231,7 +231,6 @@ h3 { font-size: 14px; font-weight: 600; }
 .model-option:disabled { opacity: 0.5; cursor: wait; }
 .model-option-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .model-option-main strong { font-size: 12px; font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.model-option-main span { color: var(--faint); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .model-empty { padding: 24px 8px; text-align: center; }
 @media (max-width: 720px) { .model-trigger { max-width: 100%; } .model-picker-modal { max-height: 92dvh; } }
 .product-agent-card h3 { font-size: 15px; }
