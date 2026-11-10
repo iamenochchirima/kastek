@@ -11,7 +11,7 @@ import {
 import { createAdminAuthority } from "@kasitek-labs/server-support/admin-authority";
 import { loadConfig } from "../src/config.js";
 import { buildApi } from "../src/api.js";
-import { expireTrialsAndGrace } from "../src/subscriptions.js";
+import { expireTrialsAndGrace, renewalPeriod } from "../src/subscriptions.js";
 import { activateDueScheduledPlanVersions } from "../src/catalog.js";
 import type { BillingConfig } from "../src/config.js";
 import { createPool } from "../src/db.js";
@@ -426,6 +426,23 @@ test("sandbox secret is rejected in production", { skip: !databaseUrl }, () => {
       }),
     /Sandbox billing secret is unavailable in production/,
   );
+});
+
+test("renewal after a reconciliation pass does not skip a billing period", () => {
+  const start = new Date("2026-12-10T00:00:00.000Z");
+  const end = new Date("2027-01-10T00:00:00.000Z");
+  const now = new Date("2026-12-10T02:00:00.000Z");
+  const recovered = renewalPeriod({ periodStart: start, periodEnd: end }, now);
+  assert.equal(recovered.start.toISOString(), start.toISOString());
+  assert.equal(recovered.end.toISOString(), end.toISOString());
+  assert.equal(recovered.recovered, true);
+
+  const normal = renewalPeriod(
+    { periodStart: new Date("2026-11-10T00:00:00.000Z"), periodEnd: start },
+    now,
+  );
+  assert.equal(normal.start.toISOString(), start.toISOString());
+  assert.equal(normal.recovered, false);
 });
 
 test("account, free plan, checkout, tax invoice, usage, renewal and refund", { skip }, async () => {

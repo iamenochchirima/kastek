@@ -715,6 +715,31 @@ export async function reactivateSubscription(
   return { reactivated: true };
 }
 
+/**
+ * A renewal webhook can arrive after the reconciliation poll already advanced the stored period.
+ * When that happens the charge covers the stored period, not the one after it, so billing must not
+ * skip a period and leave it without an invoice or grant.
+ */
+export function renewalPeriod(
+  current: { periodStart: Date | null; periodEnd: Date | null },
+  now: Date = new Date(),
+): { start: Date; end: Date; recovered: boolean } {
+  const { periodStart, periodEnd } = current;
+  if (periodStart && periodEnd) {
+    const interval = periodEnd.getTime() - periodStart.getTime();
+    const elapsed = now.getTime() - periodStart.getTime();
+    if (
+      interval > 0 &&
+      elapsed >= 0 &&
+      elapsed < interval / 2 &&
+      periodEnd.getTime() > now.getTime()
+    )
+      return { start: periodStart, end: periodEnd, recovered: true };
+  }
+  const start = periodEnd ?? now;
+  return { start, end: addMonth(start), recovered: false };
+}
+
 export async function processRecurringCharge(
   pool: Pool,
   config: BillingConfig,
@@ -758,8 +783,30 @@ export async function processRecurringCharge(
     );
     if (existing.rowCount) return true;
   }
-  const periodStart = current.current_period_end ?? new Date();
-  const periodEnd = addMonth(periodStart);
+  const period = renewalPeriod({
+    periodStart: current.current_period_start,
+    periodEnd: current.current_period_end,
+  });
+  const periodStart = period.start;
+  const periodEnd = period.end;
+  if (period.recovered)
+    await recordIssue(pool, {
+      billingAccountId: current.billing_account_id,
+      provider: provider.name,
+      resourceType: "subscription",
+      resourceId: current.id,
+      issueType: "renewal_period_recovered",
+      details: {
+        periodStart: periodStart.toISOString(),
+        periodEnd: periodEnd.toISOString(),
+        reference: event.reference,
+      },
+    });
+  const billed = await pool.query(
+    `SELECT 1 FROM billing.invoices WHERE subscription_id=$1 AND period_start=$2`,
+    [current.id, periodStart],
+  );
+  if (billed.rowCount) return true;
   await transaction(pool, async (client) => {
     const locked = await client.query<SubscriptionRow>(
       `SELECT ${SUBSCRIPTION_COLUMNS} FROM billing.subscriptions WHERE id=$1 FOR UPDATE`,
