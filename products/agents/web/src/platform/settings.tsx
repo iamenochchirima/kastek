@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   PiSignOut as LogOut,
   PiMoon as Moon,
@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { bootstrapAppearance } from "@/components/theme-script";
 import { APPEARANCE_STORAGE_KEYS, type ThemeMode } from "@/lib/appearance-contract";
 import { ErrorMessage, useWorkspace } from "./shell";
-import { message } from "./api";
+import { hasPermission, message, type Organization } from "./api";
 import "./management.css";
 import "./workspace-surfaces.css";
 import { ModelProvidersSettings } from "./model-providers";
@@ -47,6 +47,12 @@ const SETTINGS_LINKS = [
   { id: "appearance", label: "Appearance", icon: Palette },
 ] as const satisfies ReadonlyArray<{ id: SettingsTab; label: string; icon: typeof UserRound }>;
 
+function tabAllowed(id: SettingsTab, organization: Organization | undefined): boolean {
+  if (id === "billing" || id === "usage") return hasPermission(organization, "billing.manage");
+  if (id === "models") return hasPermission(organization, "credentials.manage");
+  return true;
+}
+
 function initialTab(): SettingsTab {
   const section = new URLSearchParams(window.location.search).get("section");
   return SETTINGS_LINKS.some((item) => item.id === section)
@@ -64,6 +70,13 @@ export function SettingsPage() {
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const allowedLinks = SETTINGS_LINKS.filter(({ id }) => tabAllowed(id, workspace));
+
+  useEffect(() => {
+    if (tabAllowed(tab, workspace)) return;
+    setTab("account");
+    window.history.replaceState({}, "", "/app/settings?section=account");
+  }, [tab, workspace]);
 
   function selectTab(next: SettingsTab) {
     setTab(next);
@@ -105,7 +118,7 @@ export function SettingsPage() {
           aria-label="Settings sections"
           className="-mx-4 flex shrink-0 gap-1 overflow-x-auto px-4 pb-1 lg:mx-0 lg:w-[200px] lg:flex-col lg:overflow-visible lg:px-0 lg:pb-0"
         >
-          {SETTINGS_LINKS.map(({ id, label, icon: Icon }) => {
+          {allowedLinks.map(({ id, label, icon: Icon }) => {
             const active = tab === id;
             return (
               <button

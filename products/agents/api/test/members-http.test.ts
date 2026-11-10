@@ -361,6 +361,27 @@ describe.skipIf(!parent)("workspace members and invitations", () => {
     expect(removed.status).toBe(200);
   });
 
+  it("keeps billing with owners", async () => {
+    emailFails = false;
+    const f = await fixture("Billing authority");
+    const member = await account(`billing-member-${randomUUID()}@example.test`, "Member");
+    const adminAccount = await account(`billing-admin-${randomUUID()}@example.test`, "Admin");
+    await request(f.ownerSession.token, "POST", `${f.base}/members`, { email: member.email, role: "member" });
+    await request(f.ownerSession.token, "POST", `${f.base}/members`, { email: adminAccount.email, role: "admin" });
+
+    const memberSession = await session(member.id);
+    const adminSession = await session(adminAccount.id);
+    for (const token of [memberSession.token, adminSession.token]) {
+      const denied = await request(token, "GET", `${f.base}/billing`);
+      expect(denied.status).toBe(403);
+      expect(denied.body.error.code).toBe("INSUFFICIENT_ROLE");
+    }
+
+    const owner = await request(f.ownerSession.token, "GET", `${f.base}/billing`);
+    expect(owner.status).toBe(200);
+    expect(owner.body.configured).toBe(false);
+  });
+
   it("lets owners grant admin and protects the last owner", async () => {
     emailFails = false;
     const f = await fixture("Owner grants admin");

@@ -6,6 +6,7 @@ import {
   agentsBillingClient,
   ensureAgentsBillingAccount,
 } from "./billing";
+import { requirePermission } from "../members/permissions";
 
 type Scope = { accountId: string; organizationId: string };
 
@@ -58,6 +59,7 @@ export function registerBillingRoutes(
 
   app.get("/api/organizations/:organizationId/billing", async (request) => {
     const scope = await options.resolveScope(request);
+    await requirePermission(options.pool, scope, "billing.manage");
     const client = agentsBillingClient();
     if (!client)
       return {
@@ -147,6 +149,7 @@ export function registerBillingRoutes(
 
   app.post("/api/organizations/:organizationId/billing/checkout", async (request) => {
     const scope = await options.resolveScope(request);
+    await requirePermission(options.pool, scope, "billing.manage");
     const client = agentsBillingClient();
     if (!client)
       throw new PlatformError("BILLING_UNAVAILABLE", 503, "Customer billing is not configured");
@@ -180,6 +183,7 @@ export function registerBillingRoutes(
     "/api/organizations/:organizationId/billing/checkout/:reference/verify",
     async (request) => {
       const scope = await options.resolveScope(request);
+      await requirePermission(options.pool, scope, "billing.manage");
       const client = agentsBillingClient();
       if (!client)
         throw new PlatformError("BILLING_UNAVAILABLE", 503, "Customer billing is not configured");
