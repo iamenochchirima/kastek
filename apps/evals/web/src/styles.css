@@ -163,7 +163,7 @@ h3 { font-size: 14px; font-weight: 600; }
 .card-link { transition: border-color 120ms ease, transform 120ms ease; }
 .card-link:hover { border-color: var(--border-strong); transform: translateY(-1px); }
 .card-stretched-link { position: absolute; inset: 0; z-index: 0; border-radius: inherit; }
-.card > :not(.card-stretched-link) { position: relative; z-index: 1; pointer-events: none; }
+.card-link > :not(.card-stretched-link) { position: relative; z-index: 1; pointer-events: none; }
 .card .card-delete { z-index: 2; pointer-events: auto; }
 .card-head { display: flex; align-items: center; justify-content: space-between; }
 .card-head-actions { display: flex; align-items: center; gap: 7px; }
