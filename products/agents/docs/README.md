@@ -67,7 +67,7 @@ implementation and boundaries:
 - [Implementation boundary](source-boundary.md): current modules, verification, and remaining work.
 - [Agents verification skill](../../../.agents/skills/verify-agents/SKILL.md): owned browser and purpose-specific API checks.
 - [Platform login](architecture/platform-login.md): identity, sessions, and product authorization.
-- [Workspace members](operations/workspace-members.md): owner/member roles, invitations, email configuration and member management.
+- [Workspace members](operations/workspace-members.md): owner/admin/member roles, permissions, invitations, email configuration and member management.
 - [Enquiry outcomes](operations/enquiry-outcomes.md): website visitor confirmation, customer-record projection and outcome references.
 - [Sandbox workspace bootstrap](operations/sandbox-bootstrap.md): product-owned owner/workspace bootstrap for a fresh evaluation sandbox.
 - [Integration boundaries](mcp-integration.md): outbound read adapters, provider acceptance gates and future product connections.

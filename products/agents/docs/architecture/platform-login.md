@@ -14,6 +14,13 @@ The API implements authorization code login with PKCE S256, state, nonce, verifi
 issuer and audience, and one-use database login transactions. It requires verified
 email claims. Account identity is the issuer and subject pair.
 
+A verified claim also records `email_verified_at` and
+`email_verified_source = 'keycloak'` on the account. Those columns are an audit trail,
+not an authorization gate: the current claim is still required on every login and
+there is no product-level verification boolean. Standalone registration uses the
+provider's registration intent, so a standalone Agents account cannot skip email
+verification.
+
 The public `/` landing, `/login` and `/signup` pages do not require a product
 session. `/api/auth/signup` starts the same authorization-code transaction as
 login with `prompt=create`, the provider's registration intent. Registration,
