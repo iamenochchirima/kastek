@@ -856,16 +856,27 @@ export async function processRecurringCharge(
         jsonStringify(event),
       ],
     );
-    await grantPlanCredits(
-      client,
-      current.billing_account_id,
-      plan.product_key,
-      plan,
-      current.id,
-      periodStart,
-      periodEnd,
-      `plan:${current.id}:${periodStart.toISOString()}`,
+    // A recovered period may already carry a plan grant from an earlier assignment or renewal.
+    const alreadyGranted = await client.query(
+      `SELECT 1 FROM billing.credit_grants
+        WHERE account_id=$1 AND product_key=$2 AND source='PLAN'
+          AND metadata->>'subscriptionId'=$3
+          AND ends_at IS NOT NULL
+          AND ends_at BETWEEN $4::timestamptz - interval '1 minute' AND $4::timestamptz + interval '1 minute'
+        LIMIT 1`,
+      [current.billing_account_id, plan.product_key, current.id, periodEnd],
     );
+    if (!alreadyGranted.rowCount)
+      await grantPlanCredits(
+        client,
+        current.billing_account_id,
+        plan.product_key,
+        plan,
+        current.id,
+        periodStart,
+        periodEnd,
+        `plan:${current.id}:${periodStart.toISOString()}`,
+      );
     await bumpEntitlementRevision(client, current.billing_account_id);
   });
   return true;
