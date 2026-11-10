@@ -110,8 +110,10 @@ Invitation email uses the existing Resend notification sender. Configure:
 - `AGENTS_INVITATION_EMAIL_SENDER`
 - `AGENTS_PUBLIC_URL`
 
-The `AGENTS_FOLLOWUP_RESEND_API_KEY` and `AGENTS_FOLLOWUP_EMAIL_SENDER` values are used as a
-fallback when the invitation-specific values are absent. If no sender is configured the API
+The sender accepts either a bare address or a display name such as
+`KasiTek <noreply@example.com>`. The `AGENTS_FOLLOWUP_RESEND_API_KEY` and
+`AGENTS_FOLLOWUP_EMAIL_SENDER` values are used as a fallback when the invitation-specific
+values are absent. If no sender is configured the API
 returns `INVITATION_EMAIL_UNAVAILABLE`. If delivery fails, the invitation remains pending and
 revocable and the API returns `INVITATION_EMAIL_FAILED`; it does not delete the invitation.
 

@@ -10,6 +10,8 @@ export function invitationEmailConfig(env: NodeJS.ProcessEnv = process.env): Inv
   if (!apiKey || !sender || !env.AGENTS_PUBLIC_URL) {
     throw new Error("Invitation email configuration is incomplete");
   }
-  z.email().max(254).parse(sender);
+  // Resend accepts "Name <address>"; validate the address part only.
+  const address = sender.match(/<([^<>]+)>$/)?.[1]?.trim() ?? sender;
+  z.email().max(254).parse(address);
   return { apiKey, sender, publicUrl: env.AGENTS_PUBLIC_URL };
 }
