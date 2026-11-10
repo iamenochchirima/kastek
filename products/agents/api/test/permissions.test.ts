@@ -5,9 +5,7 @@ import {
   grantableRoles,
   memberRoles,
   permissionsFor,
-  roleAtLeast,
   roleCan,
-  sqlRoles,
   workspacePermissions,
 } from "../src/product/members/permissions";
 
@@ -45,10 +43,7 @@ describe("workspace permissions", () => {
     expect(roleCan("member", "conversations.assign")).toBe(false);
   });
 
-  it("orders roles and resolves grantable roles", () => {
-    expect(roleAtLeast("owner", "admin")).toBe(true);
-    expect(roleAtLeast("admin", "member")).toBe(true);
-    expect(roleAtLeast("member", "admin")).toBe(false);
+  it("resolves grantable roles", () => {
     expect(grantableRoles("owner")).toEqual([...memberRoles]);
     expect(grantableRoles("admin")).toEqual(["admin", "member"]);
     expect(grantableRoles("member")).toEqual([]);
@@ -62,10 +57,5 @@ describe("workspace permissions", () => {
     expect(canManageRole("admin", "admin")).toBe(false);
     expect(canManageRole("admin", "owner")).toBe(false);
     expect(canManageRole("member", "member")).toBe(false);
-  });
-
-  it("renders static SQL role lists", () => {
-    expect(sqlRoles("agents.manage")).toBe("'owner','admin'");
-    expect(sqlRoles("billing.manage")).toBe("'owner'");
   });
 });

@@ -70,15 +70,6 @@ const memberAllowed = new Set<WorkspacePermission>([
   "conversations.manage",
 ]);
 
-const rank: Record<MemberRole, number> = { owner: 3, admin: 2, member: 1 };
-
-export const isMemberRole = (value: unknown): value is MemberRole =>
-  typeof value === "string" && (memberRoles as readonly string[]).includes(value);
-
-export function roleAtLeast(role: MemberRole, minimum: MemberRole): boolean {
-  return rank[role] >= rank[minimum];
-}
-
 export function roleCan(role: MemberRole, permission: WorkspacePermission): boolean {
   if (role === "owner") return true;
   if (ownerOnly.has(permission)) return false;
@@ -92,11 +83,6 @@ export function permissionsFor(role: MemberRole): WorkspacePermission[] {
 
 export function rolesWithPermission(permission: WorkspacePermission): MemberRole[] {
   return memberRoles.filter((role) => roleCan(role, permission));
-}
-
-/** SQL role list for checks embedded in larger queries. Values are static. */
-export function sqlRoles(permission: WorkspacePermission): string {
-  return rolesWithPermission(permission).map((role) => `'${role}'`).join(",");
 }
 
 /** Owners grant any role. Admins grant admins and members, never owners. */
@@ -160,11 +146,3 @@ export async function requirePermission(
   return role;
 }
 
-export async function hasPermission(
-  db: Pool | PoolClient,
-  scope: WorkspaceScope,
-  permission: WorkspacePermission,
-): Promise<boolean> {
-  const role = await membershipRole(db, scope.organizationId, scope.accountId);
-  return role ? roleCan(role, permission) : false;
-}
