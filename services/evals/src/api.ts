@@ -40,6 +40,15 @@ import {
   selectAgentModel,
 } from "./product-models.js";
 import { restartSandboxRuntime } from "./runtime.js";
+import { SandboxSyncError, syncSandbox } from "./sandbox-sync.js";
+import {
+  AgentProfileError,
+  createProfile,
+  createProfileVersion,
+  getProfile,
+  listProfiles,
+  startAgentProfileSetup,
+} from "./agent-profile-service.js";
 import {
   chatWithProductAgent,
   ProductChatError,
@@ -251,6 +260,18 @@ export function buildApi(
   );
 
   app.setErrorHandler((error, request, reply) => {
+    if (error instanceof SandboxSyncError) {
+      return reply.code(error.statusCode).send({
+        error: error.message,
+        code: error.code,
+      });
+    }
+    if (error instanceof AgentProfileError) {
+      return reply.code(error.statusCode).send({
+        error: error.message,
+        code: error.code,
+      });
+    }
     if (error instanceof ProductModelError) {
       return reply.code(error.statusCode).send({
         error: error.message,
@@ -655,6 +676,46 @@ export function buildApi(
     return { outcomeRef: outcome };
   });
 
+  app.get("/v1/sandboxes/:id/agent-profiles", async (request) => {
+    const params = request.params as { id: string };
+    return { profiles: await listProfiles(pool, uuid(params.id, "id")) };
+  });
+
+  app.post("/v1/sandboxes/:id/agent-profiles", async (request, reply) => {
+    const params = request.params as { id: string };
+    const body = bodyObject(request.body);
+    const profile = await createProfile(
+      pool,
+      uuid(params.id, "id"),
+      uuid(requiredText(body.workspaceRefId, "workspaceRefId", 64), "workspaceRefId"),
+      body.spec,
+    );
+    return reply.code(201).send({ profile });
+  });
+
+  app.get("/v1/agent-profiles/:profileId", async (request) => {
+    const params = request.params as { profileId: string };
+    return getProfile(pool, uuid(params.profileId, "profileId"));
+  });
+
+  app.post("/v1/agent-profiles/:profileId/versions", async (request, reply) => {
+    const params = request.params as { profileId: string };
+    const body = bodyObject(request.body);
+    const profile = await createProfileVersion(pool, uuid(params.profileId, "profileId"), body.spec);
+    return reply.code(201).send({ profile });
+  });
+
+  app.post("/v1/agent-profiles/:profileId/apply", async (request, reply) => {
+    const params = request.params as { profileId: string };
+    const body = bodyObject(request.body);
+    return reply.code(202).send(await startAgentProfileSetup(
+      config,
+      pool,
+      uuid(params.profileId, "profileId"),
+      requiredText(body.idempotencyKey, "idempotencyKey", 200),
+    ));
+  });
+
   app.get("/v1/sandboxes/:id/agents/:agentRefId/models", async (request) => {
     const params = request.params as { id: string; agentRefId: string };
     return listAgentModels(
@@ -692,6 +753,21 @@ export function buildApi(
         modelId: requiredText(body.modelId, "modelId", 256),
       },
     );
+  });
+
+  app.post("/v1/sandboxes/:id/sync", async (request) => {
+    const params = request.params as { id: string };
+    const body = bodyObject(request.body);
+    if (body.confirm !== "UPDATE") {
+      throw new HttpError(400, 'Send {"confirm":"UPDATE"} to update this sandbox', "confirmation_required");
+    }
+    const sandboxId = uuid(params.id, "id");
+    const result = await syncSandbox(config, pool, sandboxId);
+    request.log.info(
+      { event: "sandbox.synced", sandboxId, updateId: result.id, codeRevision: result.targetCodeRevision },
+      "Sandbox synced",
+    );
+    return result;
   });
 
   app.post("/v1/sandboxes/:id/runtime/restart", async (request) => {

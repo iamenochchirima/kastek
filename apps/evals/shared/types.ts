@@ -211,3 +211,72 @@ export interface AgentModelCatalogue {
   revision: number;
   models: AgentModelOption[];
 }
+
+export type AgentTargetType = "platform_assistant" | "business_agent";
+
+export interface AgentProfileSpec {
+  targetType: AgentTargetType;
+  agentName: string;
+  model?: {
+    providerId: string;
+    connectionName: string;
+    modelId: string;
+  };
+  instructions: string;
+  knowledge: {
+    title: string;
+    content: string;
+    visibility?: "private" | "public";
+  };
+  responsibilities: Array<
+    "answer-questions" | "customer-support" | "bookings" | "enquiries"
+  >;
+  website?: {
+    allowedOrigins: string[];
+  };
+}
+
+export interface AgentSetupStep {
+  name: string;
+  status: "pending" | "running" | "complete" | "failed";
+  message?: string;
+  at?: string;
+}
+
+export interface AgentSetupRun {
+  id: string;
+  sandboxId: string;
+  profileVersionId: string;
+  idempotencyKey: string;
+  status: "pending" | "running" | "ready" | "failed";
+  steps: AgentSetupStep[];
+  result: Record<string, unknown>;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentProfile {
+  id: string;
+  sandboxId: string;
+  workspaceRefId: string;
+  name: string;
+  targetType: AgentTargetType;
+  currentVersion: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentProfileVersion {
+  id: string;
+  profileId: string;
+  version: number;
+  spec: AgentProfileSpec;
+  specDigest: string;
+  createdAt: string;
+}
+
+export interface AgentProfileDetail extends AgentProfile {
+  version: AgentProfileVersion;
+  latestRun: AgentSetupRun | null;
+}

@@ -42,7 +42,7 @@ function belongsToSandbox(pid: number, sandboxId: string, database: string): boo
   }
 }
 
-async function stopPid(pid: number, sandboxId: string, database: string): Promise<void> {
+export async function stopPid(pid: number, sandboxId: string, database: string): Promise<void> {
   if (!belongsToSandbox(pid, sandboxId, database)) return;
   try { process.kill(pid, "SIGTERM"); } catch { return; }
   const deadline = Date.now() + 2_000;
@@ -57,6 +57,7 @@ export async function restartSandboxRuntime(
   config: EvalsConfig,
   pool: Pool,
   sandboxId: string,
+  options: { force?: boolean } = {},
 ): Promise<RuntimeRestartResult> {
   const detail = await getSandbox(pool, sandboxId);
   if (!detail) throw new Error("Sandbox not found");
@@ -69,7 +70,7 @@ export async function restartSandboxRuntime(
         ? detail.sandbox.runtime.agentsSandboxId
         : undefined);
     if (!pairedId) throw new Error("Growth sandbox has no paired Agents runtime");
-    return restartSandboxRuntime(config, pool, pairedId);
+    return restartSandboxRuntime(config, pool, pairedId, options);
   }
   if (detail.sandbox.product !== "agents") {
     throw new Error(`Runtime restart is not supported for ${detail.sandbox.product}`);
@@ -79,7 +80,7 @@ export async function restartSandboxRuntime(
   const apiUrl = String(runtime.productApiUrl ?? "");
   const workerUrl = String(runtime.productWorkerUrl ?? "");
   if (!apiUrl || !workerUrl) throw new Error("Sandbox runtime metadata is incomplete");
-  if (await healthy(apiUrl)) {
+  if (!options.force && await healthy(apiUrl)) {
     return {
       sandboxId,
       alreadyRunning: true,

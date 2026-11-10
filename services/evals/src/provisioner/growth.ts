@@ -49,7 +49,7 @@ function growthDirectory(config: EvalsConfig, sandboxId: string): string {
   return join(config.repoRoot, ".audit", "sandboxes", sandboxId);
 }
 
-function growthEnvironment(
+export function growthEnvironment(
   config: EvalsConfig,
   growthPort: number,
   databaseName: string,
@@ -80,7 +80,7 @@ function growthEnvironment(
   };
 }
 
-function growthWorkerEnvironment(
+export function growthWorkerEnvironment(
   config: EvalsConfig,
   growthPort: number,
   databaseName: string,
@@ -93,7 +93,7 @@ function growthWorkerEnvironment(
   };
 }
 
-function runMigrations(
+export function runMigrations(
   config: EvalsConfig,
   databaseName: string,
 ): Promise<{ code: number | null; stdout: string; stderr: string }> {

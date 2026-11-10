@@ -180,6 +180,7 @@ export default function SandboxesPage() {
           title={`Delete ${shortId(deleteTarget.sandbox.id)}?`}
           description="This stops the sandbox, drops its database, removes its local files, and deletes any paired runtime. This cannot be undone."
           busy={deleting}
+          busyLabel="Deleting…"
           error={deleteError}
           onConfirm={deleteOne}
           onCancel={() => { if (!deleting) { setDeleteTarget(null); setDeleteError(null); } }}
@@ -193,6 +194,7 @@ export default function SandboxesPage() {
           confirmationText="DELETE"
           confirmLabel="Delete all"
           busy={deleting}
+          busyLabel="Deleting…"
           error={deleteError}
           onConfirm={deleteAll}
           onCancel={() => { if (!deleting) { setDeleteAllOpen(false); setDeleteError(null); } }}

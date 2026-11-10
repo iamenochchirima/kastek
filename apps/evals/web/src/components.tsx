@@ -82,6 +82,7 @@ export function ConfirmDialog({
   confirmLabel = "Delete",
   confirmationText,
   busy = false,
+  busyLabel = "Working…",
   error,
   onConfirm,
   onCancel,
@@ -92,6 +93,7 @@ export function ConfirmDialog({
   confirmLabel?: string;
   confirmationText?: string;
   busy?: boolean;
+  busyLabel?: string;
   error?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
@@ -143,7 +145,7 @@ export function ConfirmDialog({
         <div className="modal-actions">
           <button className="button ghost" type="button" onClick={onCancel} disabled={busy}>Cancel</button>
           <button className="button destructive" type="button" onClick={onConfirm} disabled={busy || !confirmed}>
-            {busy ? "Deleting…" : confirmLabel}
+            {busy ? busyLabel : confirmLabel}
           </button>
         </div>
       </section>

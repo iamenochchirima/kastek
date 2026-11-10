@@ -900,3 +900,54 @@ test("lists product agents and chats through the Growth product API", { skip }, 
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+
+test("creates and versions an agent setup profile", { skip }, async () => {
+  const sandbox = await app!.inject({
+    method: "POST",
+    url: "/v1/sandboxes",
+    headers: auth,
+    payload: { product: "agents" },
+  });
+  const sandboxId = (sandbox.json() as { sandbox: { id: string } }).sandbox.id;
+  const workspace = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/workspaces`,
+    headers: auth,
+    payload: { productWorkspaceId: "agents-profile-org", label: "Profile workspace" },
+  });
+  const workspaceRefId = (workspace.json() as { workspaceRef: { id: string } }).workspaceRef.id;
+  const spec = {
+    targetType: "business_agent",
+    agentName: "Customer support",
+    instructions: "Answer only from the approved policy.",
+    knowledge: { title: "Policy", content: "Refunds are available within 30 days." },
+    responsibilities: ["answer-questions", "customer-support", "bookings"],
+  };
+  const created = await app!.inject({
+    method: "POST",
+    url: `/v1/sandboxes/${sandboxId}/agent-profiles`,
+    headers: auth,
+    payload: { workspaceRefId, spec },
+  });
+  assert.equal(created.statusCode, 201, created.body);
+  const profile = (created.json() as { profile: { id: string; currentVersion: number } }).profile;
+  assert.equal(profile.currentVersion, 1);
+
+  const versioned = await app!.inject({
+    method: "POST",
+    url: `/v1/agent-profiles/${profile.id}/versions`,
+    headers: auth,
+    payload: { spec: { ...spec, instructions: "Answer from policy and ask for missing details." } },
+  });
+  assert.equal(versioned.statusCode, 201, versioned.body);
+  assert.equal((versioned.json() as { profile: { currentVersion: number } }).profile.currentVersion, 2);
+
+  const listed = await app!.inject({
+    method: "GET",
+    url: `/v1/sandboxes/${sandboxId}/agent-profiles`,
+    headers: auth,
+  });
+  assert.equal(listed.statusCode, 200, listed.body);
+  assert.equal((listed.json() as { profiles: unknown[] }).profiles.length, 1);
+});

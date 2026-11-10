@@ -184,9 +184,50 @@ app.post("/api/sandboxes", async (request, reply) => {
   });
   return reply.code(202).send(value);
 });
+app.post("/api/sandboxes/:id/sync", async (request) => {
+  const { id } = request.params as { id: string };
+  const body = request.body as { confirm?: unknown } | null;
+  if (!body || body.confirm !== "UPDATE") {
+    throw new ServiceError(400, "Confirmation required");
+  }
+  return service(`/v1/sandboxes/${encodeURIComponent(id)}/sync`, {
+    method: "POST",
+    timeoutMs: 600_000,
+    body: JSON.stringify({ confirm: "UPDATE" }),
+  });
+});
 app.post("/api/sandboxes/:id/runtime/restart", async (request) => {
   const { id } = request.params as { id: string };
   return service(`/v1/sandboxes/${encodeURIComponent(id)}/runtime/restart`, { method: "POST" });
+});
+app.get("/api/sandboxes/:id/agent-profiles", async (request) => {
+  const { id } = request.params as { id: string };
+  return service(`/v1/sandboxes/${encodeURIComponent(id)}/agent-profiles`);
+});
+app.post("/api/sandboxes/:id/agent-profiles", async (request) => {
+  const { id } = request.params as { id: string };
+  return service(`/v1/sandboxes/${encodeURIComponent(id)}/agent-profiles`, {
+    method: "POST",
+    body: JSON.stringify(request.body ?? {}),
+  });
+});
+app.get("/api/agent-profiles/:profileId", async (request) => {
+  const { profileId } = request.params as { profileId: string };
+  return service(`/v1/agent-profiles/${encodeURIComponent(profileId)}`);
+});
+app.post("/api/agent-profiles/:profileId/versions", async (request) => {
+  const { profileId } = request.params as { profileId: string };
+  return service(`/v1/agent-profiles/${encodeURIComponent(profileId)}/versions`, {
+    method: "POST",
+    body: JSON.stringify(request.body ?? {}),
+  });
+});
+app.post("/api/agent-profiles/:profileId/apply", async (request) => {
+  const { profileId } = request.params as { profileId: string };
+  return service(`/v1/agent-profiles/${encodeURIComponent(profileId)}/apply`, {
+    method: "POST",
+    body: JSON.stringify(request.body ?? {}),
+  });
 });
 app.get("/api/sandboxes/:id/product-agents", async (request) => {
   const { id } = request.params as { id: string };

@@ -60,6 +60,25 @@ checks.
 The product processes are detached from the provisioner service. Restarting the
 control plane does not stop running sandbox APIs and workers.
 
+## Agent setup profiles
+
+Agents sandboxes expose versioned setup profiles. A profile targets either the
+existing platform Assistant or a new customer-service business agent. Applying a
+profile calls the normal Agents model, knowledge, agent, capability and publication
+APIs, then registers the resulting agent reference in the evaluation control plane.
+
+The first business-agent profile uses the product's built-in knowledge and handoff
+tools. External calendar credentials are not copied into the sandbox; a calendar
+connection fixture remains a separate provider-integration step.
+
+## Sandbox sync
+
+The sandbox detail page's **Update sandbox** action applies current agents schema
+migrations, restarts the runtime, runs health/session/agent smoke checks and records
+a new immutable sandbox version. Growth updates both the Growth runtime and its
+paired Agents runtime. Active conversations block the update. Existing workspace
+data and historical evidence are preserved.
+
 ## Product agents and chat
 
 The Evals client lists agents from the product workspace through normal product APIs.
@@ -147,3 +166,20 @@ provisioning run finishes or fails.
 | Validation | Billing and eval test suites pass; fresh Agents, Growth, and Growth-paired Agents sandboxes reached `ready` with active sandbox plans; Agents analytics and billing snapshots returned active access with null internal limits; Growth bootstrap and billing summary returned the unlimited Growth plan. |
 | Rollback | Stop the eval service and remove the sandbox env credentials. Running sandboxes keep their assigned subscription until the sandbox is retired. Do not convert a sandbox account to production or attach a production plan as a rollback. |
 | Post-release review | Review before Phase 4 evaluation starts. |
+
+
+## Agent setup and sync release record
+
+| Field | Decision |
+| --- | --- |
+| Change | Add versioned agent setup profiles for the platform Assistant and business agents, and an explicit sandbox code/schema update action. |
+| Owner | Engineering. |
+| Risk | Standard: normal Agents APIs, isolated sandbox data, explicit sync confirmation. |
+| Affected surfaces | Evals control plane and client, Agents sandboxes, Growth sandbox paired runtime, Agents model/knowledge/agent setup APIs. |
+| Migration | `services/evals/migrations/007_agent_profiles.sql`. |
+| Rollout | Rebuild and restart the eval service and client. The service applies migration 007 and restores ready sandbox runtimes. |
+| Analytics and logs | Setup apply and sandbox sync record structured service logs and control-plane step/error records. No customer analytics event is added. |
+| Documentation | This page, Evals service and client READMEs, and ARCHITECTURE.md. |
+| Validation | Eval suite 29/29; live platform Assistant and customer-service business-agent profiles published and registered; sandbox sync applied migrations, restarted the runtime, smoke-checked and recorded a new sandbox version. Calendar credential fixture remains pending. |
+| Rollback | Remove the profile/sync routes and UI. Existing published agent versions remain valid. A failed sync is recorded; the current runtime is restarted from the current source. |
+| Post-release review | Review before evaluation datasets and runs. |

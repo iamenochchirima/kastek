@@ -60,8 +60,11 @@ service is local and development only until hosted lifecycle and retention contr
 land. Provisioned sandboxes use real central-billing sandbox plans rather than
 disabled billing. The client lists product agents through normal product APIs,
 records interactive sessions and digests, and leaves transcript text in the product
-runtime. Confirmed deletion stops runtime processes, drops product databases,
-removes local files and retires the registry record. See
+runtime. Agent setup profiles define versioned Assistant or business-agent
+configurations, apply them through normal Agents APIs and register the published
+agent version. Sandbox sync applies current schema migrations, restarts runtimes and
+records a new sandbox version. Confirmed deletion stops runtime processes, drops
+product databases, removes local files and retires the registry record. See
 `services/evals/README.md`.
 
 ## Billing boundary

@@ -21,6 +21,11 @@ export interface SandboxSetupInput {
     name: string;
     configuration: Record<string, unknown>;
     instructions: string;
+    targetAgentId?: string;
+    updateExisting?: boolean;
+    reuseExistingByName?: boolean;
+    offering?: "customer-service";
+    setup?: Record<string, unknown>;
     rootTokenLimit?: number;
     responsibilities?: Array<"answer-questions" | "customer-support" | "bookings" | "enquiries">;
   };
@@ -215,36 +220,94 @@ export async function setupSandbox(input: SandboxSetupInput): Promise<SandboxSet
   let versionId: string;
   let compositionDigest: string;
   const existingAgents = await product(input.ownerSession, "GET", `${orgBase}/agents`, undefined, "list agents");
-  const existingAgent = (existingAgents.agents ?? []).find((item: Json) => item.name === input.agent.name);
+  let existingAgent: Json | undefined;
+  if (input.agent.targetAgentId) {
+    existingAgent = { id: input.agent.targetAgentId };
+  } else if (input.agent.reuseExistingByName !== false) {
+    existingAgent = (existingAgents.agents ?? []).find((item: Json) => item.name === input.agent.name);
+  }
   if (existingAgent) {
     agentId = String(existingAgent.id);
     const detail = await product(input.ownerSession, "GET", `${orgBase}/agents/${encodeURIComponent(agentId)}`, undefined, "read existing agent");
-    const versions = detail.versions ?? [];
-    if (!versions.length) {
-      throw new SandboxSetupError("read existing agent", null, "CONFIGURATION_UNAVAILABLE", "Existing agent has no published version");
+    if (input.agent.updateExisting || input.agent.targetAgentId) {
+      const base = (detail.agent?.draft ?? {}) as Json;
+      const configuration = {
+        ...base,
+        ...structuredClone(input.agent.configuration) as Json,
+        instructions: input.agent.instructions,
+        sourceRevisionIds: [sourceRevisionId],
+      };
+      const updated = await product(input.ownerSession, "PUT", `${orgBase}/agents/${encodeURIComponent(agentId)}`, {
+        name: input.agent.name,
+        configuration,
+        expectedRevision: Number(detail.agent?.draftRevision ?? detail.agent?.draft_revision ?? 0),
+      }, "update existing agent");
+      let updatedAgent = updated.agent as Json;
+      steps.push("agent configuration updated");
+      if (input.agent.responsibilities?.length) {
+        const capabilities = await product(input.ownerSession, "PUT", `${orgBase}/agents/${encodeURIComponent(agentId)}/capabilities`, {
+          responsibilities: input.agent.responsibilities,
+          expectedRevision: updatedAgent.draftRevision,
+          confirmImpact: true,
+        }, "save agent capabilities");
+        updatedAgent = capabilities.agent as Json;
+        steps.push("agent capabilities saved");
+      }
+      const published = await product(input.ownerSession, "POST", `${orgBase}/agents/${encodeURIComponent(agentId)}/versions`, {
+        expectedRevision: updatedAgent.draftRevision,
+      }, "publish agent version");
+      versionId = String(published.version.id);
+      compositionDigest = String(published.version.effectiveComposition?.digest ?? published.version.effective_composition?.digest);
+      steps.push("existing agent version published");
+    } else {
+      const versions = detail.versions ?? [];
+      if (!versions.length) {
+        throw new SandboxSetupError("read existing agent", null, "CONFIGURATION_UNAVAILABLE", "Existing agent has no published version");
+      }
+      const latest = [...versions].sort((left: Json, right: Json) =>
+        Number(right.number ?? 0) - Number(left.number ?? 0))[0]!;
+      versionId = String(latest.id);
+      compositionDigest = String(latest.effectiveComposition?.digest ?? latest.effective_composition?.digest);
+      steps.push("agent and version reused");
     }
-    const latest = [...versions].sort((left: Json, right: Json) =>
-      Number(right.number ?? 0) - Number(left.number ?? 0))[0]!;
-    versionId = String(latest.id);
-    compositionDigest = String(latest.effectiveComposition?.digest ?? latest.effective_composition?.digest);
-    steps.push("agent and version reused");
   } else {
-    const configuration = structuredClone(input.agent.configuration) as Json;
-    configuration.instructions = input.agent.instructions;
-    configuration.sourceRevisionIds = [sourceRevisionId];
     const created = await product(input.ownerSession, "POST", `${orgBase}/agents`, {
       name: input.agent.name,
-      configuration,
+      ...(input.agent.offering ? { offering: input.agent.offering } : {}),
+      ...(input.agent.setup ? { setup: input.agent.setup } : {}),
+      ...(Object.keys(input.agent.configuration).length
+        ? {
+            configuration: {
+              ...structuredClone(input.agent.configuration) as Json,
+              instructions: input.agent.instructions,
+              sourceRevisionIds: [sourceRevisionId],
+            },
+          }
+        : {}),
     }, "create agent");
     agentId = String(created.agent.id);
-    let createdAgent = created.agent;
+    let createdAgent = created.agent as Json;
+    if (input.agent.offering) {
+      const base = (createdAgent.draft ?? {}) as Json;
+      const updated = await product(input.ownerSession, "PUT", `${orgBase}/agents/${encodeURIComponent(agentId)}`, {
+        name: input.agent.name,
+        configuration: {
+          ...base,
+          instructions: input.agent.instructions,
+          sourceRevisionIds: [sourceRevisionId],
+        },
+        expectedRevision: Number(createdAgent.draftRevision),
+      }, "configure created agent");
+      createdAgent = updated.agent as Json;
+      steps.push("agent knowledge and instructions applied");
+    }
     if (input.agent.responsibilities?.length) {
       const updated = await product(input.ownerSession, "PUT", `${orgBase}/agents/${encodeURIComponent(agentId)}/capabilities`, {
         responsibilities: input.agent.responsibilities,
         expectedRevision: createdAgent.draftRevision,
         confirmImpact: true,
       }, "save agent capabilities");
-      createdAgent = updated.agent;
+      createdAgent = updated.agent as Json;
       steps.push("agent capabilities saved");
     }
     const published = await product(input.ownerSession, "POST", `${orgBase}/agents/${encodeURIComponent(agentId)}/versions`, {

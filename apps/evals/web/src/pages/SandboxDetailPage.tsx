@@ -4,8 +4,9 @@ import { ArrowLeft, Bot, MessageSquare, RefreshCw, Trash2 } from "lucide-react";
 import type { ProductAgent, SandboxDetail } from "../../../shared/types";
 import { api, errorMessage, formatDate, shortId } from "../api";
 import { ConfirmDialog, EmptyState, ErrorBox, Loading, PageHeader, StatusBadge } from "../components";
+import { AgentProfilesPanel } from "../panels/AgentProfilesPanel";
 
-type Tab = "overview" | "agents" | "sessions" | "outcomes";
+type Tab = "overview" | "agents" | "profiles" | "sessions" | "outcomes";
 
 export default function SandboxDetailPage() {
   const { id = "" } = useParams();
@@ -20,6 +21,10 @@ export default function SandboxDetailPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [restarting, setRestarting] = useState(false);
   const [restartError, setRestartError] = useState<string | null>(null);
+  const [agentsRefresh, setAgentsRefresh] = useState(0);
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,7 +59,28 @@ export default function SandboxDetailPage() {
       .then((value) => { if (!cancelled) setProductAgents(value.agents); })
       .catch((value) => { if (!cancelled) setAgentsError(errorMessage(value)); });
     return () => { cancelled = true; };
-  }, [detail?.sandbox.status, id]);
+  }, [detail?.sandbox.status, id, agentsRefresh]);
+
+  async function syncSandbox() {
+    if (syncing) return;
+    setSyncing(true);
+    setSyncError(null);
+    try {
+      await api(`/api/sandboxes/${encodeURIComponent(id)}/sync`, {
+        method: "POST",
+        body: JSON.stringify({ confirm: "UPDATE" }),
+      });
+      const refreshed = await api<SandboxDetail>(`/api/sandboxes/${encodeURIComponent(id)}`);
+      setDetail(refreshed);
+      setAgentsRefresh((value) => value + 1);
+      setSyncOpen(false);
+      setTab("overview");
+    } catch (value) {
+      setSyncError(errorMessage(value));
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function restartRuntime() {
     if (restarting) return;
@@ -98,6 +124,9 @@ export default function SandboxDetailPage() {
   const tabs: Array<{ id: Tab; label: string; count?: number }> = [
     { id: "overview", label: "Overview" },
     { id: "agents", label: "Agents", count: productAgents?.length },
+    ...(detail.sandbox.product === "agents"
+      ? [{ id: "profiles" as const, label: "Profiles" }]
+      : []),
     { id: "sessions", label: "Sessions", count: detail.sessions.length },
     { id: "outcomes", label: "Outcomes", count: detail.outcomes.length },
   ];
@@ -113,8 +142,15 @@ export default function SandboxDetailPage() {
             <Link className="button ghost" to="/"><ArrowLeft size={15} /> Sandboxes</Link>
             <button
               className="button ghost"
+              onClick={() => { setSyncOpen(true); setSyncError(null); }}
+              disabled={syncing || detail.sandbox.status === "provisioning" || detail.sandbox.status === "retired"}
+            >
+              <RefreshCw size={15} /> {syncing ? "Updating…" : "Update sandbox"}
+            </button>
+            <button
+              className="button ghost"
               onClick={restartRuntime}
-              disabled={restarting || detail.sandbox.status === "provisioning" || detail.sandbox.status === "retired"}
+              disabled={restarting || syncing || detail.sandbox.status === "provisioning" || detail.sandbox.status === "retired"}
             >
               <RefreshCw size={15} /> {restarting ? "Restarting…" : "Restart runtime"}
             </button>
@@ -130,6 +166,20 @@ export default function SandboxDetailPage() {
         }
       />
 
+      {syncOpen && (
+        <ConfirmDialog
+          title="Update sandbox?"
+          description="Apply the current product code and schema migrations, restart the runtime, run smoke checks and record a new sandbox version. Workspace data and existing sessions are preserved. Active conversations block the update."
+          confirmationText="UPDATE"
+          confirmLabel="Update sandbox"
+          busyLabel="Updating…"
+          busy={syncing}
+          error={syncError}
+          onConfirm={syncSandbox}
+          onCancel={() => { if (!syncing) { setSyncOpen(false); setSyncError(null); } }}
+        />
+      )}
+
       {deleteOpen && (
         <ConfirmDialog
           title={`Delete ${shortId(detail.sandbox.id)}?`}
@@ -139,6 +189,7 @@ export default function SandboxDetailPage() {
               : "This stops the sandbox, drops its database, removes its local files, and hides it from the list. This cannot be undone."
           }
           busy={deleting}
+          busyLabel="Deleting…"
           error={deleteError}
           onConfirm={deleteSandbox}
           onCancel={() => { if (!deleting) { setDeleteOpen(false); setDeleteError(null); } }}
@@ -274,6 +325,18 @@ export default function SandboxDetailPage() {
             </div>
           )}
         </section>
+      )}
+
+      {tab === "profiles" && detail.sandbox.product === "agents" && (
+        detail.workspaceRefs[0] ? (
+          <AgentProfilesPanel
+            sandboxId={detail.sandbox.id}
+            workspaceRefId={detail.workspaceRefs[0].id}
+            onAgentChanged={() => setAgentsRefresh((value) => value + 1)}
+          />
+        ) : (
+          <section className="panel"><EmptyState title="No workspace" description="Agent profiles require a workspace reference." /></section>
+        )
       )}
 
       {tab === "sessions" && (

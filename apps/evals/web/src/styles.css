@@ -324,3 +324,13 @@ h3 { font-size: 14px; font-weight: 600; }
   .modal-actions { flex-direction: column-reverse; }
   .modal-actions .button { width: 100%; }
 }
+
+.profile-modal { width: min(680px, 100%); }
+.profile-knowledge-row { display: flex; flex-direction: column; gap: 14px; }
+.profile-responsibilities { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; border: 0; }
+.check-row { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+.check-row input { accent-color: var(--accent); }
+.profile-steps { margin-top: 4px; }
+.profile-steps .step { padding: 7px 9px; }
+.profile-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.profile-actions .button { text-decoration: none; }

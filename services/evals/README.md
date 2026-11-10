@@ -243,6 +243,57 @@ page and on the chat error state. The service also checks ready sandboxes every 
 seconds and restarts a stopped local runtime automatically. If the Growth runtime is
 unavailable, the Agents tab returns a clear error instead of an empty list.
 
+### Agent setup profiles
+
+Agent setup profiles make sandbox agent configuration repeatable. A profile targets
+either the existing platform Assistant or a new business agent, and is applied
+through normal Agents APIs.
+
+```sh
+curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/agent-profiles" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN"
+
+curl -sS -X POST "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/agent-profiles" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{
+    "workspaceRefId":"<workspace-ref>",
+    "spec":{
+      "targetType":"business_agent",
+      "agentName":"Customer support",
+      "instructions":"Answer from approved knowledge only.",
+      "knowledge":{"title":"Support policy","content":"..."},
+      "responsibilities":["answer-questions","customer-support"]
+    }
+  }'
+
+curl -sS -X POST "http://127.0.0.1:4600/v1/agent-profiles/$PROFILE_ID/apply" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{"idempotencyKey":"setup-one"}'
+```
+
+Applying a profile creates an immutable profile version, configures/publishes the
+agent, reads it back, and records the agent reference. A new version can be created
+with `POST /v1/agent-profiles/:id/versions`. The first tool capability uses the
+product's built-in knowledge and handoff tools. External calendar credentials are
+not copied into the sandbox; a calendar connection fixture remains a separate
+provider-integration step.
+
+### Sandbox sync
+
+`POST /v1/sandboxes/:id/sync` applies current product migrations, force-restarts the
+runtime, runs smoke checks and records a new immutable sandbox version. Active
+conversations block the update. For Growth it updates both the Growth runtime and
+the paired Agents runtime. The client exposes this as **Update sandbox**.
+
+```sh
+curl -sS -X POST "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/sync" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{"confirm":"UPDATE"}'
+```
+
 ### Product agents and chat
 
 The service reads the product workspace through the normal product API and registers

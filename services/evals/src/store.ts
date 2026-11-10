@@ -958,6 +958,44 @@ export async function getInteractiveSession(
   };
 }
 
+export async function recordSandboxVersion(
+  pool: Pool,
+  sandboxId: string,
+  manifest: SandboxManifest,
+): Promise<SandboxVersion> {
+  return transaction(pool, async (client) => {
+    await client.query(
+      "UPDATE evals.sandbox_versions SET retired_at=now() WHERE sandbox_id=$1 AND retired_at IS NULL",
+      [sandboxId],
+    );
+    const result = await client.query(
+      `INSERT INTO evals.sandbox_versions(
+         id, sandbox_id, code_revision, image_digest, schema_version,
+         migration_checksum, config_digest, runtime_version,
+         model_routes_digest, adapter_versions
+       ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       RETURNING *`,
+      [
+        randomUUID(),
+        sandboxId,
+        manifest.codeRevision,
+        manifest.imageDigest,
+        manifest.schemaVersion,
+        manifest.migrationChecksum,
+        manifest.configDigest,
+        manifest.runtimeVersion,
+        manifest.modelRoutesDigest,
+        JSON.stringify(manifest.adapterVersions),
+      ],
+    );
+    await client.query(
+      "UPDATE evals.sandboxes SET updated_at=now() WHERE id=$1",
+      [sandboxId],
+    );
+    return mapVersion(result.rows[0] as Row);
+  });
+}
+
 export interface SandboxProvisioningUpdate {
   status?: "provisioning" | "ready" | "failed" | "active" | "retired";
   steps?: ProvisioningStep[];
