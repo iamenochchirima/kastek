@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, MessageSquare, Plus, Send } from "lucide-react";
+import { ArrowLeft, MessageSquare, Plus, RefreshCw, Send } from "lucide-react";
 import type { ProductAgent, ProductChatMessage, ProductChatResult } from "../../../shared/types";
 import { api, errorMessage } from "../api";
 import { EmptyState, ErrorBox, Loading, PageHeader, StatusBadge } from "../components";
@@ -15,6 +15,8 @@ export default function SandboxAgentChatPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [restarting, setRestarting] = useState(false);
+  const [restartError, setRestartError] = useState<string | null>(null);
   const thread = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -79,8 +81,42 @@ export default function SandboxAgentChatPage() {
     }
   }
 
+  async function restartRuntime() {
+    if (restarting) return;
+    setRestarting(true);
+    setRestartError(null);
+    try {
+      await api(`/api/sandboxes/${encodeURIComponent(id)}/runtime/restart`, { method: "POST" });
+      window.location.reload();
+    } catch (value) {
+      setRestartError(errorMessage(value));
+    } finally {
+      setRestarting(false);
+    }
+  }
+
   if (loading) return <Loading label="Loading agent" />;
-  if (error && !agent) return <ErrorBox message={error} />;
+  if (error && !agent) {
+    return (
+      <>
+        <PageHeader
+          eyebrow="Agent chat"
+          title={agentRefId.slice(0, 8)}
+          description={`Sandbox ${id.slice(0, 8)}`}
+          actions={<Link className="button ghost" to={`/sandboxes/${id}`}><ArrowLeft size={15} /> Sandbox</Link>}
+        />
+        <section className="panel">
+          <ErrorBox message={error} />
+          {restartError && <ErrorBox message={restartError} />}
+          <div className="button-row">
+            <button className="button" onClick={restartRuntime} disabled={restarting}>
+              <RefreshCw size={15} /> {restarting ? "Restarting…" : "Restart runtime"}
+            </button>
+          </div>
+        </section>
+      </>
+    );
+  }
   if (!agent) return <ErrorBox message="Agent not found in this sandbox" />;
 
   return (

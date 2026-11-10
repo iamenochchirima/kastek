@@ -140,3 +140,28 @@ export async function restartSandboxRuntime(
     apiUrl,
   };
 }
+
+
+export async function restoreReadySandboxRuntimes(
+  config: EvalsConfig,
+  pool: Pool,
+): Promise<Array<{ sandboxId: string; error: string }>> {
+  if (!config.localProvisioning) return [];
+  const result = await pool.query<{ id: string; product: string }>(
+    `SELECT id::text, product FROM evals.sandboxes
+      WHERE status='ready' AND product IN ('agents', 'growth')
+      ORDER BY created_at, id`,
+  );
+  const failures: Array<{ sandboxId: string; error: string }> = [];
+  for (const row of result.rows) {
+    try {
+      await restartSandboxRuntime(config, pool, row.id);
+    } catch (error) {
+      failures.push({
+        sandboxId: row.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return failures;
+}

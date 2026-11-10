@@ -239,8 +239,9 @@ curl -sS -X POST "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/runtime/restart
 ```
 
 The Evals client exposes the same action as **Restart runtime** on the sandbox detail
-page. If the Growth runtime is unavailable, the Agents tab returns a clear error
-instead of an empty list.
+page and on the chat error state. The service also checks ready sandboxes every 10
+seconds and restarts a stopped local runtime automatically. If the Growth runtime is
+unavailable, the Agents tab returns a clear error instead of an empty list.
 
 ### Product agents and chat
 

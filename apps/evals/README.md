@@ -31,7 +31,7 @@ pnpm --filter @kasitek/evals start
 ## Pages
 
 - **Sandboxes** — recorded sandboxes, their status, and workspace, agent, session and outcome counts. **Create sandbox** provisions a local Agents environment or a Growth sandbox with its paired Agents runtime. Each card and detail page has a confirmed delete action; **Delete all** requires typing `DELETE`.
-- **Sandbox detail** — tabbed Overview, Agents, Sessions and Outcomes views. Product agents are listed from the sandbox workspace and can be opened in a chat page. Sessions link back to their conversation. The Overview tab holds version, provisioning, workspaces and the paired sandbox link. **Restart runtime** restarts the recorded Agents runtime or a Growth sandbox's paired runtime.
+- **Sandbox detail** — tabbed Overview, Agents, Sessions and Outcomes views. Product agents are listed from the sandbox workspace and can be opened in a chat page. Sessions link back to their conversation. The Overview tab holds version, provisioning, workspaces and the paired sandbox link. **Restart runtime** restarts the recorded Agents runtime or a Growth sandbox's paired runtime; the service also self-heals stopped runtimes every 10 seconds.
 - **Sessions** — interactive sessions across sandboxes.
 - **Session detail** — task references, states and transcript digests.
 - **Outcomes** — saved business results across sandboxes.
