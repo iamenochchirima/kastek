@@ -3,7 +3,7 @@
   --auth-ink: #171a22;
   --auth-muted: #626874;
   --auth-line: #e4e3e8;
-  --auth-blue: #1746b9;
+  --auth-accent: #000000;
   min-height: 100dvh;
   background: var(--auth-paper);
   color: var(--auth-ink);
@@ -21,15 +21,15 @@
 .authKicker { margin: 0; font-size: 11px; line-height: 1.4; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600; color: var(--auth-muted); }
 .authCardTitle { margin: 0; font-size: clamp(28px, 4vw, 34px); line-height: 1.08; letter-spacing: -0.05em; font-weight: 500; color: var(--auth-ink); }
 .authCardDescription { margin: 10px 0 0; font-size: 14px; line-height: 1.6; color: var(--auth-muted); }
-.authPrimary { display: inline-flex; align-items: center; justify-content: center; gap: 16px; width: 100%; min-height: 44px; padding: 11px 18px; border: 0; border-radius: 7px; background: var(--auth-blue); color: #fff !important; font-size: 14px; font-weight: 500; transition: background-color 0.18s ease, transform 0.18s ease; }
-.authPrimary:hover { background: #123a9c; transform: translateY(-1px); }
+.authPrimary { display: inline-flex; align-items: center; justify-content: center; gap: 16px; width: 100%; min-height: 44px; padding: 11px 18px; border: 0; border-radius: 7px; background: var(--auth-accent); color: #fff !important; font-size: 14px; font-weight: 500; transition: background-color 0.18s ease, transform 0.18s ease; }
+.authPrimary:hover { background: #1c1c1c; transform: translateY(-1px); }
 .authSecondary { display: block; margin-top: 16px; text-align: center; font-size: 13px; line-height: 1.5; color: var(--auth-muted); }
 .authSecondary a { color: var(--auth-ink); text-decoration: underline; text-underline-offset: 3px; }
 .authSecurity { display: flex; gap: 8px; align-items: flex-start; margin: 22px 0 0; padding-top: 16px; border-top: 1px solid var(--auth-line); font-size: 11px; line-height: 1.5; color: var(--auth-muted); }
-.authSecurity svg { flex: 0 0 auto; margin-top: 1px; color: var(--auth-blue); }
+.authSecurity svg { flex: 0 0 auto; margin-top: 1px; color: #626874; }
 .authError { border-left: 3px solid #a83c34; padding: 8px 14px; color: #81352e; font-size: 13px; line-height: 1.5; }
 .authNote { margin: 16px 0 0; font-size: 12px; line-height: 1.55; color: var(--auth-muted); }
-.authPage a:focus-visible, .authPage button:focus-visible { outline: 3px solid #245ed2; outline-offset: 4px; }
+.authPage a:focus-visible, .authPage button:focus-visible { outline: 3px solid #171a22; outline-offset: 4px; }
 @media (max-width: 640px) {
   .authShell { width: calc(100% - 32px); }
   .authTopbar { padding: 20px 0; }

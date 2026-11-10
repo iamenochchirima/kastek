@@ -150,7 +150,7 @@ export default function AcceptInviteScreen() {
             {inviteError}
           </div>
         ) : success ? (
-          <div className="rounded-lg border border-[#5b5bf033] bg-[#5b5bf00f] px-4 py-5 text-center text-sm text-[#4a46e8]">
+          <div className="rounded-lg border border-[#171a221f] bg-[#f8f6ef] px-4 py-5 text-center text-sm text-[#171a22]">
             Account activated. Redirecting to your client portal.
           </div>
         ) : (
