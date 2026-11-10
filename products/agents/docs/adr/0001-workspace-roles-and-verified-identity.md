@@ -1,6 +1,7 @@
 # 0001: Workspace roles, permissions and verified identity
 
-Status: Accepted. 2026-11-10.
+Status: Accepted. 2026-11-10. Amended by [0002](0002-member-permission-overrides.md) for
+per-member permission overrides.
 
 ## Context
 

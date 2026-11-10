@@ -7,3 +7,4 @@ record to context, decision and consequences.
 Current decisions:
 
 - [0001: Workspace roles, permissions and verified identity](0001-workspace-roles-and-verified-identity.md)
+- [0002: Per-member permission overrides](0002-member-permission-overrides.md)

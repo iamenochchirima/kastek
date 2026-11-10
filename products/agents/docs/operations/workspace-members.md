@@ -4,6 +4,9 @@ Agents workspaces have three roles: owner, admin and member. Owners hold destruc
 workspace actions, billing and provider credentials. Admins run the workspace and manage
 members and agents. Members use agents, inbox conversations and assigned work.
 
+Roles are defaults. An owner can also grant or deny individual permissions to an admin or
+member, so two people with the same role can differ.
+
 ## Roles
 
 | Capability | Owner | Admin | Member |
@@ -28,7 +31,30 @@ changes cannot drift from the ownership source.
 
 The permission vocabulary lives in
 `products/agents/api/src/product/members/permissions.ts`. Routes resolve the caller's role
-through that module instead of comparing a literal role string.
+and overrides through that module instead of comparing a literal role string.
+
+## Permission overrides
+
+An override grants or denies one permission for one member.
+
+```text
+effective = (permissions of role ∪ grants) − denies
+```
+
+- A grant adds a permission the role does not include.
+- A deny removes a permission the role includes.
+- Deny wins over grant.
+- Owners ignore overrides. The owner role always holds every permission.
+- Overrides persist across role changes. They describe the person, not the role.
+- Owner-only permissions cannot be granted by override: `workspace.delete`,
+  `workspace.transfer`, `billing.manage`, `credentials.manage`, `members.escalate`,
+  `permissions.manage`.
+- Only owners hold `permissions.manage`, so only owners change overrides.
+- An owner cannot target another owner or change their own overrides.
+- Removing a member deletes their overrides.
+
+The API resolves the effective set per request, so a change applies on the member's next
+request. The signed-in UI catches up when the session is reloaded.
 
 ## Member API
 
@@ -41,6 +67,8 @@ column names the permission checked by the route.
 | `POST` | `/api/organizations/:organizationId/members` | `members.manage` |
 | `PATCH` | `/api/organizations/:organizationId/members/:accountId` | `members.manage` |
 | `DELETE` | `/api/organizations/:organizationId/members/:accountId` | `members.manage`, or self-removal |
+| `GET` | `/api/organizations/:organizationId/members/:accountId/permissions` | `permissions.manage` |
+| `PUT` | `/api/organizations/:organizationId/members/:accountId/permissions/:permission` | `permissions.manage` |
 | `GET` | `/api/organizations/:organizationId/invitations` | `members.invite` |
 | `POST` | `/api/organizations/:organizationId/invitations` | `members.invite` |
 | `DELETE` | `/api/organizations/:organizationId/invitations/:invitationId` | `members.invite` |
@@ -48,8 +76,14 @@ column names the permission checked by the route.
 | `POST` | `/api/invitations/:token/accept` | Authenticated matching email |
 
 `GET /members` returns the roster plus the caller's `role`, effective `permissions` and
-`grantableRoles`. Clients use those values to render controls; the server still checks every
+`grantableRoles`. Each member row includes their effective `permissions` and explicit
+`overrides`. Clients use those values to render controls; the server still checks every
 mutation.
+
+`PUT /members/:accountId/permissions/:permission` accepts `{ "effect": "grant" | "deny" |
+"inherit" }`. `inherit` deletes the override. Unknown permissions return
+`INVALID_PERMISSION`; owner-only grants return `PERMISSION_NOT_GRANTABLE`; owner targets
+return `OWNER_PERMISSION_IMMUTABLE`; self changes return `SELF_PERMISSION_CHANGE`.
 
 `POST /members` adds an existing account by email in the inviter's identity issuer. Use the
 invitation route when the account does not exist yet.
@@ -123,28 +157,39 @@ Tests inject a fake sender and never call Resend.
 
 - **Settings → Members** lists members and pending invitations.
 - Owners and admins can invite, revoke and manage the members their role allows.
+- Owners can open **Permissions** on an admin or member and choose Default, Allow or Deny
+  per capability. The dialog shows the resulting access after each change.
+- Denying a read permission warns that the member loses workspace visibility.
 - The role selector and invite dialog list only roles the caller may grant.
 - Members see the list without management controls.
+- Agent configuration surfaces become read-only when the effective set lacks
+  `agents.manage`, and deploy controls follow `deploy.manage` and `channels.manage`.
 - `/invite/:token` handles preview, sign-in return, acceptance, wrong-email, accepted,
   revoked and expired states.
 - The layout is verified at desktop, tablet and mobile widths.
 
 ## Verification
 
-- `products/agents/api/test/permissions.test.ts` covers the role and permission matrix,
-  grantable roles and escalation guards.
+- `products/agents/api/test/permissions.test.ts` covers the role matrix, override grants and
+  denies, deny precedence, owner immunity, grantable roles and escalation guards.
+- `products/agents/api/test/members-http.test.ts` covers override management, effective
+  access in the roster and session, and agent configuration denial for members.
 - `products/agents/api/test/invitation-delivery.test.ts` sends through the real Resend adapter
   to a local provider stub, extracts the link from the message, accepts it as an admin and
   checks that a provider rejection leaves the invitation pending.
 - `products/agents/api/test/members-http.test.ts` covers member listing, admin authority,
   invitations, duplicate pending invitations, wrong email, expiry, revocation, email
   failure, last-owner protection and cross-organization denial.
-- `products/agents/web/test/members.spec.ts` covers the members UI and invitation page at
-  1440, 768 and 390 pixels.
+- `products/agents/web/test/members.spec.ts` covers the members UI, the permissions dialog
+  and the invitation page at 1440, 768 and 390 pixels.
+- `products/agents/web/test/agent-readonly.spec.ts` covers the read-only and granted agent
+  surfaces.
 - Typecheck, Agents API tests and `pnpm verify:boundaries` are required before release.
 
 ## Limits
 
+- There are no custom per-workspace roles. Overrides cover individual exceptions; named role
+  presets are a future addition.
 - There is no SCIM or SSO group synchronization.
 - Invitation email delivery is provider acceptance, not proof of inbox delivery.
 - Production invitation email must be configured before the feature works in a deployed
