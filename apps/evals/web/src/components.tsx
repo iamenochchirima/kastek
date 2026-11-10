@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { AlertTriangle, CircleHelp, Clock, X } from "lucide-react";
+import { AlertTriangle, Check, CircleHelp, Clock, Search, X } from "lucide-react";
+import type { AgentModelCatalogue } from "../../shared/types";
 
 export function StatusBadge({ status }: { status: string }) {
   const tone =
@@ -143,6 +144,135 @@ export function ConfirmDialog({
           <button className="button ghost" type="button" onClick={onCancel} disabled={busy}>Cancel</button>
           <button className="button destructive" type="button" onClick={onConfirm} disabled={busy || !confirmed}>
             {busy ? "Deleting…" : confirmLabel}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+
+export function ModelPickerDialog({
+  catalogue,
+  selected,
+  saving,
+  error,
+  onSave,
+  onClose,
+}: {
+  catalogue: AgentModelCatalogue;
+  selected: string;
+  saving: boolean;
+  error?: string | null;
+  onSave: (value: string) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [pending, setPending] = useState(selected);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !saving) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, saving]);
+  const optionValue = (connectionId: string, modelId: string) => JSON.stringify([connectionId, modelId]);
+  const term = search.trim().toLowerCase();
+  const matches = (label: string, detail: string) =>
+    !term || `${label} ${detail}`.toLowerCase().includes(term);
+  const defaultLabel = catalogue.defaultModel?.label ?? "Default";
+  const defaultVisible = matches(`${defaultLabel} default`, "organization default");
+  const groups = [...new Set(catalogue.models.map((model) => model.provider))]
+    .sort()
+    .map((provider) => ({
+      provider,
+      models: catalogue.models.filter((model) =>
+        model.provider === provider && matches(model.label, `${model.modelId} ${provider}`)),
+    }))
+    .filter((group) => group.models.length > 0);
+  return (
+    <div
+      className="modal-backdrop"
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !saving) onClose();
+      }}
+    >
+      <section className="modal model-picker-modal" role="dialog" aria-modal="true" aria-labelledby="model-picker-title">
+        <div className="modal-head">
+          <div>
+            <div className="eyebrow">Agent model</div>
+            <h2 id="model-picker-title">Choose model</h2>
+            <p className="muted small">Applies to new messages for this agent.</p>
+          </div>
+          <button className="icon-button" onClick={onClose} disabled={saving} aria-label="Close">
+            <X size={17} />
+          </button>
+        </div>
+        <div className="modal-body">
+          <div className="search model-search">
+            <Search size={15} />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search models"
+              aria-label="Search models"
+              autoFocus
+              disabled={saving}
+            />
+          </div>
+          <div className="model-list">
+            {defaultVisible && (
+              <button
+                type="button"
+                className={`model-option${pending === "organization_default" ? " selected" : ""}`}
+                onClick={() => setPending("organization_default")}
+                disabled={saving}
+              >
+                <span className="model-option-main">
+                  <strong>{defaultLabel}</strong>
+                  <span>Organization default</span>
+                </span>
+                {pending === "organization_default" && <Check size={16} />}
+              </button>
+            )}
+            {groups.map((group) => (
+              <div className="model-group" key={group.provider}>
+                <div className="model-group-label">{group.provider}</div>
+                {group.models.map((model) => {
+                  const value = optionValue(model.connectionId, model.modelId);
+                  return (
+                    <button
+                      type="button"
+                      className={`model-option${pending === value ? " selected" : ""}`}
+                      key={value}
+                      onClick={() => setPending(value)}
+                      disabled={saving}
+                    >
+                      <span className="model-option-main">
+                        <strong>{model.label}</strong>
+                        <span>{model.modelId}</span>
+                      </span>
+                      {pending === value && <Check size={16} />}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+            {!defaultVisible && groups.length === 0 && (
+              <div className="muted small model-empty">No matching models</div>
+            )}
+          </div>
+          {error && <ErrorBox message={error} />}
+        </div>
+        <div className="modal-actions">
+          <button className="button ghost" type="button" onClick={onClose} disabled={saving}>Cancel</button>
+          <button
+            className="button"
+            type="button"
+            onClick={() => onSave(pending)}
+            disabled={saving || pending === selected}
+          >
+            {saving ? "Saving…" : "Save model"}
           </button>
         </div>
       </section>

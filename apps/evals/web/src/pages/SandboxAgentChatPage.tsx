@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, MessageSquare, Plus, RefreshCw, Send } from "lucide-react";
+import { ArrowLeft, ChevronDown, MessageSquare, Plus, RefreshCw, Send } from "lucide-react";
 import type { AgentModelCatalogue, AgentRef, ProductAgent, ProductChatMessage, ProductChatResult } from "../../../shared/types";
 import { api, errorMessage } from "../api";
-import { EmptyState, ErrorBox, Loading, PageHeader, StatusBadge } from "../components";
+import { EmptyState, ErrorBox, Loading, ModelPickerDialog, PageHeader, StatusBadge } from "../components";
 
 export default function SandboxAgentChatPage() {
   const { id = "", agentRefId = "" } = useParams();
@@ -20,6 +20,7 @@ export default function SandboxAgentChatPage() {
   const [catalogue, setCatalogue] = useState<AgentModelCatalogue | null>(null);
   const [modelError, setModelError] = useState<string | null>(null);
   const [savingModel, setSavingModel] = useState(false);
+  const [modelOpen, setModelOpen] = useState(false);
   const thread = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -139,6 +140,7 @@ export default function SandboxAgentChatPage() {
           revision: String(refreshed.revision),
         } : current);
       }
+      setModelOpen(false);
     } catch (value) {
       setModelError(errorMessage(value));
     } finally {
@@ -159,22 +161,6 @@ export default function SandboxAgentChatPage() {
       setRestarting(false);
     }
   }
-
-  const selectedModel = !catalogue
-    ? ""
-    : catalogue.inherited
-      ? "organization_default"
-      : catalogue.current
-        ? JSON.stringify([catalogue.current.connectionId, catalogue.current.modelId])
-        : "organization_default";
-  const modelGroups = catalogue
-    ? [...new Set(catalogue.models.map((model) => model.provider))]
-        .sort()
-        .map((provider) => ({
-          provider,
-          models: catalogue.models.filter((model) => model.provider === provider),
-        }))
-    : [];
 
   if (loading) return <Loading label="Loading agent" />;
   if (error && !agent) {
@@ -224,32 +210,17 @@ export default function SandboxAgentChatPage() {
           </div>
           <div className="chat-head-side">
             {catalogue && (
-              <label className="field model-picker">
-                <span className="field-label">Model</span>
-                <select
-                  className="select"
-                  value={selectedModel}
-                  onChange={(event) => void changeModel(event.target.value)}
-                  disabled={savingModel || sending}
-                >
-                  <option value="organization_default">
-                    {catalogue.defaultModel ? `${catalogue.defaultModel.label} · Default` : "Default"}
-                  </option>
-                  {modelGroups.map((group) => (
-                    <optgroup key={group.provider} label={group.provider}>
-                      {group.models.map((model) => (
-                        <option
-                          key={`${model.connectionId}:${model.modelId}`}
-                          value={JSON.stringify([model.connectionId, model.modelId])}
-                        >
-                          {model.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-                <span className="field-hint">{savingModel ? "Saving model…" : "Applies to new messages"}</span>
-              </label>
+              <button
+                type="button"
+                className="button ghost model-trigger"
+                onClick={() => { setModelOpen(true); setModelError(null); }}
+                disabled={savingModel || sending}
+                title="Choose model"
+              >
+                <span className="model-trigger-label">Model</span>
+                <span className="model-trigger-value">{agent.model?.label ?? "Default"}</span>
+                <ChevronDown size={14} />
+              </button>
             )}
             <StatusBadge status={agent.ready ? "ready" : "draft"} />
           </div>
@@ -291,6 +262,22 @@ export default function SandboxAgentChatPage() {
           </button>
         </form>
       </section>
+      {modelOpen && catalogue && (
+        <ModelPickerDialog
+          catalogue={catalogue}
+          selected={
+            catalogue.inherited
+              ? "organization_default"
+              : catalogue.current
+                ? JSON.stringify([catalogue.current.connectionId, catalogue.current.modelId])
+                : "organization_default"
+          }
+          saving={savingModel}
+          error={modelError}
+          onSave={(value) => void changeModel(value)}
+          onClose={() => { if (!savingModel) setModelOpen(false); }}
+        />
+      )}
     </>
   );
 }

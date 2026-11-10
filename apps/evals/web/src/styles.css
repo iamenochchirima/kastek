@@ -217,9 +217,23 @@ h3 { font-size: 14px; font-weight: 600; }
 .chat-thread { display: flex; flex-direction: column; gap: 9px; min-height: 300px; max-height: 520px; overflow: auto; padding: 14px; border: 1px solid var(--border); border-radius: 9px; background: #0c0e12; }
 .chat-panel .chat-form .textarea { min-height: 46px; max-height: 160px; resize: vertical; }
 .chat-head-side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
-.model-picker { min-width: min(280px, 45vw); }
-.model-picker .select { min-height: 34px; }
-.model-picker .field-hint { text-align: right; }
+.model-trigger { display: flex; align-items: center; gap: 8px; max-width: min(360px, 50vw); padding: 7px 10px; }
+.model-trigger-label { color: var(--faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; }
+.model-trigger-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 550; }
+.model-picker-modal { width: min(620px, 100%); }
+.model-search { max-width: none; margin-bottom: 12px; }
+.model-list { max-height: min(48dvh, 430px); overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 3px; }
+.model-group { display: flex; flex-direction: column; gap: 2px; }
+.model-group-label { position: sticky; top: 0; z-index: 1; padding: 7px 8px 4px; background: var(--panel); color: var(--faint); font-size: 10px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; }
+.model-option { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 8px 10px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--text); text-align: left; cursor: pointer; font-family: inherit; }
+.model-option:hover { background: rgba(255, 255, 255, 0.04); }
+.model-option.selected { border-color: rgba(122, 162, 247, 0.35); background: rgba(122, 162, 247, 0.1); }
+.model-option:disabled { opacity: 0.5; cursor: wait; }
+.model-option-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.model-option-main strong { font-size: 12px; font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-option-main span { color: var(--faint); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-empty { padding: 24px 8px; text-align: center; }
+@media (max-width: 720px) { .model-trigger { max-width: 100%; } .model-picker-modal { max-height: 92dvh; } }
 .product-agent-card h3 { font-size: 15px; }
 .product-agent-card .card-foot .button { text-decoration: none; }
 .chat-empty { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; }
