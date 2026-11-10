@@ -51,7 +51,7 @@ describe("bounded provider model discovery", () => {
       top_provider: { context_length: 100000, max_completion_tokens: 16000 },
       supported_parameters: ["tools", "reasoning_effort", "structured_outputs"],
       architecture: { input_modalities: ["text", "image", "file"], output_modalities: ["text"] },
-      pricing: { prompt: "0.0000001", completion: "0.0000004", input_cache_read: "0.000000025" },
+      pricing: { prompt: "0.0000001", completion: "0.0000004", input_cache_read: "0.000000025", input_cache_write: "0.000000125" },
     }] });
     const result = await discoverProviderModels(provider, options);
     const model = result.models[0]!;
@@ -64,7 +64,7 @@ describe("bounded provider model discovery", () => {
         tools: { value: true, evidence: "discovered", source }, reasoning: { value: true, evidence: "discovered", source },
         structuredOutput: { value: true, evidence: "discovered", source },
       },
-      pricing: { currency: "USD", inputMicrosPerMillionTokens: 100000, outputMicrosPerMillionTokens: 400000, cachedInputMicrosPerMillionTokens: 25000, source },
+      pricing: { currency: "USD", inputMicrosPerMillionTokens: 100000, outputMicrosPerMillionTokens: 400000, cachedInputMicrosPerMillionTokens: 25000, cacheWriteMicrosPerMillionTokens: 125000, source },
     });
     expect(model.revision).toMatch(/^[a-f0-9]{64}$/);
     expect((await discoverProviderModels(provider, options)).models[0]!.revision).toBe(model.revision);

@@ -142,6 +142,7 @@ function openRouterModel(record: JsonObject, model: ModelDescriptor, source: Met
       inputMicrosPerMillionTokens: usdPerTokenToMicrosPerMillion(pricing.prompt),
       outputMicrosPerMillionTokens: usdPerTokenToMicrosPerMillion(pricing.completion),
       cachedInputMicrosPerMillionTokens: usdPerTokenToMicrosPerMillion(pricing.input_cache_read),
+      cacheWriteMicrosPerMillionTokens: usdPerTokenToMicrosPerMillion(pricing.input_cache_write),
       source,
     };
     model.pricing = { ...normalized, revision: requestDigest(normalized) };

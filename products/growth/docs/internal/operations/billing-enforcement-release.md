@@ -141,11 +141,18 @@ Post-release review date: 14 days after live publication.
   the free picker projection returned only the free model.
 - Targeted Agents tests: 40 passed across billing access, model admission, model accounting, model
   dispatch, connected model view and the allowlist helper.
+- Live managed turns after the cache-write pricing fix: `openai/gpt-5.6-luna` settled 1,040
+  micro-USD on 4,043 accounted tokens, and `google/gemini-2.5-flash` settled 1,135 micro-USD on
+  3,700 tokens. Each forwarded one `agent_ai_cost` event and one zero-priced token event, and the
+  balance moved by the settled amount.
+- Without the fix, the same turn settled as `unknown` and billed the 44,237 micro-USD upper bound,
+  because discovery dropped OpenRouter's `input_cache_write` price. `discovery.ts` now maps it into
+  `cacheWriteMicrosPerMillionTokens`.
 - Typecheck: Agents API, Growth API and the billing service.
 - `pnpm verify:boundaries`: passed for 2,757 source and script files.
-- Local runtime limitation: the Restate server is not running (Docker is unavailable), so a live
-  model turn could not be executed. Execution dispatch failed with `RUNTIME_DISPATCH_FAILED`; the
-  cost, forwarding and debit path was verified with the fixture above instead.
+- Local runtime limitation: the Restate runtime is not managed by Docker here; a native
+  `restate-server` 1.7.13 was run on `18080`/`19070` and the worker registered at
+  `http://127.0.0.1:9080` to complete the live turns.
 
 ### Rollout order
 

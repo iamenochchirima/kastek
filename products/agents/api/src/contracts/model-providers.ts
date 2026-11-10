@@ -67,6 +67,7 @@ export const modelDescriptorSchema = z.strictObject({
     inputMicrosPerMillionTokens: tokenCount.nullable(),
     outputMicrosPerMillionTokens: tokenCount.nullable(),
     cachedInputMicrosPerMillionTokens: tokenCount.nullable(),
+    cacheWriteMicrosPerMillionTokens: tokenCount.nullable().optional(),
     source: metadataSourceSchema,
     revision,
   }).nullable(),
