@@ -33,7 +33,8 @@ import {
 import { captureSandboxVersion } from "./version.js";
 import { provisionLocalSandbox } from "./provisioner/local.js";
 import { provisionGrowthPair } from "./provisioner/growth.js";
-import { listProductAgents } from "./product-agents.js";
+import { listProductAgents, ProductAgentError } from "./product-agents.js";
+import { restartSandboxRuntime } from "./runtime.js";
 import {
   chatWithProductAgent,
   ProductChatError,
@@ -245,6 +246,12 @@ export function buildApi(
   );
 
   app.setErrorHandler((error, request, reply) => {
+    if (error instanceof ProductAgentError) {
+      return reply.code(error.statusCode).send({
+        error: error.message,
+        code: error.code,
+      });
+    }
     if (error instanceof ProductChatError) {
       return reply.code(error.statusCode).send({
         error: error.message,
@@ -635,6 +642,17 @@ export function buildApi(
       });
     }
     return { outcomeRef: outcome };
+  });
+
+  app.post("/v1/sandboxes/:id/runtime/restart", async (request) => {
+    const params = request.params as { id: string };
+    const sandboxId = uuid(params.id, "id");
+    const result = await restartSandboxRuntime(config, pool, sandboxId);
+    request.log.info(
+      { event: "sandbox.runtime.restart", sandboxId, result },
+      "Sandbox runtime restarted",
+    );
+    return result;
   });
 
   app.get("/v1/sandboxes/:id/product-agents", async (request) => {

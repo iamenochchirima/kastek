@@ -227,6 +227,21 @@ is best effort because a non-empty bucket may require manual cleanup.
 Provisioning sandboxes cannot be deleted until their current step fails or
 finishes.
 
+### Restart a runtime
+
+Local sandbox processes can be stopped by a desktop or host restart. The runtime
+restart endpoint starts the recorded Agents API and worker again and re-registers the
+worker with Restate. For a Growth sandbox it restarts the paired Agents runtime.
+
+```sh
+curl -sS -X POST "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/runtime/restart" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN"
+```
+
+The Evals client exposes the same action as **Restart runtime** on the sandbox detail
+page. If the Growth runtime is unavailable, the Agents tab returns a clear error
+instead of an empty list.
+
 ### Product agents and chat
 
 The service reads the product workspace through the normal product API and registers

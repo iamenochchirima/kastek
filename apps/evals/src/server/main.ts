@@ -182,6 +182,10 @@ app.post("/api/sandboxes", async (request, reply) => {
   });
   return reply.code(202).send(value);
 });
+app.post("/api/sandboxes/:id/runtime/restart", async (request) => {
+  const { id } = request.params as { id: string };
+  return service(`/v1/sandboxes/${encodeURIComponent(id)}/runtime/restart`, { method: "POST" });
+});
 app.get("/api/sandboxes/:id/product-agents", async (request) => {
   const { id } = request.params as { id: string };
   return service(`/v1/sandboxes/${encodeURIComponent(id)}/product-agents`);

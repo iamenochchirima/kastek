@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Bot, MessageSquare, Trash2 } from "lucide-react";
+import { ArrowLeft, Bot, MessageSquare, RefreshCw, Trash2 } from "lucide-react";
 import type { ProductAgent, SandboxDetail } from "../../../shared/types";
 import { api, errorMessage, formatDate, shortId } from "../api";
 import { ConfirmDialog, EmptyState, ErrorBox, Loading, PageHeader, StatusBadge } from "../components";
@@ -18,6 +18,8 @@ export default function SandboxDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [restarting, setRestarting] = useState(false);
+  const [restartError, setRestartError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +55,26 @@ export default function SandboxDetailPage() {
       .catch((value) => { if (!cancelled) setAgentsError(errorMessage(value)); });
     return () => { cancelled = true; };
   }, [detail?.sandbox.status, id]);
+
+  async function restartRuntime() {
+    if (restarting) return;
+    setRestarting(true);
+    setRestartError(null);
+    try {
+      await api(`/api/sandboxes/${encodeURIComponent(id)}/runtime/restart`, { method: "POST" });
+      const refreshed = await api<SandboxDetail>(`/api/sandboxes/${encodeURIComponent(id)}`);
+      setDetail(refreshed);
+      const agents = await api<{ agents: ProductAgent[] }>(
+        `/api/sandboxes/${encodeURIComponent(id)}/product-agents`,
+      );
+      setProductAgents(agents.agents);
+      setAgentsError(null);
+    } catch (value) {
+      setRestartError(errorMessage(value));
+    } finally {
+      setRestarting(false);
+    }
+  }
 
   async function deleteSandbox() {
     if (deleting) return;
@@ -90,6 +112,13 @@ export default function SandboxDetailPage() {
           <>
             <Link className="button ghost" to="/"><ArrowLeft size={15} /> Sandboxes</Link>
             <button
+              className="button ghost"
+              onClick={restartRuntime}
+              disabled={restarting || detail.sandbox.status === "provisioning" || detail.sandbox.status === "retired"}
+            >
+              <RefreshCw size={15} /> {restarting ? "Restarting…" : "Restart runtime"}
+            </button>
+            <button
               className="button ghost destructive"
               onClick={() => { setDeleteOpen(true); setDeleteError(null); }}
               disabled={detail.sandbox.status === "provisioning" || detail.sandbox.status === "retired"}
@@ -115,6 +144,8 @@ export default function SandboxDetailPage() {
           onCancel={() => { if (!deleting) { setDeleteOpen(false); setDeleteError(null); } }}
         />
       )}
+
+      {restartError && <ErrorBox message={restartError} />}
 
       <div className="tabs">
         {tabs.map((item) => (

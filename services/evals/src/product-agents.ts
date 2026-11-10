@@ -19,6 +19,17 @@ export interface OwnerSession {
   sessionCookieName?: string;
 }
 
+export class ProductAgentError extends Error {
+  constructor(
+    public readonly statusCode: number,
+    public readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ProductAgentError";
+  }
+}
+
 export interface ProductAgent {
   refId: string;
   product: "agents" | "growth";
@@ -183,6 +194,13 @@ async function growthAgents(
   if (!workspace) throw new Error("Sandbox has no Growth workspace reference");
   const bootstrap = await ownerRequest(session, "kasitek_session", "GET", "/api/agents/bootstrap");
   const features = Array.isArray(bootstrap.features) ? bootstrap.features as Json[] : [];
+  if (features.length > 0 && features.every((feature) => feature.ready !== true)) {
+    throw new ProductAgentError(
+      503,
+      "agent_runtime_unavailable",
+      "Growth Agents runtime is unavailable. Restart the sandbox runtime and retry.",
+    );
+  }
   const agents: ProductAgent[] = [];
   for (const feature of features) {
     if (typeof feature.id !== "string" || feature.ready !== true) continue;
