@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Trash2 } from "lucide-react";
 import type { SandboxDetail } from "../../../shared/types";
 import { api, errorMessage, formatDate, shortId } from "../api";
-import { EmptyState, ErrorBox, Loading, PageHeader, StatusBadge } from "../components";
+import { ConfirmDialog, EmptyState, ErrorBox, Loading, PageHeader, StatusBadge } from "../components";
 
 export default function SandboxDetailPage() {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const [detail, setDetail] = useState<SandboxDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,6 +37,20 @@ export default function SandboxDetailPage() {
     };
   }, [id]);
 
+  async function deleteSandbox() {
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api(`/api/sandboxes/${encodeURIComponent(detail!.sandbox.id)}`, { method: "DELETE" });
+      navigate("/");
+    } catch (value) {
+      setDeleteError(errorMessage(value));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (error) return <ErrorBox message={error} />;
   if (!detail) return <Loading label="Loading sandbox" />;
 
@@ -42,8 +60,35 @@ export default function SandboxDetailPage() {
         eyebrow="Sandbox"
         title={shortId(detail.sandbox.id)}
         description={`${detail.sandbox.product} · ${detail.sandbox.status}`}
-        actions={<><Link className="button ghost" to="/"><ArrowLeft size={15} /> Sandboxes</Link><StatusBadge status={detail.sandbox.status} /></>}
+        actions={
+          <>
+            <Link className="button ghost" to="/"><ArrowLeft size={15} /> Sandboxes</Link>
+            <button
+              className="button ghost destructive"
+              onClick={() => { setDeleteOpen(true); setDeleteError(null); }}
+              disabled={detail.sandbox.status === "provisioning" || detail.sandbox.status === "retired"}
+            >
+              <Trash2 size={15} /> Delete
+            </button>
+            <StatusBadge status={detail.sandbox.status} />
+          </>
+        }
       />
+      {deleteOpen && (
+        <ConfirmDialog
+          title={`Delete ${shortId(detail.sandbox.id)}?`}
+          description={
+            detail.pair
+              ? "This stops both the sandbox and its paired runtime, drops their databases, removes local files, and hides them from the list. This cannot be undone."
+              : "This stops the sandbox, drops its database, removes its local files, and hides it from the list. This cannot be undone."
+          }
+          busy={deleting}
+          error={deleteError}
+          onConfirm={deleteSandbox}
+          onCancel={() => { if (!deleting) { setDeleteOpen(false); setDeleteError(null); } }}
+        />
+      )}
+
       <section className="meta-grid">
         <div className="meta-card"><span>Sandbox</span><strong className="mono">{detail.sandbox.id}</strong></div>
         <div className="meta-card"><span>Version</span><strong className="mono">{detail.version?.id ?? "—"}</strong></div>

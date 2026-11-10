@@ -101,6 +101,45 @@ export async function ensureBucket(
   await response.body?.cancel();
 }
 
+export async function deleteBucket(
+  endpoint: string,
+  region: string,
+  accessKeyId: string,
+  secretAccessKey: string,
+  bucket: string,
+): Promise<"deleted" | "not_empty" | "missing"> {
+  if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket)) {
+    throw new Error("Bucket name is invalid");
+  }
+  const url = new URL(endpoint);
+  const date = new Date().toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const day = date.slice(0, 8);
+  const payload = sha256(new Uint8Array());
+  const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+  const canonicalHeaders = `host:${url.host}\nx-amz-content-sha256:${payload}\nx-amz-date:${date}\n`;
+  const canonicalRequest = ["DELETE", `/${bucket}`, "", canonicalHeaders, signedHeaders, payload].join("\n");
+  const scope = `${day}/${region}/s3/aws4_request`;
+  const stringToSign = `AWS4-HMAC-SHA256\n${date}\n${scope}\n${sha256(canonicalRequest)}`;
+  const signingKey = hmac(hmac(hmac(hmac(`AWS4${secretAccessKey}`, day), region), "s3"), "aws4_request");
+  const signature = createHmac("sha256", signingKey).update(stringToSign).digest("hex");
+  const response = await fetch(`${endpoint.replace(/\/+$/, "")}/${bucket}`, {
+    method: "DELETE",
+    headers: {
+      "x-amz-date": date,
+      "x-amz-content-sha256": payload,
+      authorization: `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+    },
+    signal: AbortSignal.timeout(15_000),
+  });
+  await response.body?.cancel();
+  if (response.status === 404) return "missing";
+  if (response.status === 409) return "not_empty";
+  if (![200, 204].includes(response.status)) {
+    throw new Error(`Storage bucket deletion failed with HTTP ${response.status}`);
+  }
+  return "deleted";
+}
+
 export async function availablePort(): Promise<number> {
   const server = createServer();
   await new Promise<void>((resolve, reject) => {

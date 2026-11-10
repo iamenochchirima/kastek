@@ -182,6 +182,23 @@ app.post("/api/sandboxes", async (request, reply) => {
   });
   return reply.code(202).send(value);
 });
+app.delete("/api/sandboxes", async (request) => {
+  const body = request.body as { confirm?: unknown } | null;
+  if (!body || body.confirm !== "DELETE") {
+    throw new ServiceError(400, "Confirmation required");
+  }
+  return service<{ deleted: string[]; failed: Array<{ id: string; error: string }> }>(
+    "/v1/sandboxes",
+    {
+      method: "DELETE",
+      body: JSON.stringify({ confirm: "DELETE" }),
+    },
+  );
+});
+app.delete("/api/sandboxes/:id", async (request) => {
+  const { id } = request.params as { id: string };
+  return service(`/v1/sandboxes/${encodeURIComponent(id)}`, { method: "DELETE" });
+});
 app.get("/api/sandboxes/:id", async (request, reply) => {
   const { id } = request.params as { id: string };
   try {

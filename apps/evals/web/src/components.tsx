@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { AlertTriangle, CircleHelp, Clock } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { AlertTriangle, CircleHelp, Clock, X } from "lucide-react";
 
 export function StatusBadge({ status }: { status: string }) {
   const tone =
@@ -72,4 +72,80 @@ export function ErrorBox({ message }: { message: string }) {
 
 export function Loading({ label = "Loading" }: { label?: string }) {
   return <div className="loading"><Clock size={16} /> {label}…</div>;
+}
+
+
+export function ConfirmDialog({
+  title,
+  description,
+  confirmLabel = "Delete",
+  confirmationText,
+  busy = false,
+  error,
+  onConfirm,
+  onCancel,
+  children,
+}: {
+  title: string;
+  description?: string;
+  confirmLabel?: string;
+  confirmationText?: string;
+  busy?: boolean;
+  error?: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+  children?: ReactNode;
+}) {
+  const [value, setValue] = useState("");
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) onCancel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [busy, onCancel]);
+  const confirmed = !confirmationText || value.trim() === confirmationText;
+  return (
+    <div
+      className="modal-backdrop"
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !busy) onCancel();
+      }}
+    >
+      <section className="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+        <div className="modal-head">
+          <div>
+            <div className="eyebrow">Confirm</div>
+            <h2 id="confirm-dialog-title">{title}</h2>
+          </div>
+          <button className="icon-button" onClick={onCancel} disabled={busy} aria-label="Close">
+            <X size={17} />
+          </button>
+        </div>
+        <div className="modal-body">
+          {description && <p className="muted">{description}</p>}
+          {children}
+          {confirmationText && (
+            <label className="field">
+              <span className="field-label">Type {confirmationText} to confirm</span>
+              <input
+                className="input"
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                autoFocus
+                disabled={busy}
+              />
+            </label>
+          )}
+          {error && <ErrorBox message={error} />}
+        </div>
+        <div className="modal-actions">
+          <button className="button ghost" type="button" onClick={onCancel} disabled={busy}>Cancel</button>
+          <button className="button destructive" type="button" onClick={onConfirm} disabled={busy || !confirmed}>
+            {busy ? "Deleting…" : confirmLabel}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
 }

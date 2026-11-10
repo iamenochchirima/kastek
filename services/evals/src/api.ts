@@ -33,6 +33,11 @@ import {
 import { captureSandboxVersion } from "./version.js";
 import { provisionLocalSandbox } from "./provisioner/local.js";
 import { provisionGrowthPair } from "./provisioner/growth.js";
+import {
+  deleteAllSandboxes,
+  deleteSandbox,
+  SandboxLifecycleError,
+} from "./lifecycle.js";
 
 class HttpError extends Error {
   constructor(
@@ -234,6 +239,12 @@ export function buildApi(
   );
 
   app.setErrorHandler((error, request, reply) => {
+    if (error instanceof SandboxLifecycleError) {
+      return reply.code(error.statusCode).send({
+        error: error.message,
+        code: error.code,
+      });
+    }
     if (error instanceof SandboxGuardError) {
       return reply.code(422).send({
         error: error.message,
@@ -438,6 +449,40 @@ export function buildApi(
   app.get("/v1/sandboxes", async (request) => {
     const query = request.query as { limit?: string };
     return { sandboxes: await listSandboxes(pool, limit(query.limit)) };
+  });
+
+  app.delete("/v1/sandboxes", async (request) => {
+    const body = bodyObject(request.body);
+    if (body.confirm !== "DELETE") {
+      throw new HttpError(
+        400,
+        "confirmation_required",
+        'Send {"confirm":"DELETE"} to delete all sandboxes',
+      );
+    }
+    const result = await deleteAllSandboxes(config, pool);
+    request.log.info(
+      { event: "sandboxes.deleted", deleted: result.deleted, failed: result.failed.length },
+      "All sandboxes deleted",
+    );
+    return result;
+  });
+
+  app.delete("/v1/sandboxes/:id", async (request) => {
+    const params = request.params as { id: string };
+    const sandboxId = uuid(params.id, "id");
+    const result = await deleteSandbox(config, pool, sandboxId);
+    request.log.info(
+      {
+        event: "sandbox.deleted",
+        sandboxId,
+        deleted: result.deleted,
+        stoppedProcesses: result.stoppedProcesses,
+        droppedDatabases: result.droppedDatabases,
+      },
+      "Sandbox deleted",
+    );
+    return result;
   });
 
   app.get("/v1/sandboxes/:id", async (request, reply) => {

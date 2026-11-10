@@ -262,6 +262,45 @@ export async function listSandboxes(
   );
 }
 
+export async function retireSandbox(
+  pool: Pool,
+  sandboxId: string,
+): Promise<void> {
+  await transaction(pool, async (client) => {
+    await client.query(
+      `UPDATE evals.sandboxes
+          SET status='retired',
+              runtime=runtime || jsonb_build_object('deletedAt', now()),
+              updated_at=now()
+        WHERE id=$1`,
+      [sandboxId],
+    );
+    await client.query(
+      `UPDATE evals.sandbox_versions
+          SET retired_at=now()
+        WHERE sandbox_id=$1 AND retired_at IS NULL`,
+      [sandboxId],
+    );
+    await client.query(
+      `DELETE FROM evals.sandbox_pairs
+        WHERE growth_sandbox_id=$1 OR agents_sandbox_id=$1`,
+      [sandboxId],
+    );
+  });
+}
+
+export async function listSandboxIds(
+  pool: Pool,
+  status?: "not_retired",
+): Promise<string[]> {
+  const result = await pool.query<{ id: string }>(
+    `SELECT id::text FROM evals.sandboxes
+      ${status === "not_retired" ? "WHERE status <> 'retired'" : ""}
+      ORDER BY created_at, id`,
+  );
+  return result.rows.map((row) => row.id);
+}
+
 export async function getSandbox(
   pool: Pool,
   sandboxId: string,

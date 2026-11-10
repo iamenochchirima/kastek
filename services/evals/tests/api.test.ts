@@ -21,7 +21,7 @@ const config: EvalsConfig = {
   databaseUrl:
     databaseUrl ?? "postgresql://control@127.0.0.1:5432/evals_service_test",
   evalDatabaseUrl:
-    "postgresql://control@127.0.0.1:55432/agents_evals",
+    databaseUrl ?? "postgresql://control@127.0.0.1:55432/agents_evals",
   productDatabaseUrl:
     "postgresql://control@127.0.0.1:16544/agents",
   host: "127.0.0.1",
@@ -631,4 +631,110 @@ test("pairs one Growth sandbox with one Agents sandbox", { skip }, async () => {
     () => createSandboxPair(pool!, growthId, secondAgentsId),
     (error: unknown) => (error as { code?: string }).code === "PAIR_CONFLICT",
   );
+});
+
+
+test("deletes a paired sandbox and retires both records", { skip }, async () => {
+  const growth = await app!.inject({
+    method: "POST",
+    url: "/v1/sandboxes",
+    headers: auth,
+    payload: { product: "growth" },
+  });
+  const growthId = (growth.json() as { sandbox: { id: string } }).sandbox.id;
+  const agents = await app!.inject({
+    method: "POST",
+    url: "/v1/sandboxes",
+    headers: auth,
+    payload: { product: "agents" },
+  });
+  const agentsId = (agents.json() as { sandbox: { id: string } }).sandbox.id;
+  await createSandboxPair(pool!, growthId, agentsId);
+
+  const deleted = await app!.inject({
+    method: "DELETE",
+    url: `/v1/sandboxes/${growthId}`,
+    headers: auth,
+  });
+  assert.equal(deleted.statusCode, 200, deleted.body);
+  const result = deleted.json() as { deleted: string[] };
+  assert.deepEqual(new Set(result.deleted), new Set([growthId, agentsId]));
+
+  for (const id of [growthId, agentsId]) {
+    const detail = await app!.inject({ method: "GET", url: `/v1/sandboxes/${id}`, headers: auth });
+    assert.equal(detail.statusCode, 200);
+    assert.equal((detail.json() as { sandbox: { status: string } }).sandbox.status, "retired");
+  }
+
+  const unknown = await app!.inject({
+    method: "DELETE",
+    url: "/v1/sandboxes/00000000-0000-4000-8000-000000000000",
+    headers: auth,
+  });
+  assert.equal(unknown.statusCode, 404);
+
+  const blocked = await app!.inject({
+    method: "POST",
+    url: "/v1/sandboxes",
+    headers: auth,
+    payload: { product: "agents" },
+  });
+  const blockedId = (blocked.json() as { sandbox: { id: string } }).sandbox.id;
+  await updateSandboxProvisioning(pool!, blockedId, { status: "provisioning" });
+  const refused = await app!.inject({
+    method: "DELETE",
+    url: `/v1/sandboxes/${blockedId}`,
+    headers: auth,
+  });
+  assert.equal(refused.statusCode, 409);
+  assert.equal((refused.json() as { code: string }).code, "sandbox_provisioning");
+  await updateSandboxProvisioning(pool!, blockedId, { status: "failed" });
+});
+
+test("requires explicit confirmation before deleting all sandboxes", { skip }, async () => {
+  const first = await app!.inject({
+    method: "POST",
+    url: "/v1/sandboxes",
+    headers: auth,
+    payload: { product: "agents" },
+  });
+  const firstId = (first.json() as { sandbox: { id: string } }).sandbox.id;
+  const second = await app!.inject({
+    method: "POST",
+    url: "/v1/sandboxes",
+    headers: auth,
+    payload: { product: "growth" },
+  });
+  const secondId = (second.json() as { sandbox: { id: string } }).sandbox.id;
+
+  const unconfirmed = await app!.inject({
+    method: "DELETE",
+    url: "/v1/sandboxes",
+    headers: auth,
+    payload: {},
+  });
+  assert.equal(unconfirmed.statusCode, 400);
+  assert.equal((unconfirmed.json() as { code: string }).code, "confirmation_required");
+
+  const deleted = await app!.inject({
+    method: "DELETE",
+    url: "/v1/sandboxes",
+    headers: auth,
+    payload: { confirm: "DELETE" },
+  });
+  assert.equal(deleted.statusCode, 200, deleted.body);
+  const result = deleted.json() as { deleted: string[]; failed: Array<{ id: string }> };
+  assert.ok(result.deleted.includes(firstId));
+  assert.ok(result.deleted.includes(secondId));
+  assert.deepEqual(result.failed, []);
+
+  for (const id of [firstId, secondId]) {
+    const detail = await app!.inject({ method: "GET", url: `/v1/sandboxes/${id}`, headers: auth });
+    assert.equal((detail.json() as { sandbox: { status: string } }).sandbox.status, "retired");
+  }
+
+  const all = await app!.inject({ method: "GET", url: "/v1/sandboxes?limit=200", headers: auth });
+  assert.ok((all.json() as { sandboxes: Array<{ sandbox: { status: string } }> }).sandboxes.every(
+    (item) => item.sandbox.status === "retired",
+  ));
 });

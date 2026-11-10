@@ -30,8 +30,8 @@ pnpm --filter @kasitek/evals start
 
 ## Pages
 
-- **Sandboxes** — recorded sandboxes, their status, and workspace, agent, session and outcome counts. **Create sandbox** provisions a local Agents environment or a Growth sandbox with its paired Agents runtime.
-- **Sandbox detail** — version, provisioning progress, workspaces, agent references, sessions, outcomes and the paired sandbox link.
+- **Sandboxes** — recorded sandboxes, their status, and workspace, agent, session and outcome counts. **Create sandbox** provisions a local Agents environment or a Growth sandbox with its paired Agents runtime. Each card and detail page has a confirmed delete action; **Delete all** requires typing `DELETE`.
+- **Sandbox detail** — version, provisioning progress, workspaces, agent references, sessions, outcomes, the paired sandbox link and a confirmed delete action.
 - **Sessions** — interactive sessions across sandboxes.
 - **Session detail** — task references, states and transcript digests.
 - **Outcomes** — saved business results across sandboxes.
@@ -46,6 +46,8 @@ The client server exposes:
 - `GET /api/health`
 - `GET /api/sandboxes`
 - `POST /api/sandboxes`
+- `DELETE /api/sandboxes/:id`
+- `DELETE /api/sandboxes` with `{"confirm":"DELETE"}`
 - `GET /api/sandboxes/:id`
 - `GET /api/sessions`
 - `GET /api/sandboxes/:id/sessions/:sessionId`
@@ -61,4 +63,5 @@ S3/MinIO credentials, a running Restate admin endpoint, Docker socket access,
 signed Growth/Agents keys, and a non-production billing service with sandbox plans
 and `EVALS_BILLING_SANDBOX_URL`/`EVALS_BILLING_SANDBOX_SECRET` configured. The dialog creates a real isolated environment. It is not
 a record-only form. Growth creates a Growth database/API/workspace plus a paired
-Agents runtime.
+Agents runtime. Delete stops the runtime processes, drops product databases and
+removes local sandbox files. Deleting either half of a Growth pair deletes both.

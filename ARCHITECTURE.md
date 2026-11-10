@@ -56,9 +56,11 @@ HTTP APIs and a normal workspace session. It stores ids, digests and states in t
 control plane, not transcript text or customer PII. Persistent sandbox evaluations
 use the same normal task path. Evaluation trials remain isolated per-run scopes and
 reserve the agent for one trial, so the two paths are not mixed on one agent. The
-service is local and development only until lifecycle and retention controls land.
-Provisioned sandboxes use real central-billing sandbox plans rather than disabled
-billing. See `services/evals/README.md`.
+service is local and development only until hosted lifecycle and retention controls
+land. Provisioned sandboxes use real central-billing sandbox plans rather than
+disabled billing. Confirmed deletion stops runtime processes, drops product
+databases, removes local files and retires the registry record. See
+`services/evals/README.md`.
 
 ## Billing boundary
 

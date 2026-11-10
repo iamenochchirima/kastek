@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Boxes, ClipboardCheck, MessageSquare, Plus, X } from "lucide-react";
+import { Boxes, ClipboardCheck, MessageSquare, Plus, Trash2, X } from "lucide-react";
 import type { SandboxDetail, SandboxSummary } from "../../../shared/types";
 import { api, errorMessage, formatDate, shortId } from "../api";
-import { EmptyState, ErrorBox, Loading, PageHeader, StatCard, StatusBadge } from "../components";
+import { ConfirmDialog, EmptyState, ErrorBox, Loading, PageHeader, StatCard, StatusBadge } from "../components";
 
 export default function SandboxesPage() {
   const navigate = useNavigate();
@@ -15,6 +15,10 @@ export default function SandboxesPage() {
   const [product, setProduct] = useState<"agents" | "growth">("agents");
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<SandboxSummary | null>(null);
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     api<SandboxSummary[]>("/api/sandboxes").then(setSandboxes).catch((value) => setError(errorMessage(value)));
@@ -52,6 +56,47 @@ export default function SandboxesPage() {
     }
   }
 
+  async function deleteOne() {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api(`/api/sandboxes/${encodeURIComponent(deleteTarget.sandbox.id)}`, { method: "DELETE" });
+      const refreshed = await api<SandboxSummary[]>("/api/sandboxes");
+      setSandboxes(refreshed);
+      setDeleteTarget(null);
+    } catch (value) {
+      setDeleteError(errorMessage(value));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function deleteAll() {
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const result = await api<{ deleted: string[]; failed: Array<{ id: string; error: string }> }>("/api/sandboxes", {
+        method: "DELETE",
+        body: JSON.stringify({ confirm: "DELETE" }),
+      });
+      const refreshed = await api<SandboxSummary[]>("/api/sandboxes");
+      setSandboxes(refreshed);
+      if (result.failed.length > 0) {
+        setDeleteError(
+          `${result.failed.length} sandbox${result.failed.length === 1 ? "" : "es"} could not be deleted: ${result.failed[0]!.error}`,
+        );
+        return;
+      }
+      setDeleteAllOpen(false);
+    } catch (value) {
+      setDeleteError(errorMessage(value));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (error) return <ErrorBox message={error} />;
   if (!sandboxes) return <Loading label="Loading sandboxes" />;
 
@@ -65,7 +110,19 @@ export default function SandboxesPage() {
         eyebrow="Control plane"
         title="Sandboxes"
         description="Persistent product environments recorded by the evaluation service."
-        actions={<button className="button" onClick={() => { setOpen(true); setFormError(null); }}><Plus size={15} /> Create sandbox</button>}
+        actions={
+          <>
+            {sandboxes.length > 0 && (
+              <button
+                className="button ghost destructive"
+                onClick={() => { setDeleteAllOpen(true); setDeleteError(null); }}
+              >
+                <Trash2 size={15} /> Delete all
+              </button>
+            )}
+            <button className="button" onClick={() => { setOpen(true); setFormError(null); }}><Plus size={15} /> Create sandbox</button>
+          </>
+        }
       />
       <section className="stat-grid">
         <StatCard label="Sandboxes" value={sandboxes.length} hint={`${active} ready`} icon={<Boxes size={16} />} />
@@ -79,10 +136,27 @@ export default function SandboxesPage() {
       ) : (
         <div className="card-grid">
           {sandboxes.map((item) => (
-            <Link className="card card-link" key={item.sandbox.id} to={`/sandboxes/${item.sandbox.id}`}>
+            <div className="card card-link" key={item.sandbox.id}>
+              <Link
+                className="card-stretched-link"
+                to={`/sandboxes/${item.sandbox.id}`}
+                aria-label={`Open sandbox ${shortId(item.sandbox.id)}`}
+              />
               <div className="card-head">
                 <div className="card-icon"><Boxes size={18} /></div>
-                <StatusBadge status={item.sandbox.status} />
+                <div className="card-head-actions">
+                  <StatusBadge status={item.sandbox.status} />
+                  <button
+                    className="icon-button danger card-delete"
+                    aria-label="Delete sandbox"
+                    onClick={() => {
+                      setDeleteTarget(item);
+                      setDeleteError(null);
+                    }}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
               <h3 className="mono">{shortId(item.sandbox.id)}</h3>
               <p className="muted">{item.sandbox.product} · {item.sandbox.profile}</p>
@@ -96,9 +170,33 @@ export default function SandboxesPage() {
               <div className="card-foot">
                 <span className="muted small">Updated {formatDate(item.sandbox.updatedAt)}</span>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
+      )}
+
+      {deleteTarget && (
+        <ConfirmDialog
+          title={`Delete ${shortId(deleteTarget.sandbox.id)}?`}
+          description="This stops the sandbox, drops its database, removes its local files, and deletes any paired runtime. This cannot be undone."
+          busy={deleting}
+          error={deleteError}
+          onConfirm={deleteOne}
+          onCancel={() => { if (!deleting) { setDeleteTarget(null); setDeleteError(null); } }}
+        />
+      )}
+
+      {deleteAllOpen && (
+        <ConfirmDialog
+          title="Delete all sandboxes?"
+          description={`This deletes ${sandboxes.length} sandbox${sandboxes.length === 0 ? "" : "es"}, including paired runtimes and their databases. This cannot be undone.`}
+          confirmationText="DELETE"
+          confirmLabel="Delete all"
+          busy={deleting}
+          error={deleteError}
+          onConfirm={deleteAll}
+          onCancel={() => { if (!deleting) { setDeleteAllOpen(false); setDeleteError(null); } }}
+        />
       )}
 
       {open && (

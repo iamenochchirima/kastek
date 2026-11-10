@@ -60,6 +60,41 @@ checks.
 The product processes are detached from the provisioner service. Restarting the
 control plane does not stop running sandbox APIs and workers.
 
+## Deleting sandboxes
+
+`DELETE /v1/sandboxes/:id` removes runtime resources for one sandbox. Deleting
+either half of a Growth/Agents pair removes both sandboxes. The operation:
+
+- stops the recorded Agents or Growth API and worker processes;
+- drops the product database;
+- removes `.audit/sandboxes/<sandbox-id>`;
+- attempts to delete the Agents object-storage bucket;
+- retires the control-plane record and hides it from the client list.
+
+Central-billing sandbox accounts and zero-priced subscriptions are retained for
+audit. Restate deployment records may also remain until a separate cleanup pass.
+
+Bulk deletion uses `DELETE /v1/sandboxes` with `{"confirm":"DELETE"}`. The
+registry and its session/outcome references are retained as retired records for
+audit. A sandbox that is still provisioning is rejected until the current
+provisioning run finishes or fails.
+
+## Deletion release record
+
+| Field | Decision |
+| --- | --- |
+| Change | Add confirmed single and bulk sandbox deletion with pair-aware cleanup. |
+| Owner | Engineering. |
+| Risk | High: destructive local resource deletion. |
+| Affected surfaces | Evaluation control plane, Evals client UI and API, Agents and Growth sandbox processes, product databases, local sandbox files, Agents object-storage buckets. |
+| Migration | None. Uses the existing `retired` status and `retired_at` timestamps. |
+| Rollout | Rebuild and restart the eval service and client. |
+| Analytics and logs | The service logs `sandbox.deleted` and `sandboxes.deleted` with sandbox IDs and cleanup counts. No customer analytics event is added. |
+| Documentation | This page, `services/evals/README.md`, `apps/evals/README.md`, and `ARCHITECTURE.md`. |
+| Validation | Eval suite 27/27; deletion verified on live Agents and Growth pairs after restarting the control plane. Processes stopped, databases dropped, directories removed, buckets deleted and records retired. |
+| Rollback | Restore the control-plane database backup and reprovision deleted sandboxes. Deleted product databases and local files cannot be recovered. |
+| Post-release review | Review before Phase 4 evaluation starts. |
+
 ## Release record
 
 | Field | Decision |

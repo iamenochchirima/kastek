@@ -8,7 +8,7 @@ not run evaluations; the existing Agents eval fixture does.
 
 ## Current boundary
 
-- Create, list and inspect persistent Agents sandboxes.
+- Create, list, inspect and delete persistent Agents sandboxes.
 - Record code, image, schema, migration, config, runtime, model-route and adapter
   versions for every sandbox.
 - Register the product workspace that belongs to a sandbox.
@@ -188,7 +188,7 @@ gateway, the product `tsx` loaders, and a non-production billing service with
 sandbox plans seeded and `BILLING_SANDBOX_SECRET` configured. Growth pairing also requires the existing
 signed Growth/Agents keys and managed model profile. It is a development/local
 provisioner, not the Phase 5 hosted lifecycle. Growth web, non-agent Growth
-workers, destroy and retention are not implemented yet.
+workers, hosted lifecycle and retention are not implemented yet.
 
 ### List and inspect
 
@@ -199,6 +199,33 @@ curl -sS "http://127.0.0.1:4600/v1/sandboxes?limit=50" \
 curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID" \
   -H "authorization: Bearer $EVALS_OPERATOR_TOKEN"
 ```
+
+### Delete
+
+Deleting a sandbox stops its recorded API and worker processes, drops its product
+database, removes its local files, and retires the control-plane record. Deleting
+either side of a Growth/Agents pair deletes both sandboxes.
+
+```sh
+curl -sS -X DELETE "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN"
+```
+
+Bulk deletion requires an explicit confirmation body:
+
+```sh
+curl -sS -X DELETE "http://127.0.0.1:4600/v1/sandboxes" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{"confirm":"DELETE"}'
+```
+
+The registry record and its session/outcome references remain retired for audit;
+the runtime resources and product database are removed. Central-billing sandbox
+accounts and zero-priced subscriptions are retained. Object-storage bucket deletion
+is best effort because a non-empty bucket may require manual cleanup.
+Provisioning sandboxes cannot be deleted until their current step fails or
+finishes.
 
 ### Register a workspace
 
