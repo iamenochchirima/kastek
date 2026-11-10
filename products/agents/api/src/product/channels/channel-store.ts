@@ -65,8 +65,8 @@ function assetDto(row: Row): ChannelAsset {
 }
 async function owner(db: PoolClient, scope: ActionScope): Promise<void> {
   await requireActionMember(db, scope);
-  if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL FOR SHARE",
-    [scope.organizationId, scope.accountId])).rowCount) throw new PlatformError("ACCESS_DENIED", 403, "An owner must manage channel connections");
+  if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role IN ('owner','admin') AND revoked_at IS NULL FOR SHARE",
+    [scope.organizationId, scope.accountId])).rowCount) throw new PlatformError("ACCESS_DENIED", 403, "An owner or admin must manage channel connections");
 }
 function assetConflict(error: unknown): never {
   const failure = error as { code?: string; constraint?: string };

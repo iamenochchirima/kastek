@@ -14,8 +14,8 @@ import { isProductResourceScope, requireProductResourceAccess, resourceAccountId
 async function requireSkillAccess(db: PoolClient, scope: AgentResourceScope, owner = false) {
   if (isProductResourceScope(scope)) return requireProductResourceAccess(db, scope, owner);
   await requireMemoryAccess(db, scope);
-  if (owner && !(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL FOR SHARE", [scope.organizationId, scope.accountId])).rowCount) {
-    throw new PlatformError("ACCESS_DENIED", 403, "An owner must manage skill packages");
+  if (owner && !(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role IN ('owner','admin') AND revoked_at IS NULL FOR SHARE", [scope.organizationId, scope.accountId])).rowCount) {
+    throw new PlatformError("ACCESS_DENIED", 403, "An owner or admin must manage skill packages");
   }
 }
 
@@ -128,7 +128,7 @@ export class SkillPackageStore {
   }
   async installCurated(scope: AgentResourceScope, slug: string, operationId: string): Promise<SkillPackageSummary> {
     const current = await this.import(scope, operationId, curatedSkillPackage(slug), slug);
-    const owner = isProductResourceScope(scope) ? { rowCount: scope.authority === "manage" ? 1 : 0 } : await this.pool.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL", [scope.organizationId, scope.accountId]);
+    const owner = isProductResourceScope(scope) ? { rowCount: scope.authority === "manage" ? 1 : 0 } : await this.pool.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role IN ('owner','admin') AND revoked_at IS NULL", [scope.organizationId, scope.accountId]);
     return owner.rowCount ? this.review(scope, current.id, current.contentDigest) : current;
   }
   async review(scope: AgentResourceScope, id: string, contentDigest: string): Promise<SkillPackageSummary> {

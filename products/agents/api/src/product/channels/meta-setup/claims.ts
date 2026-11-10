@@ -12,7 +12,7 @@ export class MetaSetupClaims {
     const id = randomUUID(), resource = createHash("sha256").update(JSON.stringify([appId, target])).digest("hex");
     return transaction(this.pool, async db => {
       const owner = await db.query(`SELECT 1 FROM agents_platform.memberships m JOIN agents_platform.channel_connections c ON c.organization_id=m.organization_id
-        WHERE m.organization_id=$1 AND m.account_id=$2 AND m.revoked_at IS NULL AND m.role='owner'
+        WHERE m.organization_id=$1 AND m.account_id=$2 AND m.revoked_at IS NULL AND m.role IN ('owner','admin')
         AND c.id=$3 AND c.revision=$4 AND c.state<>'removed' FOR SHARE OF m,c`, [scope.organizationId, scope.accountId, connectionId, revision]);
       if (!owner.rowCount) throw setupFailure("CHANNEL_SETUP_AUTHORITY_CHANGED", 409);
       const connection = await db.query(`INSERT INTO agents_platform.channel_setup_claims(organization_id,connection_id,claim_id,connection_revision,expires_at,state)
@@ -35,7 +35,7 @@ export class MetaSetupClaims {
       JOIN agents_platform.memberships m ON m.organization_id=c.organization_id
       WHERE s.organization_id=$1 AND s.connection_id=$2 AND s.claim_id=$3 AND c.revision=$4
       AND s.state='started' AND r.state='started' AND s.expires_at>clock_timestamp() AND r.expires_at>clock_timestamp()
-      AND m.account_id=$6 AND m.role='owner' AND m.revoked_at IS NULL`, [scope.organizationId, claim.connectionId, claim.id, claim.revision, claim.resource, scope.accountId]);
+      AND m.account_id=$6 AND m.role IN ('owner','admin') AND m.revoked_at IS NULL`, [scope.organizationId, claim.connectionId, claim.id, claim.revision, claim.resource, scope.accountId]);
     if (!result.rowCount) throw setupFailure("CHANNEL_SETUP_RECONCILIATION_REQUIRED", 409);
   }
   async reconcile(scope: ActionScope, connectionId: string, revision: number, appId: string, target: string): Promise<MetaSetupClaim> {
@@ -45,7 +45,7 @@ export class MetaSetupClaims {
         JOIN agents_platform.channel_setup_resource_claims r ON r.claim_id=s.claim_id AND r.connection_id=s.connection_id
         JOIN agents_platform.channel_connections c ON c.id=s.connection_id AND c.organization_id=s.organization_id
         JOIN agents_platform.memberships m ON m.organization_id=c.organization_id AND m.account_id=$3
-        WHERE s.organization_id=$1 AND s.connection_id=$2 AND c.revision=$4 AND m.role='owner' AND m.revoked_at IS NULL
+        WHERE s.organization_id=$1 AND s.connection_id=$2 AND c.revision=$4 AND m.role IN ('owner','admin') AND m.revoked_at IS NULL
         AND s.state IN ('started','uncertain') AND r.state IN ('started','uncertain') AND r.resource_digest=$5
         AND s.expires_at<=clock_timestamp() AND r.expires_at<=clock_timestamp() FOR UPDATE OF s,r FOR SHARE OF c,m`,
       [scope.organizationId, connectionId, scope.accountId, revision, resource])).rows[0];

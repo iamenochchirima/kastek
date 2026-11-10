@@ -9,7 +9,7 @@ export function registerKnowledgeRoutes(app: FastifyInstance, options: { knowled
   app.get(`${base}/sources`, async request => {
     const scope = await options.resolveScope(request);
     const [sources, imports, role] = await Promise.all([options.knowledge.list(scope), options.knowledge.listImports(scope), requireKnowledgeMember(options.knowledge.pool, scope)]);
-    return { sources, imports, canApprove: role === "owner" };
+    return { sources, imports, canApprove: role !== "member" };
   });
   const common = { operationId: z.string().min(1).max(128), title: z.string().trim().min(1).max(200), sourceId: z.uuid().optional() };
   app.post(`${base}/imports`, { bodyLimit: 14_100_000 }, async (request, reply) => {

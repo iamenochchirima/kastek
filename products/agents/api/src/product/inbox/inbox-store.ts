@@ -64,7 +64,7 @@ const absent = (): never => { throw new PlatformError("INBOX_NOT_FOUND", 404, "C
 
 export class InboxStore {
   constructor(readonly pool: Pool, readonly ports: InboxPorts, readonly cursors = createCursorCodec(cursorKeysFromEnvironment())) {}
-  private async membership(db: Db, scope: InboxScope): Promise<"owner" | "member"> {
+  private async membership(db: Db, scope: InboxScope): Promise<"owner" | "admin" | "member"> {
     const row = (await db.query(`SELECT role FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE`, [scope.organizationId, scope.accountId])).rows[0];
     return row?.role ?? denied();
   }
@@ -380,8 +380,8 @@ export class InboxStore {
       let firstResponseEpisode: { task_id: string; requested_at: Date } | undefined;
       switch (input.action) {
         case "claim": if (assignee && !assigned) denied(); assignee = scope.accountId; break;
-        case "assign": { if (role !== "owner") denied(); const accountId = input.assigneeAccountId ?? denied(); await this.membership(db, { ...scope, accountId }); assignee = accountId; break; }
-        case "unassign": if (role !== "owner" && !assigned) denied(); assignee = null; if (state === "human_owned") state = "handoff_pending"; fence = true; break;
+        case "assign": { if (role === "member") denied(); const accountId = input.assigneeAccountId ?? denied(); await this.membership(db, { ...scope, accountId }); assignee = accountId; break; }
+        case "unassign": if (role === "member" && !assigned) denied(); assignee = null; if (state === "human_owned") state = "handoff_pending"; fence = true; break;
         case "takeover": if (!assigned || state === "resolved") denied(); state = "human_owned"; fence = true; break;
         case "reply": if (!assigned || state !== "human_owned" || !input.body?.trim()) denied();
           { if(!await this.activeBinding(db,row))throw new PlatformError("CHANNEL_UNAVAILABLE",409,"Reconnect or resume this channel before replying");

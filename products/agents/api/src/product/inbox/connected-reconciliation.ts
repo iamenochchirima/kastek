@@ -16,7 +16,7 @@ type State='found'|'inconclusive'|'unavailable';
 export class ConnectedReconciliation {
   constructor(private readonly pool:Pool,private readonly providers:ProviderServices,private readonly testBaseUrl?:string) {}
   private async authority(db:PoolClient,scope:ActionScope,conversationId:string,operationId:string) {
-    const member=await db.query(`SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL FOR SHARE`,[scope.organizationId,scope.accountId]);
+    const member=await db.query(`SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role IN ('owner','admin') AND revoked_at IS NULL FOR SHARE`,[scope.organizationId,scope.accountId]);
     if(!member.rowCount)throw denied();
     const intent=(await db.query(`SELECT * FROM agents_platform.connected_uncertain_escalations WHERE operation_id=$1 AND organization_id=$2 AND conversation_id=$3 FOR SHARE`,[operationId,scope.organizationId,conversationId])).rows[0];
     const source=await connectedUncertainSource(db,operationId);

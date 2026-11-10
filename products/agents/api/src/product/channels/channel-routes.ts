@@ -34,10 +34,10 @@ export function registerChannelRoutes(app: FastifyInstance, options: ChannelRout
         request.log.warn({ event: "agents.channel.owner_access_denied", failure_stage: "membership" }, "Channel owner access denied");
         throw error;
       }
-      const isOwner = (await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL FOR SHARE", [scope.organizationId,scope.accountId])).rowCount;
-      if (!isOwner) {
-        request.log.warn({ event: "agents.channel.owner_access_denied", failure_stage: "owner_role" }, "Channel owner access denied");
-        throw new PlatformError("ACCESS_DENIED",403,"An owner must manage channel connections");
+      const canManage = (await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role IN ('owner','admin') AND revoked_at IS NULL FOR SHARE", [scope.organizationId,scope.accountId])).rowCount;
+      if (!canManage) {
+        request.log.warn({ event: "agents.channel.owner_access_denied", failure_stage: "manager_role" }, "Channel manager access denied");
+        throw new PlatformError("ACCESS_DENIED",403,"An owner or admin must manage channel connections");
       }
     });
     const raw=request.body as Record<string,unknown>|undefined;

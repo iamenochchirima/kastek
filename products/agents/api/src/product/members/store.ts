@@ -4,8 +4,21 @@ import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
 import { transaction } from "../../infrastructure/database";
 import { assertAgentsBillingLimit } from "../billing/billing";
+import {
+  canGrantRole,
+  canManageRole,
+  grantableRoles,
+  memberRoles,
+  membershipRole,
+  permissionsFor,
+  requirePermission,
+  requireWorkspaceMember,
+  roleCan,
+  type MemberRole,
+  type WorkspacePermission,
+} from "./permissions";
 
-export type MemberRole = "owner" | "member";
+export type { MemberRole } from "./permissions";
 export type MemberScope = { accountId: string; organizationId: string };
 
 export type MemberRecord = {
@@ -34,7 +47,7 @@ export type InvitationPreview = {
   state: "pending" | "accepted" | "revoked" | "expired";
 };
 
-const role = z.enum(["owner", "member"]);
+const role = z.enum(memberRoles);
 const email = z.email().max(254);
 const iso = (value: Date | string) => value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 const digest = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -45,7 +58,7 @@ const maskEmail = (value: string) => {
   return `${local?.slice(0, 1) ?? ""}***@${domain ?? ""}`;
 };
 const denied = () => new PlatformError("ACCESS_DENIED", 403, "Workspace access is unavailable");
-const ownerRequired = () => new PlatformError("OWNER_REQUIRED", 403, "Only an owner can manage members");
+const escalationDenied = () => new PlatformError("ROLE_ESCALATION_DENIED", 403, "Your role cannot grant that role");
 const notFound = () => new PlatformError("NOT_FOUND", 404, "Member not found");
 const lastOwner = () => new PlatformError("LAST_OWNER", 409, "A workspace must keep at least one owner");
 
@@ -58,29 +71,15 @@ async function activeSeats(db: Pool | PoolClient, organizationId: string): Promi
   return Number(result.rows[0]?.used ?? "0");
 }
 
-async function activeRole(
-  db: Pool | PoolClient,
-  organizationId: string,
-  accountId: string,
-  lock = false,
-): Promise<MemberRole | null> {
-  const result = await db.query<{ role: MemberRole }>(
-    `SELECT role FROM agents_platform.memberships
-     WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL
-     ${lock ? "FOR UPDATE" : ""}`,
-    [organizationId, accountId],
-  );
-  return result.rows[0]?.role ?? null;
-}
+const activeRole = membershipRole;
 
-async function requireOwner(
+async function requireMemberPermission(
   db: Pool | PoolClient,
   scope: MemberScope,
+  permission: WorkspacePermission,
   lock = false,
-): Promise<void> {
-  const current = await activeRole(db, scope.organizationId, scope.accountId, lock);
-  if (!current) throw denied();
-  if (current !== "owner") throw ownerRequired();
+): Promise<MemberRole> {
+  return requirePermission(db, scope, permission, lock);
 }
 
 async function member(
@@ -160,7 +159,12 @@ async function invitationRecord(
 export class MemberStore {
   constructor(readonly pool: Pool) {}
 
-  async list(scope: MemberScope): Promise<{ members: MemberRecord[]; role: MemberRole }> {
+  async list(scope: MemberScope): Promise<{
+    members: MemberRecord[];
+    role: MemberRole;
+    permissions: WorkspacePermission[];
+    grantableRoles: MemberRole[];
+  }> {
     const current = await activeRole(this.pool, scope.organizationId, scope.accountId);
     if (!current) throw denied();
     const result = await this.pool.query<{
@@ -179,6 +183,8 @@ export class MemberStore {
     );
     return {
       role: current,
+      permissions: permissionsFor(current),
+      grantableRoles: grantableRoles(current),
       members: result.rows.map((row) => ({
         accountId: row.account_id,
         displayName: row.display_name,
@@ -190,7 +196,7 @@ export class MemberStore {
   }
 
   async invitations(scope: MemberScope): Promise<InvitationRecord[]> {
-    await requireOwner(this.pool, scope);
+    await requireMemberPermission(this.pool, scope, "members.invite");
     const result = await this.pool.query<{
       id: string;
       email: string;
@@ -221,7 +227,8 @@ export class MemberStore {
     const normalized = normalizeEmail(input.email);
     const nextRole = role.parse(input.role);
     return transaction(this.pool, async (db) => {
-      await requireOwner(db, scope, true);
+      const actorRole = await requireMemberPermission(db, scope, "members.manage", true);
+      if (!canGrantRole(actorRole, nextRole)) throw escalationDenied();
       const target = await accountForEmail(db, scope.accountId, normalized);
       if (!target) {
         throw new PlatformError(
@@ -238,6 +245,7 @@ export class MemberStore {
       if (existing && existing.revoked_at === null) {
         throw new PlatformError("ALREADY_MEMBER", 409, "That account is already a member");
       }
+      if (existing && !canManageRole(actorRole, existing.role)) throw escalationDenied();
       await assertAgentsBillingLimit(
         this.pool,
         scope.organizationId,
@@ -247,9 +255,9 @@ export class MemberStore {
       if (existing) {
         await db.query(
           `UPDATE agents_platform.memberships
-           SET role=$3,revoked_at=NULL,created_at=now()
+           SET role=$3,revoked_at=NULL,created_at=now(),role_changed_at=now(),role_changed_by=$4
            WHERE organization_id=$1 AND account_id=$2`,
-          [scope.organizationId, target.id, nextRole],
+          [scope.organizationId, target.id, nextRole, scope.accountId],
         );
       } else {
         await db.query(
@@ -269,7 +277,8 @@ export class MemberStore {
     const normalized = normalizeEmail(input.email);
     const nextRole = role.parse(input.role);
     return transaction(this.pool, async (db) => {
-      await requireOwner(db, scope, true);
+      const actorRole = await requireMemberPermission(db, scope, "members.invite", true);
+      if (!canGrantRole(actorRole, nextRole)) throw escalationDenied();
       const existingMember = await accountForEmail(db, scope.accountId, normalized);
       if (existingMember && await activeRole(db, scope.organizationId, existingMember.id, true)) {
         throw new PlatformError("ALREADY_MEMBER", 409, "That account is already a member");
@@ -330,7 +339,16 @@ export class MemberStore {
   async revokeInvitation(scope: MemberScope, invitationId: string): Promise<void> {
     z.uuid().parse(invitationId);
     await transaction(this.pool, async (db) => {
-      await requireOwner(db, scope, true);
+      const actorRole = await requireMemberPermission(db, scope, "members.invite", true);
+      const pending = (await db.query<{ role: MemberRole }>(
+        `SELECT role FROM agents_platform.organization_invitations
+         WHERE id=$1 AND organization_id=$2 AND accepted_at IS NULL AND revoked_at IS NULL`,
+        [invitationId, scope.organizationId],
+      )).rows[0];
+      if (!pending) {
+        throw new PlatformError("INVITATION_NOT_FOUND", 404, "Pending invitation not found");
+      }
+      if (!canGrantRole(actorRole, pending.role)) throw escalationDenied();
       const result = await db.query(
         `UPDATE agents_platform.organization_invitations
          SET revoked_at=now(),updated_at=now()
@@ -493,13 +511,15 @@ export class MemberStore {
       throw new PlatformError("SELF_ROLE_CHANGE", 409, "You cannot change your own role");
     }
     return transaction(this.pool, async (db) => {
-      await requireOwner(db, scope, true);
+      const actorRole = await requireMemberPermission(db, scope, "members.manage", true);
       const target = (await db.query<{ role: MemberRole }>(
         `SELECT role FROM agents_platform.memberships
          WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR UPDATE`,
         [scope.organizationId, accountId],
       )).rows[0];
       if (!target) throw notFound();
+      if (!canManageRole(actorRole, target.role)) throw escalationDenied();
+      if (!canGrantRole(actorRole, roleValue)) throw escalationDenied();
       if (target.role === "owner" && roleValue !== "owner") {
         const owners = await db.query<{ count: string }>(
           `SELECT count(*)::text count FROM agents_platform.memberships
@@ -509,9 +529,10 @@ export class MemberStore {
         if (Number(owners.rows[0]?.count ?? 0) <= 1) throw lastOwner();
       }
       await db.query(
-        `UPDATE agents_platform.memberships SET role=$3
+        `UPDATE agents_platform.memberships
+         SET role=$3,role_changed_at=now(),role_changed_by=$4
          WHERE organization_id=$1 AND account_id=$2`,
-        [scope.organizationId, accountId, roleValue],
+        [scope.organizationId, accountId, roleValue, scope.accountId],
       );
       return member(db, scope.organizationId, accountId);
     });
@@ -520,17 +541,20 @@ export class MemberStore {
   async remove(scope: MemberScope, accountId: string): Promise<void> {
     z.uuid().parse(accountId);
     await transaction(this.pool, async (db) => {
-      const actorRole = await activeRole(db, scope.organizationId, scope.accountId, true);
-      if (!actorRole) throw denied();
-      if (accountId !== scope.accountId) {
-        if (actorRole !== "owner") throw ownerRequired();
-      }
+      const actorRole = await requireWorkspaceMember(db, scope, true);
       const target = (await db.query<{ role: MemberRole }>(
         `SELECT role FROM agents_platform.memberships
          WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR UPDATE`,
         [scope.organizationId, accountId],
       )).rows[0];
       if (!target) throw notFound();
+      // Leaving a workspace is always available to the member themselves.
+      if (accountId !== scope.accountId) {
+        if (!roleCan(actorRole, "members.manage")) {
+          throw new PlatformError("INSUFFICIENT_ROLE", 403, "Your role does not allow this action");
+        }
+        if (!canManageRole(actorRole, target.role)) throw escalationDenied();
+      }
       if (target.role === "owner") {
         const owners = await db.query<{ count: string }>(
           `SELECT count(*)::text count FROM agents_platform.memberships

@@ -4,7 +4,7 @@ import type { CustomerSetup } from "./customer-setup";
 import type { ChannelBinding } from "./channel";
 
 export interface Account { id: string; issuer: string; subject: string; email: string; display_name: string }
-export interface Organization { id: string; name: string; role: "owner" | "member" }
+export interface Organization { id: string; name: string; role: "owner" | "admin" | "member" }
 export interface Session { account: Account; providerSessionId: string; expiresAt: Date }
 export interface AgentRecord { id: string; organization_id: string; name: string; avatar: string; offering: "faq" | "customer-service" | null; setup?: CustomerSetup | null; setup_step?: string | null; draft: AgentConfiguration;
   draft_revision: number; created_by: string; created_at: Date; updated_at: Date }

@@ -107,7 +107,7 @@ describe.skipIf(!parent)("workspace members and invitations", () => {
     return { owner, org, ownerSession, base: `/api/organizations/${org.id}` };
   }
 
-  it("lists members and enforces owner-only management", async () => {
+  it("lists members and enforces role-based management", async () => {
     emailFails = false;
     const f = await fixture("Members permissions");
     const target = await account(`target-${randomUUID()}@example.test`, "Target");
@@ -269,5 +269,112 @@ describe.skipIf(!parent)("workspace members and invitations", () => {
     });
     expect(unknown.status).toBe(404);
     expect(unknown.body.error.code).toBe("ACCOUNT_NOT_FOUND");
+  });
+
+  it("lets admins manage members without granting ownership", async () => {
+    emailFails = false;
+    const f = await fixture("Admin authority");
+    const adminAccount = await account(`admin-${randomUUID()}@example.test`, "Admin");
+    const addedAdmin = await request(f.ownerSession.token, "POST", `${f.base}/members`, {
+      email: adminAccount.email,
+      role: "admin",
+    });
+    expect(addedAdmin.status).toBe(201);
+    expect(addedAdmin.body.member.role).toBe("admin");
+
+    const adminSession = await session(adminAccount.id);
+    const roster = await request(adminSession.token, "GET", `${f.base}/members`);
+    expect(roster.status).toBe(200);
+    expect(roster.body).toMatchObject({ canManage: true, role: "admin" });
+    expect(roster.body.grantableRoles).toEqual(["admin", "member"]);
+    expect(roster.body.permissions).toContain("members.invite");
+    expect(roster.body.permissions).not.toContain("billing.manage");
+    expect(roster.body.permissions).not.toContain("credentials.manage");
+
+    const memberAccount = await account(`admin-managed-${randomUUID()}@example.test`, "Managed");
+    const addedMember = await request(adminSession.token, "POST", `${f.base}/members`, {
+      email: memberAccount.email,
+      role: "member",
+    });
+    expect(addedMember.status).toBe(201);
+    expect(addedMember.body.member.role).toBe("member");
+
+    const promoted = await request(adminSession.token, "PATCH", `${f.base}/members/${memberAccount.id}`, {
+      role: "admin",
+    });
+    expect(promoted.status).toBe(200);
+    expect(promoted.body.member.role).toBe("admin");
+
+    const peerDemotion = await request(adminSession.token, "PATCH", `${f.base}/members/${memberAccount.id}`, {
+      role: "member",
+    });
+    expect(peerDemotion.status).toBe(403);
+    expect(peerDemotion.body.error.code).toBe("ROLE_ESCALATION_DENIED");
+
+    const ownerChange = await request(adminSession.token, "PATCH", `${f.base}/members/${f.owner.id}`, {
+      role: "member",
+    });
+    expect(ownerChange.status).toBe(403);
+    expect(ownerChange.body.error.code).toBe("ROLE_ESCALATION_DENIED");
+
+    const ownerInvite = await request(adminSession.token, "POST", `${f.base}/invitations`, {
+      email: `owner-invite-${randomUUID()}@example.test`,
+      role: "owner",
+    });
+    expect(ownerInvite.status).toBe(403);
+    expect(ownerInvite.body.error.code).toBe("ROLE_ESCALATION_DENIED");
+
+    const adminInvite = await request(adminSession.token, "POST", `${f.base}/invitations`, {
+      email: `admin-invite-${randomUUID()}@example.test`,
+      role: "admin",
+    });
+    expect(adminInvite.status).toBe(201);
+    expect(adminInvite.body.invitation.role).toBe("admin");
+
+    const memberInvite = await request(adminSession.token, "POST", `${f.base}/invitations`, {
+      email: `member-invite-${randomUUID()}@example.test`,
+      role: "member",
+    });
+    expect(memberInvite.status).toBe(201);
+
+    const peerRemoval = await request(adminSession.token, "DELETE", `${f.base}/members/${memberAccount.id}`);
+    expect(peerRemoval.status).toBe(403);
+
+    const ownerDemotes = await request(f.ownerSession.token, "PATCH", `${f.base}/members/${memberAccount.id}`, {
+      role: "member",
+    });
+    expect(ownerDemotes.status).toBe(200);
+
+    const removed = await request(adminSession.token, "DELETE", `${f.base}/members/${memberAccount.id}`);
+    expect(removed.status).toBe(200);
+  });
+
+  it("lets owners grant admin and protects the last owner", async () => {
+    emailFails = false;
+    const f = await fixture("Owner grants admin");
+    const target = await account(`owner-granted-${randomUUID()}@example.test`, "Granted");
+    await request(f.ownerSession.token, "POST", `${f.base}/members`, { email: target.email, role: "member" });
+
+    const promoted = await request(f.ownerSession.token, "PATCH", `${f.base}/members/${target.id}`, {
+      role: "admin",
+    });
+    expect(promoted.status).toBe(200);
+    expect(promoted.body.member.role).toBe("admin");
+
+    const demoted = await request(f.ownerSession.token, "PATCH", `${f.base}/members/${target.id}`, {
+      role: "member",
+    });
+    expect(demoted.status).toBe(200);
+    expect(demoted.body.member.role).toBe("member");
+
+    const targetSession = await session(target.id);
+    const left = await request(targetSession.token, "DELETE", `${f.base}/members/${target.id}`);
+    expect(left.status).toBe(200);
+
+    const selfDemotion = await request(f.ownerSession.token, "PATCH", `${f.base}/members/${f.owner.id}`, {
+      role: "admin",
+    });
+    expect(selfDemotion.status).toBe(409);
+    expect(selfDemotion.body.error.code).toBe("SELF_ROLE_CHANGE");
   });
 });

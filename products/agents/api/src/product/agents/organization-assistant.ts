@@ -34,9 +34,9 @@ export async function ensureOrganizationAssistantInTransaction(
 ): Promise<OrganizationAssistant> {
   const organization = await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [input.organizationId]);
   if (!organization.rowCount) throw new PlatformError("NOT_FOUND", 404, "Organization not found");
-  const owner = await db.query(`SELECT account_id FROM agents_platform.memberships
-    WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL FOR SHARE`, [input.organizationId, input.accountId]);
-  if (!owner.rowCount) throw new PlatformError("ACCESS_DENIED", 403, "Owner access required");
+  const manager = await db.query(`SELECT account_id FROM agents_platform.memberships
+    WHERE organization_id=$1 AND account_id=$2 AND role IN ('owner','admin') AND revoked_at IS NULL FOR SHARE`, [input.organizationId, input.accountId]);
+  if (!manager.rowCount) throw new PlatformError("ACCESS_DENIED", 403, "Owner or admin access required");
   const current = await readAssistant(db, input.organizationId);
   if (current.state !== "absent") return current;
   const configuration = defaultBusinessConfiguration();

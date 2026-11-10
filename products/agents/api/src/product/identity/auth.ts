@@ -74,7 +74,7 @@ export class PlatformIdentity {
       throw new PlatformError("VERIFIED_IDENTITY_REQUIRED", 403, "A verified account is required");
     }
     return {
-      issuer: this.config.AGENTS_OIDC_ISSUER_URL, subject: claims.sub, email: claims.email,
+      issuer: this.config.AGENTS_OIDC_ISSUER_URL, subject: claims.sub, email: claims.email, emailVerified: true,
       displayName: typeof claims.name === "string" && claims.name.trim() ? claims.name : claims.email,
       providerSessionId: claims.sid,
       expiresAt: new Date(Math.min(Date.now() + 30 * 86_400_000, claims.auth_time * 1000 + 30 * 86_400_000)),

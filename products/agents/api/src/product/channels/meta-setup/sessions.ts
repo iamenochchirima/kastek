@@ -21,7 +21,7 @@ export class MetaSetupSessions {
     const envelope = this.vault.seal(scope.organizationId, `channel-setup:${id}:${phase}`, revision, JSON.stringify({ payload }), 65536);
     return transaction(this.pool, async db => {
       const owner = await db.query(`SELECT 1 FROM agents_platform.memberships m JOIN agents_platform.channel_connections c ON c.organization_id=m.organization_id
-        WHERE m.organization_id=$1 AND m.account_id=$2 AND m.role='owner' AND m.revoked_at IS NULL
+        WHERE m.organization_id=$1 AND m.account_id=$2 AND m.role IN ('owner','admin') AND m.revoked_at IS NULL
         AND c.id=$3 AND c.revision=$4 AND c.state<>'removed' FOR SHARE OF m,c`, [scope.organizationId, scope.accountId, connectionId, revision]);
       if (!owner.rowCount) throw setupFailure("CHANNEL_SETUP_AUTHORITY_CHANGED", 409);
       await db.query(`INSERT INTO agents_platform.channel_setup_sessions(id,organization_id,account_id,connection_id,connection_revision,session_digest,ticket_digest,phase,envelope,expires_at)
@@ -36,7 +36,7 @@ export class MetaSetupSessions {
         JOIN agents_platform.memberships m ON m.organization_id=s.organization_id AND m.account_id=s.account_id
         JOIN agents_platform.channel_connections c ON c.organization_id=s.organization_id AND c.id=s.connection_id
         WHERE s.organization_id=$1 AND s.account_id=$2 AND s.session_digest=$3 AND s.ticket_digest=$4 AND s.phase=$5
-        AND s.consumed_at IS NULL AND s.expires_at>now() AND m.role='owner' AND m.revoked_at IS NULL
+        AND s.consumed_at IS NULL AND s.expires_at>now() AND m.role IN ('owner','admin') AND m.revoked_at IS NULL
         AND c.revision=s.connection_revision AND c.state<>'removed' FOR UPDATE OF s FOR SHARE OF m,c`, [scope.organizationId, scope.accountId, binding, digest(ticket), phase]);
       const row = result.rows[0]; if (!row) throw setupFailure("CHANNEL_SETUP_EXPIRED_OR_CHANGED", 409);
       const secret = JSON.parse(this.vault.open(scope.organizationId, `channel-setup:${row.id}:${phase}`, row.connection_revision, row.envelope));

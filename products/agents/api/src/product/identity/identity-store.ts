@@ -34,11 +34,18 @@ export class IdentityStore extends AuthorityStore {
   async requireMembership(accountId: string, organizationId: string): Promise<void> {
     await this.membership(this.pool, accountId, organizationId);
   }
-  async ensureAccount(input: { issuer: string; subject: string; email: string; displayName: string }): Promise<Account> {
-    return (await this.pool.query<Account>(`INSERT INTO agents_platform.accounts(id,issuer,subject,email,display_name)
-      VALUES($1,$2,$3,$4,$5) ON CONFLICT(issuer,subject) DO UPDATE SET email=excluded.email,display_name=excluded.display_name
+  async ensureAccount(input: {
+    issuer: string; subject: string; email: string; displayName: string; emailVerified?: boolean;
+  }): Promise<Account> {
+    // Verification is keyed by the identity provider claim, never by a separate product-level gate.
+    return (await this.pool.query<Account>(`INSERT INTO agents_platform.accounts(
+        id,issuer,subject,email,display_name,email_verified_at,email_verified_source)
+      VALUES($1,$2,$3,$4,$5,CASE WHEN $6::boolean THEN now() END,CASE WHEN $6::boolean THEN 'keycloak' END)
+      ON CONFLICT(issuer,subject) DO UPDATE SET email=excluded.email,display_name=excluded.display_name,
+        email_verified_at=COALESCE(agents_platform.accounts.email_verified_at,excluded.email_verified_at),
+        email_verified_source=COALESCE(agents_platform.accounts.email_verified_source,excluded.email_verified_source)
       RETURNING id,issuer,subject,email,display_name`,
-    [randomUUID(), text(input.issuer, 2048), text(input.subject, 512), text(input.email, 320), text(input.displayName, 256)])).rows[0]!;
+    [randomUUID(), text(input.issuer, 2048), text(input.subject, 512), text(input.email, 320), text(input.displayName, 256), input.emailVerified === true])).rows[0]!;
   }
   async createOrganization(accountId: string, name: string): Promise<Organization> {
     return this.transaction(async (db) => {

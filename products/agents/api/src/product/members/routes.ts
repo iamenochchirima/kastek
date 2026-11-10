@@ -3,8 +3,9 @@ import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
 import type { Account } from "../../contracts/records";
 import { MemberStore, type InvitationRecord, type MemberRole, type MemberScope } from "./store";
+import { memberRoles } from "./permissions";
 
-const role = z.enum(["owner", "member"]);
+const role = z.enum(memberRoles);
 const memberBody = z.strictObject({ email: z.email().max(254), role: role.default("member") });
 const invitationBody = z.strictObject({ email: z.email().max(254), role: role.default("member") });
 const roleBody = z.strictObject({ role });
@@ -31,7 +32,13 @@ export function registerMemberRoutes(
 
   app.get(`${base}/members`, async (request) => {
     const result = await options.store.list(await options.resolveScope(request));
-    return { members: result.members, canManage: result.role === "owner" };
+    return {
+      members: result.members,
+      role: result.role,
+      canManage: result.permissions.includes("members.manage"),
+      permissions: result.permissions,
+      grantableRoles: result.grantableRoles,
+    };
   });
 
   app.post(`${base}/members`, async (request, reply) => {

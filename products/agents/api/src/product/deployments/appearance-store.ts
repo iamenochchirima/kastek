@@ -18,8 +18,8 @@ export class WebsiteAppearanceStore {
   private async draftAuthority(db: PoolClient, scope: ActionScope, agentId: string, owner: boolean) {
     z.uuid().parse(agentId);
     await requireActionMember(db, scope);
-    if (owner && !(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL FOR SHARE", [scope.organizationId, scope.accountId])).rowCount)
-      throw new PlatformError("ACCESS_DENIED", 403, "An owner must manage website settings");
+    if (owner && !(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role IN ('owner','admin') AND revoked_at IS NULL FOR SHARE", [scope.organizationId, scope.accountId])).rowCount)
+      throw new PlatformError("ACCESS_DENIED", 403, "An owner or admin must manage website settings");
     if (!(await db.query("SELECT 1 FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 FOR UPDATE", [scope.organizationId, agentId])).rowCount)
       throw new PlatformError("NOT_FOUND", 404, "Agent not found");
   }
@@ -57,7 +57,7 @@ export class WebsiteAppearanceStore {
       await assertAgentsBillingFeature(this.pool, scope.organizationId, "agents.feature.branding");
     return transaction(this.pool, async db => {
       await requireActionMember(db, scope);
-      if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL FOR SHARE", [scope.organizationId, scope.accountId])).rowCount) throw new PlatformError("ACCESS_DENIED",403,"An owner must manage website settings");
+      if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role IN ('owner','admin') AND revoked_at IS NULL FOR SHARE", [scope.organizationId, scope.accountId])).rowCount) throw new PlatformError("ACCESS_DENIED",403,"An owner or admin must manage website settings");
       const current = dto(await this.row(db, scope, agentId, deploymentId, true));
       if (current.appearanceDigest !== input.expectedAppearanceDigest) throw new PlatformError("WEBSITE_SETTINGS_CHANGED",409,"Website settings changed; refresh and try again");
       return dto((await db.query("UPDATE agents_platform.website_deployments SET appearance=$4,paused=$5 WHERE organization_id=$1 AND agent_id=$2 AND id=$3 RETURNING *", [scope.organizationId, agentId, deploymentId, input.appearance, input.paused])).rows[0]!);
