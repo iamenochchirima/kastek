@@ -26,7 +26,8 @@ const jobDTO = (row: Record<string, any>): IngestionJobDTO => ({ id: row.id, sou
 export async function requireKnowledgeMember(db: Pool | PoolClient, scope: KnowledgeScope, owner = false): Promise<string> {
   if (isProductResourceScope(scope)) { await requireProductResourceAccess(db, scope, owner); return "owner"; }
   const row = (await db.query("SELECT role FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE", [scope.organizationId, resourceAccountId(scope)])).rows[0];
-  if (!row || owner && row.role !== "owner") throw new PlatformError("ACCESS_DENIED", 403, "Workspace access is unavailable");
+  // `owner` here means workspace-level knowledge management: owner or admin.
+  if (!row || owner && row.role === "member") throw new PlatformError("ACCESS_DENIED", 403, "Workspace access is unavailable");
   return row.role;
 }
 
