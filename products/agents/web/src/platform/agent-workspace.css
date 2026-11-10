@@ -152,6 +152,7 @@
 .agent-scope-nav a { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 8px 10px; border-radius: 6px; color: var(--muted-foreground); text-align: left; font-size: 13px; }
 .agent-scope-nav a:hover { background: var(--muted); color: var(--foreground); }
 .agent-scope-nav a.is-active { background: var(--accent); color: var(--primary); font-weight: 500; }
+.agent-scope-readonly { margin: 12px 10px 0; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 12px; }
 .agent-setup-progress { margin: 18px 8px 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
 .agent-setup-progress.is-loading { display: grid; gap: 8px; }
 .agent-setup-progress.is-loading > span { display: block; height: 10px; border-radius: 4px; background: var(--muted); }

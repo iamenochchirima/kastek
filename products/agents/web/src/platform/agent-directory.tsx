@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { api, message, organizationPath, type AgentSummary, type Page } from "./api";
+import { api, hasPermission, message, organizationPath, type AgentSummary, type Page } from "./api";
 import { ErrorMessage, Loading, useWorkspace } from "./shell";
 import { GuidedAgentCreation } from "./guided-agent-creation";
 import { AgentLanding } from "./agent-landing";
@@ -78,22 +78,39 @@ export function AgentDirectory() {
   );
   const agent = agents?.find(item => item.id === agentId);
   const section = conversationId ? "conversations" : normalizeAgentSection(new URLSearchParams(location.search).get("section"));
+  const workspace = session.organizations.find(item => item.id === organizationId);
+  const canConfigure = hasPermission(workspace, "agents.manage");
+  const canDelete = hasPermission(workspace, "agents.delete");
+  const canDeployWidget = hasPermission(workspace, "deploy.manage");
+  const canDeployChannels = hasPermission(workspace, "channels.manage");
+  const visibleSections = agentSections.filter(([id]) => {
+    if (id === "capabilities" || id === "knowledge" || id === "behaviour") return canConfigure;
+    if (id === "widget") return canDeployWidget;
+    if (id === "deploy") return canDeployChannels;
+    if (id === "settings") return canConfigure || canDelete;
+    return true;
+  });
+  useEffect(() => {
+    if (!agentId) return;
+    if (visibleSections.some(([id]) => id === section)) return;
+    navigate(`/app/agents/${agentId}?section=overview`, { replace: true });
+  }, [agentId, navigate, section, canConfigure, canDelete, canDeployWidget, canDeployChannels]);
   const agentMenu = <>
     <Link className="agent-scope-back" to="/app/agents" onClick={() => setDirectoryOpen(false)}><ChevronLeft size={15} />All agents</Link>
     <div className="agent-scope-head"><AgentAvatar id={agent?.avatar} size={38} /><div className="agent-scope-identity"><strong>{agent?.name ?? "Agent"}</strong><button type="button" className="agent-scope-new" onClick={newChat}><Plus size={13} />Start chat</button></div></div>
-    <nav className="agent-scope-nav" aria-label="Agent sections">{agentSections.map(([id, label, Icon]) => <Link key={id} to={`/app/agents/${agentId}?section=${id}`} onClick={() => setDirectoryOpen(false)} aria-current={section === id ? "page" : undefined} className={section === id ? "is-active" : ""}><Icon size={17} />{label}</Link>)}</nav>
-    <AgentSetupProgress organizationId={organizationId} agentId={agentId ?? ""} draftRevision={agent?.draftRevision ?? 0} />
+    <nav className="agent-scope-nav" aria-label="Agent sections">{visibleSections.map(([id, label, Icon]) => <Link key={id} to={`/app/agents/${agentId}?section=${id}`} onClick={() => setDirectoryOpen(false)} aria-current={section === id ? "page" : undefined} className={section === id ? "is-active" : ""}><Icon size={17} />{label}</Link>)}</nav>
+    {!canConfigure ? <p className="agent-scope-readonly">Read-only access</p> : <AgentSetupProgress organizationId={organizationId} agentId={agentId ?? ""} draftRevision={agent?.draftRevision ?? 0} />}
   </>;
   const directory = <>
-    <div className="agent-directory-heading"><h2>Agents</h2><Button aria-label="Create agent" title="Create agent" variant="ghost" size="icon" onClick={() => setOpen(true)}><Plus size={17} /></Button></div>
+    <div className="agent-directory-heading"><h2>Agents</h2>{canConfigure ? <Button aria-label="Create agent" title="Create agent" variant="ghost" size="icon" onClick={() => setOpen(true)}><Plus size={17} /></Button> : null}</div>
     <label className="agent-search"><Search size={15} /><Input aria-label="Search agents" placeholder="Search agents" value={search} onChange={event => setSearch(event.target.value)} /></label>
     <ErrorMessage value={error} />
     {!visibleAgents && !error ? <Loading /> : <nav aria-label="Agent directory" className="agent-roster">{visibleAgents?.map(agent => <Link key={agent.id} to={`/app/agents/${agent.id}`} onClick={() => setDirectoryOpen(false)} aria-current={agentId === agent.id ? "page" : undefined} className={`agent-roster-item ${agentId === agent.id ? "is-active" : ""}`}><AgentAvatar id={agent.avatar} size={30} /><span className="min-w-0"><span className="block truncate font-medium">{agent.name}</span></span></Link>)}{visibleAgents?.length === 0 && !query ? <div className="px-3 py-6 text-sm text-muted-foreground">No agents yet</div> : visibleAgents?.length === 0 && query ? <p className="px-3 py-4 text-sm text-muted-foreground">No matching agents</p> : null}</nav>}
     {agentCursor ? <Button variant="ghost" size="sm" onClick={() => void moreAgents()} disabled={busy}>Load more agents</Button> : null}
   </>;
-  return <DirectoryContext.Provider value={{ refresh, newChat, chatGeneration }}>{agentId ? <div className="agent-workspace"><aside className="agent-directory">{agentMenu}</aside><div className="agent-content"><div className="agent-mobile-toolbar"><Button ref={directoryTrigger} variant="ghost" size="sm" onClick={() => setDirectoryOpen(true)}><ChevronLeft size={16} />Agent menu</Button></div><div className="agent-route" key={agentId}><Outlet key={agentId} /></div></div></div> : <AgentLanding agents={visibleAgents} search={search} onSearch={setSearch} filter={filter} onFilter={setFilter} error={error} onRetry={refresh} hasMore={Boolean(agentCursor)} onMore={() => void moreAgents()} busy={busy} onCreate={() => setOpen(true)} />}
+  return <DirectoryContext.Provider value={{ refresh, newChat, chatGeneration }}>{agentId ? <div className="agent-workspace"><aside className="agent-directory">{agentMenu}</aside><div className="agent-content"><div className="agent-mobile-toolbar"><Button ref={directoryTrigger} variant="ghost" size="sm" onClick={() => setDirectoryOpen(true)}><ChevronLeft size={16} />Agent menu</Button></div><div className="agent-route" key={agentId}><Outlet key={agentId} /></div></div></div> : <AgentLanding agents={visibleAgents} search={search} onSearch={setSearch} filter={filter} onFilter={setFilter} error={error} onRetry={refresh} hasMore={Boolean(agentCursor)} onMore={() => void moreAgents()} busy={busy} canCreate={canConfigure} onCreate={() => setOpen(true)} />}
     <Dialog open={directoryOpen} onOpenChange={setDirectoryOpen}><DialogContent className="agent-directory-drawer" onCloseAutoFocus={event => { event.preventDefault(); directoryTrigger.current?.focus(); }}><DialogHeader><DialogTitle>{agentId ? "Agent menu" : "Agents"}</DialogTitle><DialogDescription className="sr-only">Choose an agent or a section.</DialogDescription></DialogHeader>{agentId ? agentMenu : directory}</DialogContent></Dialog>
-    <GuidedAgentCreation key={`${session.account.id}.${organizationId}`} open={open || resumeSetup} onOpenChange={value => { setOpen(value); if (!value && resumeSetup) navigate(`/app/agents/${agentId}`,{replace:true}); }} organizationId={organizationId} resumeAgentId={resumeSetup ? agentId : undefined} onCreated={id => { refresh(); setOpen(false); setDirectoryOpen(false); navigate(`/app/agents/${id}`); }} onDraftCreated={refresh} />
+    <GuidedAgentCreation key={`${session.account.id}.${organizationId}`} open={canConfigure && (open || resumeSetup)} onOpenChange={value => { setOpen(value); if (!value && resumeSetup) navigate(`/app/agents/${agentId}`,{replace:true}); }} organizationId={organizationId} resumeAgentId={resumeSetup ? agentId : undefined} onCreated={id => { refresh(); setOpen(false); setDirectoryOpen(false); navigate(`/app/agents/${id}`); }} onDraftCreated={refresh} />
   </DirectoryContext.Provider>;
 }
 export function AgentWelcome() { return <section className="agent-welcome"><span className="agent-welcome-icon"><Bot size={30} /></span><h1>What shall we work on?</h1><p>Select an agent to start a chat.</p></section>; }

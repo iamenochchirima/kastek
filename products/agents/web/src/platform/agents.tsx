@@ -80,7 +80,10 @@ export function AgentEditor() {
   const dirty = Boolean(agent && configuration && (name !== agent.name || JSON.stringify(configuration) !== JSON.stringify(agent.draft)));
   const pendingSetup = Boolean(agent && (!versions[0] || JSON.stringify(agent.draft) !== JSON.stringify(versions[0].configuration)));
   const needsApply = dirty || pendingSetup;
-  const editableSection = section === "knowledge" || section === "behaviour" || section === "capabilities";
+  const workspace = session.organizations.find(org => org.id === organizationId);
+  const canConfigure = hasPermission(workspace, "agents.manage");
+  const canConfigureAgents = canConfigure || hasPermission(workspace, "agents.delete");
+  const editableSection = canConfigure && (section === "knowledge" || section === "behaviour" || section === "capabilities");
   const blocker = useBlocker(({ currentLocation, nextLocation }) => !deleted.current && dirty && currentLocation.pathname !== nextLocation.pathname);
   useEffect(() => { if (blocker.state !== "blocked") return; let live = true; void confirm({ title: "Discard unsaved changes?", description: "Your configuration has not been saved.", confirmLabel: "Discard changes", variant: "destructive" }).then(discard => { if (live) { if (discard) blocker.proceed(); else blocker.reset(); } }); return () => { live = false; }; }, [blocker, confirm]);
   async function applyConfiguration(configuration: Configuration, name: string, draftBefore = { name, configuration }, expectedRevision = agent?.draftRevision): Promise<boolean> {
@@ -194,6 +197,12 @@ export function AgentEditor() {
     finally { setDeleteBusy(false); }
   }
   if (!agent || !configuration) return <><ErrorMessage value={error} />{!error ? <Loading /> : null}</>;
+  if (!canConfigure && (section === "capabilities" || section === "knowledge" || section === "behaviour")) {
+    return <section className="agent-section"><h1>Read-only access</h1><p>Ask an owner or admin for agent configuration access.</p></section>;
+  }
+  if (!canConfigureAgents && section === "settings") {
+    return <section className="agent-section"><h1>Read-only access</h1><p>Ask an owner or admin for agent configuration access.</p></section>;
+  }
   const chatOpen = Boolean(conversationId) || rawSection === "chat";
   const view = chatOpen ? "chat" : "section";
   const knowledgeCount = configuration.sourceRevisionIds?.length ?? 0;

@@ -167,6 +167,70 @@ test("admin manages members but not owners or peers", async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
+test("owner grants a permission override from the members dialog", async ({ page }) => {
+  const target = { accountId: "override-target", displayName: "Target", email: "target@example.test" };
+  let member: Member = {
+    ...target, role: "member", joinedAt: "2026-03-04T00:00:00Z",
+    permissions: ["members.read", "agents.read", "knowledge.read", "conversations.read", "conversations.manage"],
+    overrides: [],
+  };
+  const requests: Array<{ path: string; body: unknown }> = [];
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    const method = request.method();
+    const body = request.postData() ? request.postDataJSON() as Record<string, unknown> : null;
+    if (path === "/api/session") {
+      return route.fulfill({
+        json: {
+          account: owner,
+          organizations: [{ id: org, name: "Workspace", role: "owner", permissions: ownerPermissions }],
+        },
+      });
+    }
+    if (path.endsWith("/members") && method === "GET") {
+      return route.fulfill({
+        json: {
+          members: [
+            { accountId: owner.id, displayName: owner.displayName, email: owner.email, role: "owner", joinedAt: "2026-01-02T00:00:00Z", permissions: ownerPermissions, overrides: [] },
+            member,
+          ],
+          canManage: true,
+          role: "owner",
+          permissions: ownerPermissions,
+          grantableRoles: ["owner", "admin", "member"],
+        },
+      });
+    }
+    if (path.endsWith("/invitations") && method === "GET") return route.fulfill({ json: { invitations: [] } });
+    if (path.includes("/permissions/") && method === "PUT") {
+      const permission = path.split("/").at(-1)!;
+      requests.push({ path, body });
+      member = {
+        ...member,
+        permissions: [...new Set([...(member.permissions ?? []), permission])],
+        overrides: [{ permission, effect: "grant" }],
+      };
+      return route.fulfill({ json: { member: { role: member.role, permissions: member.permissions, overrides: member.overrides } } });
+    }
+    if (path.endsWith("/inbox-alerts")) return route.fulfill({ json: { unread: 0, alerts: [] } });
+    return route.fulfill({ status: 404, json: { error: { message: "Not found" } } });
+  });
+
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/app/settings?section=members");
+  const row = page.getByRole("listitem").filter({ hasText: "target@example.test" });
+  await row.getByRole("button", { name: "Permissions", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Target · Member", { exact: true })).toBeVisible();
+  await dialog.getByLabel("Create and configure agents").selectOption("grant");
+  await expect(page.getByText("Permission updated", { exact: true })).toBeVisible();
+  expect(requests.at(-1)?.path).toContain("/permissions/agents.manage");
+  expect(requests.at(-1)?.body).toEqual({ effect: "grant" });
+  await expect(dialog.getByText("Allowed now", { exact: true }).first()).toBeVisible();
+  await dialog.getByRole("button", { name: "Close", exact: true }).first().click();
+});
+
 test("invitation page handles signed-out, accepted and pending states", async ({ page }) => {
   let accepted = false;
   await page.route("**/api/**", async (route) => {

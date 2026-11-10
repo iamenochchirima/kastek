@@ -9,12 +9,15 @@ import { api, ApiError, message, organizationPath } from "./api";
 import { ErrorMessage } from "./shell";
 
 type MemberRole = "owner" | "admin" | "member";
+type PermissionOverride = { permission: string; effect: "grant" | "deny" };
 type Member = {
   accountId: string;
   displayName: string;
   email: string;
   role: MemberRole;
   joinedAt: string;
+  permissions?: string[];
+  overrides?: PermissionOverride[];
 };
 type Invitation = {
   id: string;
@@ -35,6 +38,61 @@ type MembersResponse = {
 type InvitationsResponse = { invitations: Invitation[] };
 
 const roleLabel = (role: MemberRole) => role === "owner" ? "Owner" : role === "admin" ? "Admin" : "Member";
+
+const permissionGroups = [
+  {
+    title: "Agents",
+    permissions: [
+      ["agents.manage", "Create and configure agents"],
+      ["agents.delete", "Delete agents"],
+    ],
+  },
+  {
+    title: "Knowledge",
+    permissions: [
+      ["knowledge.manage", "Manage training data"],
+      ["knowledge.approve", "Approve knowledge"],
+    ],
+  },
+  {
+    title: "Channels and deploy",
+    permissions: [
+      ["channels.manage", "Connect channels"],
+      ["deploy.manage", "Publish and customize the widget"],
+    ],
+  },
+  {
+    title: "Models",
+    permissions: [["models.select", "Select models"]],
+  },
+  {
+    title: "Members",
+    permissions: [
+      ["members.invite", "Invite members"],
+      ["members.manage", "Change and remove members"],
+    ],
+  },
+  {
+    title: "Conversations",
+    permissions: [
+      ["conversations.manage", "Reply and resolve conversations"],
+      ["conversations.assign", "Assign conversations"],
+    ],
+  },
+  {
+    title: "Workspace",
+    permissions: [["workspace.manage", "Workspace settings"]],
+  },
+  {
+    title: "Visibility",
+    permissions: [
+      ["members.read", "View members"],
+      ["agents.read", "View agents"],
+      ["knowledge.read", "View training data"],
+      ["conversations.read", "View conversations"],
+    ],
+  },
+] as const;
 const dateLabel = (value: string) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(date);
@@ -62,6 +120,9 @@ export function MembersSettings({
   const [inviteRole, setInviteRole] = useState<Member["role"]>("member");
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteError, setInviteError] = useState("");
+  const [permissionMemberId, setPermissionMemberId] = useState("");
+  const [permissionBusy, setPermissionBusy] = useState("");
+  const [permissionError, setPermissionError] = useState("");
 
   async function load() {
     setError("");
@@ -115,6 +176,30 @@ export function MembersSettings({
 
   const canManageMember = (member: Member) =>
     canManage && member.accountId !== currentAccountId && (viewerRole === "owner" || member.role === "member");
+
+  const canManagePermissions = canManage && viewerRole === "owner";
+  const permissionMember = members.find((member) => member.accountId === permissionMemberId) ?? null;
+
+  async function changePermission(member: Member, permission: string, effect: "grant" | "deny" | "inherit") {
+    if (effect === "deny" && permission.endsWith(".read")) toast.warning("This member will lose workspace visibility.");
+    setPermissionBusy(permission);
+    setPermissionError("");
+    try {
+      const result = await api<{ member: { role: MemberRole; permissions: string[]; overrides: PermissionOverride[] } }>(
+        `${organizationPath(organizationId)}/members/${encodeURIComponent(member.accountId)}/permissions/${encodeURIComponent(permission)}`,
+        { effect },
+        "PUT",
+      );
+      setMembers((current) => current.map((item) => item.accountId === member.accountId
+        ? { ...item, ...result.member }
+        : item));
+      toast.success("Permission updated");
+    } catch (cause) {
+      setPermissionError(message(cause));
+    } finally {
+      setPermissionBusy("");
+    }
+  }
 
   async function invite(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -233,6 +318,9 @@ export function MembersSettings({
               <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">{roleLabel(member.role)}</span>
                 {self ? <span className="text-xs text-muted-foreground">You</span> : null}
+                {canManagePermissions && !self && member.role !== "owner" ? (
+                  <Button size="sm" variant="outline" onClick={() => { setPermissionError(""); setPermissionMemberId(member.accountId); }}>Permissions</Button>
+                ) : null}
                 {canManageMember(member) ? (
                   <>
                     <select
@@ -299,6 +387,56 @@ export function MembersSettings({
               <Button type="submit" disabled={inviteBusy || !inviteEmail.trim()}>{inviteBusy ? "Sending…" : "Send invitation"}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(permissionMember)} onOpenChange={(open) => { if (!open && !permissionBusy) { setPermissionMemberId(""); setPermissionError(""); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Permissions</DialogTitle>
+            <DialogDescription>
+              {permissionMember ? `${permissionMember.displayName || permissionMember.email} · ${roleLabel(permissionMember.role)}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <ErrorMessage value={permissionError} />
+          <div className="mt-4 max-h-[55vh] space-y-4 overflow-y-auto pr-1">
+            {permissionGroups.map((group) => (
+              <section key={group.title}>
+                <h3 className="text-sm font-medium text-foreground">{group.title}</h3>
+                <div className="mt-2 space-y-2">
+                  {group.permissions.map(([permission, label]) => {
+                    const override = permissionMember?.overrides?.find((item) => item.permission === permission);
+                    const allowed = permissionMember?.permissions?.includes(permission) ?? false;
+                    return (
+                      <label key={permission} className="flex items-center justify-between gap-3 text-sm">
+                        <span className="min-w-0">
+                          <span className="block">{label}</span>
+                          <span className="text-xs text-muted-foreground">{allowed ? "Allowed" : "Blocked"} now</span>
+                        </span>
+                        <select
+                          aria-label={label}
+                          className="min-h-9 shrink-0 rounded-md border border-border bg-background px-2 text-sm"
+                          value={override?.effect ?? "inherit"}
+                          disabled={Boolean(permissionBusy)}
+                          onChange={(event) => {
+                            if (permissionMember) void changePermission(permissionMember, permission, event.target.value as "grant" | "deny" | "inherit");
+                          }}
+                        >
+                          <option value="inherit">Default</option>
+                          <option value="grant">Allow</option>
+                          <option value="deny">Deny</option>
+                        </select>
+                      </label>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
+          <p className="mt-4 text-xs text-muted-foreground">Owners always hold every permission. Changes apply on the member's next request.</p>
+          <DialogFooter className="mt-4">
+            <Button type="button" variant="outline" onClick={() => { setPermissionMemberId(""); setPermissionError(""); }}>Close</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </section>
