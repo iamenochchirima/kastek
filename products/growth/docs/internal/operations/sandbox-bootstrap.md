@@ -72,6 +72,12 @@ product conversation, waits for the product task to settle, and records the sess
 turn and digests in the control plane. Transcript text remains in the product runtime
 and is read back through the product API.
 
+Growth model selection is feature-level, matching the product: it applies to new
+messages. The sandbox provisioning expands the Growth model grant to the full model
+catalogue in the paired Agents runtime, so the Evals chat model picker can select any
+tool-capable model allowed by the provider. Existing messages keep their original
+model evidence.
+
 This is also the first evaluation target path: an evaluation run can select one of
 these registered agent references instead of creating an agent ad hoc.
 
@@ -87,7 +93,7 @@ these registered agent references instead of creating an agent ad hoc.
 | Rollout | Rebuild and restart the Evals service and client. Existing sandboxes must already have the current product schema for chat. |
 | Analytics and logs | Service logs record chat task outcomes and session references. Transcript text is not copied into Evals logs. |
 | Documentation | This page, `services/evals/README.md` and `apps/evals/README.md`. |
-| Validation | Eval tests 28/28; live Growth product-agent listing and chat returned four ready agents, recorded a control-plane session and continued the conversation to two turns. |
+| Validation | Eval tests 28/28; live Growth product-agent listing and chat returned four ready agents, recorded a control-plane session, continued the conversation, listed 363 tool-capable models and switched the assistant model through the client route. |
 | Rollback | Remove the product-agent/chat routes from the client and service. Existing control-plane session references remain readable. |
 | Post-release review | Review before Phase 4 evaluation runs start. |
 

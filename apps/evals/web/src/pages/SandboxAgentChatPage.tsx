@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, MessageSquare, Plus, RefreshCw, Send } from "lucide-react";
-import type { ProductAgent, ProductChatMessage, ProductChatResult } from "../../../shared/types";
+import type { AgentModelCatalogue, AgentRef, ProductAgent, ProductChatMessage, ProductChatResult } from "../../../shared/types";
 import { api, errorMessage } from "../api";
 import { EmptyState, ErrorBox, Loading, PageHeader, StatusBadge } from "../components";
 
@@ -17,6 +17,9 @@ export default function SandboxAgentChatPage() {
   const [error, setError] = useState<string | null>(null);
   const [restarting, setRestarting] = useState(false);
   const [restartError, setRestartError] = useState<string | null>(null);
+  const [catalogue, setCatalogue] = useState<AgentModelCatalogue | null>(null);
+  const [modelError, setModelError] = useState<string | null>(null);
+  const [savingModel, setSavingModel] = useState(false);
   const thread = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -24,16 +27,41 @@ export default function SandboxAgentChatPage() {
     setLoading(true);
     setError(null);
     api<{ agents: ProductAgent[] }>(`/api/sandboxes/${encodeURIComponent(id)}/product-agents`)
-      .then((value) => {
+      .then(async (value) => {
         if (cancelled) return;
         const found = value.agents.find((item) => item.refId === agentRefId);
-        if (!found) throw new Error("Agent not found in this sandbox");
-        setAgent(found);
+        if (found) {
+          setAgent(found);
+          return;
+        }
+        const historical = await api<{ agentRef: AgentRef }>(
+          `/api/sandboxes/${encodeURIComponent(id)}/agents/${encodeURIComponent(agentRefId)}`,
+        );
+        const current = value.agents.find((item) =>
+          item.productAgentId === historical.agentRef.productAgentId);
+        if (!current) throw new Error("Agent not found in this sandbox");
+        setAgent({ ...current, refId: agentRefId });
       })
       .catch((value) => { if (!cancelled) setError(errorMessage(value)); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [id, agentRefId]);
+
+  useEffect(() => {
+    if (!agent || agent.product !== "growth") {
+      setCatalogue(null);
+      setModelError(null);
+      return;
+    }
+    let cancelled = false;
+    setModelError(null);
+    api<AgentModelCatalogue>(
+      `/api/sandboxes/${encodeURIComponent(id)}/agents/${encodeURIComponent(agentRefId)}/models`,
+    )
+      .then((value) => { if (!cancelled) setCatalogue(value); })
+      .catch((value) => { if (!cancelled) setModelError(errorMessage(value)); });
+    return () => { cancelled = true; };
+  }, [id, agentRefId, agent?.product, agent?.productAgentId]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -81,6 +109,43 @@ export default function SandboxAgentChatPage() {
     }
   }
 
+  async function changeModel(value: string) {
+    if (!catalogue || savingModel) return;
+    setSavingModel(true);
+    setModelError(null);
+    try {
+      const selection = value === "organization_default"
+        ? { kind: "organization_default" as const }
+        : (() => {
+            const [connectionId, modelId] = JSON.parse(value) as [string, string];
+            return { kind: "connection" as const, connectionId, modelId };
+          })();
+      await api(`/api/sandboxes/${encodeURIComponent(id)}/agents/${encodeURIComponent(agentRefId)}/model`, {
+        method: "POST",
+        body: JSON.stringify(selection),
+      });
+      const refreshed = await api<AgentModelCatalogue>(
+        `/api/sandboxes/${encodeURIComponent(id)}/agents/${encodeURIComponent(agentRefId)}/models`,
+      );
+      setCatalogue(refreshed);
+      const selected = refreshed.current
+        ? refreshed.models.find((model) =>
+            model.connectionId === refreshed.current!.connectionId && model.modelId === refreshed.current!.modelId)
+        : refreshed.defaultModel;
+      if (selected) {
+        setAgent((current) => current ? {
+          ...current,
+          model: { label: selected.label, provider: selected.provider, modelId: selected.modelId },
+          revision: String(refreshed.revision),
+        } : current);
+      }
+    } catch (value) {
+      setModelError(errorMessage(value));
+    } finally {
+      setSavingModel(false);
+    }
+  }
+
   async function restartRuntime() {
     if (restarting) return;
     setRestarting(true);
@@ -94,6 +159,22 @@ export default function SandboxAgentChatPage() {
       setRestarting(false);
     }
   }
+
+  const selectedModel = !catalogue
+    ? ""
+    : catalogue.inherited
+      ? "organization_default"
+      : catalogue.current
+        ? JSON.stringify([catalogue.current.connectionId, catalogue.current.modelId])
+        : "organization_default";
+  const modelGroups = catalogue
+    ? [...new Set(catalogue.models.map((model) => model.provider))]
+        .sort()
+        .map((provider) => ({
+          provider,
+          models: catalogue.models.filter((model) => model.provider === provider),
+        }))
+    : [];
 
   if (loading) return <Loading label="Loading agent" />;
   if (error && !agent) {
@@ -141,11 +222,42 @@ export default function SandboxAgentChatPage() {
               {agent.revision ? ` · revision ${agent.revision}` : ""}
             </p>
           </div>
-          <StatusBadge status={agent.ready ? "ready" : "draft"} />
+          <div className="chat-head-side">
+            {catalogue && (
+              <label className="field model-picker">
+                <span className="field-label">Model</span>
+                <select
+                  className="select"
+                  value={selectedModel}
+                  onChange={(event) => void changeModel(event.target.value)}
+                  disabled={savingModel || sending}
+                >
+                  <option value="organization_default">
+                    {catalogue.defaultModel ? `${catalogue.defaultModel.label} · Default` : "Default"}
+                  </option>
+                  {modelGroups.map((group) => (
+                    <optgroup key={group.provider} label={group.provider}>
+                      {group.models.map((model) => (
+                        <option
+                          key={`${model.connectionId}:${model.modelId}`}
+                          value={JSON.stringify([model.connectionId, model.modelId])}
+                        >
+                          {model.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                <span className="field-hint">{savingModel ? "Saving model…" : "Applies to new messages"}</span>
+              </label>
+            )}
+            <StatusBadge status={agent.ready ? "ready" : "draft"} />
+          </div>
         </div>
         {!agent.ready && (
           <ErrorBox message="This agent is still a draft. Publish it in the product before starting a conversation." />
         )}
+        {modelError && <ErrorBox message={modelError} />}
         {error && <ErrorBox message={error} />}
         <div className="chat-thread" ref={thread}>
           {messages.length === 0 ? (

@@ -132,6 +132,39 @@ function runMigrations(
   });
 }
 
+async function expandGrowthModelGrant(
+  config: EvalsConfig,
+  databaseName: string,
+  organizationId: string,
+): Promise<void> {
+  const url = new URL(config.evalDatabaseUrl);
+  url.pathname = `/${encodeURIComponent(databaseName)}`;
+  const pool = new Pool({ connectionString: url.toString(), max: 1 });
+  try {
+    await pool.query(
+      `WITH ids AS (
+         SELECT c.connection_id, jsonb_agg(DISTINCT model->>'id') AS model_ids
+           FROM agents_platform.model_provider_connections conn
+           JOIN agents_platform.model_provider_catalogues c
+             ON c.organization_id=conn.organization_id AND c.connection_id=conn.id
+            AND c.connection_revision=conn.revision AND c.credential_revision=conn.credential_revision
+           CROSS JOIN LATERAL jsonb_array_elements(c.snapshot->'models') model
+          WHERE conn.organization_id=$1 AND conn.state='active' AND model->>'id' IS NOT NULL
+          GROUP BY c.connection_id
+       )
+       UPDATE agents_platform.model_provider_use_grants g
+          SET model_ids=ids.model_ids, revision=g.revision+1
+         FROM ids
+        WHERE g.organization_id=$1 AND g.connection_id=ids.connection_id AND g.state='active'
+          AND g.consumer='{"kind":"service","product":"growth","serviceId":"product-default"}'::jsonb
+          AND g.model_ids IS DISTINCT FROM ids.model_ids`,
+      [organizationId],
+    );
+  } finally {
+    await pool.end();
+  }
+}
+
 async function readGrowthAgentSetup(
   databaseName: string,
   config: EvalsConfig,
@@ -300,6 +333,14 @@ export async function provisionGrowthPair(
             productWorkspaceId: organization.rows[0].id,
             label: organization.rows[0].name,
           });
+          await expandGrowthModelGrant(config, agentsDatabase, organization.rows[0].id)
+            .catch((error: unknown) => {
+              console.error({
+                event: "growth.sandbox.model_grant_failed",
+                organizationId: organization.rows[0]!.id,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
         }
       } finally {
         await agentsPool.end();

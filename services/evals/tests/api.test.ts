@@ -783,6 +783,18 @@ test("lists product agents and chats through the Growth product API", { skip }, 
         model: { label: "Test model", ready: true },
       });
     }
+    if (url.pathname === "/api/agents/features/assistant/models") {
+      return send(200, {
+        current: { connectionId: "connection-test", modelId: "test/model" },
+        defaultModel: { connectionId: "connection-test", modelId: "test/model", label: "Test model", provider: "Test", contextWindowTokens: 1000, maxOutputTokens: 100, pricing: null },
+        inherited: false,
+        revision: 1,
+        models: [{ connectionId: "connection-test", modelId: "test/model", label: "Test model", provider: "Test", contextWindowTokens: 1000, maxOutputTokens: 100, pricing: null }],
+      });
+    }
+    if (url.pathname === "/api/agents/features/assistant/model" && request.method === "PATCH") {
+      return send(200, { revision: 2 });
+    }
     if (url.pathname === "/api/agents/conversations" && request.method === "POST") {
       return send(201, { conversation: { id: "conversation-test", featureId: "assistant" } });
     }
@@ -840,6 +852,23 @@ test("lists product agents and chats through the Growth product API", { skip }, 
     assert.equal(productAgents[0]!.name, "Growth assistant");
     assert.equal(productAgents[0]!.productAgentId, "assistant");
     assert.equal(productAgents[0]!.ready, true);
+
+    const models = await app!.inject({
+      method: "GET",
+      url: `/v1/sandboxes/${sandboxId}/agents/${productAgents[0]!.refId}/models`,
+      headers: auth,
+    });
+    assert.equal(models.statusCode, 200, models.body);
+    assert.equal((models.json() as { models: unknown[] }).models.length, 1);
+
+    const selected = await app!.inject({
+      method: "POST",
+      url: `/v1/sandboxes/${sandboxId}/agents/${productAgents[0]!.refId}/model`,
+      headers: auth,
+      payload: { kind: "connection", connectionId: "connection-test", modelId: "test/model" },
+    });
+    assert.equal(selected.statusCode, 200, selected.body);
+    assert.equal((selected.json() as { revision: number }).revision, 2);
 
     const chat = await app!.inject({
       method: "POST",

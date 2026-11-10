@@ -274,6 +274,21 @@ curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/sessions/$SESSION_ID/me
 
 The client uses these routes for its Agents tab and chat page.
 
+Growth model selection is feature-level and applies to new messages, matching the
+Growth product. The sandbox provisioning expands the Growth model grant to the full
+local provider catalogue, so the chat model picker is not limited to the single
+managed default.
+
+```sh
+curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/agents/$AGENT_REF_ID/models" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN"
+
+curl -sS -X POST "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/agents/$AGENT_REF_ID/model" \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{"kind":"connection","connectionId":"<connection>","modelId":"<model>"}'
+```
+
 ### Register a workspace
 
 ```sh

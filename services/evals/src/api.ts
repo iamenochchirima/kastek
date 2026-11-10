@@ -34,6 +34,11 @@ import { captureSandboxVersion } from "./version.js";
 import { provisionLocalSandbox } from "./provisioner/local.js";
 import { provisionGrowthPair } from "./provisioner/growth.js";
 import { listProductAgents, ProductAgentError } from "./product-agents.js";
+import {
+  listAgentModels,
+  ProductModelError,
+  selectAgentModel,
+} from "./product-models.js";
 import { restartSandboxRuntime } from "./runtime.js";
 import {
   chatWithProductAgent,
@@ -246,6 +251,12 @@ export function buildApi(
   );
 
   app.setErrorHandler((error, request, reply) => {
+    if (error instanceof ProductModelError) {
+      return reply.code(error.statusCode).send({
+        error: error.message,
+        code: error.code,
+      });
+    }
     if (error instanceof ProductAgentError) {
       return reply.code(error.statusCode).send({
         error: error.message,
@@ -642,6 +653,45 @@ export function buildApi(
       });
     }
     return { outcomeRef: outcome };
+  });
+
+  app.get("/v1/sandboxes/:id/agents/:agentRefId/models", async (request) => {
+    const params = request.params as { id: string; agentRefId: string };
+    return listAgentModels(
+      config,
+      pool,
+      uuid(params.id, "id"),
+      uuid(params.agentRefId, "agentRefId"),
+    );
+  });
+
+  app.post("/v1/sandboxes/:id/agents/:agentRefId/model", async (request) => {
+    const params = request.params as { id: string; agentRefId: string };
+    const body = bodyObject(request.body);
+    const kind = requiredText(body.kind, "kind", 32);
+    if (kind === "organization_default") {
+      return selectAgentModel(
+        config,
+        pool,
+        uuid(params.id, "id"),
+        uuid(params.agentRefId, "agentRefId"),
+        { kind },
+      );
+    }
+    if (kind !== "connection") {
+      throw new HttpError(400, "kind must be organization_default or connection", "invalid_field");
+    }
+    return selectAgentModel(
+      config,
+      pool,
+      uuid(params.id, "id"),
+      uuid(params.agentRefId, "agentRefId"),
+      {
+        kind,
+        connectionId: requiredText(body.connectionId, "connectionId", 64),
+        modelId: requiredText(body.modelId, "modelId", 256),
+      },
+    );
   });
 
   app.post("/v1/sandboxes/:id/runtime/restart", async (request) => {

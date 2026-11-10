@@ -189,3 +189,25 @@ export interface ProductChatResult {
   messages: ProductChatMessage[];
   productTaskState: string;
 }
+
+export interface AgentModelOption {
+  connectionId: string;
+  modelId: string;
+  label: string;
+  provider: string;
+  contextWindowTokens: number | null;
+  maxOutputTokens: number | null;
+  pricing: {
+    currency: "USD";
+    inputMicrosPerMillionTokens: number | null;
+    outputMicrosPerMillionTokens: number | null;
+  } | null;
+}
+
+export interface AgentModelCatalogue {
+  current: { connectionId: string; modelId: string } | null;
+  defaultModel: AgentModelOption | null;
+  inherited: boolean;
+  revision: number;
+  models: AgentModelOption[];
+}

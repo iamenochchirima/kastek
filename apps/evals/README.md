@@ -32,6 +32,7 @@ pnpm --filter @kasitek/evals start
 
 - **Sandboxes** — recorded sandboxes, their status, and workspace, agent, session and outcome counts. **Create sandbox** provisions a local Agents environment or a Growth sandbox with its paired Agents runtime. Each card and detail page has a confirmed delete action; **Delete all** requires typing `DELETE`.
 - **Sandbox detail** — tabbed Overview, Agents, Sessions and Outcomes views. Product agents are listed from the sandbox workspace and can be opened in a chat page. Sessions link back to their conversation. The Overview tab holds version, provisioning, workspaces and the paired sandbox link. **Restart runtime** restarts the recorded Agents runtime or a Growth sandbox's paired runtime; the service also self-heals stopped runtimes every 10 seconds.
+- **Agent chat** — Growth chats include a model picker. The selected model applies to new messages in that agent's conversations, matching the Growth product's feature-level model setting.
 - **Sessions** — interactive sessions across sandboxes.
 - **Session detail** — task references, states and transcript digests.
 - **Outcomes** — saved business results across sandboxes.
@@ -52,6 +53,8 @@ The client server exposes:
 - `POST /api/sandboxes/:id/runtime/restart`
 - `GET /api/sandboxes/:id/product-agents`
 - `POST /api/sandboxes/:id/chat`
+- `GET /api/sandboxes/:id/agents/:agentRefId/models`
+- `POST /api/sandboxes/:id/agents/:agentRefId/model`
 - `GET /api/sandboxes/:id/sessions/:sessionId/messages`
 - `GET /api/sessions`
 - `GET /api/sandboxes/:id/sessions/:sessionId`

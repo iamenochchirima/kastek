@@ -27,20 +27,22 @@ class ServiceError extends Error {
   }
 }
 
-async function service<T>(path: string, init: RequestInit = {}): Promise<T> {
+type ServiceInit = RequestInit & { timeoutMs?: number };
+async function service<T>(path: string, init: ServiceInit = {}): Promise<T> {
   if (!operatorToken) {
     throw new ServiceError(503, "EVALS_OPERATOR_TOKEN is not configured for the client server");
   }
+  const { timeoutMs = 15_000, ...requestInit } = init;
   let response: Response;
   try {
     response = await fetch(`${serviceUrl}${path}`, {
-      ...init,
+      ...requestInit,
       headers: {
         authorization: `Bearer ${operatorToken}`,
-        ...(init.body ? { "content-type": "application/json" } : {}),
-        ...(init.headers ?? {}),
+        ...(requestInit.body ? { "content-type": "application/json" } : {}),
+        ...(requestInit.headers ?? {}),
       },
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch {
     throw new ServiceError(502, `Evaluation service is unreachable at ${serviceUrl}`);
@@ -190,6 +192,25 @@ app.get("/api/sandboxes/:id/product-agents", async (request) => {
   const { id } = request.params as { id: string };
   return service(`/v1/sandboxes/${encodeURIComponent(id)}/product-agents`);
 });
+app.get("/api/sandboxes/:id/agents/:agentRefId", async (request) => {
+  const { id, agentRefId } = request.params as { id: string; agentRefId: string };
+  return service(`/v1/sandboxes/${encodeURIComponent(id)}/agents/${encodeURIComponent(agentRefId)}`);
+});
+app.get("/api/sandboxes/:id/agents/:agentRefId/models", async (request) => {
+  const { id, agentRefId } = request.params as { id: string; agentRefId: string };
+  return service(`/v1/sandboxes/${encodeURIComponent(id)}/agents/${encodeURIComponent(agentRefId)}/models`);
+});
+app.post("/api/sandboxes/:id/agents/:agentRefId/model", async (request) => {
+  const { id, agentRefId } = request.params as { id: string; agentRefId: string };
+  const body = request.body as { kind?: unknown; connectionId?: unknown; modelId?: unknown } | null;
+  if (!body || (body.kind !== "organization_default" && body.kind !== "connection")) {
+    throw new ServiceError(400, "A valid model selection is required");
+  }
+  return service(`/v1/sandboxes/${encodeURIComponent(id)}/agents/${encodeURIComponent(agentRefId)}/model`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+});
 app.post("/api/sandboxes/:id/chat", async (request) => {
   const { id } = request.params as { id: string };
   const body = request.body as { agentRefId?: unknown; message?: unknown; sessionId?: unknown } | null;
@@ -198,6 +219,7 @@ app.post("/api/sandboxes/:id/chat", async (request) => {
   }
   return service(`/v1/sandboxes/${encodeURIComponent(id)}/chat`, {
     method: "POST",
+    timeoutMs: 180_000,
     body: JSON.stringify({
       agentRefId: body.agentRefId,
       message: body.message.trim(),
