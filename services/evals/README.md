@@ -306,7 +306,8 @@ description and a complete profile spec:
 
 The catalogue is available at `GET /v1/agent-templates` and is exposed in the
 client's **New profile** dialog as **Template**. Selecting a template fills the
-form; every field remains editable before the profile is created. Templates cover
+form; every field remains editable before the profile is created. Creating a
+profile or a new version starts its setup immediately. Templates cover
 the platform Assistant, basic and full customer service, bookings intent,
 enquiries, a strict policy assistant, a FAQ specialist and a custom research
 agent.

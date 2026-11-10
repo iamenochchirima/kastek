@@ -76,7 +76,8 @@ provider-integration step.
 Common configurations are file-backed templates under
 `services/evals/templates/agents/`. The Evals client exposes them through the
 **Template** picker in **New profile**; selecting one fills the form, which can still
-be edited. Templates are validated on load and never include channels.
+be edited. Creating the profile starts setup immediately. Templates are validated on
+load and never include channels.
 
 ## Sandbox sync
 

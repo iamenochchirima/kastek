@@ -167,19 +167,31 @@ export function AgentProfilesPanel({
         },
         responsibilities: form.responsibilities,
       };
+      let savedProfileId: string;
       if (editingProfileId) {
-        await api(`/api/agent-profiles/${encodeURIComponent(editingProfileId)}/versions`, {
+        const saved = await api<{ profile: AgentProfileDetail }>(`/api/agent-profiles/${encodeURIComponent(editingProfileId)}/versions`, {
           method: "POST",
           body: JSON.stringify({ spec }),
         });
+        savedProfileId = saved.profile.id;
       } else {
-        await api(`/api/sandboxes/${encodeURIComponent(sandboxId)}/agent-profiles`, {
+        const saved = await api<{ profile: AgentProfileDetail }>(`/api/sandboxes/${encodeURIComponent(sandboxId)}/agent-profiles`, {
           method: "POST",
           body: JSON.stringify({ workspaceRefId, spec }),
         });
+        savedProfileId = saved.profile.id;
       }
       setOpen(false);
       setEditingProfileId(null);
+      setRefresh((value) => value + 1);
+      try {
+        await api(`/api/agent-profiles/${encodeURIComponent(savedProfileId)}/apply`, {
+          method: "POST",
+          body: JSON.stringify({ idempotencyKey: crypto.randomUUID() }),
+        });
+      } catch (value) {
+        setError(`Profile saved, but setup could not start: ${errorMessage(value)}`);
+      }
       setRefresh((value) => value + 1);
     } catch (value) {
       setFormError(errorMessage(value));
@@ -447,7 +459,7 @@ export function AgentProfilesPanel({
               <div className="modal-actions">
                 <button className="button ghost" type="button" onClick={() => setOpen(false)} disabled={creating}>Cancel</button>
                 <button className="button" type="submit" disabled={creating}>
-                  {creating ? "Saving…" : editingProfileId ? "Create version" : "Create profile"}
+                  {creating ? "Saving…" : editingProfileId ? "Create version and apply" : "Create and apply"}
                 </button>
               </div>
             </form>
