@@ -10,6 +10,7 @@ import {
   updateSandboxProvisioning,
   type ProvisioningStep,
 } from "../store.js";
+import { ensureSandboxBilling } from "./billing.js";
 import {
   availablePort,
   createDatabase,
@@ -170,6 +171,7 @@ export async function provisionGrowthPair(
     { name: "schema", status: "pending" },
     { name: "runtime", status: "pending" },
     { name: "workspace", status: "pending" },
+    { name: "billing", status: "pending" },
     { name: "pairing", status: "pending" },
     { name: "agent-setup", status: "pending" },
   ];
@@ -255,6 +257,15 @@ export async function provisionGrowthPair(
       expiresAt: owner.expiresAt,
     }, null, 2), { mode: 0o600 });
     steps = markStep(steps, "workspace", "complete");
+    steps = markStep(steps, "billing", "running");
+    await updateSteps(pool, input.growthSandboxId, steps);
+    const billing = await ensureSandboxBilling(config, {
+      product: "growth",
+      tenantId: owner.organizationId,
+      name: owner.organizationName,
+      billingEmail: ownerEmail,
+    });
+    steps = markStep(steps, "billing", "complete");
     await updateSteps(pool, input.growthSandboxId, steps);
 
     steps = markStep(steps, "agent-setup", "running");
@@ -315,6 +326,7 @@ export async function provisionGrowthPair(
         organizationName: owner.organizationName,
         accountId: owner.userId,
         sessionFile: join(directory, "owner-session.json"),
+        billing,
         agentsSandboxId: input.agentsSandboxId,
         agentsApiUrl,
         ...(growthAgentsOrganizationId ? { growthAgentsOrganizationId } : {}),

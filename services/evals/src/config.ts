@@ -17,6 +17,11 @@ export interface LocalProvisioningConfig {
   restateAdminUrl: string;
 }
 
+export interface BillingSandboxConfig {
+  url: string;
+  secret: string;
+}
+
 export interface EvalsConfig extends SandboxEnvironment {
   databaseUrl: string;
   evalDatabaseUrl: string;
@@ -31,6 +36,7 @@ export interface EvalsConfig extends SandboxEnvironment {
   modelId: string;
   adapterVersions: Record<string, string>;
   localProvisioning?: LocalProvisioningConfig;
+  billingSandbox?: BillingSandboxConfig;
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
@@ -164,6 +170,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): EvalsConfig {
     accessKeyId: env.EVALS_LOCAL_S3_ACCESS_KEY_ID?.trim(),
     secretAccessKey: env.EVALS_LOCAL_S3_SECRET_ACCESS_KEY?.trim(),
   };
+  const billingSandboxUrl = env.EVALS_BILLING_SANDBOX_URL?.trim();
+  const billingSandboxSecret = env.EVALS_BILLING_SANDBOX_SECRET?.trim();
+  if (Boolean(billingSandboxUrl) !== Boolean(billingSandboxSecret)) {
+    throw new SandboxGuardError(
+      "BILLING_SANDBOX_INCOMPLETE",
+      "EVALS_BILLING_SANDBOX_URL and EVALS_BILLING_SANDBOX_SECRET must be provided together",
+    );
+  }
+  if (billingSandboxSecret && Buffer.byteLength(billingSandboxSecret) < 32) {
+    throw new SandboxGuardError(
+      "BILLING_SANDBOX_SECRET_WEAK",
+      "EVALS_BILLING_SANDBOX_SECRET requires at least 32 bytes",
+    );
+  }
   const localProvisioning = env.EVALS_LOCAL_PROVISIONING === "0" || !s3.endpoint || !s3.accessKeyId || !s3.secretAccessKey
     ? undefined
     : {
@@ -193,5 +213,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): EvalsConfig {
       harbor: env.AGENTS_HARBOR_VERSION?.trim() || "0.24.0",
     }),
     ...(localProvisioning ? { localProvisioning } : {}),
+    ...(billingSandboxUrl && billingSandboxSecret
+      ? { billingSandbox: { url: billingSandboxUrl.replace(/\/+$/, ""), secret: billingSandboxSecret } }
+      : {}),
   };
 }

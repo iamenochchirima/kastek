@@ -28,7 +28,7 @@ test("accepts the persistent Agents sandbox environment", () => {
   assert.equal(result.environment, "test");
   assert.equal(result.evalDatabase.database, "agents_evals");
   assert.equal(result.productDatabase.database, "agents");
-  assert.equal(result.billingEnforcement, "disabled");
+  assert.equal(result.billingEnforcement, "sandbox");
   assert.equal(result.modelMode, "deterministic");
   assert.equal(result.identityMode, "seed");
   assert.equal(result.networkPolicy, "loopback");
@@ -77,15 +77,12 @@ test("rejects a production environment", () => {
   );
 });
 
-test("rejects billing enforcement", () => {
-  assert.throws(
-    () =>
-      validateSandboxEnvironment({
-        ...base,
-        AGENTS_BILLING_ENFORCEMENT: "1",
-      }),
-    guardCode("BILLING_NOT_DISABLED"),
-  );
+test("records sandbox billing independently of the control-plane product env", () => {
+  const result = validateSandboxEnvironment({
+    ...base,
+    AGENTS_BILLING_ENFORCEMENT: "1",
+  });
+  assert.equal(result.billingEnforcement, "sandbox");
 });
 
 test("rejects a live model", () => {

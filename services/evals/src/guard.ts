@@ -9,7 +9,7 @@ export interface SandboxEnvironment {
   environment: string;
   evalDatabase: DatabaseIdentity;
   productDatabase: DatabaseIdentity;
-  billingEnforcement: "disabled";
+  billingEnforcement: "sandbox";
   modelMode: "deterministic";
   identityMode: "seed";
   networkPolicy: "loopback";
@@ -129,12 +129,6 @@ export function validateSandboxEnvironment(
       "Sandbox database must differ from the product database",
     );
   }
-  if (env.AGENTS_BILLING_ENFORCEMENT !== "0") {
-    return fail(
-      "BILLING_NOT_DISABLED",
-      "Billing must be disabled for this Phase 1 sandbox",
-    );
-  }
   if ((env.EVALS_MODEL_MODE ?? "deterministic") !== "deterministic") {
     return fail(
       "LIVE_MODEL_NOT_ALLOWED",
@@ -167,7 +161,7 @@ export function validateSandboxEnvironment(
     environment,
     evalDatabase,
     productDatabase,
-    billingEnforcement: "disabled",
+    billingEnforcement: "sandbox",
     modelMode: "deterministic",
     identityMode: "seed",
     networkPolicy: "loopback",

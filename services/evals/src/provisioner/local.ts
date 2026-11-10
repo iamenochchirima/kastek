@@ -6,6 +6,7 @@ import { createConnection, createServer } from "node:net";
 import { join } from "node:path";
 import { parse as parseEnv } from "dotenv";
 import { Pool } from "pg";
+import { ensureSandboxBilling } from "./billing.js";
 import type { EvalsConfig } from "../config.js";
 import {
   addWorkspaceRef,
@@ -164,7 +165,7 @@ export function productEnvironment(config: EvalsConfig, productDir = join(config
   };
 }
 
-function childEnvironment(
+export function childEnvironment(
   config: EvalsConfig,
   sandboxId: string,
   productDatabase: string,
@@ -185,7 +186,7 @@ function childEnvironment(
     AGENTS_PUBLIC_URL: `http://127.0.0.1:${apiPort}`,
     AGENTS_LOGIN_RETURN_SECRET:
       env.AGENTS_LOGIN_RETURN_SECRET || randomBytes(32).toString("base64url"),
-    AGENTS_BILLING_ENFORCEMENT: "0",
+    AGENTS_BILLING_ENFORCEMENT: "1",
     AGENTS_ALLOW_UNSIGNED_WORKER: "1",
     AGENTS_S3_ENDPOINT: config.localProvisioning!.s3Endpoint,
     AGENTS_S3_REGION: config.localProvisioning!.s3Region,
@@ -217,11 +218,14 @@ export function startProductProcess(
   const loader = join(productDir, "node_modules/tsx/dist/loader.mjs");
   const fd = openSync(logFile, "a", 0o600);
   try {
-    return spawn(process.execPath, ["--import", loader, script], {
+    const child = spawn(process.execPath, ["--import", loader, script], {
       cwd: productDir,
       env,
       stdio: ["ignore", fd, fd],
+      detached: true,
     });
+    child.unref();
+    return child;
   } finally {
     closeSync(fd);
   }
@@ -360,6 +364,7 @@ export async function provisionLocalSandbox(
     { name: "storage", status: "pending" },
     { name: "runtime", status: "pending" },
     { name: "workspace", status: "pending" },
+    { name: "billing", status: "pending" },
   ];
   await updateSteps(pool, input.sandboxId, steps);
   const productDatabase = databaseName(input.sandboxId);
@@ -379,7 +384,7 @@ export async function provisionLocalSandbox(
       ...baseEnv,
       AGENTS_DATABASE_URL: databaseUrl(config.evalDatabaseUrl, productDatabase),
       AGENTS_MIGRATION_DATABASE_URL: databaseUrl(config.evalDatabaseUrl, productDatabase),
-      AGENTS_BILLING_ENFORCEMENT: "0",
+      AGENTS_BILLING_ENFORCEMENT: "1",
     };
     const setup = await runProductScript(config, join(config.repoRoot, "products/agents/api"), "src/composition/setup.ts", migrationEnv);
     if (setup.code !== 0) {
@@ -463,6 +468,15 @@ export async function provisionLocalSandbox(
       expiresAt: owner.expiresAt,
     }, null, 2), { mode: 0o600 });
     steps = markStep(steps, "workspace", "complete");
+    steps = markStep(steps, "billing", "running");
+    await updateSteps(pool, input.sandboxId, steps);
+    const billing = await ensureSandboxBilling(config, {
+      product: "agents",
+      tenantId: owner.organizationId,
+      name: owner.organizationName,
+      billingEmail: ownerEmail,
+    });
+    steps = markStep(steps, "billing", "complete");
     await updateSandboxProvisioning(pool, input.sandboxId, {
       status: "ready",
       steps,
@@ -480,6 +494,7 @@ export async function provisionLocalSandbox(
         workspaceName: owner.organizationName,
         accountId: owner.accountId,
         sessionFile: join(directory, "owner-session.json"),
+        billing,
       },
     });
   } catch (error) {

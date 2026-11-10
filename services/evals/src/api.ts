@@ -367,6 +367,7 @@ export function buildApi(
             { name: "schema", status: "pending" },
             { name: "runtime", status: "pending" },
             { name: "workspace", status: "pending" },
+            { name: "billing", status: "pending" },
             { name: "pairing", status: "pending" },
             { name: "agent-setup", status: "pending" },
           ],
@@ -382,6 +383,7 @@ export function buildApi(
             { name: "storage", status: "pending" },
             { name: "runtime", status: "pending" },
             { name: "workspace", status: "pending" },
+            { name: "billing", status: "pending" },
           ],
         });
         void provisionGrowthPair(config, pool, {
@@ -409,6 +411,7 @@ export function buildApi(
           { name: "storage", status: "pending" },
           { name: "runtime", status: "pending" },
           { name: "workspace", status: "pending" },
+          { name: "billing", status: "pending" },
         ],
       });
       void provisionLocalSandbox(config, pool, {

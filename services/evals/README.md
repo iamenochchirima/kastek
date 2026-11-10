@@ -17,11 +17,13 @@ not run evaluations; the existing Agents eval fixture does.
 - Configure and chat through normal Agents product sessions.
 - Provision a local Agents sandbox with its own database, bucket, API, worker,
   Restate deployment and workspace.
+- Attach a real central-billing sandbox plan to every provisioned Agents
+  sandbox and to the Agents runtime paired with a Growth sandbox.
 - Fail closed if the sandbox database is not the persistent `agents_evals`
-  database, if it matches the product database, or if billing, live models,
-  production identity or an open network policy is configured.
-- Update, destroy, retention, Growth, Agency, browser UI, MCP and billing test mode
-  are later phases.
+  database, if it matches the product database, or if live models, production
+  identity or an open network policy is configured.
+- Update, destroy, retention, Agency, MCP and hosted provisioning are later
+  phases.
 
 The service is intentionally separate from `apps/evals/`, which remains a client
 prototype. The service is the control plane; the client is one consumer.
@@ -55,7 +57,9 @@ services/evals/
 | `EVALS_PORT` | no | Bind port. Default `4600`. |
 | `AGENTS_EVALS_DATABASE_URL` | yes | Persistent Agents sandbox database. Must be exactly `agents_evals`. |
 | `AGENTS_PRODUCT_DATABASE_URL` | yes | Product database used only for isolation comparison. Falls back to `AGENTS_DATABASE_URL`. |
-| `AGENTS_BILLING_ENFORCEMENT` | yes | Must be `0` in Phase 1. |
+| `AGENTS_BILLING_ENFORCEMENT` | no | Control-plane product environment only. Provisioned child runtimes always override it to `1`. |
+| `EVALS_BILLING_SANDBOX_URL` | yes for provisioning | Central billing service URL used to attach sandbox plans. |
+| `EVALS_BILLING_SANDBOX_SECRET` | yes for provisioning | Sandbox entitlement secret, at least 32 bytes. Must be provided with the URL. |
 | `EVALS_MODEL_MODE` | no | Must be `deterministic`. |
 | `EVALS_IDENTITY_MODE` | no | Must be `seed`. |
 | `EVALS_NETWORK_POLICY` | no | Must be `loopback`. |
@@ -153,11 +157,15 @@ The local provisioner currently:
 1. Creates `agents_sandbox_<id>` on the local PostgreSQL server.
 2. Applies the Agents schema through the product-owned setup command.
 3. Creates a dedicated object-storage bucket.
-4. Starts a dedicated Agents API and worker with its own ports.
+4. Starts a dedicated Agents API and worker with its own ports, detached from the
+   control-plane process.
 5. Registers the worker with the local Restate deployment.
 6. Bootstraps an owner and workspace through the product-owned
    `bootstrap-sandbox` command.
-7. Writes a local owner session file under `.audit/sandboxes/<sandbox-id>/`
+7. Calls `POST /internal/sandbox/entitlement` to attach
+   `agents-sandbox-unlimited` and records the billing account, subscription, plan
+   key and version in the sandbox runtime.
+8. Writes a local owner session file under `.audit/sandboxes/<sandbox-id>/`
    with mode `0600`; the token is not stored in the control plane.
 
 For a Growth pair it then:
@@ -166,15 +174,18 @@ For a Growth pair it then:
 2. Starts a dedicated Growth API with its own port.
 3. Bootstraps the Growth owner, business organization, BusinessProfile and a
    local owner session through `src/bootstrap-sandbox.ts`.
-4. Starts the `growth-agent-setup-worker` against the paired Agents API.
-5. Waits for Growth agent setup to reach `ready` and records the Growth
+4. Attaches `growth-sandbox-unlimited` to the Growth account and
+   `agents-sandbox-unlimited` to the paired Agents account.
+5. Starts the `growth-agent-setup-worker` against the paired Agents API.
+6. Waits for Growth agent setup to reach `ready` and records the Growth
    business workspace on the paired Agents sandbox.
-6. Records the Growth/Agents pair and both session files.
+7. Records the Growth/Agents pair, billing metadata and both session files.
 
 Local provisioning requires the product environment files, PostgreSQL access to
 create databases, Growth Prisma migration privileges, MinIO/S3 credentials, a
 running Restate admin endpoint, Docker socket access to discover the bridge
-gateway, and the product `tsx` loaders. Growth pairing also requires the existing
+gateway, the product `tsx` loaders, and a non-production billing service with
+sandbox plans seeded and `BILLING_SANDBOX_SECRET` configured. Growth pairing also requires the existing
 signed Growth/Agents keys and managed model profile. It is a development/local
 provisioner, not the Phase 5 hosted lifecycle. Growth web, non-agent Growth
 workers, destroy and retention are not implemented yet.

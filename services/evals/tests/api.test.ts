@@ -45,7 +45,7 @@ const config: EvalsConfig = {
     database: "agents",
     role: "agents_admin",
   },
-  billingEnforcement: "disabled",
+  billingEnforcement: "sandbox",
   modelMode: "deterministic",
   identityMode: "seed",
   networkPolicy: "loopback",

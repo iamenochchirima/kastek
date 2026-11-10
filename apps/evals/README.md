@@ -1,9 +1,9 @@
 # Evals client
 
-Read-only client for the evaluation control plane in `services/evals/`. It shows
-sandboxes, workspaces, agent references, interactive sessions and saved outcomes.
-The browser never receives the operator token; the client server proxies the
-control-plane API.
+Client for the evaluation control plane in `services/evals/`. It shows sandboxes,
+workspaces, agent references, interactive sessions and saved outcomes, and can
+provision a local sandbox. The browser never receives the operator token; the
+client server proxies the control-plane API.
 
 It does not own product data, agent configuration, chat endpoints or a local
 evaluation database.
@@ -57,7 +57,8 @@ control plane.
 
 Creating a sandbox requires the local provisioner configuration on the service:
 PostgreSQL database-create access, Growth Prisma migration privileges, local
-S3/MinIO credentials, a running Restate admin endpoint, Docker socket access and
-signed Growth/Agents keys. The dialog creates a real isolated environment. It is not
+S3/MinIO credentials, a running Restate admin endpoint, Docker socket access,
+signed Growth/Agents keys, and a non-production billing service with sandbox plans
+and `EVALS_BILLING_SANDBOX_URL`/`EVALS_BILLING_SANDBOX_SECRET` configured. The dialog creates a real isolated environment. It is not
 a record-only form. Growth creates a Growth database/API/workspace plus a paired
 Agents runtime.
