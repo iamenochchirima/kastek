@@ -262,6 +262,7 @@ curl -sS -X POST "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/agent-profiles"
       "targetType":"business_agent",
       "agentName":"Customer support",
       "instructions":"Answer from approved knowledge only.",
+      "configuration":{"tools":["tasks.inspect","knowledge.search","knowledge.read"]},
       "knowledge":{"title":"Support policy","content":"..."},
       "responsibilities":["answer-questions","customer-support"]
     }
@@ -275,10 +276,12 @@ curl -sS -X POST "http://127.0.0.1:4600/v1/agent-profiles/$PROFILE_ID/apply" \
 
 Applying a profile creates an immutable profile version, configures/publishes the
 agent, reads it back, and records the agent reference. A new version can be created
-with `POST /v1/agent-profiles/:id/versions`. The first tool capability uses the
-product's built-in knowledge and handoff tools. External calendar credentials are
-not copied into the sandbox; a calendar connection fixture remains a separate
-provider-integration step.
+with `POST /v1/agent-profiles/:id/versions`. Profiles can target the platform
+Assistant, the product customer-service offering, or a custom agent configuration.
+Custom profiles accept the full non-channel agent configuration and are merged over
+the platform Assistant draft. The first tool capability uses the product's built-in
+knowledge and handoff tools. External calendar credentials are not copied into the
+sandbox; a calendar connection fixture remains a separate provider-integration step.
 
 ### Sandbox sync
 

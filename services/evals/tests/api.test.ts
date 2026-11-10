@@ -921,6 +921,7 @@ test("creates and versions an agent setup profile", { skip }, async () => {
     targetType: "business_agent",
     agentName: "Customer support",
     instructions: "Answer only from the approved policy.",
+    configuration: { tools: ["tasks.inspect", "knowledge.search"] },
     knowledge: { title: "Policy", content: "Refunds are available within 30 days." },
     responsibilities: ["answer-questions", "customer-support", "bookings"],
   };
@@ -933,6 +934,10 @@ test("creates and versions an agent setup profile", { skip }, async () => {
   assert.equal(created.statusCode, 201, created.body);
   const profile = (created.json() as { profile: { id: string; currentVersion: number } }).profile;
   assert.equal(profile.currentVersion, 1);
+  assert.deepEqual(
+    (created.json() as { profile: { version: { spec: { configuration: { tools: string[] } } } } }).profile.version.spec.configuration.tools,
+    ["tasks.inspect", "knowledge.search"],
+  );
 
   const versioned = await app!.inject({
     method: "POST",

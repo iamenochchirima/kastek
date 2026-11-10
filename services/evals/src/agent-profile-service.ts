@@ -69,6 +69,30 @@ export function parseAgentProfileSpec(raw: unknown): AgentProfileSpec {
     fail(400, "invalid_profile", "targetType must be platform_assistant or business_agent");
   }
   const agentName = text(input.agentName, "agentName", 120);
+  const avatar = optionalText(input.avatar, "avatar", 32);
+  const offering = optionalText(input.offering, "offering", 32);
+  if (offering && offering !== "customer-service") {
+    fail(400, "invalid_profile", "offering must be customer-service when provided");
+  }
+  if (offering && targetType === "platform_assistant") {
+    fail(400, "invalid_profile", "The platform Assistant does not use an offering");
+  }
+  const configuration = input.configuration == null
+    ? undefined
+    : typeof input.configuration === "object" && !Array.isArray(input.configuration)
+      ? input.configuration as Record<string, unknown>
+      : fail(400, "invalid_profile", "configuration must be an object");
+  const setup = input.setup == null
+    ? undefined
+    : typeof input.setup === "object" && !Array.isArray(input.setup)
+      ? input.setup as Record<string, unknown>
+      : fail(400, "invalid_profile", "setup must be an object");
+  if (configuration && JSON.stringify(configuration).length > 200_000) {
+    fail(400, "invalid_profile", "configuration is too large");
+  }
+  if (setup && JSON.stringify(setup).length > 20_000) {
+    fail(400, "invalid_profile", "setup is too large");
+  }
   const instructions = text(input.instructions, "instructions", 32_000);
   const knowledge = input.knowledge;
   if (!knowledge || typeof knowledge !== "object" || Array.isArray(knowledge)) {
@@ -128,7 +152,11 @@ export function parseAgentProfileSpec(raw: unknown): AgentProfileSpec {
   return {
     targetType,
     agentName,
+    ...(offering ? { offering: offering as "customer-service" } : {}),
+    ...(avatar ? { avatar } : {}),
     ...(model ? { model } : {}),
+    ...(configuration ? { configuration } : {}),
+    ...(setup ? { setup } : {}),
     instructions,
     knowledge: { title, content, visibility },
     responsibilities: [...new Set(parsedResponsibilities)],
@@ -256,26 +284,43 @@ export async function applyAgentProfile(
     const previousAgentId = typeof previousRun?.result.agentId === "string"
       ? previousRun.result.agentId
       : undefined;
-    const assistant = spec.targetType === "platform_assistant"
+    const newBusinessAgent = spec.targetType === "business_agent" && !previousAgentId;
+    const needsAssistantBase = spec.targetType === "platform_assistant" || (newBusinessAgent && !spec.offering);
+    const assistant = needsAssistantBase
       ? await assistantAgent(session, session.organizationId)
       : null;
     const targetAgentId = spec.targetType === "platform_assistant"
       ? String(assistant!.id)
       : previousAgentId;
-    const newBusinessAgent = spec.targetType === "business_agent" && !targetAgentId;
-    const setup = newBusinessAgent
+    const setupOverrides = (spec.setup ?? {}) as Record<string, any>;
+    const setup = newBusinessAgent && spec.offering === "customer-service"
       ? {
-          business: { name: spec.agentName, website: "", description: "" },
+          business: {
+            name: spec.agentName,
+            website: "",
+            description: "",
+            ...(setupOverrides.business ?? {}),
+          },
           responsibilities: spec.responsibilities,
           channels: [],
+          ...(setupOverrides.booking ? { booking: setupOverrides.booking } : {}),
+          ...(setupOverrides.intake ? { intake: setupOverrides.intake } : {}),
+          ...(setupOverrides.supportHours ? { supportHours: setupOverrides.supportHours } : {}),
           behaviour: {
             agentName: spec.agentName,
             language: "English",
             tone: "friendly",
             handoffInstructions: "",
+            ...(setupOverrides.behaviour ?? {}),
           },
         }
       : undefined;
+    const configuration = newBusinessAgent && !spec.offering
+      ? {
+          ...(assistant?.draft ?? {}),
+          ...(spec.configuration ?? {}),
+        }
+      : spec.configuration ?? {};
     const model = await resolveModel(pool, config, sandbox.sandbox.id, spec);
     if (!model) fail(409, "model_required", "Choose a model for this agent");
     const apiKey = process.env.OPENROUTER_API_KEY?.trim() || "";
@@ -294,11 +339,11 @@ export async function applyAgentProfile(
       knowledge: spec.knowledge,
       agent: {
         name: spec.agentName,
-        configuration: {},
+        configuration,
         instructions: spec.instructions,
         ...(targetAgentId ? { targetAgentId } : {}),
         ...(targetAgentId ? { updateExisting: true } : {}),
-        ...(newBusinessAgent ? { offering: "customer-service" as const } : {}),
+        ...(newBusinessAgent && spec.offering === "customer-service" ? { offering: "customer-service" as const } : {}),
         ...(newBusinessAgent ? { reuseExistingByName: false } : {}),
         ...(setup ? { setup } : {}),
         ...(spec.responsibilities.length ? { responsibilities: spec.responsibilities } : {}),

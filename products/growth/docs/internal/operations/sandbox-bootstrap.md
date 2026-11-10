@@ -67,9 +67,11 @@ existing platform Assistant or a new customer-service business agent. Applying a
 profile calls the normal Agents model, knowledge, agent, capability and publication
 APIs, then registers the resulting agent reference in the evaluation control plane.
 
-The first business-agent profile uses the product's built-in knowledge and handoff
-tools. External calendar credentials are not copied into the sandbox; a calendar
-connection fixture remains a separate provider-integration step.
+Profiles can also create custom agents from the full non-channel agent configuration,
+merged over the platform Assistant draft. The first business-agent profile uses the
+product's built-in knowledge and handoff tools. External calendar credentials are not
+copied into the sandbox; a calendar connection fixture remains a separate
+provider-integration step.
 
 ## Sandbox sync
 

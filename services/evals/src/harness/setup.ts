@@ -293,6 +293,7 @@ export async function setupSandbox(input: SandboxSetupInput): Promise<SandboxSet
         name: input.agent.name,
         configuration: {
           ...base,
+          ...structuredClone(input.agent.configuration) as Json,
           instructions: input.agent.instructions,
           sourceRevisionIds: [sourceRevisionId],
         },

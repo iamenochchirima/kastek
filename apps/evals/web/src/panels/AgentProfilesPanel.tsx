@@ -39,6 +39,9 @@ export function AgentProfilesPanel({
     knowledgeTitle: "Customer support policy",
     knowledgeContent: "",
     responsibilities: ["answer-questions", "customer-support", "bookings"] as AgentProfileSpec["responsibilities"],
+    offering: "customer-service" as "customer-service" | "custom",
+    configurationJson: "{}",
+    setupJson: "{}",
   };
   const [form, setForm] = useState(defaultForm);
 
@@ -59,6 +62,9 @@ export function AgentProfilesPanel({
       knowledgeTitle: spec.knowledge.title,
       knowledgeContent: spec.knowledge.content,
       responsibilities: spec.responsibilities,
+      offering: spec.offering === "customer-service" ? "customer-service" : "custom",
+      configurationJson: JSON.stringify(spec.configuration ?? {}, null, 2),
+      setupJson: JSON.stringify(spec.setup ?? {}, null, 2),
     });
     setFormError(null);
     setOpen(true);
@@ -101,10 +107,35 @@ export function AgentProfilesPanel({
     setCreating(true);
     setFormError(null);
     try {
+      let configuration: Record<string, unknown> | undefined;
+      let setup: Record<string, unknown> | undefined;
+      try {
+        const parsedConfiguration = JSON.parse(form.configurationJson || "{}") as unknown;
+        if (!parsedConfiguration || typeof parsedConfiguration !== "object" || Array.isArray(parsedConfiguration)) {
+          throw new Error("configuration must be a JSON object");
+        }
+        if (Object.keys(parsedConfiguration).length) configuration = parsedConfiguration as Record<string, unknown>;
+        const parsedSetup = JSON.parse(form.setupJson || "{}") as unknown;
+        if (!parsedSetup || typeof parsedSetup !== "object" || Array.isArray(parsedSetup)) {
+          throw new Error("setup must be a JSON object");
+        }
+        if (Object.keys(parsedSetup).length) setup = parsedSetup as Record<string, unknown>;
+      } catch (value) {
+        setFormError(errorMessage(value));
+        setCreating(false);
+        return;
+      }
       const spec: AgentProfileSpec = {
         targetType: form.targetType,
         agentName: form.agentName.trim(),
         instructions: form.instructions.trim(),
+        ...(form.targetType === "business_agent" && form.offering === "customer-service"
+          ? { offering: "customer-service" as const }
+          : {}),
+        ...(configuration ? { configuration } : {}),
+        ...(form.targetType === "business_agent" && form.offering === "customer-service" && setup
+          ? { setup }
+          : {}),
         knowledge: {
           title: form.knowledgeTitle.trim(),
           content: form.knowledgeContent,
@@ -261,6 +292,25 @@ export function AgentProfilesPanel({
                       : "Creates a new agent in this workspace."}
                   </span>
                 </label>
+                {form.targetType === "business_agent" && (
+                  <label className="field">
+                    <span className="field-label">Agent kind</span>
+                    <select
+                      className="select"
+                      value={form.offering}
+                      onChange={(event) => setForm((current) => ({ ...current, offering: event.target.value as "customer-service" | "custom" }))}
+                      disabled={creating}
+                    >
+                      <option value="customer-service">Customer service offering</option>
+                      <option value="custom">Custom configuration</option>
+                    </select>
+                    <span className="field-hint">
+                      {form.offering === "customer-service"
+                        ? "Uses the product customer-service program and setup."
+                        : "Merges the advanced configuration over the platform Assistant draft."}
+                    </span>
+                  </label>
+                )}
                 <label className="field">
                   <span className="field-label">Agent name</span>
                   <input className="input" value={form.agentName} onChange={(event) => setForm((current) => ({ ...current, agentName: event.target.value }))} disabled={creating} />
@@ -291,6 +341,37 @@ export function AgentProfilesPanel({
                     </label>
                   ))}
                 </fieldset>
+                {form.targetType === "business_agent" && (
+                  <details className="advanced-config">
+                    <summary>Advanced configuration</summary>
+                    <label className="field">
+                      <span className="field-label">Configuration JSON</span>
+                      <textarea
+                        className="textarea mono json-editor"
+                        value={form.configurationJson}
+                        onChange={(event) => setForm((current) => ({ ...current, configurationJson: event.target.value }))}
+                        disabled={creating}
+                        spellCheck={false}
+                      />
+                      <span className="field-hint">
+                        Full agent configuration overrides: model, tools, memory, context, program, skills, capabilities, retrieval and product bindings. Channels are excluded.
+                      </span>
+                    </label>
+                    {form.offering === "customer-service" && (
+                      <label className="field">
+                        <span className="field-label">Customer-service setup JSON</span>
+                        <textarea
+                          className="textarea mono json-editor"
+                          value={form.setupJson}
+                          onChange={(event) => setForm((current) => ({ ...current, setupJson: event.target.value }))}
+                          disabled={creating}
+                          spellCheck={false}
+                        />
+                        <span className="field-hint">Optional business, booking, intake, support hours and behaviour overrides. Channels are forced empty.</span>
+                      </label>
+                    )}
+                  </details>
+                )}
                 {formError && <ErrorBox message={formError} />}
               </div>
               <div className="modal-actions">

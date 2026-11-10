@@ -7,11 +7,15 @@ export type AgentTargetType = "platform_assistant" | "business_agent";
 export interface AgentProfileSpec {
   targetType: AgentTargetType;
   agentName: string;
+  offering?: "customer-service";
+  avatar?: string;
   model?: {
     providerId: string;
     connectionName: string;
     modelId: string;
   };
+  configuration?: Record<string, unknown>;
+  setup?: Record<string, unknown>;
   instructions: string;
   knowledge: {
     title: string;
