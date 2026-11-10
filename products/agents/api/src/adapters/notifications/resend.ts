@@ -16,7 +16,8 @@ export class ResendNotificationSender {
   private readonly endpoint: string;
   constructor(private readonly apiKey: string, private readonly sender: string, private readonly options: { timeoutMs: number; testBaseUrl?: string }) {
     if (!apiKey || apiKey.length > 8192 || /[\x00-\x20\x7f]/.test(apiKey)) throw new Error("Invalid email provider credentials");
-    mailAddress.parse(sender);
+    const address = sender.match(/<([^<>]+)>$/)?.[1]?.trim() ?? sender;
+    mailAddress.parse(address);
     z.number().int().min(1).max(30000).parse(options.timeoutMs);
     const base = options.testBaseUrl ? new URL(options.testBaseUrl) : new URL("https://api.resend.com");
     if (options.testBaseUrl && (base.protocol !== "http:" || !["localhost", "127.0.0.1", "[::1]"].includes(base.hostname) || base.username || base.password || base.search || base.hash || base.pathname !== "/")) throw new Error("Invalid email test endpoint");

@@ -156,13 +156,14 @@ const dto = (row: object) => ({ ...Object.fromEntries(Object.entries(row).map(([
 export async function buildPlatformApp(options: { config: PlatformConfig; pool: Pool; identity?: PlatformIdentity; logging?: boolean;testGoogleOAuth?:GoogleOAuthPort;testGoogleApiBaseUrl?:string;testConnectionLoopback?:boolean;
   testFollowupSender?: Pick<ResendNotificationSender,"send">;
   testInvitationSender?: Pick<ResendNotificationSender,"send">;
+  testInvitationBaseUrl?: string;
   testModelProviderOptions?: ConstructorParameters<typeof ModelProviderStore>[3] }) {
   const { config, pool } = options;
   if((options.testGoogleOAuth||options.testGoogleApiBaseUrl)&&config.NODE_ENV!=="test")throw new Error("TEST_GOOGLE_OPTIONS_DENIED");
   if(options.testConnectionLoopback&&config.NODE_ENV!=="test")throw new Error("TEST_CONNECTION_OPTIONS_DENIED");
   if(options.testModelProviderOptions&&config.NODE_ENV!=="test")throw new Error("TEST_MODEL_OPTIONS_DENIED");
   if(options.testFollowupSender&&config.NODE_ENV!=="test")throw new Error("TEST_FOLLOWUP_OPTIONS_DENIED");
-  if(options.testInvitationSender&&config.NODE_ENV!=="test")throw new Error("TEST_INVITATION_OPTIONS_DENIED");
+  if((options.testInvitationSender||options.testInvitationBaseUrl)&&config.NODE_ENV!=="test")throw new Error("TEST_INVITATION_OPTIONS_DENIED");
   const store = new PlatformStore(pool);
   const members = new MemberStore(pool);
   const evaluationTrials = new EvaluationTrials(pool);
@@ -330,7 +331,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   }
   async function resolveScope(request:FastifyRequest) {const user=await account(request),org=organizationId(request);await store.requireMembership(user.id,org);return {accountId:user.id,organizationId:org};}
   const invitationConfig = invitationEmailConfig({...process.env, AGENTS_PUBLIC_URL: config.AGENTS_PUBLIC_URL});
-  const invitationSender = options.testInvitationSender ?? (invitationConfig ? new ResendNotificationSender(invitationConfig.apiKey, invitationConfig.sender, { timeoutMs: 10_000 }) : undefined);
+  const invitationSender = options.testInvitationSender ?? (invitationConfig ? new ResendNotificationSender(invitationConfig.apiKey, invitationConfig.sender, { timeoutMs: 10_000, ...(options.testInvitationBaseUrl ? { testBaseUrl: options.testInvitationBaseUrl } : {}) }) : undefined);
   async function sendInvitationEmail(input: { invitation: { id: string; email: string }; token: string; organizationName: string }): Promise<void> {
     if (!invitationSender) throw new PlatformError("INVITATION_EMAIL_UNAVAILABLE", 503, "Invitation email is unavailable");
     const link = `${new URL(config.AGENTS_PUBLIC_URL).origin}/invite/${encodeURIComponent(input.token)}`;
