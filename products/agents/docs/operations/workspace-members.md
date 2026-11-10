@@ -133,6 +133,9 @@ Tests inject a fake sender and never call Resend.
 
 - `products/agents/api/test/permissions.test.ts` covers the role and permission matrix,
   grantable roles and escalation guards.
+- `products/agents/api/test/invitation-delivery.test.ts` sends through the real Resend adapter
+  to a local provider stub, extracts the link from the message, accepts it as an admin and
+  checks that a provider rejection leaves the invitation pending.
 - `products/agents/api/test/members-http.test.ts` covers member listing, admin authority,
   invitations, duplicate pending invitations, wrong email, expiry, revocation, email
   failure, last-owner protection and cross-organization denial.
