@@ -64,6 +64,7 @@ Free plans do not have Paystack codes.
 
 - [ ] In Paystack, set the webhook URL to `https://billing.kasitek.co.za/webhooks/paystack`.
 - [ ] Remove or repoint the legacy `https://dev-client.kasitek.co.za/api/webhooks/paystack` entry.
+- [ ] If Paystack does not allow removing the legacy entry, leave it and monitor its failure count. The central billing endpoint remains authoritative; do not treat the legacy route as a billing source.
 - [ ] Confirm the live secret key is the webhook signing key.
 - [ ] Send a test event and confirm it reaches the service.
 - [ ] Confirm a duplicate delivery is idempotent.

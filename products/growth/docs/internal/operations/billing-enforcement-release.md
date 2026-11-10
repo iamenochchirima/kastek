@@ -91,6 +91,6 @@ Post-release review date: 14 days after live publication.
 
 - Live Paystack key, live plan codes and live billing host.
 - Owner approval for live mode and any real-money smoke purchase.
-- Removal of the legacy `dev-client` webhook.
+- The legacy `dev-client` webhook cannot be removed in the current Paystack account and is accepted as a monitored residual. It must not be treated as the billing authority.
 - Hosted dashboards and alerts for billing and AI denial events.
 - Agents DB-backed analytics and seat-boundary tests remain open. The local PostgreSQL has pgvector 0.8.6; the Agents schema requires 0.8.7, so those suites cannot run locally.
