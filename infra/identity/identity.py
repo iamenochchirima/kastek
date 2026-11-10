@@ -34,6 +34,17 @@ def postgres_bin():
     raise RuntimeError('PostgreSQL tools not found; set IDENTITY_POSTGRES_BIN to the installed bin directory')
 
 
+def postgres_port():
+    raw = os.environ.get('IDENTITY_POSTGRES_PORT', '55432')
+    try:
+        port = int(raw)
+    except ValueError as error:
+        raise RuntimeError('IDENTITY_POSTGRES_PORT must be an integer') from error
+    if not 1 <= port <= 65535:
+        raise RuntimeError('IDENTITY_POSTGRES_PORT must be between 1 and 65535')
+    return port
+
+
 def install():
     if os.uname().machine != 'x86_64':
         raise RuntimeError('Checked runtime lock supports Linux x86_64; supply installed runtimes for another architecture')
@@ -94,6 +105,7 @@ def start():
     validate_local_configuration(env)
     STATE.mkdir(mode=0o700, exist_ok=True)
     pg = postgres_bin()
+    port = postgres_port()
     data = STATE / 'postgres'
     password_file = STATE / 'pg-password'
     password_file.write_text(env['IDENTITY_DB_PASSWORD'] + '\n')
@@ -102,10 +114,15 @@ def start():
         if not (data / 'PG_VERSION').exists():
             run([pg / 'initdb', '-D', data, '-U', 'identity', '--auth=scram-sha-256', '--pwfile', password_file], stdout=subprocess.DEVNULL)
             with (data / 'postgresql.conf').open('a') as stream:
-                stream.write("\nlisten_addresses='127.0.0.1'\nport=55432\nshared_buffers='32MB'\nmax_connections=30\n")
+                stream.write(f"\nlisten_addresses='127.0.0.1'\nport={port}\nshared_buffers='32MB'\nmax_connections=30\n")
     finally:
         password_file.unlink(missing_ok=True)
     # Per-user cluster must not write sockets in the system PostgreSQL directory.
+    config_path = data / 'postgresql.conf'
+    config = config_path.read_text()
+    if f'port={port}' not in config.splitlines():
+        config = "\n".join(line for line in config.splitlines() if not line.strip().startswith('port=')) + f"\nport={port}\n"
+        config_path.write_text(config)
     socket_dir = STATE / 'pg-socket'
     socket_dir.mkdir(mode=0o700, exist_ok=True)
     socket_setting = "unix_socket_directories='" + str(socket_dir).replace("'", "''") + "'"
@@ -116,9 +133,9 @@ def start():
     if not alive:
         run([pg / 'pg_ctl', '-D', data, '-l', STATE / 'postgres.log', '-w', 'start'], stdout=subprocess.DEVNULL)
     pg_env = {**os.environ, 'PGPASSWORD': env['IDENTITY_DB_PASSWORD']}
-    check = subprocess.run([str(pg / 'psql'), '-h', '127.0.0.1', '-p', '55432', '-U', 'identity', '-d', 'postgres', '-Atc', "SELECT 1 FROM pg_database WHERE datname='identity'"], env=pg_env, capture_output=True, check=True)
+    check = subprocess.run([str(pg / 'psql'), '-h', '127.0.0.1', '-p', str(port), '-U', 'identity', '-d', 'postgres', '-Atc', "SELECT 1 FROM pg_database WHERE datname='identity'"], env=pg_env, capture_output=True, check=True)
     if check.stdout.strip() != b'1':
-        run([pg / 'createdb', '-h', '127.0.0.1', '-p', '55432', '-U', 'identity', 'identity'], env=pg_env)
+        run([pg / 'createdb', '-h', '127.0.0.1', '-p', str(port), '-U', 'identity', 'identity'], env=pg_env)
     keycloak = executable('keycloak', '*/bin/kc.sh')
     java = executable('java', '*/bin/java')
     mailpit = executable('mailpit', 'mailpit')
@@ -126,7 +143,7 @@ def start():
     imported.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(ROOT / 'kasitek-realm.json', imported / 'kasitek-realm.json')
     env.update({'JAVA_HOME': str(java.parent.parent), 'JAVA_OPTS_KC_HEAP': '-Xms128m -Xmx512m',
-        'KC_DB': 'postgres', 'KC_DB_URL': 'jdbc:postgresql://127.0.0.1:55432/identity',
+        'KC_DB': 'postgres', 'KC_DB_URL': f'jdbc:postgresql://127.0.0.1:{port}/identity',
         'KC_DB_USERNAME': 'identity', 'KC_DB_PASSWORD': env['IDENTITY_DB_PASSWORD'],
         'KC_BOOTSTRAP_ADMIN_USERNAME': env['KEYCLOAK_ADMIN'], 'KC_BOOTSTRAP_ADMIN_PASSWORD': env['KEYCLOAK_ADMIN_PASSWORD'],
         'KC_HOSTNAME': 'http://localhost:8080', 'KC_HEALTH_ENABLED': 'true', 'KC_METRICS_ENABLED': 'true',
@@ -169,17 +186,19 @@ def stop():
 
 def backup():
     env = environment()
+    port = postgres_port()
     folder = ROOT / '.backups'
     folder.mkdir(mode=0o700, exist_ok=True)
     target = folder / time.strftime('identity-%Y%m%dT%H%M%SZ.sql', time.gmtime())
     with target.open('wb') as output:
         target.chmod(0o600)
-        run([postgres_bin() / 'pg_dump', '-h', '127.0.0.1', '-p', '55432', '-U', 'identity', '-d', 'identity'], stdout=output, env={**os.environ, 'PGPASSWORD': env['IDENTITY_DB_PASSWORD']})
+        run([postgres_bin() / 'pg_dump', '-h', '127.0.0.1', '-p', str(port), '-U', 'identity', '-d', 'identity'], stdout=output, env={**os.environ, 'PGPASSWORD': env['IDENTITY_DB_PASSWORD']})
     print('Backup saved to ' + str(target))
 
 
 def export():
     env = environment()
+    port = postgres_port()
     if process_alive('keycloak'):
         raise RuntimeError('Stop identity before exporting to avoid concurrent database access')
     folder = ROOT / '.backups'
@@ -187,7 +206,7 @@ def export():
     keycloak = executable('keycloak', '*/bin/kc.sh')
     java = executable('java', '*/bin/java')
     env.update({'JAVA_HOME': str(java.parent.parent), 'JAVA_OPTS_KC_HEAP': '-Xms128m -Xmx512m',
-        'KC_DB': 'postgres', 'KC_DB_URL': 'jdbc:postgresql://127.0.0.1:55432/identity',
+        'KC_DB': 'postgres', 'KC_DB_URL': f'jdbc:postgresql://127.0.0.1:{port}/identity',
         'KC_DB_USERNAME': 'identity', 'KC_DB_PASSWORD': env['IDENTITY_DB_PASSWORD'], 'KC_FEATURES': 'recovery-codes'})
     pg = postgres_bin()
     run([pg / 'pg_ctl', '-D', STATE / 'postgres', '-l', STATE / 'postgres.log', '-w', 'start'], stdout=subprocess.DEVNULL)
@@ -210,7 +229,7 @@ def restore(source):
     pg = postgres_bin()
     run([pg / 'pg_ctl', '-D', STATE / 'postgres', '-l', STATE / 'postgres.log', '-w', 'start'], stdout=subprocess.DEVNULL)
     pg_env = {**os.environ, 'PGPASSWORD': env['IDENTITY_DB_PASSWORD']}
-    args = [pg / 'psql', '-h', '127.0.0.1', '-p', '55432', '-U', 'identity', '-v', 'ON_ERROR_STOP=1']
+    args = [pg / 'psql', '-h', '127.0.0.1', '-p', str(port), '-U', 'identity', '-v', 'ON_ERROR_STOP=1']
     # Only an isolated validation DB is replaced, never the active identity or Growth DB.
     try:
         run(args + ['-d', 'postgres', '-c', 'DROP DATABASE IF EXISTS identity_restore_check WITH (FORCE)'], env=pg_env)
