@@ -8,26 +8,33 @@ import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { api, ApiError, message, organizationPath } from "./api";
 import { ErrorMessage } from "./shell";
 
+type MemberRole = "owner" | "admin" | "member";
 type Member = {
   accountId: string;
   displayName: string;
   email: string;
-  role: "owner" | "member";
+  role: MemberRole;
   joinedAt: string;
 };
 type Invitation = {
   id: string;
   email: string;
-  role: "owner" | "member";
+  role: MemberRole;
   invitedByName: string;
   expiresAt: string;
   createdAt: string;
   expired: boolean;
 };
-type MembersResponse = { members: Member[]; canManage: boolean };
+type MembersResponse = {
+  members: Member[];
+  canManage: boolean;
+  role: MemberRole;
+  permissions: string[];
+  grantableRoles: MemberRole[];
+};
 type InvitationsResponse = { invitations: Invitation[] };
 
-const roleLabel = (role: Member["role"]) => role === "owner" ? "Owner" : "Member";
+const roleLabel = (role: MemberRole) => role === "owner" ? "Owner" : role === "admin" ? "Admin" : "Member";
 const dateLabel = (value: string) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(date);
@@ -45,6 +52,8 @@ export function MembersSettings({
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [canManage, setCanManage] = useState(false);
+  const [viewerRole, setViewerRole] = useState<MemberRole>("member");
+  const [grantableRoles, setGrantableRoles] = useState<MemberRole[]>(["member"]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
@@ -60,6 +69,8 @@ export function MembersSettings({
       const result = await api<MembersResponse>(`${organizationPath(organizationId)}/members`);
       setMembers(result.members);
       setCanManage(result.canManage);
+      setViewerRole(result.role ?? "member");
+      setGrantableRoles(result.grantableRoles ?? []);
       if (result.canManage) {
         const pending = await api<InvitationsResponse>(`${organizationPath(organizationId)}/invitations`);
         setInvitations(pending.invitations);
@@ -79,12 +90,16 @@ export function MembersSettings({
     setMembers([]);
     setInvitations([]);
     setCanManage(false);
+    setViewerRole("member");
+    setGrantableRoles(["member"]);
     void (async () => {
       try {
         const result = await api<MembersResponse>(`${organizationPath(organizationId)}/members`);
         if (!live) return;
         setMembers(result.members);
         setCanManage(result.canManage);
+        setViewerRole(result.role ?? "member");
+        setGrantableRoles(result.grantableRoles ?? []);
         if (result.canManage) {
           const pending = await api<InvitationsResponse>(`${organizationPath(organizationId)}/invitations`);
           if (live) setInvitations(pending.invitations);
@@ -97,6 +112,9 @@ export function MembersSettings({
     })();
     return () => { live = false; };
   }, [organizationId]);
+
+  const canManageMember = (member: Member) =>
+    canManage && member.accountId !== currentAccountId && (viewerRole === "owner" || member.role === "member");
 
   async function invite(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -114,9 +132,11 @@ export function MembersSettings({
       await load();
     } catch (cause) {
       setInviteError(
-        cause instanceof ApiError && cause.code === "INVITATION_EMAIL_FAILED"
-          ? "Invitation saved, but the email could not be sent. Revoke it and try again."
-          : message(cause),
+        cause instanceof ApiError && cause.code === "INVITATION_EMAIL_UNAVAILABLE"
+          ? "Invitation email is not configured for this environment."
+          : cause instanceof ApiError && cause.code === "INVITATION_EMAIL_FAILED"
+            ? "Invitation saved, but the email could not be sent. Revoke it and try again."
+            : message(cause),
       );
       await load();
     } finally {
@@ -213,17 +233,16 @@ export function MembersSettings({
               <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">{roleLabel(member.role)}</span>
                 {self ? <span className="text-xs text-muted-foreground">You</span> : null}
-                {canManage && !self ? (
+                {canManageMember(member) ? (
                   <>
                     <select
                       aria-label={`Role for ${member.displayName || member.email}`}
                       className="min-h-9 rounded-md border border-border bg-background px-2 text-sm"
                       value={member.role}
                       disabled={busy}
-                      onChange={(event) => void changeRole(member, event.target.value as Member["role"])}
+                      onChange={(event) => void changeRole(member, event.target.value as MemberRole)}
                     >
-                      <option value="member">Member</option>
-                      <option value="owner">Owner</option>
+                      {grantableRoles.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
                     </select>
                     <Button size="sm" variant="outline" disabled={busy} onClick={() => void remove(member)}>Remove</Button>
                   </>
@@ -269,9 +288,8 @@ export function MembersSettings({
               </label>
               <label className="block space-y-2 text-sm">
                 Role
-                <select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={inviteRole} onChange={(event) => setInviteRole(event.target.value as Member["role"])}>
-                  <option value="member">Member</option>
-                  <option value="owner">Owner</option>
+                <select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={inviteRole} onChange={(event) => setInviteRole(event.target.value as MemberRole)}>
+                  {grantableRoles.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
                 </select>
               </label>
               {inviteError ? <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{inviteError}</p> : null}

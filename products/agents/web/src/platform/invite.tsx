@@ -7,7 +7,7 @@ import { api, ApiError, message, type Session } from "./api";
 type InvitationPreview = {
   organizationName: string;
   email: string;
-  role: "owner" | "member";
+  role: "owner" | "admin" | "member";
   expiresAt: string;
   state: "pending" | "accepted" | "revoked" | "expired";
 };
@@ -68,7 +68,7 @@ export function InvitePage() {
         {error && !preview ? <><h1 className="mt-2 text-xl font-semibold">Invitation unavailable</h1><p className="mt-2 text-sm text-muted-foreground">{error}</p></> : !preview ? <div className="mt-4 space-y-3" aria-label="Loading invitation"><Skeleton className="h-6 w-48" /><Skeleton className="h-4 w-full" /><Skeleton className="h-10 w-32" /></div> : <>
           <h1 className="mt-2 text-xl font-semibold">Join {preview.organizationName}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Invitation for <span className="font-medium text-foreground">{preview.email}</span> as {preview.role === "owner" ? "an owner" : "a member"}.
+            Invitation for <span className="font-medium text-foreground">{preview.email}</span> as {preview.role === "owner" ? "an owner" : preview.role === "admin" ? "an admin" : "a member"}.
           </p>
           <p className="mt-1 text-xs text-muted-foreground">Expires {dateLabel(preview.expiresAt)}</p>
 

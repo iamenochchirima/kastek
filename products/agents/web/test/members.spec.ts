@@ -5,8 +5,21 @@ const owner = { id: "owner", email: "owner@example.test", displayName: "Owner" }
 const member = { id: "member", email: "member@example.test", displayName: "Member" };
 const session = { account: owner, organizations: [{ id: org, name: "Workspace", role: "owner" }] };
 
-type Member = { accountId: string; displayName: string; email: string; role: "owner" | "member"; joinedAt: string };
-type Invitation = { id: string; email: string; role: "owner" | "member"; invitedByName: string; expiresAt: string; createdAt: string; expired: boolean };
+type MemberRole = "owner" | "admin" | "member";
+type Member = { accountId: string; displayName: string; email: string; role: MemberRole; joinedAt: string };
+type Invitation = { id: string; email: string; role: MemberRole; invitedByName: string; expiresAt: string; createdAt: string; expired: boolean };
+
+const ownerPermissions = [
+  "workspace.manage", "workspace.delete", "workspace.transfer", "billing.manage",
+  "members.read", "members.invite", "members.manage", "members.escalate",
+  "agents.read", "agents.manage", "agents.delete", "knowledge.read", "knowledge.manage",
+  "knowledge.approve", "channels.manage", "deploy.manage", "models.select",
+  "credentials.manage", "conversations.read", "conversations.manage", "conversations.assign",
+];
+const adminPermissions = ownerPermissions.filter((permission) =>
+  !["workspace.delete", "workspace.transfer", "billing.manage", "credentials.manage", "members.escalate"].includes(permission));
+const roleFrom = (value: unknown): MemberRole =>
+  value === "owner" ? "owner" : value === "admin" ? "admin" : "member";
 
 async function mockMembers(page: Page) {
   let members: Member[] = [
@@ -22,13 +35,17 @@ async function mockMembers(page: Page) {
     const method = request.method();
     const body = request.postData() ? request.postDataJSON() as Record<string, unknown> : null;
     if (path === "/api/session") return route.fulfill({ json: session });
-    if (path.endsWith("/members") && method === "GET") return route.fulfill({ json: { members, canManage: true } });
+    if (path.endsWith("/members") && method === "GET") {
+      return route.fulfill({
+        json: { members, canManage: true, role: "owner", permissions: ownerPermissions, grantableRoles: ["owner", "admin", "member"] },
+      });
+    }
     if (path.endsWith("/invitations") && method === "GET") return route.fulfill({ json: { invitations } });
     if (path.endsWith("/invitations") && method === "POST") {
       const invitation: Invitation = {
         id: `invite-${invitations.length + 2}`,
         email: String(body?.email ?? ""),
-        role: body?.role === "owner" ? "owner" : "member",
+        role: roleFrom(body?.role),
         invitedByName: owner.displayName,
         expiresAt: "2027-01-08T00:00:00Z",
         createdAt: new Date().toISOString(),
@@ -39,7 +56,7 @@ async function mockMembers(page: Page) {
     }
     if (path.includes("/members/") && method === "PATCH") {
       const id = path.split("/").at(-1)!;
-      members = members.map((item) => item.accountId === id ? { ...item, role: body?.role === "owner" ? "owner" : "member" } : item);
+      members = members.map((item) => item.accountId === id ? { ...item, role: roleFrom(body?.role) } : item);
       return route.fulfill({ json: { member: members.find((item) => item.accountId === id) } });
     }
     if (path.includes("/members/") && method === "DELETE") {
@@ -94,6 +111,61 @@ for (const width of [1440, 768, 390]) {
     await page.screenshot({ path: test.info().outputPath(`members-${width}.png`), fullPage: true, animations: "disabled" });
   });
 }
+
+test("admin manages members but not owners or peers", async ({ page }) => {
+  const admin = { id: "admin", email: "admin@example.test", displayName: "Admin" };
+  const members: Member[] = [
+    { accountId: owner.id, displayName: owner.displayName, email: owner.email, role: "owner", joinedAt: "2026-01-02T00:00:00Z" },
+    { accountId: admin.id, displayName: admin.displayName, email: admin.email, role: "admin", joinedAt: "2026-02-03T00:00:00Z" },
+    { accountId: member.id, displayName: member.displayName, email: member.email, role: "member", joinedAt: "2026-03-04T00:00:00Z" },
+  ];
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    const method = request.method();
+    const body = request.postData() ? request.postDataJSON() as Record<string, unknown> : null;
+    if (path === "/api/session") {
+      return route.fulfill({ json: { account: admin, organizations: [{ id: org, name: "Workspace", role: "admin" }] } });
+    }
+    if (path.endsWith("/members") && method === "GET") {
+      return route.fulfill({
+        json: { members, canManage: true, role: "admin", permissions: adminPermissions, grantableRoles: ["admin", "member"] },
+      });
+    }
+    if (path.endsWith("/invitations") && method === "GET") return route.fulfill({ json: { invitations: [] } });
+    if (path.endsWith("/invitations") && method === "POST") {
+      const invitation: Invitation = {
+        id: "invite-admin", email: String(body?.email ?? ""), role: roleFrom(body?.role),
+        invitedByName: admin.displayName, expiresAt: "2027-01-08T00:00:00Z",
+        createdAt: new Date().toISOString(), expired: false,
+      };
+      return route.fulfill({ status: 201, json: { invitation } });
+    }
+    return route.fulfill({ status: 404, json: { error: { message: "Not found" } } });
+  });
+
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/app/settings?section=members");
+  await expect(page.getByRole("heading", { name: "Members", exact: true })).toBeVisible();
+
+  const ownerRow = page.getByRole("listitem").filter({ hasText: "owner@example.test" });
+  const peerRow = page.getByRole("listitem").filter({ hasText: "admin@example.test" });
+  const memberRow = page.getByRole("listitem").filter({ hasText: "member@example.test" });
+  await expect(ownerRow.locator("select")).toHaveCount(0);
+  await expect(peerRow.locator("select")).toHaveCount(0);
+  await expect(memberRow.locator("select")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Invite member", exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Invite member", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.locator("select option")).toHaveText(["Admin", "Member"]);
+  await dialog.getByLabel("Email", { exact: true }).fill("new-admin@example.test");
+  await dialog.locator("select").selectOption("admin");
+  await dialog.getByRole("button", { name: "Send invitation", exact: true }).click();
+  await expect(page.getByText("Invitation sent", { exact: true })).toBeVisible();
+
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
 
 test("invitation page handles signed-out, accepted and pending states", async ({ page }) => {
   let accepted = false;
