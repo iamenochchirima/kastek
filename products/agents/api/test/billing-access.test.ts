@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { BillingEntitlementSnapshot } from "@kasitek-labs/contracts";
 import { billingSnapshotToken } from "@kasitek-labs/server-support/billing-authority";
 import { assertAgentsBillingAccess, assertAgentsPaidPlan, assertManagedModelAllowance, agentsPaidModelsAllowed, billingPaidPlan } from "../src/product/billing/billing";
+import { BillingClient } from "@kasitek-labs/server-support/billing-client";
 
 const serviceSecret = "agents-test-billing-secret-0000000000000";
 const snapshotSecret = "agents-test-snapshot-secret-000000000000";
@@ -90,6 +91,11 @@ beforeAll(async () => {
         token: billingSnapshotToken(value, snapshotSecret),
       });
     }
+    if (incoming.pathname === "/internal/checkout") {
+      response.writeHead(400, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: '"email" must be a valid email' }));
+      return;
+    }
     response.writeHead(404);
     response.end();
   });
@@ -161,5 +167,22 @@ describe("Agents AI allowance access", () => {
     await expect(agentsPaidModelsAllowed(pool, "org_free")).resolves.toBe(false);
     planKey = "agents-growth";
     await expect(agentsPaidModelsAllowed(pool, "org_growth")).resolves.toBe(true);
+  });
+
+  it("keeps the payment provider's rejection status instead of a generic failure", async () => {
+    const client = BillingClient.fromEnvironment("agents")!;
+    await expect(
+      client.checkout({
+        tenantId: "org_credit",
+        planKey: "agents-starter",
+        email: "owner@example.test",
+        idempotencyKey: "checkout-rejected",
+        returnUrl: "http://localhost:3150/app/settings?payment=complete",
+      }),
+    ).rejects.toMatchObject({
+      name: "BillingRequestError",
+      status: 400,
+      message: '"email" must be a valid email',
+    });
   });
 });

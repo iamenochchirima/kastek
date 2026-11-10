@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { BillingPlanSummary } from "@kasitek-labs/contracts";
+import { BillingRequestError } from "@kasitek-labs/server-support/billing-client";
 import { PlatformError } from "../../contracts/contracts";
 import type { Pool } from "pg";
 import {
@@ -170,13 +171,22 @@ export function registerBillingRoutes(
         ? accountRecord.billing_email
         : "";
     if (!email) throw new PlatformError("BILLING_EMAIL_REQUIRED", 409, "The billing account has no email");
-    const result = await client.checkout({
-      tenantId: scope.organizationId,
-      planKey: body.planKey.trim(),
-      email,
-      idempotencyKey: body.idempotencyKey.trim(),
-      returnUrl: `${options.publicUrl.replace(/\/+$/, "")}/app/settings?payment=complete`,
-    });
+    let result;
+    try {
+      result = await client.checkout({
+        tenantId: scope.organizationId,
+        planKey: body.planKey.trim(),
+        email,
+        idempotencyKey: body.idempotencyKey.trim(),
+        returnUrl: `${options.publicUrl.replace(/\/+$/, "")}/app/settings?payment=complete`,
+      });
+    } catch (error) {
+      // The payment provider rejects some accounts (for example an unroutable email domain).
+      // Surface its reason instead of turning it into an internal error.
+      if (error instanceof BillingRequestError && [400, 409, 422].includes(error.status))
+        throw new PlatformError("BILLING_CHECKOUT_REJECTED", 409, error.message);
+      throw error;
+    }
     return result;
   });
 

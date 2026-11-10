@@ -31,6 +31,16 @@ interface CacheEntry {
   expiresAt: number;
 }
 
+export class BillingRequestError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "BillingRequestError";
+  }
+}
+
 export class BillingClient {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
@@ -97,7 +107,8 @@ export class BillingClient {
       | { error?: string }
       | null;
     if (!response.ok)
-      throw new Error(
+      throw new BillingRequestError(
+        response.status,
         payload?.error ?? `Billing request failed (${response.status})`,
       );
     return payload as T;
