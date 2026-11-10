@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canGrantRole,
   canManageRole,
+  effectivePermissionsFor,
   grantableRoles,
   memberRoles,
   permissionsFor,
@@ -14,8 +15,8 @@ describe("workspace permissions", () => {
     expect(permissionsFor("owner")).toEqual([...workspacePermissions]);
   });
 
-  it("keeps destructive, billing and credential permissions with owners", () => {
-    for (const permission of ["workspace.delete", "workspace.transfer", "billing.manage", "credentials.manage", "members.escalate"] as const) {
+  it("keeps destructive, billing, credential and grant permissions with owners", () => {
+    for (const permission of ["workspace.delete", "workspace.transfer", "billing.manage", "credentials.manage", "members.escalate", "permissions.manage"] as const) {
       expect(roleCan("owner", permission)).toBe(true);
       expect(roleCan("admin", permission)).toBe(false);
       expect(roleCan("member", permission)).toBe(false);
@@ -47,6 +48,44 @@ describe("workspace permissions", () => {
     expect(grantableRoles("owner")).toEqual([...memberRoles]);
     expect(grantableRoles("admin")).toEqual(["admin", "member"]);
     expect(grantableRoles("member")).toEqual([]);
+  });
+
+  it("applies grants and denies on top of the role", () => {
+    const granted = effectivePermissionsFor("member", [{ permission: "agents.manage", effect: "grant" }]);
+    expect(granted).toContain("agents.manage");
+    expect(granted).toContain("conversations.manage");
+
+    const denied = effectivePermissionsFor("admin", [{ permission: "agents.manage", effect: "deny" }]);
+    expect(denied).not.toContain("agents.manage");
+    expect(denied).toContain("members.manage");
+    expect(denied).toContain("knowledge.manage");
+  });
+
+  it("lets deny win over grant", () => {
+    const effective = effectivePermissionsFor("admin", [
+      { permission: "agents.manage", effect: "grant" },
+      { permission: "agents.manage", effect: "deny" },
+    ]);
+    expect(effective).not.toContain("agents.manage");
+  });
+
+  it("ignores overrides for owners", () => {
+    const effective = effectivePermissionsFor("owner", [
+      { permission: "agents.manage", effect: "deny" },
+      { permission: "billing.manage", effect: "deny" },
+    ]);
+    expect(effective).toContain("agents.manage");
+    expect(effective).toContain("billing.manage");
+    expect(effective).toContain("permissions.manage");
+  });
+
+  it("never grants owner-only permissions by override", () => {
+    const effective = effectivePermissionsFor("admin", [
+      { permission: "credentials.manage", effect: "grant" },
+      { permission: "permissions.manage", effect: "grant" },
+    ]);
+    expect(effective).not.toContain("credentials.manage");
+    expect(effective).not.toContain("permissions.manage");
   });
 
   it("blocks privilege escalation", () => {

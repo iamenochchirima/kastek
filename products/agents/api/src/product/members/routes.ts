@@ -9,6 +9,7 @@ const role = z.enum(memberRoles);
 const memberBody = z.strictObject({ email: z.email().max(254), role: role.default("member") });
 const invitationBody = z.strictObject({ email: z.email().max(254), role: role.default("member") });
 const roleBody = z.strictObject({ role });
+const permissionBody = z.strictObject({ effect: z.enum(["grant", "deny", "inherit"]) });
 const invitationId = z.uuid();
 const token = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 
@@ -39,6 +40,31 @@ export function registerMemberRoutes(
       permissions: result.permissions,
       grantableRoles: result.grantableRoles,
     };
+  });
+
+  app.get(`${base}/members/:accountId/permissions`, async (request) => {
+    const scope = await options.resolveScope(request);
+    const accountId = z.uuid().parse(params(request).accountId);
+    return { member: await options.store.permissions(scope, accountId) };
+  });
+
+  app.put(`${base}/members/:accountId/permissions/:permission`, async (request) => {
+    const scope = await options.resolveScope(request);
+    const accountId = z.uuid().parse(params(request).accountId);
+    const permission = z.string().min(3).max(64).parse(params(request).permission);
+    const input = permissionBody.parse(request.body ?? {});
+    const member = await options.store.setPermission(scope, accountId, permission, input.effect);
+    request.log.info(
+      {
+        event: "members.permission_changed",
+        organizationId: scope.organizationId,
+        accountId,
+        permission,
+        effect: input.effect,
+      },
+      "Workspace member permission changed",
+    );
+    return { member };
   });
 
   app.post(`${base}/members`, async (request, reply) => {

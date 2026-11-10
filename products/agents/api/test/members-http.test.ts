@@ -361,6 +361,67 @@ describe.skipIf(!parent)("workspace members and invitations", () => {
     expect(removed.status).toBe(200);
   });
 
+  it("applies per-member permission overrides", async () => {
+    emailFails = false;
+    const f = await fixture("Permission overrides");
+    const member = await account(`override-member-${randomUUID()}@example.test`, "Member");
+    const adminAccount = await account(`override-admin-${randomUUID()}@example.test`, "Admin");
+    await request(f.ownerSession.token, "POST", `${f.base}/members`, { email: member.email, role: "member" });
+    await request(f.ownerSession.token, "POST", `${f.base}/members`, { email: adminAccount.email, role: "admin" });
+    const memberSession = await session(member.id);
+    const adminSession = await session(adminAccount.id);
+
+    expect((await request(memberSession.token, "POST", `${f.base}/agents`, { name: "Denied" })).status).toBe(403);
+
+    const granted = await request(f.ownerSession.token, "PUT", `${f.base}/members/${member.id}/permissions/agents.manage`, {
+      effect: "grant",
+    });
+    expect(granted.status).toBe(200);
+    expect(granted.body.member.permissions).toContain("agents.manage");
+    expect((await request(memberSession.token, "POST", `${f.base}/agents`, { name: "Granted agent" })).status).toBe(201);
+
+    const listed = await request(f.ownerSession.token, "GET", `${f.base}/members`);
+    const memberRow = listed.body.members.find((item: { accountId: string }) => item.accountId === member.id);
+    expect(memberRow).toMatchObject({ role: "member" });
+    expect(memberRow.permissions).toContain("agents.manage");
+    expect(memberRow.overrides).toEqual([{ permission: "agents.manage", effect: "grant" }]);
+
+    const denied = await request(f.ownerSession.token, "PUT", `${f.base}/members/${adminAccount.id}/permissions/agents.manage`, {
+      effect: "deny",
+    });
+    expect(denied.status).toBe(200);
+    expect(denied.body.member.permissions).not.toContain("agents.manage");
+    expect(denied.body.member.permissions).toContain("members.manage");
+    expect((await request(adminSession.token, "POST", `${f.base}/agents`, { name: "Denied admin" })).status).toBe(403);
+
+    const inherited = await request(f.ownerSession.token, "PUT", `${f.base}/members/${member.id}/permissions/agents.manage`, {
+      effect: "inherit",
+    });
+    expect(inherited.status).toBe(200);
+    expect(inherited.body.member.permissions).not.toContain("agents.manage");
+    expect((await request(memberSession.token, "POST", `${f.base}/agents`, { name: "Inherited" })).status).toBe(403);
+  });
+
+  it("guards override management", async () => {
+    emailFails = false;
+    const f = await fixture("Override guards");
+    const member = await account(`guard-member-${randomUUID()}@example.test`, "Member");
+    const adminAccount = await account(`guard-admin-${randomUUID()}@example.test`, "Admin");
+    await request(f.ownerSession.token, "POST", `${f.base}/members`, { email: member.email, role: "member" });
+    await request(f.ownerSession.token, "POST", `${f.base}/members`, { email: adminAccount.email, role: "admin" });
+    const memberSession = await session(member.id);
+    const adminSession = await session(adminAccount.id);
+
+    expect((await request(memberSession.token, "GET", `${f.base}/members/${member.id}/permissions`)).status).toBe(403);
+    expect((await request(adminSession.token, "PUT", `${f.base}/members/${member.id}/permissions/agents.manage`, { effect: "grant" })).status).toBe(403);
+    expect((await request(f.ownerSession.token, "PUT", `${f.base}/members/${f.owner.id}/permissions/agents.manage`, { effect: "deny" })).status).toBe(409);
+    expect((await request(f.ownerSession.token, "PUT", `${f.base}/members/${f.owner.id}/permissions/agents.manage`, { effect: "grant" })).status).toBe(409);
+    const self = await request(f.ownerSession.token, "PUT", `${f.base}/members/${f.owner.id}/permissions/agents.manage`, { effect: "inherit" });
+    expect([409, 403]).toContain(self.status);
+    expect((await request(f.ownerSession.token, "PUT", `${f.base}/members/${member.id}/permissions/not.a.permission`, { effect: "grant" })).status).toBe(400);
+    expect((await request(f.ownerSession.token, "PUT", `${f.base}/members/${member.id}/permissions/credentials.manage`, { effect: "grant" })).status).toBe(409);
+  });
+
   it("keeps agent configuration with owners and admins", async () => {
     emailFails = false;
     const f = await fixture("Agent authority");

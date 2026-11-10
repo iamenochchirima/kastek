@@ -7,14 +7,20 @@ import { assertAgentsBillingLimit } from "../billing/billing";
 import {
   canGrantRole,
   canManageRole,
+  effectivePermissions,
+  effectivePermissionsFor,
   grantableRoles,
+  isWorkspacePermission,
   memberRoles,
   membershipRole,
-  permissionsFor,
+  ownerOnlyPermissions,
+  permissionOverrides,
   requirePermission,
   requireWorkspaceMember,
   roleCan,
   type MemberRole,
+  type PermissionEffect,
+  type PermissionOverride,
   type WorkspacePermission,
 } from "./permissions";
 
@@ -27,6 +33,8 @@ export type MemberRecord = {
   email: string;
   role: MemberRole;
   joinedAt: string;
+  permissions: WorkspacePermission[];
+  overrides: PermissionOverride[];
 };
 
 export type InvitationRecord = {
@@ -101,12 +109,15 @@ async function member(
     [organizationId, accountId],
   )).rows[0];
   if (!row) throw notFound();
+  const overrides = await permissionOverrides(db, organizationId, accountId);
   return {
     accountId: row.account_id,
     displayName: row.display_name,
     email: row.email,
     role: row.role,
     joinedAt: iso(row.created_at),
+    permissions: effectivePermissionsFor(row.role, overrides),
+    overrides,
   };
 }
 
@@ -181,17 +192,37 @@ export class MemberStore {
        ORDER BY CASE m.role WHEN 'owner' THEN 0 ELSE 1 END, lower(a.display_name), m.account_id`,
       [scope.organizationId],
     );
+    const overrideRows = (await this.pool.query<{
+      account_id: string;
+      permission: WorkspacePermission;
+      effect: PermissionEffect;
+    }>(
+      `SELECT account_id,permission,effect FROM agents_platform.member_permission_overrides
+       WHERE organization_id=$1`,
+      [scope.organizationId],
+    )).rows;
+    const overridesByAccount = new Map<string, PermissionOverride[]>();
+    for (const row of overrideRows) {
+      const list = overridesByAccount.get(row.account_id) ?? [];
+      list.push({ permission: row.permission, effect: row.effect });
+      overridesByAccount.set(row.account_id, list);
+    }
     return {
       role: current,
-      permissions: permissionsFor(current),
+      permissions: effectivePermissionsFor(current, overridesByAccount.get(scope.accountId) ?? []),
       grantableRoles: grantableRoles(current),
-      members: result.rows.map((row) => ({
-        accountId: row.account_id,
-        displayName: row.display_name,
-        email: row.email,
-        role: row.role,
-        joinedAt: iso(row.created_at),
-      })),
+      members: result.rows.map((row) => {
+        const overrides = overridesByAccount.get(row.account_id) ?? [];
+        return {
+          accountId: row.account_id,
+          displayName: row.display_name,
+          email: row.email,
+          role: row.role,
+          joinedAt: iso(row.created_at),
+          permissions: effectivePermissionsFor(row.role, overrides),
+          overrides,
+        };
+      }),
     };
   }
 
@@ -221,6 +252,69 @@ export class MemberStore {
       createdAt: iso(row.created_at),
       expired: row.expires_at.getTime() <= Date.now(),
     }));
+  }
+
+  async permissions(scope: MemberScope, accountId: string): Promise<{
+    role: MemberRole;
+    permissions: WorkspacePermission[];
+    overrides: PermissionOverride[];
+  }> {
+    z.uuid().parse(accountId);
+    await requireMemberPermission(this.pool, scope, "permissions.manage");
+    const target = await activeRole(this.pool, scope.organizationId, accountId);
+    if (!target) throw notFound();
+    return (await effectivePermissions(this.pool, scope.organizationId, accountId))!;
+  }
+
+  async setPermission(
+    scope: MemberScope,
+    accountId: string,
+    permission: string,
+    effect: PermissionEffect | "inherit",
+  ): Promise<{ role: MemberRole; permissions: WorkspacePermission[]; overrides: PermissionOverride[] }> {
+    z.uuid().parse(accountId);
+    if (!isWorkspacePermission(permission)) {
+      throw new PlatformError("INVALID_PERMISSION", 400, "Unknown workspace permission");
+    }
+    z.enum(["grant", "deny", "inherit"]).parse(effect);
+    if (accountId === scope.accountId) {
+      throw new PlatformError("SELF_PERMISSION_CHANGE", 409, "You cannot change your own permissions");
+    }
+    return transaction(this.pool, async (db) => {
+      const actorRole = await requireMemberPermission(db, scope, "permissions.manage", true);
+      const targetRole = await activeRole(db, scope.organizationId, accountId, true);
+      if (!targetRole) throw notFound();
+      if (targetRole === "owner") {
+        throw new PlatformError("OWNER_PERMISSION_IMMUTABLE", 409, "An owner always holds every permission");
+      }
+      if (effect === "grant") {
+        if (ownerOnlyPermissions.has(permission)) {
+          throw new PlatformError("PERMISSION_NOT_GRANTABLE", 409, "That permission is reserved for owners");
+        }
+        if (!roleCan(actorRole, permission)) throw escalationDenied();
+      }
+      if (effect === "inherit") {
+        await db.query(
+          `DELETE FROM agents_platform.member_permission_overrides
+           WHERE organization_id=$1 AND account_id=$2 AND permission=$3`,
+          [scope.organizationId, accountId, permission],
+        );
+      } else {
+        await db.query(
+          `INSERT INTO agents_platform.member_permission_overrides(
+             organization_id,account_id,permission,effect,created_by)
+           VALUES($1,$2,$3,$4,$5)
+           ON CONFLICT (organization_id,account_id,permission) DO UPDATE
+             SET effect=excluded.effect,updated_at=now()`,
+          [scope.organizationId, accountId, permission, effect, scope.accountId],
+        );
+      }
+      return {
+        role: targetRole,
+        permissions: effectivePermissionsFor(targetRole, await permissionOverrides(db, scope.organizationId, accountId)),
+        overrides: await permissionOverrides(db, scope.organizationId, accountId),
+      };
+    });
   }
 
   async addExisting(scope: MemberScope, input: { email: string; role: MemberRole }): Promise<MemberRecord> {
@@ -565,6 +659,11 @@ export class MemberStore {
       }
       await db.query(
         `UPDATE agents_platform.memberships SET revoked_at=now()
+         WHERE organization_id=$1 AND account_id=$2`,
+        [scope.organizationId, accountId],
+      );
+      await db.query(
+        `DELETE FROM agents_platform.member_permission_overrides
          WHERE organization_id=$1 AND account_id=$2`,
         [scope.organizationId, accountId],
       );
