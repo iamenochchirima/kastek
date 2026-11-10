@@ -1,6 +1,7 @@
 import Link from "@/lib/link";
-import { ArrowRight } from "lucide-react";
-import "@/styles/marketing.css";
+import { ArrowRight, Chrome, ShieldCheck } from "lucide-react";
+import { AuthShell } from "@/components/auth-shell";
+
 export default function PartnerLoginScreen({
   intent = "login",
   error,
@@ -18,39 +19,49 @@ export default function PartnerLoginScreen({
     );
   }
   return (
-    <div className="marketing marketing-auth">
-      <Link href="/" className="marketing-brand">
-        kasitek<span>/ agency</span>
-      </Link>
-      <section>
-        <p className="marketing-kicker">One KasiTek account</p>
-        <h1>{register ? "Make it your business." : "Welcome back."}</h1>
-        <p>
-          Create and manage your white-label businesses. Sign in with your
-          email, Google account or passkey through shared KasiTek sign-in.
-        </p>
-        {error && <p role="alert">{error}</p>}
-        <button className="marketing-cta" onClick={() => start()}>
-          {register ? "Create your account" : "Continue with email or passkey"}
-          <ArrowRight size={18} />
-        </button>
-        <button
-          className="marketing-auth-secondary"
-          onClick={() => start(true)}
-        >
-          Continue with Google
-        </button>
-        {register && (
-          <p className="marketing-footnote">
-            Email registration requires verification.
-          </p>
-        )}
+    <AuthShell>
+      <p className="auth-kicker">One KasiTek account</p>
+      <h1 className="auth-card-title mt-3">
+        {register ? "Make it your business." : "Welcome back."}
+      </h1>
+      <p className="auth-card-description">
+        {register
+          ? "Create your partner account, then set up your first white-label business."
+          : "Sign in to manage your businesses, your team and your client portals."}
+      </p>
+
+      {error && <p className="auth-error mt-5" role="alert">{error}</p>}
+
+      <button className="auth-primary mt-7" onClick={() => start()}>
+        {register ? "Continue to create account" : "Continue with email or passkey"}
+        <ArrowRight size={17} aria-hidden="true" />
+      </button>
+      <button
+        className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-[#171a221f] bg-transparent px-4 text-sm font-medium text-[#171a22]"
+        onClick={() => start(true)}
+      >
+        <Chrome size={16} aria-hidden="true" />
+        Continue with Google
+      </button>
+
+      <p className="auth-secondary">
+        {register ? "Already have an account? " : "New here? "}
         <Link href={register ? "/login?audience=partner" : "/register"}>
-          {register
-            ? "Already have an account? Sign in"
-            : "New here? Create an account"}
+          {register ? "Sign in" : "Create an account"}
         </Link>
-      </section>
-    </div>
+      </p>
+
+      {register && (
+        <p className="mt-3 text-[11px] leading-5 text-[#626874]">
+          Email registration requires verification.
+        </p>
+      )}
+
+      <p className="auth-security">
+        <ShieldCheck size={15} aria-hidden="true" />
+        Partner access uses KasiTek Identity. Your password and passkeys are
+        never stored in this workspace.
+      </p>
+    </AuthShell>
   );
 }

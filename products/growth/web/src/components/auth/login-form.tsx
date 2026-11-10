@@ -1,21 +1,40 @@
-import { useSearchParams } from "react-router";
-import { Link } from "react-router";
+import { ArrowRight, Chrome, Fingerprint, Mail, ShieldCheck } from "lucide-react";
+import { Link, useSearchParams } from "react-router";
 import { loginUrl } from "@/lib/shared-login";
-import { Button } from "@/components/ui/button";
+
+const methods = [
+  { label: "Email", Icon: Mail },
+  { label: "Google", Icon: Chrome },
+  { label: "Passkey", Icon: Fingerprint },
+];
 
 export default function LoginForm({ signup = false }: { signup?: boolean }) {
   const [params] = useSearchParams();
   const returnTo = params.get("returnTo") ?? params.get("callbackUrl");
   return (
-    <div className="space-y-5">
-      <p className="text-center text-sm text-muted-foreground">Email, Google or passkey</p>
-      <Button asChild className="w-full">
-        <a href={loginUrl(returnTo, signup)}>{signup ? "Create account" : "Continue to sign in"}</a>
-      </Button>
-      <p className="text-center text-sm text-muted-foreground">
-        <Link to={`${signup ? "/login" : "/signup"}?returnTo=${encodeURIComponent(returnTo ?? "/workspace")}`} className="text-primary hover:underline">
-          {signup ? "Already have an account? Sign in" : "Create an account"}
+    <div>
+      <div className="auth-methods" aria-label="Supported sign-in methods">
+        {methods.map(({ label, Icon }) => (
+          <span key={label} className="auth-method">
+            <Icon size={14} aria-hidden="true" />
+            {label}
+          </span>
+        ))}
+      </div>
+      <a className="auth-primary" href={loginUrl(returnTo, signup)}>
+        {signup ? "Continue to create account" : "Continue to sign in"}
+        <ArrowRight size={17} aria-hidden="true" />
+      </a>
+      <p className="auth-secondary">
+        {signup ? "Already have an account? " : "New to KasiTek? "}
+        <Link to={`${signup ? "/login" : "/signup"}?returnTo=${encodeURIComponent(returnTo ?? "/workspace")}`}>
+          {signup ? "Sign in" : "Create an account"}
         </Link>
+      </p>
+      <p className="auth-security">
+        <ShieldCheck size={15} aria-hidden="true" />
+        Secure sign-in through KasiTek Identity. Your password and passkeys are
+        never stored in this workspace.
       </p>
     </div>
   );

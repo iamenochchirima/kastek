@@ -5,7 +5,7 @@ import { redirect } from "react-router";
 import { Suspense } from "react";
 import { safeReturnTo } from "@/lib/shared-login";
 
-export function meta() { return [{ title: "Sign In | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
+export function meta() { return [{ title: "Sign In | KasiTek Growth" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const search = new URL(route.request.url).searchParams;
@@ -22,14 +22,17 @@ export async function clientLoader(route: ClientLoaderFunctionArgs) {
 
 export default function LoginPage() {
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h1 className="text-[24px] leading-8 font-semibold tracking-[-0.02em] text-ink-1">Sign in</h1>
-        <p className="mt-0.5 text-[13px] text-ink-2">KasiTek workspace.</p>
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#617168]">Workspace access</p>
+      <h1 className="auth-card-title mt-3">Welcome back.</h1>
+      <p className="auth-card-description">
+        Sign in to pick up your conversations, campaigns and content.
+      </p>
+      <div className="auth-card-form">
+        <Suspense fallback={null}>
+          <LoginForm />
+        </Suspense>
       </div>
-      <Suspense fallback={null}>
-        <LoginForm />
-      </Suspense>
     </div>
   );
 }

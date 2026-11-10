@@ -5,14 +5,14 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "@/lib/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { TenantBrandMark } from "@/components/tenant-brand";
 import { useTenantContext } from "@/lib/tenant-context-provider";
 import { tenantFetch } from "@/lib/api";
+import { AuthShell } from "@/components/auth-shell";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 
 const emailSchema = z.object({
   email: z.string().email("Enter a valid email address"),
@@ -40,11 +40,11 @@ export default function Login() {
   const [choosingAudience, setChoosingAudience] = useState(false);
 
   const emailForm = useForm<z.infer<typeof emailSchema>>({
-    resolver: zodResolver(emailSchema),
+    resolver: zodResolver(emailSchema as never),
     defaultValues: { email: "" },
   });
   const passwordForm = useForm<z.infer<typeof passwordSchema>>({
-    resolver: zodResolver(passwordSchema),
+    resolver: zodResolver(passwordSchema as never),
     defaultValues: { password: "" },
   });
   const portalMissing = !isLoading && !context.workspace && !context.branding;
@@ -133,214 +133,232 @@ export default function Login() {
 
   if (isLoading) {
     return (
-      <div className="relative min-h-screen w-full overflow-hidden bg-background p-4">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-background to-background" />
-        <div className="absolute left-1/2 top-0 h-72 w-[42rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
-
-        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md items-center">
-          <div className="w-full rounded-3xl border border-border/60 bg-card/60 p-6 text-center shadow-2xl backdrop-blur-xl">
-            <div className="mx-auto mb-4 h-12 w-12 animate-pulse rounded-full bg-primary/15" />
-            <div className="mx-auto h-9 w-56 animate-pulse rounded-full bg-muted/70" />
-            <div className="mx-auto mt-3 h-4 w-40 animate-pulse rounded-full bg-muted/50" />
-            <div className="mx-auto mt-3 h-3 w-44 animate-pulse rounded-full bg-muted/40" />
-          </div>
+      <AuthShell>
+        <p className="auth-kicker">Portal access</p>
+        <h1 className="auth-card-title mt-3">Preparing your workspace.</h1>
+        <p className="auth-card-description">
+          We are checking this portal and your access.
+        </p>
+        <div className="mt-8 space-y-3" aria-hidden="true">
+          <div className="h-11 animate-pulse rounded-md bg-[#182b250d]" />
+          <div className="h-11 animate-pulse rounded-md bg-[#182b250d]" />
+          <div className="h-11 animate-pulse rounded-md bg-[#182b250d]" />
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   if (portalMissing) {
     return (
-      <div className="relative min-h-screen w-full overflow-hidden bg-background p-4">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-background to-background" />
-        <div className="absolute left-1/2 top-0 h-72 w-[42rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
-
-        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md items-center">
-          <div className="w-full rounded-3xl border border-destructive/20 bg-card/80 p-6 text-center shadow-2xl backdrop-blur-xl">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-destructive/30 bg-destructive/10 text-destructive">
-              !
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Sorry, this portal is not available</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Check the link and try again, or contact support if you need a new portal setup.
-            </p>
-          </div>
-        </div>
-      </div>
+      <AuthShell>
+        <p className="auth-kicker">Portal unavailable</p>
+        <h1 className="auth-card-title mt-3">This portal is not available.</h1>
+        <p className="auth-card-description">
+          Check the link and try again, or contact support if you need a new
+          portal setup.
+        </p>
+        <a className="auth-primary mt-8" href="mailto:support@kasitek.co.za">
+          Contact support
+          <ArrowRight size={17} aria-hidden="true" />
+        </a>
+      </AuthShell>
     );
   }
 
+  const heading =
+    stage === "email"
+      ? "Access your portal."
+      : stage === "password"
+        ? "Enter your password."
+        : stage === "partner_login"
+          ? "Agency partner account."
+          : stage === "choose_audience"
+            ? "Choose your account."
+            : "Check your inbox.";
+  const description =
+    stage === "email"
+      ? `Use the email address connected to ${brandName}.`
+      : stage === "partner_login"
+        ? "This business is connected to your KasiTek partner account. Continue with secure partner sign-in."
+        : stage === "choose_audience"
+          ? "This email has more than one account in this business. Choose which one to use."
+          : stage === "password"
+            ? "This email already has access. Enter the password to continue."
+            : "We have sent a secure setup link so you can finish creating your access.";
+
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-background p-4">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-background to-background" />
-      <div className="absolute left-1/2 top-0 h-72 w-[42rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
-
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md items-center">
-        <div className="w-full space-y-8">
-          <div className="rounded-3xl border border-border/60 bg-card/60 p-6 text-center shadow-2xl backdrop-blur-xl">
-            <div className="mx-auto mb-4 flex items-center justify-center">
-              <TenantBrandMark className="ring-1 ring-primary/20 shadow-lg shadow-primary/20" />
-            </div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              {brandName === "Portal" ? "Welcome to your portal" : `Welcome to ${brandName}`}
-            </h1>
-            <p className="mt-2 text-muted-foreground">{tagline}</p>
-            {context.workspace?.slug ? (
-              <p className="mt-3 text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                Portal {context.workspace.slug}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="space-y-3 text-center">
-            <h2 className="text-sm font-medium uppercase tracking-[0.24em] text-muted-foreground">
-              Portal access
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Start with your email. We’ll verify your access to {brandName}.
-            </p>
-          </div>
-
-          <Card className="border-border/50 bg-card/80 shadow-2xl backdrop-blur-xl">
-              <CardHeader>
-                <CardTitle>
-                  {stage === "email" ? "Access your portal" : stage === "password" ? "Enter your password" : stage === "partner_login" ? "Agency partner account" : stage === "choose_audience" ? "Choose your account" : "Check your inbox"}
-                </CardTitle>
-              <CardDescription>
-                {stage === "email"
-                  ? `Use the email address connected to ${brandName}.`
-                  : stage === "partner_login"
-                    ? "This business is connected to your KasiTek partner account. Continue with secure partner sign-in."
-                    : stage === "choose_audience"
-                      ? "This email has more than one account in this business. Choose which one to use."
-                    : stage === "password"
-                    ? "This email already has access. Enter the password to continue."
-                    : "We’ve sent a secure setup link so you can finish creating your access."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {stage === "email" ? (
-                <Form {...emailForm}>
-                  <form onSubmit={emailForm.handleSubmit(onContinue)} className="space-y-4">
-                    <FormField
-                      control={emailForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input placeholder="admin@tenant.com" {...field} className="bg-background/50" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {emailForm.formState.errors.root ? (
-                      <p className="text-sm text-destructive">{emailForm.formState.errors.root.message}</p>
-                    ) : null}
-
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      size="lg"
-                      loading={emailForm.formState.isSubmitting}
-                      loadingLabel="Checking access..."
-                    >
-                      Continue
-                    </Button>
-                  </form>
-                </Form>
-              ) : null}
-
-              {stage === "password" ? (
-                <Form {...passwordForm}>
-                  <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
-                    <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm">
-                      <div className="font-medium">{email}</div>
-                      <div className="text-muted-foreground">
-                        {audience === "client" ? "Client portal access" : "Tenant admin access"}
-                      </div>
-                    </div>
-
-                    <FormField
-                      control={passwordForm.control}
-                      name="password"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Password</FormLabel>
-                          <FormControl>
-                            <Input type="password" placeholder="••••••••" {...field} className="bg-background/50" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {passwordForm.formState.errors.root ? (
-                      <p className="text-sm text-destructive">{passwordForm.formState.errors.root.message}</p>
-                    ) : null}
-
-                    <div className="flex gap-3">
-                      <Button type="button" variant="outline" className="flex-1" onClick={resetToEmail}>
-                        Back
-                      </Button>
-                      <Button
-                        type="submit"
-                        className="flex-1"
-                        loading={passwordForm.formState.isSubmitting}
-                        loadingLabel="Signing in..."
-                      >
-                        Sign in
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              ) : null}
-
-              {stage === "setup_link_sent" ? (
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-5 text-center text-sm text-muted-foreground">
-                    We&apos;ve sent a secure setup link to <span className="font-medium text-foreground">{email}</span>.
-                    Check your email to finish setting up your access.
-                  </div>
-
-                  <div className="text-center">
-                    <Button type="button" variant="outline" onClick={resetToEmail}>
-                      Use a different email
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-
-              {stage === "partner_login" ? (
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-5 text-center text-sm text-muted-foreground">
-                    <span className="font-medium text-foreground">{email}</span> signs in through KasiTek Login. This account does not use a separate portal password.
-                  </div>
-                  <a
-                    href={`/api/tenant/api/partner/auth/start?returnTo=${encodeURIComponent(context.workspace?.slug ? `/portal/${context.workspace.slug}` : '/app/businesses')}`}
-                    className="block w-full rounded-xl bg-primary px-4 py-3 text-center text-sm font-semibold text-primary-foreground hover:opacity-90"
-                  >
-                    Continue with KasiTek Login
-                  </a>
-                  <div className="text-center"><Button type="button" variant="outline" onClick={resetToEmail}>Use a different email</Button></div>
-                </div>
-              ) : null}
-              {stage === "choose_audience" ? (
-                <div className="space-y-3">
-                  {availableAudiences.map((available) => (
-                    <Button key={available} type="button" className="w-full" variant={available === "partner" ? "default" : "outline"} disabled={choosingAudience} onClick={() => void continueAsAudience(available)}>
-                      {choosingAudience ? "Checking account…" : available === "partner" ? "Agency partner account" : available === "tenant" ? "Agency team account" : "Client account"}
-                    </Button>
-                  ))}
-                  <div className="text-center"><Button type="button" variant="ghost" onClick={resetToEmail}>Use a different email</Button></div>
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
+    <AuthShell>
+      <div className="text-center">
+        <div className="flex justify-center">
+          <TenantBrandMark className="ring-1 ring-[#5b5bf033] shadow-lg shadow-[#5b5bf01f]" />
         </div>
+        <h1 className="auth-card-title mt-5">
+          {brandName === "Portal" ? "Welcome to your portal." : `Welcome to ${brandName}.`}
+        </h1>
+        <p className="auth-card-description">{tagline}</p>
       </div>
-    </div>
+
+      <div className="mt-8">
+        <h2 className="text-[13px] font-medium text-[#171a22]">{heading}</h2>
+        <p className="mt-1 text-[13px] leading-5 text-[#626874]">{description}</p>
+
+        {stage === "email" ? (
+          <Form {...emailForm}>
+            <form onSubmit={emailForm.handleSubmit(onContinue)} className="mt-5 space-y-4">
+              <FormField
+                control={emailForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="auth-label">Email</FormLabel>
+                    <FormControl>
+                      <Input placeholder="admin@tenant.com" {...field} className="auth-input" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {emailForm.formState.errors.root ? (
+                <p className="auth-error">{emailForm.formState.errors.root.message}</p>
+              ) : null}
+
+              <button
+                type="submit"
+                className="auth-primary"
+                disabled={emailForm.formState.isSubmitting}
+              >
+                {emailForm.formState.isSubmitting ? "Checking access..." : "Continue"}
+                <ArrowRight size={17} aria-hidden="true" />
+              </button>
+            </form>
+          </Form>
+        ) : null}
+
+        {stage === "password" ? (
+          <Form {...passwordForm}>
+            <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="mt-5 space-y-4">
+              <div className="rounded-lg border border-[#171a221f] bg-[#f8f6ef] px-4 py-3 text-sm">
+                <div className="font-medium text-[#171a22]">{email}</div>
+                <div className="text-[#626874]">
+                  {audience === "client" ? "Client portal access" : "Tenant admin access"}
+                </div>
+              </div>
+
+              <FormField
+                control={passwordForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="auth-label">Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" placeholder="••••••••" {...field} className="auth-input" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {passwordForm.formState.errors.root ? (
+                <p className="auth-error">{passwordForm.formState.errors.root.message}</p>
+              ) : null}
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 flex-1 items-center justify-center rounded-md border border-[#171a221f] bg-transparent px-4 text-sm font-medium text-[#171a22]"
+                  onClick={resetToEmail}
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  className="auth-primary flex-1"
+                  disabled={passwordForm.formState.isSubmitting}
+                >
+                  {passwordForm.formState.isSubmitting ? "Signing in..." : "Sign in"}
+                </button>
+              </div>
+            </form>
+          </Form>
+        ) : null}
+
+        {stage === "setup_link_sent" ? (
+          <div className="mt-5 space-y-4">
+            <div className="auth-note">
+              We have sent a secure setup link to{" "}
+              <span className="font-medium text-[#171a22]">{email}</span>. Check
+              your email to finish setting up your access.
+            </div>
+            <button
+              type="button"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-md border border-[#171a221f] bg-transparent px-4 text-sm font-medium text-[#171a22]"
+              onClick={resetToEmail}
+            >
+              Use a different email
+            </button>
+          </div>
+        ) : null}
+
+        {stage === "partner_login" ? (
+          <div className="mt-5 space-y-4">
+            <div className="auth-note">
+              <span className="font-medium text-[#171a22]">{email}</span> signs
+              in through KasiTek Login. This account does not use a separate
+              portal password.
+            </div>
+            <a
+              href={`/api/tenant/api/partner/auth/start?returnTo=${encodeURIComponent(context.workspace?.slug ? `/portal/${context.workspace.slug}` : "/app/businesses")}`}
+              className="auth-primary"
+            >
+              Continue with KasiTek Login
+              <ArrowRight size={17} aria-hidden="true" />
+            </a>
+            <button
+              type="button"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-md border border-[#171a221f] bg-transparent px-4 text-sm font-medium text-[#171a22]"
+              onClick={resetToEmail}
+            >
+              Use a different email
+            </button>
+          </div>
+        ) : null}
+
+        {stage === "choose_audience" ? (
+          <div className="mt-5 space-y-3">
+            {availableAudiences.map((available) => (
+              <button
+                key={available}
+                type="button"
+                className={available === "partner" ? "auth-primary" : "inline-flex min-h-11 w-full items-center justify-center rounded-md border border-[#171a221f] bg-transparent px-4 text-sm font-medium text-[#171a22]"}
+                disabled={choosingAudience}
+                onClick={() => void continueAsAudience(available)}
+              >
+                {choosingAudience
+                  ? "Checking account..."
+                  : available === "partner"
+                    ? "Agency partner account"
+                    : available === "tenant"
+                      ? "Agency team account"
+                      : "Client account"}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="inline-flex min-h-10 w-full items-center justify-center px-4 text-sm text-[#626874]"
+              onClick={resetToEmail}
+            >
+              Use a different email
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      <p className="auth-security">
+        <ShieldCheck size={15} aria-hidden="true" />
+        Your access is scoped to this portal. Agency staff sign in through
+        KasiTek Identity.
+      </p>
+    </AuthShell>
   );
 }

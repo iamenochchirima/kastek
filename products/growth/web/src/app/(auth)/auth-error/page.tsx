@@ -1,8 +1,8 @@
 import { useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import { Link } from "react-router";
-import { Button } from "@/components/ui/button";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
 
-export function meta() { return [{ title: "Sign-in error | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
+export function meta() { return [{ title: "Sign-in error | KasiTek Growth" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 const MESSAGES: Record<string, string> = {
   access_denied: "Sign-in was cancelled. Please try again.",
@@ -23,10 +23,18 @@ export async function clientLoader(route: ClientLoaderFunctionArgs) {
 export default function AuthErrorPage() {
   const { message } = useLoaderData<typeof clientLoader>();
   return (
-    <div className="space-y-4 text-center">
-      <h1 className="text-2xl font-semibold">Unable to sign in</h1>
-      <p role="alert" className="text-sm text-muted-foreground">{message}</p>
-      <Button asChild><Link to="/login">Try again</Link></Button>
+    <div>
+      <span className="inline-flex size-11 items-center justify-center rounded-full border border-[#a83c3433] bg-[#a83c340f] text-[#a83c34]">
+        <AlertTriangle size={19} aria-hidden="true" />
+      </span>
+      <h1 className="auth-card-title mt-5">Unable to sign in.</h1>
+      <p role="alert" className="auth-card-description">{message}</p>
+      <div className="auth-card-form">
+        <Link className="auth-primary" to="/login">
+          <ArrowLeft size={17} aria-hidden="true" />
+          Try again
+        </Link>
+      </div>
     </div>
   );
 }

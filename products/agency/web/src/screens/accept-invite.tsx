@@ -7,12 +7,12 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { tenantFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { TenantBrandMark } from "@/components/tenant-brand";
 import { useTenantContext } from "@/lib/tenant-context-provider";
+import { AuthShell } from "@/components/auth-shell";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 
 const acceptInviteSchema = z
   .object({
@@ -39,7 +39,7 @@ export default function AcceptInviteScreen() {
   const token = useMemo(() => searchParams.get("token") ?? "", [searchParams]);
 
   const form = useForm<z.infer<typeof acceptInviteSchema>>({
-    resolver: zodResolver(acceptInviteSchema),
+    resolver: zodResolver(acceptInviteSchema as never),
     defaultValues: {
       password: "",
       confirmPassword: "",
@@ -124,98 +124,100 @@ export default function AcceptInviteScreen() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-background p-4">
-      <div className="mx-auto flex min-h-screen max-w-md items-center">
-        <Card className="w-full border-border/60 shadow-xl">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-4">
-              <TenantBrandMark />
-            </div>
-            <CardTitle>{brandName}</CardTitle>
-            <CardDescription>
-              {workspaceDisplayName && tenantClientName
-                ? `Set credentials for ${tenantClientName} inside ${workspaceDisplayName}.`
-                : `Create credentials for your ${tagline.toLowerCase()}.`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoadingInvite ? (
-              <div className="rounded-xl border border-border px-4 py-5 text-center text-sm text-muted-foreground">
-                Loading invite details.
-              </div>
-            ) : inviteError ? (
-              <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-5 text-center text-sm text-destructive">
-                {inviteError}
-              </div>
-            ) : success ? (
-              <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-5 text-center text-sm text-muted-foreground">
-                Account activated. Redirecting to your client portal.
-              </div>
-            ) : (
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  {inviteEmail && (
-                    <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm">
-                      <div className="font-medium">{inviteEmail}</div>
-                      <div className="text-muted-foreground">This invited email will be used for sign-in.</div>
-                    </div>
-                  )}
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Jane Doe" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="Create a password" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="confirmPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Confirm Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="Confirm your password" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  {form.formState.errors.root && (
-                    <p className="text-sm text-destructive">{form.formState.errors.root.message}</p>
-                  )}
-                  <Button
-                    className="w-full"
-                    type="submit"
-                    loading={form.formState.isSubmitting}
-                    loadingLabel="Saving..."
-                  >
-                    Activate Account
-                  </Button>
-                </form>
-              </Form>
-            )}
-          </CardContent>
-        </Card>
+    <AuthShell>
+      <div className="text-center">
+        <div className="flex justify-center">
+          <TenantBrandMark />
+        </div>
+        <p className="auth-kicker mt-5">Client invitation</p>
+        <h1 className="auth-card-title mt-2">{brandName}</h1>
+        <p className="auth-card-description">
+          {workspaceDisplayName && tenantClientName
+            ? `Set credentials for ${tenantClientName} inside ${workspaceDisplayName}.`
+            : `Create credentials for your ${tagline.toLowerCase()}.`}
+        </p>
       </div>
-    </div>
+
+      <div className="mt-8">
+        {isLoadingInvite ? (
+          <div className="space-y-3" aria-hidden="true">
+            <div className="h-11 animate-pulse rounded-md bg-[#171a220d]" />
+            <div className="h-11 animate-pulse rounded-md bg-[#171a220d]" />
+            <div className="h-11 animate-pulse rounded-md bg-[#171a220d]" />
+          </div>
+        ) : inviteError ? (
+          <div className="rounded-lg border border-[#a83c3433] bg-[#a83c340f] px-4 py-5 text-center text-sm text-[#81352e]">
+            {inviteError}
+          </div>
+        ) : success ? (
+          <div className="rounded-lg border border-[#5b5bf033] bg-[#5b5bf00f] px-4 py-5 text-center text-sm text-[#4a46e8]">
+            Account activated. Redirecting to your client portal.
+          </div>
+        ) : (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              {inviteEmail && (
+                <div className="rounded-lg border border-[#171a221f] bg-[#f8f6ef] px-4 py-3 text-sm">
+                  <div className="font-medium text-[#171a22]">{inviteEmail}</div>
+                  <div className="text-[#626874]">This invited email will be used for sign-in.</div>
+                </div>
+              )}
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="auth-label">Name</FormLabel>
+                    <FormControl>
+                      <Input className="auth-input" placeholder="Jane Doe" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="auth-label">Password</FormLabel>
+                    <FormControl>
+                      <Input className="auth-input" type="password" placeholder="At least 8 characters" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="confirmPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="auth-label">Confirm password</FormLabel>
+                    <FormControl>
+                      <Input className="auth-input" type="password" placeholder="Repeat your password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {form.formState.errors.root ? (
+                <p className="auth-error">{form.formState.errors.root.message}</p>
+              ) : null}
+              <button type="submit" className="auth-primary" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? "Activating..." : "Activate client access"}
+                <ArrowRight size={17} aria-hidden="true" />
+              </button>
+            </form>
+          </Form>
+        )}
+      </div>
+
+      <p className="auth-security">
+        <ShieldCheck size={15} aria-hidden="true" />
+        Your access is scoped to this client workspace. Your password is stored
+        securely and never shared with other clients.
+      </p>
+    </AuthShell>
   );
 }
