@@ -5,7 +5,7 @@ import { ProviderTransportError } from "../../contracts/model-transport";
 import type { PoolClient } from "pg";
 import { PlatformError, canonicalJson, requestDigest } from "../../contracts/contracts";
 import { acceptedModelRoutesSchema, type AcceptedModelRoutes } from "../../contracts/model-bindings";
-import { modelDescriptorSchema, modelSelectionSchema, providerDefinitionSchema,
+import { modelDescriptorSchema, modelSelectionSchema, managedModelIds, providerDefinitionSchema,
   type ModelSelection, type ProviderUseGrant } from "../../contracts/model-providers";
 import { compileEffectiveExecutionPolicy, type ExecutionPolicyLayer } from "./policy";
 
@@ -13,6 +13,8 @@ import { compileEffectiveExecutionPolicy, type ExecutionPolicyLayer } from "./po
 export async function resolveAcceptedModelRoutes(db: PoolClient, input: {
   organizationId: string; agentId: string; product: "agents" | "growth" | "agencies";
   selection: ModelSelection; generation?: ModelGenerationSettings; layers: readonly ExecutionPolicyLayer[]; requiresTools: boolean;
+  /** Free plans keep the free managed models. Paid plans open the full managed catalogue. */
+  allowManagedPaidModels?: boolean;
 }): Promise<AcceptedModelRoutes> {
   const selection = modelSelectionSchema.parse(input.selection);
   let connectionId: string, modelId: string, grantId: string | undefined, consumer: ProviderUseGrant["consumer"];
@@ -30,7 +32,7 @@ export async function resolveAcceptedModelRoutes(db: PoolClient, input: {
   }
   const connection = (await db.query(`SELECT * FROM agents_platform.model_provider_connections
     WHERE organization_id=$1 AND id=$2 FOR SHARE`, [input.organizationId, connectionId])).rows[0];
-  if (connection?.managed_model_id && modelId !== connection.managed_model_id) throw new PlatformError("MODEL_USE_DENIED", 403, "The managed provider does not allow this model");
+  if (connection?.managed_model_id && !managedModelIds(connection)!.includes(modelId)) throw new PlatformError("MODEL_USE_DENIED", 403, "The managed provider does not allow this model");
   if (!connection || connection.state !== "active") throw new PlatformError("MODEL_CONNECTION_UNAVAILABLE", 409, "Reconnect the selected model provider");
   const definition = providerDefinitionSchema.parse(connection.definition);
   if (definition.adapter.readiness !== "installed") throw new PlatformError("MODEL_ADAPTER_NOT_INSTALLED", 503, "The selected model adapter is unavailable");
@@ -52,6 +54,10 @@ export async function resolveAcceptedModelRoutes(db: PoolClient, input: {
   const found = cache.snapshot.models.find((item: { id: string }) => item.id === modelId);
   if (!found || cache.snapshot.unavailableModelIds?.includes(modelId)) throw new PlatformError("MODEL_UNAVAILABLE", 409, "The selected model is unavailable; refresh models or choose another model");
   const model = modelDescriptorSchema.parse(found);
+  if (connection.managed_model_id && input.allowManagedPaidModels === false &&
+      ((model.pricing?.inputMicrosPerMillionTokens ?? 0) > 0 || (model.pricing?.outputMicrosPerMillionTokens ?? 0) > 0)) {
+    throw new PlatformError("MODEL_PLAN_REQUIRED", 403, "Managed paid models are available on a paid plan");
+  }
   if (model.providerId !== definition.id || model.protocol !== definition.protocol || model.lifecycle === "retired") {
     throw new PlatformError("MODEL_UNAVAILABLE", 409, "The selected model cannot be used on this route");
   }

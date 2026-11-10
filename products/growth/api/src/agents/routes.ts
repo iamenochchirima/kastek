@@ -86,33 +86,49 @@ async function recordAgentTaskUsage(
         inputTokens?: unknown;
         outputTokens?: unknown;
         modelCalls?: unknown;
+        managedCostMicros?: unknown;
       };
     };
   };
   if (typeof record.id !== "string" || !TERMINAL_TASK_STATES.has(String(record.state ?? "")))
     return;
   const tokens = record.runtime?.usage?.accountedTokens;
-  if (typeof tokens !== "number" || !Number.isFinite(tokens) || tokens <= 0) return;
+  const managedCost = record.runtime?.usage?.managedCostMicros;
+  const billableTokens = typeof tokens === "number" && Number.isFinite(tokens) && tokens > 0 ? Math.max(1, Math.round(tokens)) : 0;
+  const billableCost = typeof managedCost === "number" && Number.isFinite(managedCost) && managedCost > 0 ? Math.round(managedCost) : 0;
+  if (billableTokens === 0 && billableCost === 0) return;
+  const model = typeof record.runtime?.model?.id === "string" ? record.runtime.model.id : null;
+  const provider = typeof record.runtime?.model?.provider === "string" ? record.runtime.model.provider : null;
   try {
-    await recordMeterUsage(
-      core.pool,
-      orgId,
-      "growth_agent_tokens",
-      Math.max(1, Math.round(tokens)),
-      "growth_agent_task",
-      record.id,
-      `growth:agent-task:${record.id}:tokens`,
-      {
-        model: typeof record.runtime?.model?.id === "string" ? record.runtime.model.id : null,
-        provider:
-          typeof record.runtime?.model?.provider === "string"
-            ? record.runtime.model.provider
-            : null,
-        inputTokens: record.runtime?.usage?.inputTokens ?? null,
-        outputTokens: record.runtime?.usage?.outputTokens ?? null,
-        modelCalls: record.runtime?.usage?.modelCalls ?? null,
-      },
-    );
+    // Managed model cost is the billed meter; tokens stay as analytics and are priced at zero.
+    if (billableCost > 0)
+      await recordMeterUsage(
+        core.pool,
+        orgId,
+        "growth_ai_cost",
+        billableCost,
+        "growth_agent_task",
+        record.id,
+        `growth:agent-task:${record.id}:cost`,
+        { model, provider, unit: "micro_usd" },
+      );
+    if (billableTokens > 0)
+      await recordMeterUsage(
+        core.pool,
+        orgId,
+        "growth_agent_tokens",
+        billableTokens,
+        "growth_agent_task",
+        record.id,
+        `growth:agent-task:${record.id}:tokens`,
+        {
+          model,
+          provider,
+          inputTokens: record.runtime?.usage?.inputTokens ?? null,
+          outputTokens: record.runtime?.usage?.outputTokens ?? null,
+          modelCalls: record.runtime?.usage?.modelCalls ?? null,
+        },
+      );
   } catch (error) {
     console.error({
       event: "billing.usage.growth_agent_task_failed",

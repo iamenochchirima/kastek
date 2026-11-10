@@ -7,6 +7,7 @@ import { builtinToolName } from "../../capabilities/tool-definitions";
 import { toolDescriptorPresentation } from "../../capabilities/tool-descriptors";
 import { capabilityBindingPresentation } from "../../capabilities/tool-presentation";
 import { capabilityBindingSchema } from "../../contracts/capability-catalog";
+import { managedCostMicros } from "../../execution/models/attribution";
 
 const operationLimit = 60;
 export const productOperationMetadataSql=`coalesce((SELECT binding->'definition'->>'providerOperation'
@@ -166,7 +167,9 @@ export async function readTaskRuntime(pool: Pool, root: Root, product:"agents"|"
   const timing = (await pool.query(`SELECT payload->'durationMs' duration_ms,payload->'firstTokenMs' first_token_ms,payload->'outputTokens' output_tokens
     FROM agents_platform.task_events WHERE task_id=$1 AND kind='model.observed' AND payload->>'role'='primary' ORDER BY sequence DESC LIMIT 1`, [root.id])).rows[0];
   const taskTiming=await readTaskTiming(pool,root);
-  return {...projectGrowthRuntime(root, { tasks: visible, operations, aggregate, snapshot, route, timing },new Date(taskTiming.observedAt)),
+  const runtime=projectGrowthRuntime(root, { tasks: visible, operations, aggregate, snapshot, route, timing },new Date(taskTiming.observedAt));
+  runtime.usage.managedCostMicros=Number(await managedCostMicros(pool,root.id));
+  return {...runtime,
     elapsedMs:taskTiming.elapsedMs,workId:taskTiming.workId,workElapsedMs:taskTiming.workElapsedMs};
 }
 export async function readGrowthRuntime(pool:Pool,root:Root,product:"growth"|"agencies"="growth"):Promise<GrowthAgentRuntime>{

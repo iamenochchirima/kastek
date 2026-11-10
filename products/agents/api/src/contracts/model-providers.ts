@@ -149,3 +149,16 @@ export const resolvedModelBindingSchema = z.strictObject({
   policyDigest: z.string().regex(/^[a-f0-9]{64}$/), generationDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 });
 export type ResolvedModelBinding = z.infer<typeof resolvedModelBindingSchema>;
+
+/**
+ * Models a platform-managed connection may expose. Null for customer-supplied connections.
+ * Falls back to the single default pin so pre-allowlist rows keep working.
+ */
+export function managedModelIds(connection: {
+  managed_model_id?: string | null;
+  managed_model_ids?: string[] | null;
+}): string[] | null {
+  if (!connection.managed_model_id) return null;
+  const stored = Array.isArray(connection.managed_model_ids) ? connection.managed_model_ids : [];
+  return stored.length ? stored : [connection.managed_model_id];
+}

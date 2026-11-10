@@ -110,7 +110,8 @@ export function registerBillingRoutes(
                       AND jsonb_typeof(o.output->'usage'->'outputTokens')='number'
                       THEN (o.output->'usage'->>'outputTokens')::bigint ELSE 0 END
                ),0)::text AS output_tokens,
-               COALESCE(SUM(CASE WHEN c.state='settled' THEN c.actual_micros ELSE 0 END),0)::text AS cost_micros
+               COALESCE(SUM(CASE WHEN c.state='settled' THEN c.actual_micros
+                                 WHEN c.state='unknown' THEN c.upper_cost_micros ELSE 0 END),0)::text AS cost_micros
              FROM agents_platform.tasks t
              JOIN agents_platform.operations o
                ON o.task_id=t.id AND o.kind IN ('model','compaction')

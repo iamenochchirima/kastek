@@ -94,3 +94,72 @@ Post-release review date: 14 days after live publication.
 - The legacy `dev-client` webhook cannot be removed in the current Paystack account and is accepted as a monitored residual. It must not be treated as the billing authority.
 - Hosted dashboards and alerts for billing and AI denial events.
 - Agents DB-backed analytics and seat-boundary tests remain open. The local PostgreSQL has pgvector 0.8.6; the Agents schema requires 0.8.7, so those suites cannot run locally.
+
+## Managed AI usage policy (10 November 2026)
+
+```text
+Change: Managed AI usage debits the plan allowance at provider list price; bring-your-own provider keys bypass the allowance; paid managed models are exposed on paid plans.
+Owner: iamenochchirima
+Risk: high
+Affected services and user surfaces: Agents API, worker and web model picker; Growth API and billing usage panel; central billing service and worker; plan comparison copy.
+Platform release version or release ID: pending live publication with the existing billing gate.
+API/schema/migration changes: billing migration 007_ai_cost_meters; Agents schema 141_ai_usage_cost, 142_managed_model_allowlist and 143_usage_forward_skip. No plan version is created or republished.
+Feature flag or rollout method: migration 007 must run before the Agents and Growth code. Meter prices live in billing.capabilities, so rollback is a price change, not a deploy reversal.
+Analytics events and success metrics: not applicable; no new product analytics contract event. Success is a managed turn whose credit debit equals its settled model cost, and a BYO turn that debits nothing.
+Logs, metrics, dashboards, and alerts: billing usage events carry the meter and unit; the Agents worker already reports billing_usage_forward_failed. Hosted dashboards remain a release-process gap.
+User, API, internal, and operational documentation: central-billing.md, the feature map and the production rollout runbook are updated in this change.
+Validation evidence: see below.
+Rollback or disable plan: set agent_ai_cost and growth_ai_cost to 0 and agent_tokens and growth_agent_tokens back to 2. The attribution columns stay and are ignored.
+Post-release review date: 14 days after live publication.
+```
+
+### What changed
+
+- The flat 2 micro-USD per token charge is replaced by cost-based debits on the `agent_ai_cost`
+  and `growth_ai_cost` meters, priced at 1 credit per micro-USD.
+- Token meters remain for analytics and are priced at zero.
+- Root settlement attributes managed model cost into `usage_ledger.managed_cost_micros`. Operations
+  on customer-supplied connections contribute zero.
+- An unresolved operation bills its reserved upper bound.
+- A platform-managed connection exposes an allowlist in `managed_model_ids`, defaulting to the
+  curated `defaultManagedModelIds` set.
+- Free plans keep the free managed models; paid models are hidden from the picker and rejected at
+  admission with `MODEL_PLAN_REQUIRED`. Customer provider keys require a paid plan.
+- A managed task's model cost is capped at the remaining credit balance, and a capped failure
+  returns `BILLING_AI_ALLOWANCE_EXHAUSTED` instead of `MODEL_COST_LIMIT`.
+- The usage forwarder records `account_not_linked` instead of blocking the queue behind a tenant
+  that can never settle.
+
+### Validation evidence
+
+- Cost attribution fixture on the local Agents database: one managed settled reservation of 4,200
+  micro-USD, one BYO compaction reservation of 9,999 and one managed unknown reservation with a
+  1,000 upper bound produced 5,200 micro-USD. BYO cost was excluded.
+- The same fixture forwarded one `agent_ai_cost` event for 5,200 credits and one `agent_tokens`
+  event for 0 credits; the billing balance moved by exactly 5,200.
+- Managed catalogue on the local workspace: six allowlisted models with live OpenRouter pricing;
+  the free picker projection returned only the free model.
+- Targeted Agents tests: 40 passed across billing access, model admission, model accounting, model
+  dispatch, connected model view and the allowlist helper.
+- Typecheck: Agents API, Growth API and the billing service.
+- `pnpm verify:boundaries`: passed for 2,757 source and script files.
+- Local runtime limitation: the Restate server is not running (Docker is unavailable), so a live
+  model turn could not be executed. Execution dispatch failed with `RUNTIME_DISPATCH_FAILED`; the
+  cost, forwarding and debit path was verified with the fixture above instead.
+
+### Rollout order
+
+1. Run billing migration 007.
+2. Apply Agents schema 141, 142 and 143.
+3. Deploy the Agents API and worker, then the Growth API.
+4. Confirm a managed turn debits its settled cost and a BYO turn debits nothing.
+5. Publish the plan comparison copy.
+
+### Open items
+
+- Live model-turn verification once the local Restate runtime is available.
+- The `BillingUsageOutbox.quantity` column is an integer, so a single Growth task above roughly
+  USD 2,147 would not fit. Per-task cost is far below that today.
+- Concurrent managed tasks admitted against the same balance can each reserve the full remainder.
+  The last burst can overspend by at most the number of concurrent roots, and the debit still stops
+  at the available balance.

@@ -2,6 +2,7 @@ import { recordOrchestrationLifecycle } from "../../observability/orchestration-
 import {schedulingPolicyFromEnvironment} from "../scheduling/policy";
 import { createHash,randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
+import type { BillingEntitlementSnapshot } from "@kasitek-labs/contracts";
 import {
 agentConfigurationSchema,assertGrantAuthority,assertRuntimeAvailable,canonicalJson,
 executionGrantSchema,
@@ -29,7 +30,7 @@ import { loadExecution } from "../lifecycle/state";
 import { assertPendingSupportStatusAuthority } from "../lifecycle/authority";
 import { assertPlatformRootAdmissionOpen } from "./platform-gate";
 import { assertCustomerChannelRecipient } from "../context/recipient-boundary";
-import { assertAgentsBillingAccess } from "../../product/billing/billing";
+import { assertAgentsBillingAccess, assertManagedModelAllowance, billingPaidPlan } from "../../product/billing/billing";
 
 import type { AdmitTaskInput,TaskEvent,TaskRecord } from "../../contracts/records";
 import { AuthorityStore } from "./authority-store";
@@ -71,7 +72,8 @@ export class AdmissionStore extends AuthorityStore {
   }
   private async admitForPurpose(db:PoolClient,input:AdmitTaskInput,episodeCommandId?:string,privatePreview=false):Promise<{task:TaskRecord;replayed:boolean}> {
     assertCustomerChannelRecipient(input.authority.product, input.authority.principal, input.channelBinding);
-    if (input.authority.product === "agents") await assertAgentsBillingAccess(this.pool, input.authority.organizationId);
+    let billing: BillingEntitlementSnapshot | null = null;
+    if (input.authority.product === "agents") billing = await assertAgentsBillingAccess(this.pool, input.authority.organizationId);
     const policy=schedulingPolicyFromEnvironment();
     const requestKey = text(input.requestKey, 128);
     if (!input.input.trim()) throw new PlatformError("INVALID_INPUT", 400, "Enter a message");
@@ -115,8 +117,13 @@ export class AdmissionStore extends AuthorityStore {
       versionId: version.id, rootTokenLimit: grant.rootTokenLimit, conversationId: input.conversationId });
     let models = input.evaluationTrialId ? await trialModelRoutes(db, input.evaluationTrialId, input.authority.organizationId, grant) : input.authority.principal.kind === "automation" ? await automationModelRoutes(db, input.authority, version.id, grant) : await resolveAcceptedModelRoutes(db, { organizationId: input.authority.organizationId,
       agentId: version.agent_id, product: input.authority.product, selection: config.model.selection, generation: config.model.generation,
-      layers: [...executionModelLayers(config, grant),...(episodeCommandId?[{kind:"product" as const,reference:"support-status-v1",limits:{maxModelCalls:1,maxToolCalls:0,maxDurationMs:10000,maxCallDurationMs:10000,maxInputTokens:8192,maxOutputTokens:512,maxRootTokens:8704,compactAtTokens:1}}]:[])], requiresTools: !episodeCommandId && (config.tools.length > 0 || config.connectedToolBindingIds.length > 0 || config.productBindings.length > 0 || config.skillIds.length > 0) });
+      layers: [...executionModelLayers(config, grant),...(episodeCommandId?[{kind:"product" as const,reference:"support-status-v1",limits:{maxModelCalls:1,maxToolCalls:0,maxDurationMs:10000,maxCallDurationMs:10000,maxInputTokens:8192,maxOutputTokens:512,maxRootTokens:8704,compactAtTokens:1}}]:[])], requiresTools: !episodeCommandId && (config.tools.length > 0 || config.connectedToolBindingIds.length > 0 || config.productBindings.length > 0 || config.skillIds.length > 0),
+      allowManagedPaidModels: billing ? billingPaidPlan(billing) : undefined });
     if(input.continuationOf) models=continuationModelRoutes(models,await loadTaskModelRoutes(db,input.continuationOf,input.authority.organizationId));
+    // Customer keys keep working at zero allowance; only managed models stop.
+    const primaryCustody=billing?(await db.query<{custody:string}>(`SELECT custody FROM agents_platform.model_provider_connections
+      WHERE organization_id=$1 AND id=$2`,[input.authority.organizationId,models.primary.binding.connectionId])).rows[0]?.custody:undefined;
+    assertManagedModelAllowance(billing,primaryCustody);
     if (Buffer.byteLength(input.input) > models.primary.policy.maxInputBytes) throw new PlatformError("INPUT_LIMIT", 413, "The message exceeds the effective input allowance");
     const active=(await db.query<{active_roots:number}>("SELECT active_roots FROM agents_platform.tenant_admission WHERE organization_id=$1 FOR UPDATE",[input.authority.organizationId])).rows[0];
     if(!active)throw new PlatformError("ADMISSION_STATE_UNAVAILABLE",503,"Admission capacity is unavailable");
@@ -162,8 +169,14 @@ export class AdmissionStore extends AuthorityStore {
     await db.query("INSERT INTO agents_platform.execution_roots(root_task_id) VALUES($1)", [task.id]);
     if(config.program.id==="tool-directed"&&config.program.version==="4") await recordOrchestrationLifecycle(db,{organizationId:task.organization_id,key:task.id,action:"started",outcome:"pending",occurredAt:new Date(task.created_at).toISOString()});
     await saveTaskModelRoutes(db, task.id, task.organization_id, models);
-    await initializeRootModelAccount(db, { organizationId: task.organization_id, rootTaskId: task.id,
-      maxCostMicros: models.primary.policy.maxCostMicros === null ? null : BigInt(models.primary.policy.maxCostMicros) });
+    let maxCostMicros = models.primary.policy.maxCostMicros === null ? null : BigInt(models.primary.policy.maxCostMicros);
+    let creditCapped = false;
+    if (billing && primaryCustody === "platform_managed") {
+      const available = BigInt(billing.credits.available);
+      maxCostMicros = maxCostMicros === null || available < maxCostMicros ? available : maxCostMicros;
+      creditCapped = true;
+    }
+    await initializeRootModelAccount(db, { organizationId: task.organization_id, rootTaskId: task.id, maxCostMicros, creditCapped });
     if(episodeCommandId) {
       const binding=channelBindingSchema.parse(input.channelBinding);
       if (!input.conversationId) {

@@ -1,6 +1,32 @@
 import type { Pool } from "pg";
 import { BillingClient } from "@kasitek-labs/server-support/billing-client";
+import type { BillingEntitlementSnapshot } from "@kasitek-labs/contracts";
 import { PlatformError } from "../../contracts/contracts";
+
+/** Plans without a paid entitlement. They keep free managed models only. */
+export const freePlanKeys: ReadonlySet<string> = new Set([
+  "agents-free",
+  "growth-free",
+  "agency-free",
+]);
+
+export function billingPaidPlan(snapshot: BillingEntitlementSnapshot): boolean {
+  return snapshot.plan !== null && !freePlanKeys.has(snapshot.plan.key);
+}
+
+/** Read-only projection for the model picker. Admission remains the enforcement point, so a billing outage does not hide models. */
+export async function agentsPaidModelsAllowed(
+  pool: Pool,
+  organizationId: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<boolean> {
+  if (!agentsBillingEnforcementEnabled(env)) return true;
+  try {
+    return billingPaidPlan(await agentsBillingSnapshot(pool, organizationId, env));
+  } catch {
+    return true;
+  }
+}
 
 export function agentsBillingClient(
   env: NodeJS.ProcessEnv = process.env,
@@ -123,12 +149,11 @@ export async function assertAgentsBillingLimit(
   }
 }
 
-export async function assertAgentsBillingAccess(
+async function agentsBillingSnapshot(
   pool: Pool,
   organizationId: string,
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<void> {
-  if (!agentsBillingEnforcementEnabled(env)) return;
+  env: NodeJS.ProcessEnv,
+): Promise<BillingEntitlementSnapshot> {
   const client = agentsBillingClient(env);
   if (!client)
     throw new PlatformError(
@@ -138,31 +163,7 @@ export async function assertAgentsBillingAccess(
     );
   try {
     await ensureAgentsBillingAccount(pool, client, organizationId);
-    const snapshot = await client.snapshot(organizationId);
-    if (snapshot.access === "none")
-      throw new PlatformError(
-        "BILLING_REQUIRED",
-        403,
-        "An active Agents plan is required",
-      );
-    if (snapshot.access === "grace" || snapshot.access === "read_only")
-      throw new PlatformError(
-        "BILLING_READ_ONLY",
-        403,
-        "Agents is read-only while billing is past due",
-      );
-    if (snapshot.features["agents.feature.manage"] !== true)
-      throw new PlatformError(
-        "BILLING_REQUIRED",
-        403,
-        "Agents is not included in the current plan",
-      );
-    if (BigInt(snapshot.credits.available) <= 0n)
-      throw new PlatformError(
-        "BILLING_AI_ALLOWANCE_EXHAUSTED",
-        403,
-        "The monthly AI usage allowance is used up. Upgrade the plan or wait for the next billing period.",
-      );
+    return await client.snapshot(organizationId);
   } catch (error) {
     if (error instanceof PlatformError) throw error;
     throw new PlatformError(
@@ -171,4 +172,62 @@ export async function assertAgentsBillingAccess(
       error instanceof Error ? error.message : "Billing service is unavailable",
     );
   }
+}
+
+export async function assertAgentsBillingAccess(
+  pool: Pool,
+  organizationId: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<BillingEntitlementSnapshot | null> {
+  if (!agentsBillingEnforcementEnabled(env)) return null;
+  const snapshot = await agentsBillingSnapshot(pool, organizationId, env);
+  if (snapshot.access === "none")
+    throw new PlatformError(
+      "BILLING_REQUIRED",
+      403,
+      "An active Agents plan is required",
+    );
+  if (snapshot.access === "grace" || snapshot.access === "read_only")
+    throw new PlatformError(
+      "BILLING_READ_ONLY",
+      403,
+      "Agents is read-only while billing is past due",
+    );
+  if (snapshot.features["agents.feature.manage"] !== true)
+    throw new PlatformError(
+      "BILLING_REQUIRED",
+      403,
+      "Agents is not included in the current plan",
+    );
+  return snapshot;
+}
+
+/** The allowance gates managed models only; customer-supplied keys keep working at zero. */
+export function assertManagedModelAllowance(
+  snapshot: BillingEntitlementSnapshot | null,
+  custody: string | undefined,
+): void {
+  if (!snapshot || custody !== "platform_managed") return;
+  if (BigInt(snapshot.credits.available) > 0n) return;
+  throw new PlatformError(
+    "BILLING_AI_ALLOWANCE_EXHAUSTED",
+    403,
+    "The monthly AI usage allowance is used up. Upgrade the plan, add your own provider, or wait for the next billing period.",
+  );
+}
+
+/** Customer-supplied provider keys are a paid-plan capability. Credits are not required to add one. */
+export async function assertAgentsPaidPlan(
+  pool: Pool,
+  organizationId: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<void> {
+  if (!agentsBillingEnforcementEnabled(env)) return;
+  const snapshot = await agentsBillingSnapshot(pool, organizationId, env);
+  if (!billingPaidPlan(snapshot))
+    throw new PlatformError(
+      "BILLING_PLAN_REQUIRED",
+      403,
+      "Bringing your own model provider is available on a paid plan",
+    );
 }

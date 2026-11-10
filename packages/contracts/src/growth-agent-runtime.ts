@@ -50,6 +50,8 @@ export interface GrowthAgentRuntime {
     modelCalls: number;
     toolCalls: number;
     observedModelCalls: number;
+    /** Managed model cost in micro-USD. Absent when the caller did not attribute cost. */
+    managedCostMicros?: number;
   };
   operations: GrowthAgentRuntimeOperation[];
   operationsTruncated: boolean;

@@ -28,6 +28,7 @@ export const CAPABILITIES = [
   { key: "feature.inbox.access", name: "Shared inbox", description: "Access connected customer conversations in one inbox." },
 ] as const;
 export const METERS = [
+  { key: "growth_ai_cost", name: "AI usage", description: "Managed model cost during the current month, in USD." },
   { key: "growth_agent_tokens", name: "AI tokens", description: "Accounted model tokens during the current month." },
   { key: "agent_deployments", name: "Agent deployments", description: "Agent deployment operations during the current month." },
   { key: "campaign_recipients", name: "Campaign recipients", description: "Recipients processed by campaigns during the current month." },

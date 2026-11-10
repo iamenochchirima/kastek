@@ -185,6 +185,10 @@ export const AGENTS_COMPARISON: ComparisonGroup[] = [
               : "—",
           ),
       },
+      {
+        label: "Managed models",
+        cell: (plan) => valueText(plan.key === "agents-free" ? "Free models" : "Included"),
+      },
     ],
   },
   {

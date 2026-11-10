@@ -72,14 +72,14 @@ async function lockAccount(db: PoolClient, scope: ModelAccountScope): Promise<Mo
   if (!account.rowCount) throw new Error("Model account is unavailable");
   return snapshot(account.rows[0]);
 }
-export async function initializeRootModelAccount(db: PoolClient, scope: ModelAccountScope & { maxCostMicros: bigint | null }): Promise<ModelAccountSnapshot> {
+export async function initializeRootModelAccount(db: PoolClient, scope: ModelAccountScope & { maxCostMicros: bigint | null; creditCapped?: boolean }): Promise<ModelAccountSnapshot> {
   if (scope.maxCostMicros !== null) money(scope.maxCostMicros);
   // Serialize initialization with reserve and settlement even before the account row exists.
   const root = await db.query(`SELECT r.root_task_id FROM agents_platform.execution_roots r JOIN agents_platform.tasks t ON t.id=r.root_task_id
     WHERE r.root_task_id=$1 AND t.organization_id=$2 AND t.root_task_id=t.id FOR UPDATE OF r`, [scope.rootTaskId, scope.organizationId]);
   if (!root.rowCount) throw new Error("Model account root scope is unavailable");
-  await db.query(`INSERT INTO agents_platform.root_model_accounts(root_task_id,organization_id,max_cost_micros)
-    VALUES($1,$2,$3) ON CONFLICT(root_task_id) DO NOTHING`, [scope.rootTaskId, scope.organizationId, scope.maxCostMicros?.toString() ?? null]);
+  await db.query(`INSERT INTO agents_platform.root_model_accounts(root_task_id,organization_id,max_cost_micros,credit_capped)
+    VALUES($1,$2,$3,$4) ON CONFLICT(root_task_id) DO NOTHING`, [scope.rootTaskId, scope.organizationId, scope.maxCostMicros?.toString() ?? null, scope.creditCapped === true]);
   const result = await lockAccount(db, scope);
   if (result.maxCostMicros !== scope.maxCostMicros) throw new Error("Model account limit changed");
   return result;

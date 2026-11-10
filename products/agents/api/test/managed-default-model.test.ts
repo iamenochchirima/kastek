@@ -31,10 +31,10 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   async function fixture(){const owner=await platform.ensureAccount({issuer:"https://identity.example.test",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"});
     const organization=await platform.createOrganization(owner.id,"Managed model");return {accountId:owner.id,organizationId:organization.id};}
   const initializer=()=>managedModelDefaultFromEnvironment(pool,vault,{OPENROUTER_API_KEY:"private-platform-key"},{discoveryFetch})!;
-  async function accepted(scope:Awaited<ReturnType<typeof fixture>>,selection:{kind:"organization_default"}|{kind:"connection";connectionId:string;modelId:string}={kind:"organization_default"}) {
+  async function accepted(scope:Awaited<ReturnType<typeof fixture>>,selection:{kind:"organization_default"}|{kind:"connection";connectionId:string;modelId:string}={kind:"organization_default"},allowManagedPaidModels?:boolean) {
     const agent=await platform.createAgent({...scope,name:"Customer assistant"});
     return transaction(pool,db=>resolveAcceptedModelRoutes(db,{organizationId:scope.organizationId,agentId:agent.id,product:"agents",selection,
-      requiresTools:true,layers:[{kind:"platform",reference:"test",limits:modelServicePolicy({})}]}));
+      requiresTools:true,allowManagedPaidModels,layers:[{kind:"platform",reference:"test",limits:modelServicePolicy({})}]}));
   }
   it("initializes one encrypted restricted connection under concurrent owner bootstrap and resolves its normal grant",async()=>{
     const scope=await fixture(),ensure=initializer(),before=discoveries;
@@ -70,10 +70,25 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     await expect(transaction(pool,db=>models.resolveCredential(db,{...route.primary.binding,modelId:"paid/model"},route.primary.consumer))).rejects.toMatchObject({code:"MODEL_MANAGED_READ_ONLY"});
     await expect(accepted(scope,{kind:"connection",connectionId:connection.id,modelId:"paid/model"})).rejects.toMatchObject({code:"MODEL_USE_DENIED"});
   });
-  it("does not widen the catalogue on refresh and refuses a now-priced default",async()=>{
+  it("keeps only the allowlisted catalogue on refresh and accepts a priced default",async()=>{
     const scope=await fixture();await initializer()(scope);const [connection]=await models.list(scope);
     const result=await models.refreshModels(scope,connection.id,1);expect(result.models.map(item=>item.id)).toEqual([defaultAgentsModelId]);
-    prices="1";try {await expect(initializer()(await fixture())).rejects.toMatchObject({code:"MODEL_DEFAULT_UNAVAILABLE"});}finally{prices="0";}
+    prices="1";try {expect(await initializer()(await fixture())).toBe(true);}finally{prices="0";}
+  });
+  it("exposes allowlisted paid models and hides them from a free plan",async()=>{
+    const scope=await fixture();
+    const ensure=managedModelDefaultFromEnvironment(pool,vault,{OPENROUTER_API_KEY:"private-platform-key",
+      AGENTS_DEFAULT_MODEL_IDS:`${defaultAgentsModelId},paid/model`},{discoveryFetch})!;
+    expect(await ensure(scope)).toBe(true);
+    const [connection]=await models.list(scope);
+    expect((await models.cachedModels(scope,connection.id)).result?.models.map(item=>item.id).sort())
+      .toEqual([defaultAgentsModelId,"paid/model"].sort());
+    expect((await models.cachedModels(scope,connection.id,undefined,false)).result?.models.map(item=>item.id))
+      .toEqual([defaultAgentsModelId]);
+    await models.setDefault(scope,{connectionId:connection.id,modelId:"paid/model",expectedRevision:1});
+    expect((await models.getDefault(scope)).selection?.modelId).toBe("paid/model");
+    expect((await accepted(scope)).primary.binding.modelId).toBe("paid/model");
+    await expect(accepted(scope,{kind:"organization_default"},false)).rejects.toMatchObject({code:"MODEL_PLAN_REQUIRED"});
   });
   it("leaves explicit per-agent BYOK selection ahead of the workspace managed default",async()=>{
     const scope=await fixture();await initializer()(scope);const byok=await models.create(scope,{providerId:"openrouter",name:"Own provider",apiKey:"own-key"});

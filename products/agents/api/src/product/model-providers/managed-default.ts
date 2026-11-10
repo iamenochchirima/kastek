@@ -12,6 +12,24 @@ import {transaction} from "../../infrastructure/database";
 
 export const defaultAgentsModelId="nvidia/nemotron-3.5-lightning:free";
 
+/** Curated managed catalogue. Price spread is deliberate: cheap workhorses plus one premium model. */
+export const defaultManagedModelIds=Object.freeze([
+  defaultAgentsModelId,
+  "google/gemini-2.5-flash-lite",
+  "google/gemini-2.5-flash",
+  "anthropic/claude-haiku-5.5",
+  "openai/gpt-5.6-luna",
+  "google/gemini-2.5-pro",
+]);
+
+/** Allowlisted managed models. The default is served first; the rest form the paid catalogue. */
+function managedModelAllowlist(env:NodeJS.ProcessEnv,defaultModelId:string):string[] {
+  const raw=(env.AGENTS_DEFAULT_MODEL_IDS??defaultManagedModelIds.join(",")).split(",").map(value=>value.trim()).filter(Boolean);
+  const ids=[...new Set(raw.map(value=>modelIdSchema.parse(value)))];
+  if(!ids.includes(defaultModelId))ids.unshift(defaultModelId);
+  return ids.slice(0,64);
+}
+
 /** Provision once during owner bootstrap. Revoked connections and explicit choices are never repaired implicitly. */
 export function managedModelDefaultFromEnvironment(pool:Pool,vault:ModelCredentialVault|undefined,
   env:NodeJS.ProcessEnv=process.env,options:{discoveryFetch?:ModelDiscoveryFetch}={}) {
@@ -19,6 +37,7 @@ export function managedModelDefaultFromEnvironment(pool:Pool,vault:ModelCredenti
   const rawKey=env.AGENTS_DEFAULT_MODEL_API_KEY??env.OPENROUTER_API_KEY;
   if(!rawKey||!vault)return undefined;
   const apiKey=modelApiKeySchema.parse(rawKey),modelId=modelIdSchema.parse(env.AGENTS_DEFAULT_MODEL_ID??defaultAgentsModelId);
+  const allowlist=managedModelAllowlist(env,modelId),allowed=new Set(allowlist);
   const definition=getProviderDefinition("openrouter")!;
   let discovery:Promise<ModelDiscoveryResult>|undefined;
   async function eligible(db:import("pg").PoolClient,scope:ActionScope) {
@@ -37,31 +56,32 @@ export function managedModelDefaultFromEnvironment(pool:Pool,vault:ModelCredenti
     });
     const result=await modelProviderAdapter.discover(definition,{apiKey,endpoint:definition.baseUrl,fetch:network,
       observedAt:new Date().toISOString(),maxResponseBytes:2097152,maxModels:5000});
-    const model=result.models.find(item=>item.id===modelId);
-    if(!model||result.kind==="discovered"&&result.unavailableModelIds?.includes(modelId)||
-      model.pricing?.inputMicrosPerMillionTokens!==0||model.pricing?.outputMicrosPerMillionTokens!==0)
-      throw new PlatformError("MODEL_DEFAULT_UNAVAILABLE",503,"The free default model is unavailable");
-    return {...result,models:[model]};
+    const filtered=result.kind==="discovered"?result.models.filter(item=>allowed.has(item.id)&&!result.unavailableModelIds?.includes(item.id)):[];
+    // The default is a required member: a managed connection without it would need an owner decision.
+    if(!filtered.some(item=>item.id===modelId))throw new PlatformError("MODEL_DEFAULT_UNAVAILABLE",503,"The managed default model is unavailable");
+    const models=[...filtered].sort((left,right)=>left.id===modelId?-1:right.id===modelId?1:left.id.localeCompare(right.id));
+    return {...result,models,unavailableModelIds:allowlist.filter(id=>!models.some(item=>item.id===id))};
   }
   return async(scope:ActionScope):Promise<boolean>=>{
     if(!await transaction(pool,db=>eligible(db,scope)))return false;
     discovery??=prepare().catch(error=>{discovery=undefined;throw error;});
     const catalogue=await discovery;
+    const catalogueIds=catalogue.models.map(item=>item.id);
     return transaction(pool,async db=>{
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[scope.organizationId]);
       if(!await eligible(db,scope))return false;
       const connectionId=randomUUID(),grantId=randomUUID();
       const envelope=vault.seal({organizationId:scope.organizationId,connectionId,credentialRevision:1,endpoint:definition.baseUrl,protocol:definition.protocol},apiKey);
       await db.query(`INSERT INTO agents_platform.model_provider_connections
-        (id,organization_id,created_by,provider_id,name,endpoint,protocol,definition,custody,verification,managed_model_id)
-        VALUES($1,$2,$3,'openrouter','KasiTek OpenRouter',$4,$5,$6,'platform_managed','discovered',$7)`,
-      [connectionId,scope.organizationId,scope.accountId,definition.baseUrl,definition.protocol,definition,modelId]);
+        (id,organization_id,created_by,provider_id,name,endpoint,protocol,definition,custody,verification,managed_model_id,managed_model_ids)
+        VALUES($1,$2,$3,'openrouter','KasiTek OpenRouter',$4,$5,$6,'platform_managed','discovered',$7,$8)`,
+      [connectionId,scope.organizationId,scope.accountId,definition.baseUrl,definition.protocol,definition,modelId,JSON.stringify(catalogueIds)]);
       await db.query(`INSERT INTO agents_platform.model_provider_credentials(organization_id,connection_id,revision,endpoint,protocol,envelope,state)
         VALUES($1,$2,1,$3,$4,$5,'active')`,[scope.organizationId,connectionId,definition.baseUrl,definition.protocol,envelope]);
       await db.query(`INSERT INTO agents_platform.model_provider_catalogues(organization_id,connection_id,connection_revision,credential_revision,snapshot,snapshot_digest)
         VALUES($1,$2,1,1,$3,$4)`,[scope.organizationId,connectionId,catalogue,requestDigest(catalogue)]);
       await db.query(`INSERT INTO agents_platform.model_provider_use_grants(id,organization_id,connection_id,consumer,roles,model_ids)
-        VALUES($1,$2,$3,$4,$5,$6)`,[grantId,scope.organizationId,connectionId,{kind:"service",serviceId:"organization-default",product:"agents"},JSON.stringify(["primary","compaction","delegated"]),JSON.stringify([modelId])]);
+        VALUES($1,$2,$3,$4,$5,$6)`,[grantId,scope.organizationId,connectionId,{kind:"service",serviceId:"organization-default",product:"agents"},JSON.stringify(["primary","compaction","delegated"]),JSON.stringify(catalogueIds)]);
       await db.query(`INSERT INTO agents_platform.model_provider_defaults(organization_id,connection_id,model_id,use_grant_id,revision,updated_by)
         VALUES($1,$2,$3,$4,1,$5)`,[scope.organizationId,connectionId,modelId,grantId,scope.accountId]);
       return true;

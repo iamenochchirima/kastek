@@ -199,24 +199,61 @@ storage limits, or real compute and model costs.
 
 ## AI usage credits
 
-AI usage is denominated in USD internally. Growth workspace agents settle under the
-`growth_agent_tokens` meter; standalone Agents settles under `agent_tokens`. Both use the same
-micro-USD ledger and credit price of 2 micro-USD per accounted token. Growth forwards a terminal
-agent task's accounted tokens through `BillingUsageOutbox` once, keyed by task ID. Ledger amounts are micro-USD: `$5.00` is stored as
-`5,000,000`. Customers see dollar amounts, not an opaque credit count. Plan credit allowances,
-usage prices, grants, balances, and refunds all use the same micro-USD unit.
+AI usage is denominated in USD internally. Ledger amounts are micro-USD: `$5.00` is stored as
+`5,000,000`. Customers see dollar amounts, not an opaque credit count. Plan allowances, usage
+prices, grants, balances, and refunds all use the same unit.
+
+Two policies apply, chosen by who pays the model provider.
+
+- **Managed models** debit the allowance at provider list price. A settled operation already records
+  its exact cost in `agents_platform.model_cost_reservations.actual_micros`, quoted from the
+  pricing captured in the task's admitted model route. Root settlement sums those costs where the
+  connection custody is `platform_managed` into `usage_ledger.managed_cost_micros`. Standalone
+  Agents forwards that figure as the `agent_ai_cost` meter; Growth forwards it as
+  `growth_ai_cost`. Both meters are priced at 1 credit per micro-USD, so the debit equals the
+  provider cost. There is no markup.
+- **Customer-supplied keys** do not debit the allowance. Their operations contribute zero to
+  `managed_cost_micros`. Tokens are still recorded, and `agent_tokens` and `growth_agent_tokens`
+  remain as analytics meters priced at zero.
+
+An operation whose provider usage stayed unknown settles as `unknown`. Billing charges its reserved
+upper bound so an unresolved call is not free; the model usage report shows the same figure.
+
+Growth forwards a terminal agent task through `BillingUsageOutbox` once per meter, keyed by task ID
+with `:cost` and `:tokens` suffixes. Agents forwards through `billing_usage_forwarded`, keyed the
+same way on `agents:task:<id>`.
 
 Usage events are idempotent and debit the account ledger. Products record local usage and forward
 it through a durable outbox where available; the billing service is the settlement authority.
 Credit top-ups are not self-serve in v1. Admin grants are the only purchase path.
 
+## Managed model catalogue
+
+A platform-managed connection stores its exposed models in
+`agents_platform.model_provider_connections.managed_model_ids`. `managed_model_id` remains the
+default model and the fallback for rows created before the allowlist existed.
+
+`managedModelDefaultFromEnvironment` provisions the connection once per organization from the
+curated list in `defaultManagedModelIds`, overridable with `AGENTS_DEFAULT_MODEL_IDS`. The allowlist
+must include the default model, and a configured model that the provider no longer lists is marked
+unavailable rather than silently dropped.
+
+Free plans keep the free managed models. `ModelProviderStore.cachedModels` filters paid models for
+them, and admission independently rejects them with `MODEL_PLAN_REQUIRED`; the picker filter is not
+an authorization boundary. Customer-supplied provider keys are a paid-plan capability enforced in
+`ModelProviderStore.create`.
+
 AI usage stops when the available credit balance reaches zero. Growth checks the balance before
 messages, task continuation, task instructions and review approval; Agents checks it at task
-admission. Both products return an upgrade-required error instead of starting new work, and their
-usage panels warn at 80% and 100%. A task already running may settle with a shortfall, which is
-not billed as overage. The dollar credit balance is the customer-facing allowance; the Agents
-`limit.agent_tokens` limit is not granted by new plan versions because the credit balance now
-provides the stop.
+admission for platform-managed routes and caps a managed task's model cost at the remaining
+balance. Customer-supplied connections keep running at zero because they never debit the allowance.
+Both products return an upgrade-required error instead of starting new work, and their usage panels
+warn at 80% and 100%.
+A task already running may settle with a shortfall, which is not billed as overage. Concurrent
+tasks admitted against the same balance can each reserve the full remainder, so the last burst can
+overshoot by at most the number of concurrent roots. The dollar credit balance is the
+customer-facing allowance; the Agents `limit.agent_tokens` limit is not granted by new plan versions
+because the credit balance provides the stop.
 
 ## Free plan, trial, and grace
 

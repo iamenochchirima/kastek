@@ -93,12 +93,22 @@ Free plans do not have Paystack codes.
 - [ ] Confirm the public pricing pages show the live prices and canonical URLs.
 - [ ] Resolve any reconciliation issue from the admin screen.
 
-## 7. Monitoring and rollback
+## 7. Managed model cost
+
+- [ ] Confirm `agent_ai_cost` and `growth_ai_cost` exist at 1 credit per micro-USD, and both token meters are priced at 0.
+- [ ] Run one managed-model turn and confirm `usage_ledger.managed_cost_micros` equals the reservation's `actual_micros`.
+- [ ] Confirm the billing usage event debits exactly that amount and the credit balance moves by the same number.
+- [ ] Run one bring-your-own-key turn and confirm the balance does not move.
+- [ ] Rotate the allowlist with `AGENTS_DEFAULT_MODEL_IDS`, refresh the connection, and confirm removed models become unavailable instead of staying priced.
+- [ ] Confirm a free-plan workspace sees only the free managed models and cannot add a provider key.
+
+## 8. Monitoring and rollback
 
 - [ ] Alert on billing API health, worker heartbeat, webhook failures, reconciliation backlog,
       Paystack verification failure and invoice-number gaps.
 - [ ] Watch `billing.webhook_events` for `failed`, `ignored` and duplicate deliveries.
 - [ ] Watch `ai_allowance_exhausted` and `BILLING_AI_ALLOWANCE_EXHAUSTED` denial events.
+- [ ] Watch `billing_usage_forward_failed` and rows in `agents_platform.billing_usage_forwarded` with a `skipped_reason`.
 - [ ] Back up the billing database and confirm restore.
 - [ ] Rollback a bad plan by retiring the active version and republishing the previous version.
 - [ ] Rollback a deployment by restoring the prior image; do not restore Growth's removed local
@@ -107,7 +117,7 @@ Free plans do not have Paystack codes.
 - [ ] Record the live release, commit, plan versions, plan codes and first-payment evidence in the
       release record.
 
-## 8. Release record
+## 9. Release record
 
 - [ ] Record the publication date.
 - [ ] Record the live plan-code matrix in this runbook.

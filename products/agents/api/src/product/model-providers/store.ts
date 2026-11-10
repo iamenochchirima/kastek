@@ -9,7 +9,7 @@ import { enrichProviderModels } from "../../adapters/models/model-metadata";
 import type { ActionScope } from "../../contracts/connections";
 import { canonicalJson, PlatformError, requestDigest } from "../../contracts/contracts";
 import { modelEndpointSchema, providerConnectionSchema, providerDefinitionSchema, providerUseGrantSchema,
-  resolvedModelBindingSchema, type ProviderConnection, type ProviderDefinition, type ProviderUseGrant, type ResolvedModelBinding } from "../../contracts/model-providers";
+  resolvedModelBindingSchema, managedModelIds, type ProviderConnection, type ProviderDefinition, type ProviderUseGrant, type ResolvedModelBinding } from "../../contracts/model-providers";
 import { requireActionMember } from "../../infrastructure/action-authority";
 import { transaction } from "../../infrastructure/database";
 import { ModelCredentialVault, modelApiKeySchema } from "../../infrastructure/model-credential-vault";
@@ -20,6 +20,7 @@ import { probeProviderModel, type ModelProviderProbeRequest, type ModelProviderP
 import { modelDescriptorSchema, modelIdSchema } from "../../contracts/model-providers";
 import { manualModelInput, manualModelDescriptor, overlayManualModel } from "./manual-model";
 import { ProviderTransportError } from "../../adapters/models/pi-transport";
+import { assertAgentsPaidPlan } from "../billing/billing";
 
 const createInput = z.strictObject({ providerId: z.string().min(1).max(64), name: z.string().trim().min(1).max(120),
   apiKey: modelApiKeySchema, endpoint: modelEndpointSchema.optional() });
@@ -30,7 +31,7 @@ const managedReadOnly = () => new PlatformError("MODEL_MANAGED_READ_ONLY", 403, 
 const missing = () => new PlatformError("MODEL_CONNECTION_NOT_FOUND", 404, "Model provider not found");
 type ConnectionRow = { id: string; organization_id: string; created_by: string; provider_id: string; name: string; endpoint: string;
   protocol: ProviderConnection["protocol"]; definition: ProviderDefinition; revision: number; credential_revision: number;
-  managed_model_id?: string | null; custody: ProviderConnection["custody"]; state: ProviderConnection["state"]; verification: ProviderConnection["verification"];
+  managed_model_id?: string | null; managed_model_ids?: string[] | null; custody: ProviderConnection["custody"]; state: ProviderConnection["state"]; verification: ProviderConnection["verification"];
   created_at: Date; updated_at: Date };
 
 async function owner(db: PoolClient, scope: ActionScope): Promise<void> {
@@ -81,6 +82,7 @@ export class ModelProviderStore {
     const input = createInput.parse(raw), definition = getProviderDefinition(input.providerId, this.registry);
     if (!definition) throw new PlatformError("MODEL_PROVIDER_UNSUPPORTED", 400, "Model provider is not supported");
     const vault = this.requireVault();
+    await assertAgentsPaidPlan(this.pool, scope.organizationId);
     return transaction(this.pool, async db => {
       await owner(db, scope);
       const id = randomUUID(), endpoint = input.endpoint ?? definition.baseUrl;
@@ -134,7 +136,7 @@ export class ModelProviderStore {
     return transaction(this.pool, async db => {
       await owner(db, scope); const connection = await this.row(db, scope, input.connectionId, true);
       if (connection.state !== "active") throw changed();
-      if (connection.managed_model_id && input.modelIds.some(id => id !== connection.managed_model_id)) throw managedReadOnly();
+      if (connection.managed_model_id && input.modelIds.some(id => !managedModelIds(connection)!.includes(id))) throw managedReadOnly();
       if (input.consumer.kind === "agent" && !(await db.query("SELECT 1 FROM agents_platform.agents WHERE organization_id=$1 AND id=$2", [scope.organizationId, input.consumer.agentId])).rowCount) {
         throw new PlatformError("MODEL_CONSUMER_NOT_FOUND", 404, "Agent not found");
       }
@@ -165,7 +167,7 @@ export class ModelProviderStore {
       if ((prior?.revision ?? 0) !== (input.expectedRevision ?? 0)) throw new PlatformError("MODEL_DEFAULT_CHANGED", 409, "Default model changed; refresh and try again");
       const connection = await this.row(db, scope, input.connectionId);
       if (connection.state !== "active") throw changed();
-      if (connection.managed_model_id && input.modelId !== connection.managed_model_id) throw managedReadOnly();
+      if (connection.managed_model_id && !managedModelIds(connection)!.includes(input.modelId)) throw managedReadOnly();
       const grantId = randomUUID(), revision = (prior?.revision ?? 0) + 1;
       await db.query(`INSERT INTO agents_platform.model_provider_use_grants(id,organization_id,connection_id,consumer,roles,model_ids)
         VALUES($1,$2,$3,$4,$5,$6)`, [grantId, scope.organizationId, connection.id,
@@ -180,7 +182,7 @@ export class ModelProviderStore {
     });
   }
 
-  async cachedModels(scope: ActionScope, id: string, agentId?: string): Promise<{
+  async cachedModels(scope: ActionScope, id: string, agentId?: string, allowPaidModels = true): Promise<{
     result: ModelDiscoveryResult | null; fetchedAt: string | null; stale: boolean; connectionRevision: number; credentialRevision: number;
     status: "fresh" | "stale" | "refreshing" | "backoff" | "unavailable" | "empty"; retryAt: string | null; errorCode: string | null;
     modelVerifications: Record<string, "inference_verified" | "tools_verified">;
@@ -209,6 +211,11 @@ export class ModelProviderStore {
         const allowed = new Set(grants.flatMap(row => row.model_ids as string[]));
         result = { ...result, models: result.models.filter(model => allowed.has(model.id)) };
         if (result.kind === "discovered") result.unavailableModelIds = result.unavailableModelIds?.filter(id => allowed.has(id));
+      }
+      // Free plans keep the free managed models; paid plans receive the full allowlisted catalogue.
+      if (!allowPaidModels && connection.custody === "platform_managed" && result) {
+        result = { ...result, models: result.models.filter(model =>
+          (model.pricing?.inputMicrosPerMillionTokens ?? 0) === 0 && (model.pricing?.outputMicrosPerMillionTokens ?? 0) === 0) };
       }
       const control = (await db.query(`SELECT lease_until,retry_at,error_code FROM agents_platform.model_provider_catalogue_controls
         WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4`,
@@ -241,7 +248,7 @@ export class ModelProviderStore {
     const input = manualModelInput.parse(raw);
     const definition = await transaction(this.pool, async db => {
       await owner(db, scope); const connection = await this.row(db, scope, id);
-      if (connection.managed_model_id) throw managedReadOnly();
+      if (managedModelIds(connection)) throw managedReadOnly();
       if (connection.state !== "active" || connection.revision !== input.expectedRevision) throw changed();
       return providerDefinitionSchema.parse(connection.definition);
     });
@@ -278,7 +285,7 @@ export class ModelProviderStore {
     const prepared = await transaction(this.pool, async db => {
       await owner(db, scope); const connection = await this.row(db, scope, id);
       if (connection.revision !== input.expectedRevision || connection.state !== "active") throw changed();
-      if (connection.managed_model_id && input.modelId !== connection.managed_model_id) throw managedReadOnly();
+      if (connection.managed_model_id && !managedModelIds(connection)!.includes(input.modelId)) throw managedReadOnly();
       const cache = (await db.query(`SELECT snapshot,snapshot_digest FROM agents_platform.model_provider_catalogues
         WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4`,
       [scope.organizationId, id, connection.revision, connection.credential_revision])).rows[0];
@@ -395,8 +402,8 @@ export class ModelProviderStore {
         WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4 FOR UPDATE`, key)).rows[0];
       if (previous && requestDigest(previous.snapshot) !== previous.snapshot_digest) throw new PlatformError("MODEL_CATALOGUE_INTEGRITY", 409, "Model catalogue has changed");
       if (result.kind === "discovered") {
-        if (current.managed_model_id) result.models = result.models.filter(model => model.id === current.managed_model_id &&
-          model.pricing?.inputMicrosPerMillionTokens === 0 && model.pricing?.outputMicrosPerMillionTokens === 0);
+        const managed = managedModelIds(current);
+        if (managed) result.models = result.models.filter(model => managed.includes(model.id));
         const discoveredIds = new Set(result.models.map(model => model.id));
         const priorModels = (previous?.snapshot.models ?? []) as import("../../contracts/model-providers").ModelDescriptor[];
         const absent = priorModels.filter(model => !discoveredIds.has(model.id));
@@ -438,7 +445,7 @@ export class ModelProviderStore {
       [binding.organizationId, binding.connectionId])).rows[0];
     if (!connection || connection.state !== "active" || connection.revision !== binding.connectionRevision ||
       connection.credential_revision !== binding.credentialRevision || connection.endpoint !== binding.endpoint || connection.protocol !== binding.protocol) throw changed();
-    if (connection.managed_model_id && binding.modelId !== connection.managed_model_id) throw managedReadOnly();
+    if (connection.managed_model_id && !managedModelIds(connection)!.includes(binding.modelId)) throw managedReadOnly();
     const grant = (await db.query("SELECT * FROM agents_platform.model_provider_use_grants WHERE organization_id=$1 AND id=$2 AND connection_id=$3 FOR SHARE",
       [binding.organizationId, binding.useGrantId, binding.connectionId])).rows[0];
     if (!grant || grant.state !== "active" || grant.revision !== binding.useGrantRevision || canonicalJson(grant.consumer) !== canonicalJson(consumer) ||

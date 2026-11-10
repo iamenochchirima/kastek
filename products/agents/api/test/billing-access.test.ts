@@ -3,7 +3,7 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { BillingEntitlementSnapshot } from "@kasitek-labs/contracts";
 import { billingSnapshotToken } from "@kasitek-labs/server-support/billing-authority";
-import { assertAgentsBillingAccess } from "../src/product/billing/billing";
+import { assertAgentsBillingAccess, assertAgentsPaidPlan, assertManagedModelAllowance, agentsPaidModelsAllowed, billingPaidPlan } from "../src/product/billing/billing";
 
 const serviceSecret = "agents-test-billing-secret-0000000000000";
 const snapshotSecret = "agents-test-snapshot-secret-000000000000";
@@ -23,6 +23,7 @@ const pool = {
 let server: Server;
 let url: string;
 let availableCredits = "1000000";
+let planKey = "agents-growth";
 const previousEnv = { ...process.env };
 
 function snapshot(tenantId: string): BillingEntitlementSnapshot {
@@ -34,7 +35,7 @@ function snapshot(tenantId: string): BillingEntitlementSnapshot {
     tenantId,
     revision: "1",
     access: "active",
-    plan: { key: "agents-growth", name: "Growth", version: 2 },
+    plan: { key: planKey, name: planKey, version: 2 },
     subscription: {
       id: `sub_${tenantId}`,
       product: "agents",
@@ -112,26 +113,53 @@ afterAll(async () => {
 
 describe("Agents AI allowance access", () => {
   it("allows work while credit is available and ignores a stale token cap", async () => {
+    planKey = "agents-growth";
     availableCredits = "1000000";
     await expect(
       assertAgentsBillingAccess(pool, "org_credit"),
-    ).resolves.toBeUndefined();
+    ).resolves.toMatchObject({ credits: { available: "1000000" } });
   });
 
-  it("denies work when the credit balance is exhausted", async () => {
+  it("stops managed models at zero without blocking customer keys", async () => {
+    planKey = "agents-growth";
     availableCredits = "0";
-    await expect(
-      assertAgentsBillingAccess(pool, "org_exhausted"),
-    ).rejects.toMatchObject({
-      code: "BILLING_AI_ALLOWANCE_EXHAUSTED",
-      statusCode: 403,
-    });
+    const snapshot = await assertAgentsBillingAccess(pool, "org_exhausted");
+    expect(() => assertManagedModelAllowance(snapshot, "platform_managed")).toThrow(
+      expect.objectContaining({ code: "BILLING_AI_ALLOWANCE_EXHAUSTED", statusCode: 403 }),
+    );
+    expect(() => assertManagedModelAllowance(snapshot, "user_supplied")).not.toThrow();
   });
 
   it("restores access as soon as credit is granted", async () => {
+    planKey = "agents-growth";
     availableCredits = "1000000";
     await expect(
       assertAgentsBillingAccess(pool, "org_exhausted"),
-    ).resolves.toBeUndefined();
+    ).resolves.toMatchObject({ credits: { available: "1000000" } });
+  });
+
+  it("treats the free plan as unpaid and every other plan as paid", async () => {
+    planKey = "agents-free";
+    const free = await assertAgentsBillingAccess(pool, "org_free");
+    expect(free && billingPaidPlan(free)).toBe(false);
+    planKey = "agents-starter";
+    const paid = await assertAgentsBillingAccess(pool, "org_paid");
+    expect(paid && billingPaidPlan(paid)).toBe(true);
+  });
+
+  it("allows customer provider keys on paid plans only", async () => {
+    planKey = "agents-free";
+    await expect(
+      assertAgentsPaidPlan(pool, "org_free"),
+    ).rejects.toMatchObject({ code: "BILLING_PLAN_REQUIRED", statusCode: 403 });
+    planKey = "agents-starter";
+    await expect(assertAgentsPaidPlan(pool, "org_paid")).resolves.toBeUndefined();
+  });
+
+  it("hides paid managed models from the free picker", async () => {
+    planKey = "agents-free";
+    await expect(agentsPaidModelsAllowed(pool, "org_free")).resolves.toBe(false);
+    planKey = "agents-growth";
+    await expect(agentsPaidModelsAllowed(pool, "org_growth")).resolves.toBe(true);
   });
 });

@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { ActionScope } from "../../contracts/connections";
 import type { ModelProviderStore } from "./store";
 import { observeConnectionControl, type connectionFlowSchema } from "../../observability/connection-telemetry";
+import { agentsPaidModelsAllowed } from "../billing/billing";
 
 export function registerModelProviderRoutes(app: FastifyInstance, options: {
   store: ModelProviderStore; resolveScope(request: FastifyRequest): Promise<ActionScope>;
@@ -23,8 +24,12 @@ export function registerModelProviderRoutes(app: FastifyInstance, options: {
   app.put(`${base}/default`, async request => control(request, "connect", scope => options.store.setDefault(scope, request.body)));
   app.post(base, { bodyLimit: 16384 }, async request => control(request, "connect", async scope => ({ connection: await options.store.create(scope, request.body) })));
   app.get(`${base}/:connectionId`, async request => ({ connection: await options.store.get(await options.resolveScope(request), connectionId(request)) }));
-  app.get(`${base}/:connectionId/models`, async request => options.store.cachedModels(await options.resolveScope(request), connectionId(request),
-    z.strictObject({ agentId: z.uuid().optional() }).parse(request.query).agentId));
+  app.get(`${base}/:connectionId/models`, async request => {
+    const scope = await options.resolveScope(request);
+    return options.store.cachedModels(scope, connectionId(request),
+      z.strictObject({ agentId: z.uuid().optional() }).parse(request.query).agentId,
+      await agentsPaidModelsAllowed(options.store.pool, scope.organizationId));
+  });
   app.post(`${base}/:connectionId/models/manual`, { bodyLimit: 16384 }, async request => control(request, "discover", scope =>
     options.store.addManualModel(scope, connectionId(request), request.body)));
   app.post(`${base}/:connectionId/probe`, async request => control(request, "discover", scope =>

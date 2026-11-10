@@ -25,6 +25,7 @@ import { assertCurrentAuthority } from "../context/evidence-policy";
 import { loadExecution } from "./state";
 import { instructionHead } from "../context/instruction-state";
 import { quoteNormalizedUsage, reserveModelCost, settleModelCost } from "../models/accounting";
+import { managedCostMicros } from "../models/attribution";
 import { assertHandoffFeedbackAdmissionAuthority } from "./authority";
 import { parseHandoffFeedbackRequest } from "./handoff-feedback-contract";
 import { adjustOperationQuota, workUsage } from "./work-policy";
@@ -200,7 +201,14 @@ async function beginOperationForPurpose(pool: Pool, taskId: string, input: Opera
         await reserveModelCost(db, { organizationId: task.organization_id, rootTaskId: task.root_task_id, taskId, operationId: input.id,
           upperQuote: quoteNormalizedUsage({ inputTokens: route.policy.maxInputTokens, outputTokens: route.policy.maxOutputTokens,
             cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 }, route.model.pricing) });
-      } catch { throw new PlatformError("MODEL_COST_LIMIT", 429, "The model cost allowance cannot cover this request"); }
+      } catch {
+        const capped = (await db.query<{ credit_capped: boolean }>(
+          "SELECT credit_capped FROM agents_platform.root_model_accounts WHERE root_task_id=$1",
+          [task.root_task_id])).rows[0]?.credit_capped;
+        throw capped
+          ? new PlatformError("BILLING_AI_ALLOWANCE_EXHAUSTED", 403, "The monthly AI usage allowance cannot cover this request. Upgrade the plan or wait for the next billing period.")
+          : new PlatformError("MODEL_COST_LIMIT", 429, "The model cost allowance cannot cover this request");
+      }
     }
     await adjustOperationQuota(db,execution,input.reservedTokens);
     const row = (await db.query<OperationRecord>(`INSERT INTO agents_platform.operations
@@ -349,8 +357,8 @@ export async function settleTask(pool: Pool, taskId: string, requested: TaskOutc
           WHERE organization_id=$1 AND day=$2`, [reservation.organization_id, reservation.day, reservation.tokens,total]);
         await db.query("UPDATE agents_platform.usage_reservations SET settled_at=now() WHERE task_id=$1", [taskId]);
       }
-      await db.query(`INSERT INTO agents_platform.usage_ledger(task_id,operation_id,accounted_tokens,outcome) VALUES($1,$2,$3,$4) ON CONFLICT(task_id) DO NOTHING`,
-        [taskId, `root:${taskId}`, total, outcome.state]);
+      await db.query(`INSERT INTO agents_platform.usage_ledger(task_id,operation_id,accounted_tokens,managed_cost_micros,outcome) VALUES($1,$2,$3,$4,$5) ON CONFLICT(task_id) DO NOTHING`,
+        [taskId, `root:${taskId}`, total, (await managedCostMicros(db, taskId)).toString(), outcome.state]);
       await db.query("UPDATE agents_platform.execution_roots SET settled_at=now() WHERE root_task_id=$1",[taskId]);
     }
     assertTaskTransition(task.state, outcome.state);
