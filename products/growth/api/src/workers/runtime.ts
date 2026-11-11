@@ -88,7 +88,7 @@ export function createWorkerRunners(
       ),
     public_webhooks: (signal) => runPublicWebhooks(pool, config, signal, log),
     billing_usage_forwarder: (signal) =>
-      runBillingUsageForwarder(pool, log, signal),
+      runBillingUsageForwarder(pool, config, log, signal),
     analytics_publisher: (signal) =>
       runAnalyticsPublisher(pool, config.rawEnv, log, signal),
     analytics_backfill: (signal) =>

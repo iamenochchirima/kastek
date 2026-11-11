@@ -2562,6 +2562,12 @@ model AdminOutreachSendAttempt {
 }
 
 /// Durable product setup intent. Provider credentials remain exclusively in Agents.
+model GrowthAgentUsageCursor {
+  orgId     String   @id
+  since     String
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+}
+
 model GrowthAgentSetup {
   orgId                String       @id
   org                  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)

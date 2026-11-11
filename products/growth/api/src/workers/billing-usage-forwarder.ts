@@ -1,12 +1,15 @@
 import type { Pool } from "pg";
 import { setTimeout as sleep } from "node:timers/promises";
+import type { CoreConfig } from "../config.js";
 import { workerSpan } from "../observability/operations.js";
 import { billingServiceConfig } from "../services/billing-service.js";
 import { forwardPendingUsage } from "../services/billing.js";
+import { pullGrowthAgentUsage } from "../agents/usage-pull.js";
 import type { WorkerLogger } from "./runtime.js";
 
 export async function runBillingUsageForwarder(
   pool: Pool,
+  core: CoreConfig,
   log: WorkerLogger,
   signal: AbortSignal,
 ): Promise<void> {
@@ -16,6 +19,15 @@ export async function runBillingUsageForwarder(
   log.info({ event: "worker.started", worker: "billing_usage_forwarder" });
   while (!signal.aborted) {
     try {
+      const recorded = await workerSpan("billing_usage_forwarder.pull_agent_usage", () =>
+        pullGrowthAgentUsage(pool, core, 100),
+      );
+      if (recorded > 0)
+        log.info({
+          event: "queue.item.completed",
+          worker: "billing_usage_forwarder",
+          recorded,
+        });
       const forwarded = await workerSpan("billing_usage_forwarder.process_batch", () =>
         forwardPendingUsage(pool, config, 100),
       );
