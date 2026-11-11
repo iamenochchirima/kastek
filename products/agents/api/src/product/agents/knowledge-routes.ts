@@ -6,14 +6,14 @@ import { KnowledgeRetrieval } from "../../capabilities/knowledge/retrieval";
 import { agentConfigurationSchema, PlatformError } from "../../contracts/contracts";
 
 export function registerKnowledgeRoutes(app: FastifyInstance, options: { knowledge: KnowledgeStore; runtime?: Pick<DocumentRuntime,"available"|"profile">; resolveScope(request: FastifyRequest): Promise<KnowledgeScope> }) {
-  const base = "/api/organizations/:organizationId/knowledge", params = (request: FastifyRequest) => request.params as Record<string, string>;
+  const organizationBase = "/api/organizations/:organizationId", base = `${organizationBase}/knowledge`, params = (request: FastifyRequest) => request.params as Record<string, string>;
   app.get(`${base}/sources`, async request => {
     const scope = await options.resolveScope(request);
     const [sources, imports, role] = await Promise.all([options.knowledge.list(scope), options.knowledge.listImports(scope), requireKnowledgeMember(options.knowledge.pool, scope)]);
     return { sources, imports, canApprove: role !== "member" };
   });
   /** Owner-facing keyword check against the saved draft; semantic ranking is exercised by private preview. */
-  app.post(`${base}/agents/:agentId/knowledge/test`, async request => {
+  app.post(`${organizationBase}/agents/:agentId/knowledge/test`, async request => {
     const scope = await options.resolveScope(request);
     const agentId = z.uuid().parse(params(request).agentId);
     const { query } = z.strictObject({ query: z.string().trim().min(1).max(1024) }).parse(request.body ?? {});
