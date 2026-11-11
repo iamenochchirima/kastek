@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "platformVersion": "0.10.0",
+  "releaseId": "platform-v0.10.0+f8ef8d72",
+  "releaseCommit": "f8ef8d721cc42fba45214f45222e61db9f193114",
+  "featureCommit": "0178c3bac872bc3b0746b0b3243142dd6ef213f4",
+  "tagged": false,
+  "capturedAt": "2026-11-11T17:36:00Z",
+  "change": "Structured agent identity and guidance, setup-safe defaults, and separate knowledge approval, attachment and customer publication.",
+  "owner": "iamenochchirima",
+  "risk": "standard",
+  "railway": {
+    "projectId": "83fe5737-0fcd-4b07-b077-04e336a1c7c4",
+    "environmentId": "9380a1a6-6791-4321-9d81-e88c9b3b73ce",
+    "services": [
+      {
+        "service": "agents-api",
+        "deploymentId": "d4f7588a-4721-4c26-9052-3adf07c2e921",
+        "status": "SUCCESS",
+        "commit": "f8ef8d721cc42fba45214f45222e61db9f193114",
+        "previousDeploymentId": "fbb96ccb-453e-4381-83b4-1f7bc11269e9"
+      },
+      {
+        "service": "agents-worker",
+        "deploymentId": "c4a9413c-9d2c-40e7-aab7-de8b65fd2464",
+        "status": "SUCCESS",
+        "commit": "f8ef8d721cc42fba45214f45222e61db9f193114",
+        "previousDeploymentId": "c02975d8-37d3-4a8d-916b-0269e709338b"
+      }
+    ],
+    "releaseIdentity": {
+      "KASITEK_VERSION": "0.9.8",
+      "KASITEK_RELEASE_ID": "platform-v0.9.11+526aca0b0",
+      "applied": false,
+      "note": "Railway release variables still describe the previous release. Updating them requires explicit production approval under AGENTS.md."
+    }
+  },
+  "vercel": {
+    "project": "kasitek-agents",
+    "projectId": "prj_zfO3gTNkfLHWXJehRbnvVRNUuw49",
+    "deploymentId": "dpl_APQZiszfSqyiZg5CSW6XrcmwEgSM",
+    "deploymentUrl": "https://kasitek-agents-eulce9l2m-iamenochchirimas-projects.vercel.app",
+    "productionUrl": "https://agents.kasitek.co.za",
+    "previousProductionUrl": "https://kasitek-agents-n7kcduqpg-iamenochchirimas-projects.vercel.app",
+    "state": "READY",
+    "sourceCommit": "0178c3bac872bc3b0746b0b3243142dd6ef213f4",
+    "gitIntegration": false,
+    "note": "The web build includes the identity and knowledge UI from 0178c3ba. The API-only fix f8ef8d72 does not change the web artifact."
+  },
+  "migrations": [
+    {
+      "name": "144_knowledge_verification.sql",
+      "sha256": "19e498e740f89b73a608418965d59d48e880134b9d224d3abe7cbea546d04e12",
+      "productionApplied": true,
+      "application": "Applied in the agents-api container against the production database before the first deployment. Additive columns and index only."
+    }
+  ],
+  "validation": {
+    "apiTypecheck": "passed",
+    "apiBuild": "passed",
+    "webTypecheck": "passed",
+    "webBuild": "passed",
+    "apiTests": "identity, customer setup persistence, knowledge lifecycle and affected HTTP suites passed locally against PostgreSQL",
+    "browserTests": "configuration-experience identity and effective-settings cases passed against the prebuilt web artifact",
+    "productionHealth": "GET /ready, GET /health and GET /app/agents returned 200",
+    "productionRoutes": "identity-defaults and source original returned 401; knowledge test returned 403 without a session, confirming all three routes are registered",
+    "knownBaseline": "The full API suite still has unrelated local failures including tool-binding version expectations and work-continuation timing."
+  },
+  "rollback": {
+    "web": "Promote kasitek-agents-n7kcduqpg-iamenochchirimas-projects.vercel.app.",
+    "apiWorker": "Redeploy previous Railway deployments fbb96ccb-453e-4381-83b4-1f7bc11269e9 and c02975d8-37d3-4a8d-916b-0269e709338b.",
+    "database": "Keep 144_knowledge_verification.sql. Columns are nullable or defaulted and the previous code ignores them."
+  },
+  "postReleaseReviewDate": "2026-11-25"
+}
