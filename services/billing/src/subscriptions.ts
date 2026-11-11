@@ -806,7 +806,22 @@ export async function processRecurringCharge(
     `SELECT 1 FROM billing.invoices WHERE subscription_id=$1 AND period_start=$2`,
     [current.id, periodStart],
   );
-  if (billed.rowCount) return true;
+  if (billed.rowCount) {
+    // A retry can arrive after the period was already invoiced. It still has to clear a
+    // past-due state; otherwise a recovered payment leaves the workspace read-only.
+    if (current.status === "past_due" || current.grace_ends_at) {
+      await transaction(pool, async (client) => {
+        await client.query(
+          `UPDATE billing.subscriptions
+              SET status='active', grace_ends_at=NULL, cancel_at_period_end=false, updated_at=now()
+            WHERE id=$1`,
+          [current.id],
+        );
+        await bumpEntitlementRevision(client, current.billing_account_id);
+      });
+    }
+    return true;
+  }
   await transaction(pool, async (client) => {
     const locked = await client.query<SubscriptionRow>(
       `SELECT ${SUBSCRIPTION_COLUMNS} FROM billing.subscriptions WHERE id=$1 FOR UPDATE`,
