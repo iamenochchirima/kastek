@@ -96,6 +96,10 @@ beforeAll(async () => {
       response.end(JSON.stringify({ error: '"email" must be a valid email' }));
       return;
     }
+    if (incoming.pathname.startsWith("/internal/subscriptions/") && incoming.pathname.endsWith("/cancel"))
+      return send({ canceled: true, cancelAtPeriodEnd: true });
+    if (incoming.pathname.startsWith("/internal/subscriptions/") && incoming.pathname.endsWith("/reactivate"))
+      return send({ reactivated: true });
     response.writeHead(404);
     response.end();
   });
@@ -167,6 +171,17 @@ describe("Agents AI allowance access", () => {
     await expect(agentsPaidModelsAllowed(pool, "org_free")).resolves.toBe(false);
     planKey = "agents-growth";
     await expect(agentsPaidModelsAllowed(pool, "org_growth")).resolves.toBe(true);
+  });
+
+  it("cancels and reactivates through the billing service", async () => {
+    const client = BillingClient.fromEnvironment("agents")!;
+    await expect(client.cancelSubscription("org_credit", "sub_1")).resolves.toEqual({
+      canceled: true,
+      cancelAtPeriodEnd: true,
+    });
+    await expect(client.reactivateSubscription("org_credit", "sub_1")).resolves.toEqual({
+      reactivated: true,
+    });
   });
 
   it("keeps the payment provider's rejection status instead of a generic failure", async () => {

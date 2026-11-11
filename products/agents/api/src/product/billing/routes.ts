@@ -190,6 +190,25 @@ export function registerBillingRoutes(
     return result;
   });
 
+  async function changeSubscription(request: FastifyRequest, action: "cancel" | "reactivate") {
+    const scope = await options.resolveScope(request);
+    await requirePermission(options.pool, scope, "billing.manage");
+    const client = agentsBillingClient();
+    if (!client)
+      throw new PlatformError("BILLING_UNAVAILABLE", 503, "Customer billing is not configured");
+    const snapshot = await client.snapshot(scope.organizationId, true);
+    const subscription = snapshot.subscription;
+    if (!subscription)
+      throw new PlatformError("BILLING_SUBSCRIPTION_REQUIRED", 409, "An active subscription is required");
+    if (subscription.planKey === "agents-free")
+      throw new PlatformError("BILLING_PLAN_REQUIRED", 409, "A free workspace has no subscription to change");
+    return action === "cancel"
+      ? client.cancelSubscription(scope.organizationId, subscription.id)
+      : client.reactivateSubscription(scope.organizationId, subscription.id);
+  }
+  app.post("/api/organizations/:organizationId/billing/subscription/cancel", async request => changeSubscription(request, "cancel"));
+  app.post("/api/organizations/:organizationId/billing/subscription/reactivate", async request => changeSubscription(request, "reactivate"));
+
   app.post(
     "/api/organizations/:organizationId/billing/checkout/:reference/verify",
     async (request) => {

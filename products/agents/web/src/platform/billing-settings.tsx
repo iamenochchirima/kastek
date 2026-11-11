@@ -5,6 +5,7 @@ import { Alert02Icon } from "@hugeicons/core-free-icons";
 import { billingAllowance } from "@kasitek-labs/ui/billing-allowance";
 import { PiArrowClockwise as RefreshCw } from "react-icons/pi";
 import { Button } from "@/components/ui/button";
+import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { api, organizationPath } from "./api";
 import "./management.css";
 import "./workspace-surfaces.css";
@@ -133,6 +134,7 @@ export function useBillingData(organizationId: string) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [checkoutBusy, setCheckoutBusy] = useState("");
+  const [subscriptionBusy, setSubscriptionBusy] = useState(false);
   const verified = useRef(false);
 
   async function refresh() {
@@ -204,15 +206,44 @@ export function useBillingData(organizationId: string) {
     }
   }
 
-  return { data, error, notice, checkoutBusy, startCheckout, refresh };
+  async function changeSubscription(action: "cancel" | "reactivate") {
+    setSubscriptionBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await api(`${organizationPath(organizationId)}/billing/subscription/${action}`, {}, "POST");
+      setNotice(action === "cancel"
+        ? "Plan canceled. Access continues until the end of the current period."
+        : "Plan resumed.");
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The plan could not be updated");
+    } finally {
+      setSubscriptionBusy(false);
+    }
+  }
+
+  return {
+    data,
+    error,
+    notice,
+    checkoutBusy,
+    startCheckout,
+    refresh,
+    subscriptionBusy,
+    cancelPlan: () => changeSubscription("cancel"),
+    resumePlan: () => changeSubscription("reactivate"),
+  };
 }
 
 export function BillingSettings({ organizationId }: { organizationId: string }) {
-  const { data, error, notice, refresh } = useBillingData(organizationId);
+  const { data, error, notice, refresh, cancelPlan, resumePlan, subscriptionBusy } = useBillingData(organizationId);
+  const { confirm } = useConfirmationDialog();
   const account = data?.account;
   const subscription =
     account?.subscriptions?.find((item) => item.product === "agents") ??
     account?.subscriptions?.[0];
+  const paidSubscription = Boolean(subscription && subscription.planKey !== "agents-free");
   const invoices = data?.invoices ?? account?.invoices ?? [];
 
   return (
@@ -258,7 +289,33 @@ export function BillingSettings({ organizationId }: { organizationId: string }) 
                     {usd(account?.credits?.reserved)} reserved
                   </p>
                 </div>
-                <Button asChild variant="outline" size="sm"><Link to="/app/upgrade">Change plan</Link></Button>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Button asChild variant="outline" size="sm"><Link to="/app/upgrade">Change plan</Link></Button>
+                  {paidSubscription ? (
+                    subscription?.cancelAtPeriodEnd ? (
+                      <Button size="sm" variant="outline" disabled={subscriptionBusy} onClick={() => void resumePlan()}>
+                        {subscriptionBusy ? "Working…" : "Resume plan"}
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={subscriptionBusy}
+                        onClick={() => void (async () => {
+                          if (!await confirm({
+                            title: "Cancel plan?",
+                            description: "Access continues until the end of the current period. The workspace then moves to Free.",
+                            confirmLabel: "Cancel plan",
+                            variant: "destructive",
+                          })) return;
+                          await cancelPlan();
+                        })()}
+                      >
+                        Cancel plan
+                      </Button>
+                    )
+                  ) : null}
+                </div>
               </div>
             </div>
             <div className="grid gap-3 p-5 sm:grid-cols-3">
