@@ -62,7 +62,12 @@ function snapshot(product: string, tenantId: string): BillingEntitlementSnapshot
       "limit.agent_tokens": 1_000_000_000,
       "limit.agency_agent_commands": 1_000_000,
     },
-    meters: {},
+    meters:
+      tenantId === "meter-at-limit"
+        ? { social_publishes: { used: "50.000000", limit: "50" } }
+        : tenantId === "meter-under-limit"
+          ? { social_publishes: { used: "49.000000", limit: "50" } }
+          : {},
     credits: {
       balance: tenantId.startsWith("zero-credit") ? "0" : "1000000",
       reserved: "0",

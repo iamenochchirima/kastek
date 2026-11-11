@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { requireAiCredit, requireCapability, requireResourceLimit } from "../src/services/billing.js";
+import { requireAiCredit, requireCapability, requireMeterAvailable, requireResourceLimit } from "../src/services/billing.js";
 import { analyticsQueryNeedsPlan } from "../src/routes/analytics.js";
 
 test("seat and channel guards allow within the plan and deny above it", async () => {
@@ -20,6 +20,14 @@ test("AI allowance stays available until the credit balance reaches zero", async
   await assert.rejects(
     requireAiCredit(null as never, "zero-credit"),
     /AI usage allowance is used up/,
+  );
+});
+
+test("meter guards compare decimal snapshot usage without throwing", async () => {
+  await requireMeterAvailable(null as never, "meter-under-limit", "social_publishes", 1);
+  await assert.rejects(
+    requireMeterAvailable(null as never, "meter-at-limit", "social_publishes", 1),
+    /social_publishes monthly limit/,
   );
 });
 

@@ -144,6 +144,18 @@ export async function requireResourceLimit(
     );
 }
 
+/**
+ * Meter quantities are stored as numeric(20,6), so the billing snapshot returns
+ * values such as "50.000000". Compare whole units and round any fraction up so
+ * a partial unit still counts against the limit.
+ */
+function wholeUnits(value: string | number | bigint): bigint {
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(String(value).trim());
+  if (!match)
+    throw new ApiError(500, "internal_error", "Billing meter usage is invalid");
+  return BigInt(match[1]!) + (match[2] && /[1-9]/.test(match[2]) ? 1n : 0n);
+}
+
 export async function requireMeterAvailable(
   pool: Pool,
   orgId: string,
@@ -154,7 +166,7 @@ export async function requireMeterAvailable(
   const meter = snapshot.meters[key];
   if (
     meter?.limit != null &&
-    BigInt(meter.used) + BigInt(quantity) > BigInt(meter.limit)
+    wholeUnits(meter.used) + wholeUnits(quantity) > wholeUnits(meter.limit)
   )
     throw new ApiError(
       403,
