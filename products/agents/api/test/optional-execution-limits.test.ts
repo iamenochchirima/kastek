@@ -70,6 +70,13 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     }
   },30000);
 
+  it("does not block a zero-priced model on the daily token allowance", async () => {
+    const { authority, grant, task } = await fixture();
+    await pool.query("UPDATE agents_platform.usage_accounts SET token_allowance=1 WHERE organization_id=$1", [authority.organizationId]);
+    const admitted = await store.admitTask({ authority, grantId: grant.id, versionId: task.version_id, requestKey: randomUUID(), input: "Hello again" });
+    expect(admitted.task.id).toBeTruthy();
+  });
+
   it("reserves null-root operations against quota, settles actual usage and replays without double charge", async () => {
     const { task, authority } = await fixture();
     const quota = async () => (await pool.query("SELECT reserved_tokens,consumed_tokens FROM agents_platform.usage_accounts WHERE organization_id=$1",[authority.organizationId])).rows[0];

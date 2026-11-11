@@ -31,6 +31,7 @@ import { assertPendingSupportStatusAuthority } from "../lifecycle/authority";
 import { assertPlatformRootAdmissionOpen } from "./platform-gate";
 import { assertCustomerChannelRecipient } from "../context/recipient-boundary";
 import { assertAgentsBillingAccess, assertManagedModelAllowance, billingPaidPlan } from "../../product/billing/billing";
+import { hasKnownPrice, isFreeModel, reservationMicros } from "../models/admission-budget";
 
 import type { AdmitTaskInput,TaskEvent,TaskRecord } from "../../contracts/records";
 import { AuthorityStore } from "./authority-store";
@@ -124,6 +125,22 @@ export class AdmissionStore extends AuthorityStore {
     const primaryCustody=billing?(await db.query<{custody:string}>(`SELECT custody FROM agents_platform.model_provider_connections
       WHERE organization_id=$1 AND id=$2`,[input.authority.organizationId,models.primary.binding.connectionId])).rows[0]?.custody:undefined;
     assertManagedModelAllowance(billing,primaryCustody);
+    // Free models cost nothing, so a token counter must not block them. Priced models are
+    // checked against the plan's dollar credit balance instead of a flat token allowance.
+    const freeModel = isFreeModel(models.primary);
+    let enforceTokenAllowance = false;
+    if (!freeModel) {
+      if (hasKnownPrice(models.primary) && billing) {
+        const required = reservationMicros(models.primary);
+        if (required === 0n) enforceTokenAllowance = true;
+        else if (BigInt(billing.credits.available) < required) {
+          throw new PlatformError("BILLING_AI_ALLOWANCE_EXHAUSTED", 403, "The AI credit balance cannot cover this request");
+        }
+      } else {
+        // Without a billing snapshot or a price, the token allowance remains the only guard.
+        enforceTokenAllowance = true;
+      }
+    }
     if (Buffer.byteLength(input.input) > models.primary.policy.maxInputBytes) throw new PlatformError("INPUT_LIMIT", 413, "The message exceeds the effective input allowance");
     const active=(await db.query<{active_roots:number}>("SELECT active_roots FROM agents_platform.tenant_admission WHERE organization_id=$1 FOR UPDATE",[input.authority.organizationId])).rows[0];
     if(!active)throw new PlatformError("ADMISSION_STATE_UNAVAILABLE",503,"Admission capacity is unavailable");
@@ -135,10 +152,20 @@ export class AdmissionStore extends AuthorityStore {
       WHERE id=$1 AND state='active' AND expires_at>now() AND allocated_tokens+$2<=max_tokens RETURNING id`, [input.evaluationTrialId, reservation])).rowCount) {
       throw new PlatformError("EVALUATION_BUDGET_EXCEEDED", 429, "The trial allocation limit was reached");
     }
+    const day = (await db.query<{ day: string }>("SELECT (now() AT TIME ZONE 'UTC')::date::text AS day")).rows[0]!.day;
     await db.query("INSERT INTO agents_platform.usage_accounts(organization_id,day,token_allowance) VALUES($1,(now() AT TIME ZONE 'UTC')::date,$2) ON CONFLICT DO NOTHING", [input.authority.organizationId,policy.dailyTokenAllowance]);
-    const quota = (await db.query<{ day: string }>(`UPDATE agents_platform.usage_accounts SET reserved_tokens=reserved_tokens+$2
-      WHERE organization_id=$1 AND day=(now() AT TIME ZONE 'UTC')::date AND reserved_tokens+consumed_tokens+$2<=token_allowance RETURNING day`, [input.authority.organizationId, reservation])).rows[0];
-    if (!quota) throw new PlatformError("QUOTA_EXCEEDED", 429, "The daily usage limit was reached");
+    if (enforceTokenAllowance) {
+      const quota = (await db.query<{ day: string }>(`UPDATE agents_platform.usage_accounts SET reserved_tokens=reserved_tokens+$2
+        WHERE organization_id=$1 AND day=(now() AT TIME ZONE 'UTC')::date AND reserved_tokens+consumed_tokens+$2<=token_allowance RETURNING day`, [input.authority.organizationId, reservation])).rows[0];
+      if (!quota) throw new PlatformError("QUOTA_EXCEEDED", 429, "The daily usage limit was reached");
+    } else {
+      // The allowance is not the guard here (free model or a dollar-checked plan), so lift it
+      // to keep the accounting rows valid instead of failing the table constraint.
+      await db.query(`UPDATE agents_platform.usage_accounts
+        SET token_allowance=GREATEST(token_allowance,reserved_tokens+consumed_tokens+$2),
+            reserved_tokens=reserved_tokens+$2
+        WHERE organization_id=$1 AND day=(now() AT TIME ZONE 'UTC')::date`, [input.authority.organizationId, reservation]);
+    }
     const conversationId = input.conversationId ?? randomUUID();
     if (input.conversationId) {
       const conversation = (await db.query<{ agent_id: string; principal: unknown; deployment_id: string | null }>("SELECT agent_id,principal,deployment_id FROM agents_platform.conversations WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR UPDATE", [input.authority.organizationId, conversationId])).rows[0];
@@ -197,7 +224,7 @@ export class AdmissionStore extends AuthorityStore {
       await assertPendingSupportStatusAuthority(db,await loadExecution(db,task.id));
     }
     await db.query("INSERT INTO agents_platform.task_outbox(task_id) VALUES($1)", [task.id]);
-    await db.query("INSERT INTO agents_platform.usage_reservations(task_id,organization_id,day,tokens) VALUES($1,$2,$3,$4)", [task.id, input.authority.organizationId, quota.day, reservation]);
+    await db.query("INSERT INTO agents_platform.usage_reservations(task_id,organization_id,day,tokens) VALUES($1,$2,$3,$4)", [task.id, input.authority.organizationId, day, reservation]);
     await recordEvent(db, task.id, "accepted", "accepted");
     return { task, replayed: false };
   }
