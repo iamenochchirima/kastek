@@ -33,12 +33,18 @@ function PlanCard({
   busy,
   trialEligible,
   onTrial,
+  subscription,
 }: {
   plan: AvailablePlan;
   current: boolean;
   busy: boolean;
   trialEligible: boolean;
   onTrial: () => void;
+  subscription?: {
+    status: string | null;
+    periodEnd?: string | null;
+    cancelAtPeriodEnd?: boolean;
+  } | null;
 }) {
   const presentation = presentationFor(plan);
   const isFree = Number(plan.amountMinor ?? 0) === 0;
@@ -70,7 +76,7 @@ function PlanCard({
             {plan.name}
           </h3>
           {current ? (
-            <span className="text-xs text-muted-foreground">Current</span>
+            <span className="text-xs font-medium text-primary">Your current plan</span>
           ) : null}
         </div>
         <p className="mt-1 text-sm leading-5 text-muted-foreground">
@@ -84,6 +90,14 @@ function PlanCard({
         </p>
         <p className="text-xs text-muted-foreground">/ month</p>
       </div>
+      {current && subscription ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {formatStatus(subscription.status)}
+          {subscription.periodEnd
+            ? ` · ${subscription.cancelAtPeriodEnd ? "Access ends" : "Renews"} ${new Date(subscription.periodEnd).toLocaleDateString("en-ZA", { dateStyle: "medium" })}`
+            : ""}
+        </p>
+      ) : null}
 
       <dl className="mt-5 divide-y divide-border border-y border-border text-sm">
         <div className="flex items-baseline justify-between gap-3 py-2">
@@ -134,8 +148,8 @@ function PlanCard({
 
       <div className="mt-auto pt-5">
         {current ? (
-          <Button className="w-full" variant="outline" disabled>
-            Current plan
+          <Button asChild className="w-full" variant="outline">
+            <Link to="/billing">Manage billing</Link>
           </Button>
         ) : canTrial ? (
           <Button className="w-full" onClick={onTrial} disabled={busy}>
@@ -168,6 +182,17 @@ function PlanCard({
   );
 }
 
+/** Plan keys come from several sources: the catalogue key, the billing service key and the display
+ * name. Compare on a stable slug rather than assuming they are identical. */
+function planSlug(value: string | null | undefined): string {
+  return (value ?? "")
+    .toLowerCase()
+    .replace(/kasitek\s+/g, "")
+    .replace(/\b(monthly|plan)\b/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 export function UpgradePage({
   plans,
   summary,
@@ -192,16 +217,19 @@ export function UpgradePage({
     }
   }
 
-  const currentSubscriptions = (summary?.products ?? []).filter(
-    (product) => product.subscriptionId && product.hasAccess,
-  );
-  const currentSubscription = currentSubscriptions[0] ?? null;
-  const currentPlanKey =
-    currentSubscription?.planKey ??
+  // The summary can carry several products (Agents, Growth). This page is the Growth plan, so the
+  // current plan must come from that product rather than the first entry.
+  const currentSubscription =
+    (summary?.products ?? []).find(
+      (product) => product.key === "growth" && product.subscriptionId && product.hasAccess,
+    ) ?? null;
+  const currentPlan =
     (currentSubscription
-      ? plans.find((plan) => plan.name === currentSubscription.planName)?.key
-      : "growth-free") ??
-    null;
+      ? plans.find((plan) => plan.key === currentSubscription.planKey) ??
+        plans.find((plan) => planSlug(plan.name) === planSlug(currentSubscription.planName)) ??
+        plans.find((plan) => planSlug(plan.key) === planSlug(currentSubscription.planKey))
+      : plans.find((plan) => Number(plan.amountMinor ?? 0) === 0)) ?? null;
+  const currentPlanKey = currentPlan?.key ?? null;
 
   return (
     <div className="min-h-[100dvh]">
@@ -223,54 +251,22 @@ export function UpgradePage({
           </Link>
         </div>
 
-        {currentSubscription || trial?.eligible ? (
-          <div className="mt-8 divide-y divide-border border-y border-border">
-            {currentSubscription ? (
-              <div className="flex flex-wrap items-center justify-between gap-4 py-4">
-                <div className="min-w-0">
-                  <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                    Current plan
-                  </p>
-                  <p className="mt-1 text-sm text-foreground">
-                    {currentSubscription.planName ?? currentSubscription.name}
-                    <span className="text-muted-foreground">
-                      {" "}
-                      · {formatStatus(currentSubscription.subscriptionStatus)}
-                    </span>
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {currentSubscription.currentPeriodEnd
-                      ? `${currentSubscription.cancelAtPeriodEnd ? "Access ends" : "Renews"} ${new Date(currentSubscription.currentPeriodEnd).toLocaleDateString("en-ZA", { dateStyle: "medium" })}`
-                      : "No renewal date is recorded"}
-                  </p>
-                </div>
-                <Link
-                  to="/billing"
-                  className="text-[13px] font-medium text-foreground/80 underline-offset-4 hover:text-foreground hover:underline"
-                >
-                  Manage billing
-                </Link>
-              </div>
-            ) : null}
-
-            {trial?.eligible ? (
-              <div className="flex flex-wrap items-center justify-between gap-4 py-4">
-                <div className="min-w-0">
-                  <p className="text-sm text-foreground">
-                    Try {plans.find((plan) => plan.key === trial.planKey)?.name ?? "Growth"} free for {trial.days} days
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    No card required. Returns to Free when the trial ends.
-                  </p>
-                  {trialError ? (
-                    <p className="mt-1 text-xs text-destructive">{trialError}</p>
-                  ) : null}
-                </div>
-                <Button size="sm" onClick={() => void beginTrial()} disabled={trialBusy}>
-                  {trialBusy ? "Starting…" : "Start trial"}
-                </Button>
-              </div>
-            ) : null}
+        {trial?.eligible ? (
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-y border-border py-4">
+            <div className="min-w-0">
+              <p className="text-sm text-foreground">
+                Try {plans.find((plan) => plan.key === trial.planKey)?.name ?? "Growth"} free for {trial.days} days
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                No card required. Returns to Free when the trial ends.
+              </p>
+              {trialError ? (
+                <p className="mt-1 text-xs text-destructive">{trialError}</p>
+              ) : null}
+            </div>
+            <Button size="sm" onClick={() => void beginTrial()} disabled={trialBusy}>
+              {trialBusy ? "Starting…" : "Start trial"}
+            </Button>
           </div>
         ) : null}
 
@@ -292,6 +288,15 @@ export function UpgradePage({
                   busy={trialBusy}
                   trialEligible={trial?.eligible === true && trial.planKey === plan.key}
                   onTrial={() => void beginTrial()}
+                  subscription={
+                    plan.key === currentPlanKey && currentSubscription
+                      ? {
+                          status: currentSubscription.subscriptionStatus,
+                          periodEnd: currentSubscription.currentPeriodEnd,
+                          cancelAtPeriodEnd: currentSubscription.cancelAtPeriodEnd,
+                        }
+                      : null
+                  }
                 />
               ))}
             </div>
@@ -302,7 +307,7 @@ export function UpgradePage({
           )}
         </section>
 
-        <details className="group mt-10 border-t border-border pt-4">
+        <details open className="group mt-10 border-t border-border pt-4">
           <summary className="flex cursor-pointer list-none items-center justify-between py-2 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
             Compare plans
             <ArrowRight className="size-4 text-muted-foreground transition-transform group-open:rotate-90" />
