@@ -13,7 +13,6 @@ import {
 } from "@/lib/billing";
 import {
   formatPrice,
-  formatStatus,
   formatUsd,
   GROWTH_COMPARISON,
   growthFeatureGroups,
@@ -71,14 +70,9 @@ function PlanCard({
             {presentation.ribbon ?? "Most popular"}
           </p>
         ) : null}
-        <div className="flex items-baseline justify-between gap-3">
-          <h3 className="text-base font-semibold tracking-tight text-foreground">
-            {plan.name}
-          </h3>
-          {current ? (
-            <span className="text-xs font-medium text-primary">Your current plan</span>
-          ) : null}
-        </div>
+        <h3 className="text-base font-semibold tracking-tight text-foreground">
+          {plan.name}
+        </h3>
         <p className="mt-1 text-sm leading-5 text-muted-foreground">
           {presentation.tagline}
         </p>
@@ -90,12 +84,10 @@ function PlanCard({
         </p>
         <p className="text-xs text-muted-foreground">/ month</p>
       </div>
-      {current && subscription ? (
+      {current && subscription?.periodEnd ? (
         <p className="mt-1 text-xs text-muted-foreground">
-          {formatStatus(subscription.status)}
-          {subscription.periodEnd
-            ? ` · ${subscription.cancelAtPeriodEnd ? "Access ends" : "Renews"} ${new Date(subscription.periodEnd).toLocaleDateString("en-ZA", { dateStyle: "medium" })}`
-            : ""}
+          {subscription.cancelAtPeriodEnd ? "Access ends" : "Renews"}{" "}
+          {new Date(subscription.periodEnd).toLocaleDateString("en-ZA", { dateStyle: "medium" })}
         </p>
       ) : null}
 
@@ -148,9 +140,12 @@ function PlanCard({
 
       <div className="mt-auto pt-5">
         {current ? (
-          <Button asChild className="w-full" variant="outline">
-            <Link to="/billing">Manage billing</Link>
-          </Button>
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-primary">Your current plan</p>
+            <Button asChild className="w-full" variant="outline">
+              <Link to="/billing">Manage billing</Link>
+            </Button>
+          </div>
         ) : canTrial ? (
           <Button className="w-full" onClick={onTrial} disabled={busy}>
             {busy ? "Starting…" : actionLabel}
