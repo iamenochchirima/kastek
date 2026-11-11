@@ -8,14 +8,18 @@ import { MotionReveal } from "@/components/ui/motion-reveal";
 import { Link } from "react-router";
 
 function productStateLabel(product: ProductAccess) {
-  if (product.subscriptionStatus === "TRIAL") return "Trial";
-  if (product.subscriptionStatus === "GRACE") return "Grace period";
-  if (product.subscriptionStatus === "PAST_DUE") return "Payment required";
-  if (product.subscriptionStatus === "SUSPENDED") return "Suspended";
-  if (product.subscriptionStatus === "CANCELLED") return "Cancelled";
+  if (product.subscriptionStatus === "trialing") return "Trial";
+  if (product.subscriptionStatus === "grace") return "Grace period";
+  if (product.subscriptionStatus === "past_due") return "Payment required";
+  if (product.subscriptionStatus === "incomplete") return "Payment required";
+  if (product.subscriptionStatus === "canceled") return "Cancelled";
   if (!product.hasAccess) return "Upgrade required";
   if (product.cancelAtPeriodEnd) return "Cancels at period end";
   return "Active";
+}
+
+function renewable(product: ProductAccess) {
+  return ["active", "grace"].includes(product.subscriptionStatus ?? "");
 }
 
 function formatPrice(amountMinor: number | null, currency: string) {
@@ -140,7 +144,7 @@ export function BillingPanel({
               </section>
             </MotionReveal>
 
-            {subscriptions.some((product) => ["ACTIVE", "GRACE"].includes(product.subscriptionStatus ?? "")) ? (
+            {subscriptions.some(renewable) ? (
               <MotionReveal delay={0.06}>
                 <section className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-panel)] sm:p-7">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -148,7 +152,7 @@ export function BillingPanel({
                       <h2 className="text-base font-semibold text-foreground">Subscription settings</h2>
                       <p className="mt-1 text-sm text-muted-foreground">Manage renewal for your active workspace plan.</p>
                     </div>
-                    {subscriptions.filter((product) => ["ACTIVE", "GRACE"].includes(product.subscriptionStatus ?? "")).map((product) => (
+                    {subscriptions.filter(renewable).map((product) => (
                       <SubscriptionActionButton key={product.subscriptionId} subscriptionId={product.subscriptionId!} cancelAtPeriodEnd={product.cancelAtPeriodEnd} />
                     ))}
                   </div>
