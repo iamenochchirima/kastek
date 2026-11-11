@@ -25,6 +25,7 @@ import { skillContext,skillReceiptGroups,skillFitsRequest } from "../context/ski
 import { isCustomerPrincipal,PlatformError,requestDigest,terminalTaskStates } from "../../contracts/contracts";
 import type { DependencyManifest } from "../../contracts/source-contracts";
 import { selectedProductContextText } from "../products/product-information";
+import { composeAgentInstructions } from "../../product/agents/identity";
 import type { TaskRecord } from "../../contracts/records";
 import { estimatedTokensFromSerialized } from "../context/serialized-tokens";
 import { buildContext,prepareCompaction,type ContextGroup,type ContextSource,type ContextModelPolicy,type RequestTimeContext } from "../context/context";
@@ -406,7 +407,8 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   if(selectedProductContext&&!options.evidence)throw new PlatformError("PRODUCT_CONTEXT_UNAVAILABLE",503,"Selected context evidence is unavailable");
   const originatingRequest=sharedProtocol&&task.parent_task_id?await originatingRequestContext(pool,task):undefined;
   const memberContext=await memberIdentityContext(pool,task);
-  const channelSafeInstructions = task.channel_binding ? customerSafeInstructions(config.instructions) : config.instructions;
+  const composedInstructions = composeAgentInstructions(config);
+  const channelSafeInstructions = task.channel_binding ? customerSafeInstructions(composedInstructions) : composedInstructions;
   const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: channelSafeInstructions+memberContext+outcomeGuidance+recoveryInstructions+procedureInstructions+(directory?"\n"+directory.text:"")+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":"")+(task.channel_binding?customerChannelInstructions:"")+omittedInstructionNotice, compactContinuation: (task.execution_policy_version??1)>=2, ...(originatingRequest?{originatingRequest,currentInputOrigin:"coordinator" as const}:{}), currentInput: [task.input,...(selectedProductContext?[selectedProductContextText(selectedProductContext.reference)]:[]),...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
     summary: invalidated ? undefined : summary, sources,
     skills: loadedSkills.sources, skillCatalog: loadedSkills.catalog,

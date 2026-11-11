@@ -42,6 +42,29 @@ const setup=()=>customerSetupSchema.parse({business:{name:"Business"},responsibi
   await expect(store.saveConfiguration({...scope,agentId:created.agent.id,expectedRevision:1,configuration:created.agent.draft,setup:input})).rejects.toMatchObject({code:"DRAFT_CONFLICT"});
   expect((await store.getAgent(scope.accountId,scope.organizationId,created.agent.id)).setup).toEqual(changed);
  });
+ it("preserves owner-written instructions and identity through setup changes",async()=>{
+  const scope=await fixture(),input=setup(),created=await store.createConfiguredAgent({...scope,name:"Assistant",setup:input});
+  const configuration={...created.agent.draft,instructions:"Owner-written instructions. Keep these.",identity:{...created.agent.draft.identity!,voice:"Owner-written voice. Keep this."}};
+  const first=await store.saveConfiguration({...scope,agentId:created.agent.id,expectedRevision:1,configuration});
+  const changed={...input,responsibilities:["customer-support" as const,"bookings" as const]};
+  const saved=await store.saveConfiguration({...scope,agentId:created.agent.id,expectedRevision:first.agent.draft_revision,configuration:first.agent.draft,setup:changed});
+  expect(saved.agent.draft.instructions).toBe("Owner-written instructions. Keep these.");
+  expect(saved.agent.draft.identity?.voice).toBe("Owner-written voice. Keep this.");
+  expect(saved.agent.draft.guidance?.topicScope).toContain("orders, bookings, enquiries and account questions");
+ });
+ it("updates default identity when responsibilities change but preserves legacy instructions",async()=>{
+  const scope=await fixture(),created=await store.createConfiguredAgent({...scope,name:"Assistant",setup:setup()});
+  const saved=await store.saveConfiguration({...scope,agentId:created.agent.id,expectedRevision:1,configuration:created.agent.draft,setup:{...setup(),responsibilities:["customer-support" as const]}});
+  expect(saved.agent.draft.identity?.purpose).toContain("resolve issues");
+  expect(saved.agent.draft.identity?.boundaries).toContain("order status");
+  expect(saved.agent.draft.identity?.boundaries).not.toContain("timezone");
+ });
+ it("preserves custom instructions when an agent without setup enters guided setup",async()=>{
+  const scope=await fixture(),configuration={...customerConfigurationForSetup(setup()),instructions:"Legacy custom instructions. Keep these."};
+  const created=await store.createConfiguredAgent({...scope,name:"Assistant",configuration});
+  const saved=await store.saveConfiguration({...scope,agentId:created.agent.id,expectedRevision:1,configuration:created.agent.draft,setup:setup()});
+  expect(saved.agent.draft.instructions).toBe("Legacy custom instructions. Keep these.");
+ });
  it("keeps direct support-hour edits in setup without regenerating manual configuration",async()=>{
   const scope=await fixture(),input=customerSetupSchema.parse({...setup(),responsibilities:["customer-support","enquiries"],supportHours:{timeZone:"Africa/Johannesburg",intervals:[{day:1,start:"09:00",end:"17:00"}]}});
   const created=await store.createConfiguredAgent({...scope,name:"Assistant",setup:input});

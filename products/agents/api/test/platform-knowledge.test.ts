@@ -49,6 +49,21 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(Buffer.from(objects.get(textKey)!).toString()).toBe(output.text);
   });
 
+  it("records review freshness and returns the original source object", async () => {
+    const scope = await fixture(), input = upload(), job = await store.admitUpload(scope, input);
+    await start(job); await store.publishExtraction(job.id, extraction(job));
+    const source = await store.verify(scope, job.sourceId);
+    expect(source.lastVerifiedAt).toBeTruthy();
+    expect(source.verifiedBy).toBe(scope.accountId);
+    expect(source.reviewDueAt).toBeTruthy();
+    const original = await store.downloadOriginal(scope, job.sourceId);
+    expect(Buffer.from(original.bytes).toString()).toBe(input.content.toString());
+    expect(original.contentType).toBe("text/markdown");
+    expect(original.filename).toBe("Guide");
+    const due = await store.verify(scope, job.sourceId, "2027-01-01T00:00:00.000Z");
+    expect(due.reviewDueAt).toBe("2027-01-01T00:00:00.000Z");
+  });
+
   it("normalizes JSON and CSV uploads into retrievable Markdown records", async () => {
     const scope = await fixture();
     const json = await store.admitUpload(scope, { operationId: randomUUID(), title: "Menu", contentType: "application/json",

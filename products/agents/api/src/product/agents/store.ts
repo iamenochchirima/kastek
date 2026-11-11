@@ -27,6 +27,7 @@ export class PlatformStore {
   revokeProviderSession=(...args:Parameters<IdentityStore["revokeProviderSession"]>)=>this.identityStore.revokeProviderSession(...args);
   listAgents=(...args:Parameters<AgentStore["listAgents"]>)=>this.agentStore.listAgents(...args);
   getAgent=(...args:Parameters<AgentStore["getAgent"]>)=>this.agentStore.getAgent(...args);
+  identityDefaults=(...args:Parameters<AgentStore["identityDefaults"]>)=>this.agentStore.identityDefaults(...args);
   deleteAgent=(...args:Parameters<AgentStore["deleteAgent"]>)=>this.agentStore.deleteAgent(...args);
   createAgent=(...args:Parameters<AgentStore["createAgent"]>)=>this.agentStore.createAgent(...args);
   saveConfiguration=(...args:Parameters<AgentStore["saveConfiguration"]>)=>this.agentStore.saveConfiguration(...args);

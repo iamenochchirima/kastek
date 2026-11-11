@@ -62,10 +62,31 @@ function collectConnectedToolAuthorityIds(configuration: { connectedToolBindingI
     ...(configuration.capabilities.delegation.enabled ? configuration.capabilities.delegation.bindings!.flatMap(binding => binding.connectedToolBindingIds) : [])])];
 }
 
+export const agentIdentitySchema = z.strictObject({
+  purpose: z.string().trim().min(1).max(600),
+  voice: z.string().trim().min(1).max(600),
+  values: z.string().trim().max(600).default(""),
+  boundaries: z.string().trim().max(800).default(""),
+  refusal: z.string().trim().max(400).default(""),
+  escalation: z.string().trim().max(400).default(""),
+  examples: z.array(z.string().trim().min(1).max(300)).max(5).default([]),
+});
+export type AgentIdentity = z.infer<typeof agentIdentitySchema>;
+
+export const agentGuidanceSchema = z.strictObject({
+  topicScope: z.string().trim().max(800).default(""),
+  avoid: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
+  refusalStyle: z.enum(["brief", "warm", "formal"]).default("brief"),
+  redirectTo: z.string().trim().max(300).default(""),
+});
+export type AgentGuidance = z.infer<typeof agentGuidanceSchema>;
+
 export const agentConfigurationSchema = z.strictObject({
   program: programReferenceSchema.default({ id: "tool-directed", version: "1" }),
   executionKind: executionKindSchema,
   instructions: z.string().trim().min(1).max(8_000),
+  identity: agentIdentitySchema.optional(),
+  guidance: agentGuidanceSchema.optional(),
   model: modelSchema,
   sourceRevisionIds: z.array(z.uuid()).max(20).refine(ids => new Set(ids).size === ids.length, "Duplicate source revision").default([]),
   connectedToolBindingIds: z.array(z.uuid()).max(8).refine(ids => new Set(ids).size === ids.length, "Duplicate connected tool").default([]),

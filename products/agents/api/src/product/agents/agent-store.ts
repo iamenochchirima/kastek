@@ -8,6 +8,7 @@ import { capabilityBindingSchema } from "../../contracts/capability-catalog";
 import {
 agentConfigurationSchema,assertGrantAuthority,
 connectedToolAuthorityIds,sourceAuthorityIds,configuredContext,
+defaultBusinessConfiguration,
 executionGrantSchema,
 PlatformError,requestDigest,
 type AgentConfiguration,type ExecutionGrant
@@ -15,6 +16,7 @@ type AgentConfiguration,type ExecutionGrant
 import { assertSkillRequirements } from "../../capabilities/skills/requirement-authority";
 import { loadBookingPolicy } from "../../workflows/booking/policy";
 import { customerSetupSchema, customerConfigurationForSetup, applyCustomerSetup, type CustomerSetup } from "../offerings/customer-setup";
+import { defaultAgentGuidance, defaultAgentIdentity, setupUpdatedLayers } from "./identity";
 import { randomAgentAvatar } from "./avatars";
 import { customerConfiguration } from "../offerings/offerings";
 import { compilePublishedComposition } from "../../execution/programs/publication";
@@ -79,6 +81,17 @@ export class AgentStore extends AuthorityStore {
     return this.transaction(async (db) => { await this.membership(db, accountId, organizationId);
       return (await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL", [organizationId, agentId])).rows[0] ?? absent(); });
   }
+  async identityDefaults(accountId: string, organizationId: string, agentId: string): Promise<{
+    identity: ReturnType<typeof defaultAgentIdentity>;
+    guidance: ReturnType<typeof defaultAgentGuidance>;
+  }> {
+    const agent = await this.getAgent(accountId, organizationId, agentId);
+    const responsibilities = agent.setup?.responsibilities ?? null;
+    return {
+      identity: defaultAgentIdentity({ offering: agent.offering, responsibilities }),
+      guidance: defaultAgentGuidance({ offering: agent.offering, responsibilities }),
+    };
+  }
   async deleteAgent(accountId:string, organizationId:string, agentId:string):Promise<void> {
     await this.transaction(async db => {
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [organizationId]);
@@ -129,6 +142,10 @@ export class AgentStore extends AuthorityStore {
   async createConfiguredAgent(input: {accountId:string;organizationId:string;name:string;offering?:"faq"|"customer-service";configuration?:AgentConfiguration;setup?:CustomerSetup;operationId?:string}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
     const setup=input.setup===undefined?null:customerSetupSchema.parse(input.setup);
     const config=agentConfigurationSchema.parse(setup?customerConfigurationForSetup(setup):input.configuration??customerConfiguration(input.offering));
+    if (setup) {
+      config.identity = defaultAgentIdentity({ offering: "customer-service", responsibilities: setup.responsibilities });
+      config.guidance = defaultAgentGuidance({ offering: "customer-service", responsibilities: setup.responsibilities });
+    }
     return this.transaction(async db=>{
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
       await this.membership(db,input.accountId,input.organizationId);
@@ -156,7 +173,15 @@ export class AgentStore extends AuthorityStore {
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
       await this.membership(db,input.accountId,input.organizationId);
       let agent=(await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR UPDATE",[input.organizationId,input.agentId])).rows[0]??absent();
-      if(setup)config=agentConfigurationSchema.parse(applyCustomerSetup(config,setup,agent.setup??undefined));
+      if(setup){
+        const derivedBefore=agent.setup?customerConfigurationForSetup(agent.setup).instructions:null;
+        const customInstructions=derivedBefore!==null?agent.draft.instructions!==derivedBefore:
+          !new Set([defaultBusinessConfiguration().instructions,customerConfiguration("faq").instructions,customerConfiguration("customer-service").instructions]).has(agent.draft.instructions);
+        const next=applyCustomerSetup(config,setup,agent.setup??undefined);
+        if(customInstructions)next.instructions=agent.draft.instructions;
+        Object.assign(next,setupUpdatedLayers(config,{offering:agent.offering,responsibilities:agent.setup?.responsibilities??null},{offering:agent.offering,responsibilities:setup.responsibilities}));
+        config=agentConfigurationSchema.parse(next);
+      }
       else setup=updatedSupportHoursSetup(agent,config);
       if(agent.draft_revision!==input.expectedRevision)throw new PlatformError("DRAFT_CONFLICT",409,"The configuration has changed. Refresh and try again.");
       const latest=(await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC LIMIT 1",[input.organizationId,input.agentId])).rows[0];

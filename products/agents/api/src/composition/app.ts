@@ -56,6 +56,7 @@ import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 import { pageQuery, cursorKeysFromEnvironment, readPageCursor, finishPage } from "../infrastructure/read-pages";
 import { PlatformDiscovery } from "../product/agents/discovery";
 import { registerKnowledgeRoutes } from "../product/agents/knowledge-routes";
+import { composeAgentInstructions } from "../product/agents/identity";
 import { registerBillingRoutes } from "../product/billing/routes";
 import { assertAgentsBillingLimit } from "../product/billing/billing";
 import { WebsiteCrawlStore, startWebsiteCrawlDispatcher } from "../product/agents/website-crawls";
@@ -505,6 +506,18 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const agent = await creationOperations.get({ accountId: user.id, organizationId: org }, agentId);
     const [versions, deployments] = await Promise.all([store.listVersions(user.id, org, agentId), store.listDeployments(user.id, org, agentId)]);
     return { agent: dto(agent), versions: versions.map(dto), deployments: deployments.map(dto) };
+  });
+  app.post(`${base}/agents/:agentId/effective-settings`, async request => {
+    const user = await account(request);
+    await store.requireMembership(user.id, organizationId(request));
+    uuid.parse(parameters(request).agentId);
+    const { configuration } = z.strictObject({ configuration: agentConfigurationSchema }).parse(request.body);
+    return { composed: composeAgentInstructions(configuration), sources: configuration.sourceRevisionIds.length,
+      tools: configuration.tools.length, connectedTools: configuration.connectedToolBindingIds.length, skills: configuration.skillIds.length };
+  });
+  app.get(`${base}/agents/:agentId/identity-defaults`, async request => {
+    const user = await account(request);
+    return { defaults: await store.identityDefaults(user.id, organizationId(request), uuid.parse(parameters(request).agentId)) };
   });
   app.get(`${base}/agents/:agentId/procedures`, async request => {
     const agent = await store.getAgent((await account(request)).id, organizationId(request), uuid.parse(parameters(request).agentId));

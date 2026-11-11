@@ -22,7 +22,7 @@ export function WebsiteKnowledgeImport({ organizationId, agentId, onComplete, on
   const [agent, setAgent] = useState<Agent | null>(null);
   const [statusUnavailable, setStatusUnavailable] = useState(false), [statusAttempt, setStatusAttempt] = useState(0);
   const startOperation = useRef(crypto.randomUUID()), importOperation = useRef(crypto.randomUUID());
-  const approvalOperation = useRef(crypto.randomUUID()), visibilityOperation = useRef(crypto.randomUUID());
+  const approvalOperation = useRef(crypto.randomUUID());
   const importedIds = useRef<string[] | null>(null);
   useEffect(() => { onBusyChange?.(busy); return () => onBusyChange?.(false); }, [busy, onBusyChange]);
   useEffect(() => {
@@ -110,20 +110,18 @@ export function WebsiteKnowledgeImport({ organizationId, agentId, onComplete, on
         await api(`${base}/knowledge/sources/${source.id}/policy`, { operationId: approvalOperation.current, expectedGeneration: current.generation, action: "approve", revisionId: job.revisionId });
         current = (await api<KnowledgeSources>(`${base}/knowledge/sources`)).sources.find(item => item.id === source.id)!; setSource(current);
       }
-      if (current.visibility !== "public") {
-        await api(`${base}/knowledge/sources/${source.id}/policy`, { operationId: visibilityOperation.current, expectedGeneration: current.generation, action: "visibility", visibility: "public" });
-        current = (await api<KnowledgeSources>(`${base}/knowledge/sources`)).sources.find(item => item.id === source.id)!; setSource(current);
-      }
       const { agent } = await api<{ agent: Agent }>(`${base}/agents/${encodeURIComponent(agentId)}`);
       const configuration = { ...agent.draft, sourceRevisionIds: [...new Set([...(agent.draft.sourceRevisionIds ?? []), job.revisionId])], tools: [...new Set([...(agent.draft.tools ?? []), "knowledge.search" as const, "knowledge.read" as const])] };
       await api(`${base}/agents/${encodeURIComponent(agentId)}/configuration`, { name: agent.name, expectedRevision: agent.draftRevision, configuration, confirmImpact: true });
       const saved = await api<{ agent: Agent }>(`${base}/agents/${encodeURIComponent(agentId)}`);
-      setAgent(saved.agent); toast.success("Website knowledge added"); onComplete();
+      setAgent(saved.agent);
+      toast.success(current.visibility === "public" ? "Website knowledge added" : "Website knowledge added · publish in Knowledge for customer use");
+      onComplete();
     } catch (e) { setError(message(e)); } finally { setBusy(false); }
   }
   function reset() {
     startOperation.current = crypto.randomUUID(); importOperation.current = crypto.randomUUID(); importedIds.current = null;
-    approvalOperation.current = crypto.randomUUID(); visibilityOperation.current = crypto.randomUUID();
+    approvalOperation.current = crypto.randomUUID();
     setCrawl(null); setImportJob(null); setSelected([]); setPreviewId(""); setSource(null); setPreview(null); setAgent(null); setStatusUnavailable(false); setError("");
   }
   const chosenPage = crawl?.pages.find(page => page.id === previewId);

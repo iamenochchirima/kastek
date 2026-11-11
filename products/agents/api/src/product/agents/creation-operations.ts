@@ -5,6 +5,7 @@ import { applyCustomerSetup, customerConfigurationForSetup, customerSetupSchema,
 import type { PlatformStore } from "./store";
 import { customerSetupReadiness } from "./setup-readiness";
 import { agentAvatarSchema } from "./avatars";
+import { setupUpdatedLayers } from "./identity";
 type CreationScope = { accountId: string; organizationId: string };
 
 const nameSchema = z.string().trim().min(1).max(120);
@@ -60,7 +61,8 @@ export function agentCreationOperations(options: { store: PlatformStore; pool: P
    // Capability changes update derived tools and setup, but keep instructions the owner has edited.
    const customInstructions = previous !== null && agent.draft.instructions !== customerConfigurationForSetup(previous).instructions;
    const derived = applyCustomerSetup(agent.draft, setup, previous ?? undefined);
-   const configuration = customInstructions ? { ...derived, instructions: agent.draft.instructions } : derived;
+   const configuration = { ...derived, ...(customInstructions ? { instructions: agent.draft.instructions } : {}),
+    ...setupUpdatedLayers(agent.draft, { offering: agent.offering, responsibilities: previous?.responsibilities ?? null }, { offering: agent.offering, responsibilities: setup.responsibilities }) };
    return store.saveConfiguration({ ...scope, agentId: id, configuration, setup, expectedRevision: input.expectedRevision, confirmImpact: input.confirmImpact });
   },
  };

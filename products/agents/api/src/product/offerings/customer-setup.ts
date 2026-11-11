@@ -1,5 +1,6 @@
 import type { AgentConfiguration } from "../../contracts/contracts";
 import { customerSetupSchema, type CustomerSetup } from "../../contracts/customer-setup";
+import { defaultAgentGuidance, defaultAgentIdentity } from "../agents/identity";
 import { customerConfiguration } from "./offerings";
 export { customerSetupSchema, type CustomerSetup } from "../../contracts/customer-setup";
 
@@ -26,7 +27,12 @@ function setupInstructions(value: CustomerSetup): string {
 }
 
 export function customerConfigurationForSetup(value: CustomerSetup): AgentConfiguration {
-  return applyCustomerSetup(customerConfiguration("customer-service"), customerSetupSchema.parse(value));
+  const setup = customerSetupSchema.parse(value);
+  return {
+    ...applyCustomerSetup(customerConfiguration("customer-service"), setup),
+    identity: defaultAgentIdentity({ offering: "customer-service", responsibilities: setup.responsibilities }),
+    guidance: defaultAgentGuidance({ offering: "customer-service", responsibilities: setup.responsibilities }),
+  };
 }
 
 /** Derive setup-owned capabilities without replacing manually authorized sources or bindings. */

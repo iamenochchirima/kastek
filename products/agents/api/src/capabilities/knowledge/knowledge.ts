@@ -18,7 +18,10 @@ export interface IngestionJobDTO extends IngestionJob { contentType: string; err
 const missing = () => new PlatformError("SOURCE_NOT_FOUND", 404, "Source is unavailable");
 const sourceDTO = (row: Record<string, any>): Source => ({ id: row.id, organizationId: row.organization_id,
   importerAccountId: row.importer_account_id, ...(row.importer_service ? { importerService: row.importer_service } : {}), title: row.title, kind: row.kind, generation: row.generation,
-  state: row.state, visibility: row.visibility, createdAt: new Date(row.created_at).toISOString() });
+  state: row.state, visibility: row.visibility, createdAt: new Date(row.created_at).toISOString(),
+  lastVerifiedAt: row.last_verified_at ? new Date(row.last_verified_at).toISOString() : null,
+  verifiedBy: row.verified_by ?? null,
+  reviewDueAt: row.review_due_at ? new Date(row.review_due_at).toISOString() : null });
 const jobDTO = (row: Record<string, any>): IngestionJobDTO => ({ id: row.id, sourceId: row.source_id, revisionId: row.revision_id,
   revision: row.revision, acceptedGeneration: row.accepted_generation, state: row.state, parserRelease: row.parser_release,
   deadline: new Date(row.deadline).toISOString(), contentType: row.content_type, errorCode: row.error_code, createdAt: new Date(row.created_at).toISOString() });
@@ -177,6 +180,57 @@ export class KnowledgeStore {
       const role = await requireKnowledgeMember(db, scope);
       return (await db.query("SELECT * FROM agents_platform.ingestion_jobs WHERE organization_id=$1 AND ($2='owner' OR importer_account_id=$3) AND ($4::jsonb IS NULL OR importer_service @> $4::jsonb) ORDER BY created_at DESC,id LIMIT 200", [scope.organizationId, role, resourceAccountId(scope), isProductResourceScope(scope) ? resourceOwnership(scope) : null])).rows.map(jobDTO);
     });
+  }
+
+  async verify(scope: KnowledgeScope, sourceId: string, reviewDueAt?: string): Promise<Source> {
+    z.uuid().parse(sourceId);
+    const due = reviewDueAt === undefined ? null : z.iso.datetime().parse(reviewDueAt);
+    return transaction(this.pool, async db => {
+      await requireKnowledgeMember(db, scope, true);
+      await this.requireSourceScope(db, scope, sourceId);
+      const row = (await db.query<Record<string, any>>(
+        `UPDATE agents_platform.sources
+         SET last_verified_at=now(),verified_by=$3,review_due_at=COALESCE($4::timestamptz,now()+interval '180 days')
+         WHERE organization_id=$1 AND id=$2 AND state='active'
+         RETURNING *`,
+        [scope.organizationId, sourceId, resourceAccountId(scope), due],
+      )).rows[0];
+      if (!row) throw missing();
+      return sourceDTO(row);
+    });
+  }
+
+  async downloadOriginal(scope: KnowledgeScope, sourceId: string): Promise<{ bytes: Uint8Array; contentType: string; filename: string }> {
+    z.uuid().parse(sourceId);
+    if (!this.objects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE", 503, "Private storage is unavailable");
+    const row = await transaction(this.pool, async db => {
+      const role = await requireKnowledgeMember(db, scope);
+      await this.requireSourceScope(db, scope, sourceId);
+      const row = (await db.query<{
+        title: string;
+        importer_account_id: string;
+        raw_key: string;
+        content_type: string | null;
+      }>(
+        `SELECT s.title,s.importer_account_id,r.raw_key,j.content_type
+         FROM agents_platform.sources s
+         JOIN LATERAL (SELECT raw_key FROM agents_platform.source_revisions
+           WHERE organization_id=s.organization_id AND source_id=s.id
+           ORDER BY revision DESC LIMIT 1) r ON true
+         LEFT JOIN agents_platform.ingestion_jobs j ON j.organization_id=s.organization_id AND j.source_id=s.id
+         WHERE s.organization_id=$1 AND s.id=$2 AND s.state='active'
+         ORDER BY j.revision DESC LIMIT 1`,
+        [scope.organizationId, sourceId],
+      )).rows[0];
+      if (!row) throw missing();
+      if (role === "member" && row.importer_account_id !== resourceAccountId(scope)) throw new PlatformError("ACCESS_DENIED", 403, "Workspace access is unavailable");
+      return row;
+    });
+    return {
+      bytes: await this.objects.get(row.raw_key),
+      contentType: row.content_type ?? "application/octet-stream",
+      filename: row.title,
+    };
   }
 
   async preview(scope: KnowledgeScope, sourceId: string, revisionId: string) {

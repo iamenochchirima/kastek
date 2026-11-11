@@ -29,6 +29,9 @@
 .agent-general-form > .agent-config-panel { padding: 26px 0; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: transparent; }
 .agent-general-form > .agent-config-panel:first-child { padding-top: 0; border-top: 0; }
 .agent-general-form > .agent-config-panel h2 { font-size: 15px; letter-spacing: -.01em; }
+.agent-config-review { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.agent-config-review h2 { margin-bottom: 4px; }
+@media (max-width: 640px) { .agent-config-review { flex-direction: column; } }
 .agent-config-basic { display: grid; gap: 16px; }
 .agent-config-basic h2 { margin: 0; }
 .agent-config-basic textarea { min-height: 170px; line-height: 1.5; }
@@ -107,6 +110,7 @@
 .agent-knowledge-status { white-space: nowrap; color: var(--success); }
 .agent-knowledge-status::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: 2px; }
 .agent-knowledge-status.is-unavailable { color: var(--muted-foreground); }
+.agent-knowledge-status.is-overdue { color: var(--destructive); }
 .agent-knowledge-revision { max-width: 150px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--background); color: var(--foreground); font-size: 12px; }
 .agent-model-heading { display: block; font-size: 14px; font-weight: 600; }
 .agent-model-search { display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--input); border-radius: 6px; background: var(--background); color: var(--muted-foreground); }

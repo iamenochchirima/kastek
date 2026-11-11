@@ -1,9 +1,26 @@
 export type DelegationBinding = { id: string; label?: string; description?: string; versionNumber?: number; versionId: string; sourceRevisionIds?: string[]; connectedToolBindingIds?: string[]; productBindingIds?: string[]; tools: NonNullable<Configuration["tools"]>; maxTokens: number | null; maxActiveMs: number | null };
 export type DelegationConfiguration = { enabled: false } | { enabled: true; bindings: DelegationBinding[]; maxChildren: number; maxDepth: number | null; policy?: { maxTasks: number | null; maxStalls: number } };
+export type AgentIdentity = {
+  purpose: string;
+  voice: string;
+  values: string;
+  boundaries: string;
+  refusal: string;
+  escalation: string;
+  examples: string[];
+};
+export type AgentGuidance = {
+  topicScope: string;
+  avoid: string[];
+  refusalStyle: "brief" | "warm" | "formal";
+  redirectTo: string;
+};
 export type Configuration = {
   executionKind: "business" | "workspace";
   program?: { id: "grounded-conversation" | "tool-directed"; version: "1" | "2" | "3" | "4" };
   instructions: string;
+  identity?: AgentIdentity;
+  guidance?: AgentGuidance;
   model: { selection: { kind: "organization_default" } | { kind: "connection"; connectionId: string; modelId: string }; maxInputBytes: number; maxOutputTokens: number; maxDurationSeconds: number; maxCostMicros?: number | null; generation?: { temperature?: number; reasoning?: { kind: "effort"; value: string } | { kind: "budget"; tokens: number } | { kind: "level"; value: string } } };
   sourceRevisionIds?: string[];
   connectedToolBindingIds?: string[];
@@ -82,10 +99,12 @@ export type RemoteOperation = { compatible?: boolean; providerOperation: string;
 export type CapabilityBinding = { id: string; alias: string; digest: string; transport: "builtin" | "native_http" | "mcp_http"; definition: { providerOperation: string; description: string; remote?: { target?: RemoteTarget } }; connection: { id: string; profileId: string; policyRevision: number } | null; resources: ResourceHandle[] };
 export type CatalogCandidate = { id: string; connectionId: string; credentialRevision: number; policyRevision: number; createdAt: string; selectableOperations: string[]; catalog: { revision: number; protocolVersion?: string; transport: "native_http" | "mcp_http"; tools: RemoteOperation[] } };
 export type KnowledgeRevision = { id: string; revision: number; state: "candidate" | "approved" | "withdrawn"; acquiredAt: string; embeddingRelease?: string | null };
-export type KnowledgeSource = { id: string; organizationId: string; importerAccountId: string; title: string; kind: "upload" | "public_url" | "provider_snapshot"; generation: number; state: "active" | "withdrawn"; visibility: "private" | "public"; createdAt: string; canApprove: boolean; revisions: KnowledgeRevision[] };
+export type KnowledgeSource = { id: string; organizationId: string; importerAccountId: string; title: string; kind: "upload" | "public_url" | "provider_snapshot"; generation: number; state: "active" | "withdrawn"; visibility: "private" | "public"; createdAt: string; lastVerifiedAt?: string | null; verifiedBy?: string | null; reviewDueAt?: string | null; canApprove: boolean; revisions: KnowledgeRevision[] };
 export type KnowledgeImport = { id: string; sourceId: string; revisionId: string; revision: number; acceptedGeneration: number; state: "queued" | "acquiring" | "extracting" | "indexing" | "ready" | "failed" | "cancelled"; parserRelease: string; deadline: string; contentType: string; errorCode: string | null; createdAt: string };
 export type KnowledgeSources = { sources: KnowledgeSource[]; imports: KnowledgeImport[] };
 export type KnowledgePreview = { text: string; chunks: { id: string; page: number | null; start: number; end: number; text: string }[]; acquiredAt: string; revisionId: string; revision: number };
+export type KnowledgeTest = { profile: "lexical-v1"; configuredProfile: "lexical-v1" | "hybrid-v1"; attached: number; privateSources: number;
+  hits: { sourceId: string; revisionId: string; title: string; text: string; start: number; page: number | null; rankScore: number }[] };
 export type AutomationSchedule = { kind: "once"; at: string } | { kind: "interval"; anchor: string; everySeconds: number } | { kind: "event" };
 export type Automation = { id: string; name: string; versionId: string; ownerAccountId: string; reviewerAccountId: string; input: string; expiresAt: string; maxOccurrencesPerDay: number; schedule: AutomationSchedule; revision: number; state: "active" | "paused" | "revoked" };
 export type AutomationOccurrence = { id: string; automationId: string; revision: number; status: "accepted" | "skipped_overlap" | "blocked" | "skipped_coalesced"; taskId: string | null; scheduledAt: string; errorCode: string | null; createdAt: string };

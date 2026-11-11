@@ -20,6 +20,10 @@ async function fixture(page: Page, impact = false, tools = false, missingSelecti
     else if (path.endsWith("/channels/growth/organizations")) data = { organizations: [{ id: "growth-org", name: "KasiTek Growth" }] };
     else if (path.endsWith("/channels")) data = { connections: [], deployments: [], websites: [] };
     else if (path.endsWith("/procedures")) data = {entries:[]};
+    else if (path.endsWith("/identity-defaults")) data = { defaults: {
+      identity: { purpose: "Answer customer questions from approved information.", voice: "Brief and friendly.", values: "Be accurate.", boundaries: "Do not invent policies.", refusal: "Say when information is missing.", escalation: "Hand off when asked for a person.", examples: [] },
+      guidance: { topicScope: "Stay within approved business information.", avoid: ["Inventing policies"], refusalStyle: "brief", redirectTo: "Offer support." } } };
+    else if (path.endsWith("/effective-settings") && method === "POST") data = { composed: `Identity\n\n${body.configuration.instructions}\n\nGuidance`, sources: 0, tools: (body.configuration.tools ?? []).length, connectedTools: 0, skills: 0 };
     else if (path.endsWith("/booking-policies")) data = {policies:[]};
     else if (path.endsWith("/provider-calendars/connections")) data = {connections:[]};
     else if (path.endsWith("/model-providers/default")) data = {selection:{kind:"connection",connectionId:"provider-a",modelId:"model-a"},revision:1};
@@ -433,6 +437,30 @@ for(const width of [1440,768,390]) for(const theme of ["light","dark"] as const)
   await page.screenshot({path:test.info().outputPath(`agent-general-secondary-${width}-${theme}.png`),fullPage:true});
 });
 
+
+test("owner adds structured identity and guidance to a legacy agent", async ({page}) => {
+  const {saves} = await fixture(page);
+  await page.goto(`/app/agents/${agentId}?section=behaviour`);
+  await expect(page.getByRole("heading",{name:"Review your identity",exact:true})).toBeVisible();
+  await page.getByRole("button",{name:"Use recommended",exact:true}).first().click();
+  await expect(page.getByRole("textbox",{name:"Purpose",exact:true})).toHaveValue(/Answer customer questions/);
+  await page.getByRole("textbox",{name:"Purpose",exact:true}).fill("Answer questions about the shop.");
+  await page.getByRole("button",{name:"Save changes",exact:true}).click();
+  await expect.poll(()=>saves.length).toBe(1);
+  const saved = saves[0]!.configuration as { identity: { purpose: string; voice: string }; guidance: { topicScope: string } };
+  expect(saved.identity.purpose).toBe("Answer questions about the shop.");
+  expect(saved.identity.voice).toContain("Brief and friendly");
+  expect(saved.guidance.topicScope).toContain("approved business information");
+});
+
+test("effective settings previews the composed prompt before saving", async ({page}) => {
+  await fixture(page);
+  await page.goto(`/app/agents/${agentId}?section=behaviour`);
+  await page.getByText("Effective settings",{exact:true}).click();
+  await expect(page.locator(".agent-effective-settings pre")).toContainText("Identity");
+  await expect(page.locator(".agent-effective-settings pre")).toContainText("Answer customer questions.");
+  await expect(page.locator(".agent-effective-settings pre")).toContainText("Guidance");
+});
 
 test("loading valid history clears stale support-hour errors", async ({page}) => {
   await fixture(page,false,false,false,"configured");

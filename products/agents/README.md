@@ -246,13 +246,21 @@ coordination and select published specialists. Chat and task activity show model
 progress alongside actual child task states. Active root tasks accept queued instructions;
 child tasks link to their own exact-effect reviews. The controlled API/runtime and responsive
 browser paths are recorded in the [verification skill](../../.agents/skills/verify-agents/SKILL.md).
-Customer configuration exposes instructions, approved knowledge/revision pins, a curated Tools
-catalogue and a Skills library with reviewed KasiTek procedures, private SKILL.md/ZIP imports,
-and public GitHub packages pinned to an exact commit and package path. Knowledge imports accept
-PDF, HTML, Markdown, text, JSON and CSV. JSON and CSV are normalized into one retrievable record
-per item or row before approval; guides use the same path in guided creation and Configure. Knowledge
-added from an agent is customer-visible by default; owners can change visibility in Knowledge.
-Customer-channel replies continue the existing conversation without re-greeting and do not mention
+Customer configuration separates identity, instructions and behaviour guidance. Identity holds
+purpose, voice, values, boundaries, refusal stance, escalation and examples. Instructions hold task
+rules and tool-use guidance. Guidance holds topic scope, avoid items, refusal style and redirect
+target. New agents receive role-specific defaults for FAQ, customer support, workspace assistant,
+booking and enquiry use. Agents created before this change keep their existing prompt until an owner
+saves the new layers. Guided setup preserves owner-written instructions and identity when
+responsibilities change. A curated Tools catalogue and a Skills library provide reviewed procedures,
+private SKILL.md/ZIP imports, and public GitHub packages pinned to an exact commit and package path.
+Knowledge imports accept PDF, HTML, Markdown, text, JSON and CSV. JSON and CSV are normalized into
+one retrievable record per item or row before approval; guides use the same path in guided creation
+and Configure. Knowledge approval, attachment and customer publication are separate. Adding a source
+from an agent approves and attaches it to the draft but leaves it private; an owner publishes it in
+Knowledge before customer channels can use it. Sources show last verified, review due, original
+download and a keyword retrieval test. Customer-channel replies continue the existing conversation
+without re-greeting and use only active, approved, attached, public sources. They do not mention
 internal evidence, approved knowledge, or a knowledge base. Cited replies stay readable after the
 customer-visible cleanup; withdrawn evidence still hides the message.
 Installing a skill preserves its complete immutable package. Add the selected skill

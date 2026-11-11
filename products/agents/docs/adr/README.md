@@ -8,3 +8,4 @@ Current decisions:
 
 - [0001: Workspace roles, permissions and verified identity](0001-workspace-roles-and-verified-identity.md)
 - [0002: Per-member permission overrides](0002-member-permission-overrides.md)
+- [0003: Structured agent identity and separate knowledge states](0003-agent-identity-and-knowledge-states.md)

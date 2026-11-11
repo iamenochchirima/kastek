@@ -16,6 +16,9 @@ export const sourceSchema = z.strictObject({
   kind: z.enum(["upload", "public_url", "provider_snapshot"]), generation,
   state: z.enum(["active", "withdrawn"]), visibility: z.enum(["private", "public"]),
   createdAt: z.iso.datetime(),
+  lastVerifiedAt: z.iso.datetime().nullable(),
+  verifiedBy: id.nullable(),
+  reviewDueAt: z.iso.datetime().nullable(),
 }).refine(value => value.importerAccountId !== null ? value.importerService === undefined : value.importerService !== undefined, "A source requires one importer identity");
 export const ingestionJobSchema = z.strictObject({
   id, sourceId: id, revisionId: id, revision: generation, acceptedGeneration: generation,

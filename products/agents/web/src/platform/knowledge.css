@@ -5,6 +5,9 @@
 .knowledge-status::before { content: ''; width: .375rem; height: .375rem; border-radius: 50%; background: currentColor; }
 .knowledge-status[data-status="Ready"] { color: var(--success); }
 .knowledge-status[data-status="Import failed"], .knowledge-status[data-status="Awaiting approval"] { color: var(--warning); }
+.knowledge-review { display: inline-flex; align-items: center; gap: .375rem; color: var(--warning); }
+.knowledge-review::before { content: ''; width: .375rem; height: .375rem; border-radius: 50%; background: currentColor; }
+.knowledge-review.is-overdue { color: var(--destructive); }
 .knowledge-record-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .25rem; }
 .knowledge-record > details { margin-top: .75rem; }
 @media (max-width: 640px) {

@@ -40,13 +40,15 @@ changed; opening times are not inferred. The weekly schedule is saved with the a
 pinned in its published configuration. An absent schedule means support hours are unknown. Steps
 depend on the selected responsibilities.
 Setup metadata, grounded instructions and setup-owned native
-capabilities are saved through revision-checked configuration snapshots. Enquiries expose a native
+capabilities are saved through revision-checked configuration snapshots. Identity, instructions and
+behaviour guidance are separate fields in the same configuration; identity and guidance are optional
+so versions written before this split keep the legacy prompt. Enquiries expose a native
 submission tool with configured fields and exact customer confirmation. Calendar actions require
 an explicitly authorized service connection and a pinned booking policy. Channel selection records
 intent; explicit activation creates a deployment after testing. Selection never authorizes a
-personal provider account or publishes private knowledge. Saved readiness derives from current
-model metadata, source approval, policy authority and deployments. Provider acceptance and answer
-quality remain separate verification responsibilities.
+personal provider account. Knowledge approval, attachment and customer publication are separate;
+saved readiness derives from current model metadata, source approval, attachment, policy authority
+and deployments. Provider acceptance and answer quality remain separate verification responsibilities.
 Research, campaign, content, and agency operations
 belong in Growth or Agencies. Shared runtime support for those capabilities does not add those
 offerings to the Agents client. A standalone personal-assistant offering is outside this agreed

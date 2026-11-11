@@ -142,7 +142,7 @@ export function KnowledgeUpload({ organizationId, agentId, onComplete, onBusyCha
     try {
       const currentSources = (await api<KnowledgeSources>(`${base}/knowledge/sources`)).sources ?? [];
       setSources(currentSources);
-      let agent = (await api<{ agent: Agent }>(agentPath)).agent;
+      const agent = (await api<{ agent: Agent }>(agentPath)).agent;
       const revisionIds: string[] = [];
       for (const entry of selected) {
         const job = entry.job!;
@@ -151,25 +151,22 @@ export function KnowledgeUpload({ organizationId, agentId, onComplete, onBusyCha
         if (!source || !revision) throw new Error("Reload the document and try again.");
         if (revision.state === "withdrawn") throw new Error(`${entry.file.name} was withdrawn.`);
         if ((revision.state === "candidate" || source.visibility !== "public") && !source.canApprove) throw new Error("An owner must approve these documents in Knowledge.");
-        if (revision.state === "candidate") {
-          await api(`${base}/knowledge/sources/${source.id}/policy`, { operationId: entry.approvalOperationId, expectedGeneration: source.generation, action: "approve", revisionId: revision.id });
-        }
         revisionIds.push(revision.id);
       }
-      const current = (await api<KnowledgeSources>(`${base}/knowledge/sources`)).sources ?? [];
-      const publish = new Map<string, number>();
-      for (const entry of selected) {
-        const source = current.find(item => item.id === entry.job!.sourceId);
-        if (source && source.visibility !== "public") publish.set(source.id, source.generation);
-      }
-      for (const [id, generation] of publish) await api(`${base}/knowledge/sources/${id}/policy`, { operationId: crypto.randomUUID(), expectedGeneration: generation, action: "visibility", visibility: "public" });
-      await refreshSources();
-      agent = (await api<{ agent: Agent }>(agentPath)).agent;
       const configuration = { ...agent.draft, sourceRevisionIds: [...new Set([...(agent.draft.sourceRevisionIds ?? []), ...revisionIds])], tools: [...new Set([...(agent.draft.tools ?? []), "knowledge.search" as const, "knowledge.read" as const])] };
+      for (const entry of selected) {
+        const source = currentSources.find(item => item.id === entry.job!.sourceId)!;
+        if (source.revisions.find(item => item.id === entry.job!.revisionId)?.state === "candidate") {
+          await api(`${base}/knowledge/sources/${source.id}/policy`, { operationId: entry.approvalOperationId, expectedGeneration: source.generation, action: "approve", revisionId: entry.job!.revisionId });
+        }
+      }
       await api(`${agentPath}/configuration`, { name: agent.name, expectedRevision: agent.draftRevision, configuration, confirmImpact: true });
+      await refreshSources().catch(() => undefined);
+      const privateSources = selected.filter(entry => currentSources.find(item => item.id === entry.job!.sourceId)?.visibility !== "public");
       const keys = new Set(selected.map(entry => entry.key));
       setEntries(current => current.map(entry => keys.has(entry.key) ? { ...entry, state: "added", error: undefined } : entry));
-      toast.success("Knowledge added"); onComplete?.();
+      toast.success(privateSources.length ? "Knowledge added · publish in Knowledge for customer use" : "Knowledge added");
+      onComplete?.();
     } catch (e) { setError(message(e)); } finally { setBusy(false); }
   }
   const ready = entries.filter(entry => entry.state === "ready" && entry.job);
