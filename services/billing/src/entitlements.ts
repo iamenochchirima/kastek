@@ -77,13 +77,13 @@ export async function resolveEntitlementSnapshot(
   }
   const capabilities = await pool.query<{ key: string; kind: string }>(
     `SELECT key, kind FROM billing.capabilities
-      WHERE product=$1 AND active=true AND key = ANY($2::text[])`,
+      WHERE product=$1 AND active=true AND (kind='meter' OR key = ANY($2::text[]))`,
     [product, [...values.keys()]],
   );
   for (const capability of capabilities.rows) {
     if (capability.kind === "feature" && !(capability.key in features))
       features[capability.key] = false;
-    if (capability.kind !== "feature" && !(capability.key in limits))
+    if (capability.kind === "limit" && !(capability.key in limits))
       limits[capability.key] = null;
   }
   const meterUsage = await pool.query<{
