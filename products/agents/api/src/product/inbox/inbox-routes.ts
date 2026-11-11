@@ -111,7 +111,7 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
   });
   app.get(`${website}/:conversationId/messages`, async (request, reply) => {
     const scope = await options.resolveVisitor(request, reply), input = page.parse(request.query), result = await options.inbox.readVisitor(scope, params(request).conversationId, input.after, input.limit, input.before);
-    return { conversation: visitorConversation(result.conversation), responseStatus: result.responseStatus, responseActivity: result.responseActivity, messages: result.messages.map(row => message(row, false)), nextSequence: result.messages.at(-1)?.sequence ?? input.after, latestSequence: String(BigInt(result.conversation.next_sequence) - 1n), earlierBefore: result.messages[0] && BigInt(result.messages[0].sequence) > 1n ? result.messages[0].sequence : null };
+    return { conversation: visitorConversation(result.conversation), responseStatus: result.responseStatus, responseReason: result.responseReason, responseActivity: result.responseActivity, messages: result.messages.map(row => message(row, false)), nextSequence: result.messages.at(-1)?.sequence ?? input.after, latestSequence: String(BigInt(result.conversation.next_sequence) - 1n), earlierBefore: result.messages[0] && BigInt(result.messages[0].sequence) > 1n ? result.messages[0].sequence : null };
   });
   if(options.bookings) {
     const bookings=options.bookings;

@@ -252,6 +252,7 @@ export class InboxStore {
     return transaction(this.pool, async db => {
       const conversation = await this.visitorConversation(db, scope, id);
       let responseStatus: "working" | "incomplete" | "failed" | "cancelled" | "uncertain" | null = null;
+      let responseReason: "quota" | "model" | null = null;
       let responseActivity: {inputMessageId:string;startedAt:Date;completedAt:Date|null;replyMessageId:string|null}|null = null;
       if (conversation.state === "automation_active") {
         const latest = (await db.query<{state:string|null;error_code:string|null;input_message_id:string;started_at:Date;reply_message_id:string|null;completed_at:Date|null}>(`SELECT t.state,t.error_code,
@@ -267,6 +268,8 @@ export class InboxStore {
         if (latest?.state) {
           responseActivity={inputMessageId:latest.input_message_id,startedAt:latest.started_at,completedAt:latest.completed_at,replyMessageId:latest.reply_message_id};
           if (!latest.reply_message_id) {
+            if (latest.error_code === "QUOTA_EXCEEDED") responseReason = "quota";
+            else if (latest.error_code?.startsWith("MODEL_")) responseReason = "model";
             if (latest.state === "cancel_requested" && latest.error_code === "TASK_DEADLINE") responseStatus = "uncertain";
             else if (["completed", "incomplete", "refused"].includes(latest.state)) responseStatus = "incomplete";
             else if (latest.state === "failed" || latest.state === "cancelled" || latest.state === "uncertain") responseStatus = latest.state;
@@ -274,7 +277,7 @@ export class InboxStore {
           }
         }
       }
-      return { conversation, responseStatus, responseActivity, messages: await this.messages(db, id, after, limit, before) };
+      return { conversation, responseStatus, responseReason, responseActivity, messages: await this.messages(db, id, after, limit, before) };
     });
   }
   async readStaff(scope: InboxScope, id: string, after = "0", limit = 100, before?: string) {

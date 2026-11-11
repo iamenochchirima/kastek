@@ -41,6 +41,10 @@ describe("website widget presentation", () => {
     }
   });
 
+  it("reports an exhausted daily allowance clearly", () => {
+    expect(websiteWidgetScript("fixture")).toContain("Daily usage limit reached. Please try again tomorrow.");
+  });
+
   it("renders a flat accent launcher without a border or halo", () => {
     const script = websiteWidgetScript("fixture");
     expect(script).toContain(".launcher{display:grid;place-items:center;width:var(--launcher-size,56px);height:var(--launcher-size,56px);border-radius:50%");
