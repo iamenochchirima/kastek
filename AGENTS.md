@@ -15,8 +15,11 @@ one, or the change is high-risk (a destructive schema migration, a cross-product
 or a security boundary). Until a CI pipeline exists, local verification replaces the pull-request
 gate: run the relevant typecheck, build, lint and focused tests before pushing.
 
-Commit in small coherent steps on `main`, push frequently, and tag deployable states. Never
-force-push or rewrite shared history.
+Commit in small coherent steps on `main`. A push to `main` can deploy production, so push, deploy,
+apply production migrations, and promote releases only when the owner explicitly asks for a
+production release in the current request. Implementation, review, test, or commit requests are
+not deployment approval. Tag deployable states as part of an approved release. Never force-push
+or rewrite shared history.
 
 ## Documentation and Release Impact
 
