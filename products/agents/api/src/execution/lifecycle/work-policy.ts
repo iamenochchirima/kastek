@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { PlatformError } from "../../contracts/contracts";
 import type { Execution } from "../../contracts/execution";
+import { isFreeModel } from "../models/admission-budget";
 
 export async function workUsage(db: Pool | PoolClient, execution: Execution) {
   const workId=execution.task.work_id ?? execution.task.root_task_id;
@@ -44,10 +45,18 @@ export async function adjustOperationQuota(db: PoolClient, execution: Execution,
   if(root.root_token_limit!==null || delta===0) return;
   const reservation=(await db.query("SELECT * FROM agents_platform.usage_reservations WHERE task_id=$1 FOR UPDATE",[execution.task.root_task_id])).rows[0];
   if(!reservation || reservation.settled_at) throw new PlatformError("TASK_SETTLED",409,"Execution accounting has settled");
-  const updated=await db.query(`UPDATE agents_platform.usage_accounts SET reserved_tokens=reserved_tokens+$3
-    WHERE organization_id=$1 AND day=$2 AND reserved_tokens+$3>=0
-      AND reserved_tokens+consumed_tokens+$3<=token_allowance RETURNING organization_id`,
-    [reservation.organization_id,reservation.day,delta]);
-  if(!updated.rowCount) throw new PlatformError("QUOTA_EXCEEDED",429,"The organization usage allowance is exhausted");
+  if (isFreeModel(execution.models.primary)) {
+    // A zero-priced model never spends the paid allowance; keep the ledger valid without capping it.
+    await db.query(`UPDATE agents_platform.usage_accounts
+      SET token_allowance=GREATEST(token_allowance,reserved_tokens+consumed_tokens+$3),
+          reserved_tokens=reserved_tokens+$3
+      WHERE organization_id=$1 AND day=$2`, [reservation.organization_id,reservation.day,delta]);
+  } else {
+    const updated=await db.query(`UPDATE agents_platform.usage_accounts SET reserved_tokens=reserved_tokens+$3
+      WHERE organization_id=$1 AND day=$2 AND reserved_tokens+$3>=0
+        AND reserved_tokens+consumed_tokens+$3<=token_allowance RETURNING organization_id`,
+      [reservation.organization_id,reservation.day,delta]);
+    if(!updated.rowCount) throw new PlatformError("QUOTA_EXCEEDED",429,"The organization usage allowance is exhausted");
+  }
   await db.query("UPDATE agents_platform.usage_reservations SET tokens=tokens+$2 WHERE task_id=$1",[execution.task.root_task_id,delta]);
 }

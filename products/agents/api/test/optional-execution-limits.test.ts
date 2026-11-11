@@ -24,10 +24,14 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
   });
   afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin, database); await admin.end(); } });
 
-  async function fixture(limits: Record<string, number | null> = {}, grantRootTokenLimit: number | null = null) {
+  async function fixture(
+    limits: Record<string, number | null> = {},
+    grantRootTokenLimit: number | null = null,
+    pricing: { prompt: string; completion: string } = { prompt: "0", completion: "0" },
+  ) {
     const account = await store.ensureAccount({ issuer: "http://localhost:8080/realms/kasitek", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });
     const org = await store.createOrganization(account.id, "Optional limits fixture"), scope = { accountId: account.id, organizationId: org.id };
-    await connectFixtureModel(pool, account.id, org.id);
+    await connectFixtureModel(pool, account.id, org.id, undefined, undefined, pricing);
     const configuration = defaultBusinessConfiguration();
     const agent = await store.createAgent({ ...scope, name: "Research", configuration });
     const version = await store.createVersion({ ...scope, agentId: agent.id, expectedRevision: 1 });
@@ -78,7 +82,7 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
   });
 
   it("reserves null-root operations against quota, settles actual usage and replays without double charge", async () => {
-    const { task, authority } = await fixture();
+    const { task, authority } = await fixture({}, null, { prompt: "1", completion: "1" });
     const quota = async () => (await pool.query("SELECT reserved_tokens,consumed_tokens FROM agents_platform.usage_accounts WHERE organization_id=$1",[authority.organizationId])).rows[0];
     expect(await quota()).toMatchObject({reserved_tokens:0,consumed_tokens:0});
     const input = request(task.id,"quota","model",100);
