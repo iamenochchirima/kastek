@@ -7,6 +7,7 @@ import type {
 import { ApiError } from "../error.js";
 import {
   billingServiceConfig,
+  ensureBillingAccount,
   getBillingSnapshot,
   invalidateBillingSnapshot,
   recordServiceUsage,
@@ -302,11 +303,24 @@ export async function getBillingSummary(
   orgId: string,
 ): Promise<Record<string, unknown>> {
   const config = serviceConfig();
-  const [snapshot, invoices, account] = await Promise.all([
-    getBillingSnapshot(pool, config, orgId),
-    serviceInvoices(config, orgId),
-    serviceAccount(config, orgId),
-  ]);
+  const load = () =>
+    Promise.all([
+      getBillingSnapshot(pool, config, orgId),
+      serviceInvoices(config, orgId),
+      serviceAccount(config, orgId),
+    ]);
+  let result: Awaited<ReturnType<typeof load>>;
+  try {
+    result = await load();
+  } catch (error) {
+    // A workspace's first summary creates the billing account lazily. The
+    // account and invoice reads can lose that race, so retry once after the
+    // account exists.
+    if (!(error instanceof ApiError) || error.status !== 404) throw error;
+    await ensureBillingAccount(pool, config, orgId);
+    result = await load();
+  }
+  const [snapshot, invoices, account] = result;
   const features = CAPABILITIES.map((definition) => ({
     key: definition.key,
     name: definition.name,

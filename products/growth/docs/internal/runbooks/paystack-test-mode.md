@@ -20,7 +20,8 @@ BILLING_FREE_PLANS_JSON={"growth":"growth-free","agents":"agents-free","agency":
 ```
 
 Point Paystack's test webhook at `POST /webhooks/paystack` on the billing service. The browser
-return URL must be in `BILLING_RETURN_ORIGINS`.
+return URL must be in `BILLING_RETURN_ORIGINS`. Include `http://localhost:3001` for the built
+Growth web server and `http://localhost:3002` for its dev server.
 
 Validate one Growth checkout from a Growth workspace. Confirm:
 
