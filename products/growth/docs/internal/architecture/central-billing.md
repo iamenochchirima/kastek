@@ -219,9 +219,12 @@ Two policies apply, chosen by who pays the model provider.
 An operation whose provider usage stayed unknown settles as `unknown`. Billing charges its reserved
 upper bound so an unresolved call is not free; the model usage report shows the same figure.
 
-Growth forwards a terminal agent task through `BillingUsageOutbox` once per meter, keyed by task ID
-with `:cost` and `:tokens` suffixes. Agents forwards through `billing_usage_forwarded`, keyed the
-same way on `agents:task:<id>`.
+Growth does not wait for a client to open a task. Its billing worker pulls the settled-usage feed
+`POST /internal/v1/products/growth/usage` from Agents every cycle. The feed is tenant-scoped,
+returns ledger rows ordered by settlement time, and carries a microsecond text cursor so a row is
+not replayed by millisecond truncation. Growth writes each row to `BillingUsageOutbox` once per
+meter, keyed by task ID with `:cost` and `:tokens` suffixes. Standalone Agents forwards through
+`billing_usage_forwarded`, keyed the same way on `agents:task:<id>`.
 
 Usage events are idempotent and debit the account ledger. Products record local usage and forward
 it through a durable outbox where available; the billing service is the settlement authority.

@@ -170,3 +170,79 @@ Post-release review date: 14 days after live publication.
 - Concurrent managed tasks admitted against the same balance can each reserve the full remainder.
   The last burst can overspend by at most the number of concurrent roots, and the debit still stops
   at the available balance.
+
+## Growth payment verification (11 November 2026)
+
+Local end-to-end verification of Growth payments, entitlements and AI usage. No schema migration
+was required. Commits remain local until the owner pushes.
+
+### What changed
+
+- `d3a6b0b13` — Agents exposes `POST /internal/v1/products/growth/usage`; the Growth billing
+  worker pulls settled usage with a microsecond text cursor. Billing no longer depends on a client
+  opening the task.
+- `304b3d136` — meter limits compare decimal snapshot values. `BigInt("50.000000")` previously
+  threw and returned a 500 at a metered limit.
+- `556f82785` — billing panel handles the lower-case subscription statuses returned by the API, so
+  renewal controls render, past-due and grace labels are correct, and cancellation asks for
+  confirmation.
+- `f9b28aa46` — the first billing summary retries after lazily creating the account, so a new
+  workspace no longer gets a 404 from the invoice and account reads racing account creation.
+- Local billing configuration now allows the Growth return origins `http://localhost:3001` and
+  `http://localhost:3002`.
+
+### Validation evidence
+
+- Usage panel matched `/api/billing/summary`: 46,221 tokens, 1,234 micro-USD synthetic managed
+  cost, 1,000 campaign recipients, 50 publishes, 10,000 API requests, renewal date 11 December.
+  A Free workspace showed no AI, campaign or publish meter rows.
+- Starter entitlements: 3 seats (fourth invitation 403), 2 connected channels (third 403), 1,001
+  campaign recipients blocked at launch (403), 50 publishes reached (403), 10,000 public API
+  requests reached (403). Agents bootstrap and gated reads succeeded.
+- Free workspace: agents, campaigns, content and analytics endpoints returned 403 with the
+  feature name; seat invitation returned 403. After purchase the same endpoints returned 200.
+- Cancel and resume through the Growth billing panel: `cancel_at_period_end` moved true then
+  false in `billing.subscriptions`; access continued while canceled and a free-model agent turn
+  completed.
+- Purchase on a fresh workspace through Paystack test mode: Free subscription canceled, Starter
+  active, invoice `KS-2026-000022` paid at R350, 10,000,000 micro-USD granted, features enabled.
+  Prior Free subscription `sub_272d9e5a…` canceled; new subscription `sub_0bda5233…`.
+- Renewal `charge.success`: period moved to 1–31 December 2026, invoice `KS-2026-000023` paid, a
+  new 10,000,000 micro-USD grant was created. A duplicate delivery returned `duplicate: true` and
+  created nothing.
+- `invoice.payment_failed`: status `past_due`, `grace_ends_at` seven days out. During grace,
+  agents and campaigns returned 403 `forbidden` with “read-only while billing is past due”;
+  analytics reads still reached the downstream service.
+- Recovery `charge.success` on the already-invoiced period cleared grace without creating an
+  invoice.
+- Full refund of `ks_036c81225a1c4756b064519e344b3723`: invoice `KS-2026-000022` refunded,
+  subscription canceled, both Growth grants reduced to zero and the Growth balance fell to zero.
+  No Agents subscription was canceled and Agents balances were unchanged.
+- Grant expiry: a synthetic expired grant of 5,000 was removed by `expireCreditGrants`, leaving a
+  zero balance and an `expiry` ledger entry.
+- Checks: Growth API typecheck, Growth web typecheck and build, focused billing guard test, and
+  `pnpm verify:boundaries`.
+
+### Product limits and errors
+
+The implementation returns bounded 403 responses rather than the speculative codes used in the
+verification plan: `forbidden` with a specific message for feature, seat, channel and meter
+limits, `ai_allowance_exhausted` for zero AI balance, and 503 `billing_unavailable` when the
+billing service rejects checkout. There are no `BILLING_LIMIT_REACHED`, `BILLING_READ_ONLY` or
+`BILLING_CHECKOUT_REJECTED` codes in Growth.
+
+### Explicitly not applicable
+
+- Analytics events: no new product analytics were added; existing billing and usage events cover
+  the behavior.
+- Version or release identity: no package or API version changed.
+- Migration and rollback: no schema change; rollback is the previous code revision.
+- Live Paystack rollout: remains the owner-approved final step.
+
+### Open items
+
+- The Paystack test checkout did not offer the declined simulation on the plan-change checkout, so
+  a provider decline was not exercised through the browser. Checkout rejection was observed as a
+  bounded 503 before the return-origin configuration was corrected.
+- Meter expiry and grace expiry run in the billing worker; the local worker was not left running.
+  The verification called `expireCreditGrants` directly.
