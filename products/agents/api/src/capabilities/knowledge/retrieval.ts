@@ -10,7 +10,7 @@ export interface RetrievalHit { chunkId: string; sourceId: string; revisionId: s
   title: string; start: number; end: number; page: number | null; text: string; contentDigest: string; acquiredAt: string; rankScore: number;
   sectionId: string | null; sectionOrdinal: number | null; sectionPart: number | null; headingPath: string | null }
 /** Sections are returned whole: a hit list is a section list, not a window list. */
-export const RETRIEVAL_PROFILE = Object.freeze({ fusionK: 60, candidatesPerMethod: 20, candidateChunks: 40, maxSections: 4, maxPassages: 24,
+export const RETRIEVAL_PROFILE = Object.freeze({ fusionK: 60, candidatesPerMethod: 20, candidateChunks: 40, maxSections: 4, maxPassages: 8,
   maxBytes: 8192, perSectionBytes: 4096, maxHits: 5, semanticMinSimilarity: 0.5, version: "hybrid-rrf60-v2" });
 
 interface CandidateRow { id: string; revision_id: string; rank_score: number; section_id: string | null; section_ordinal: number | null;

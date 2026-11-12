@@ -56,8 +56,7 @@ export class KnowledgeRuntime {
         ? { start: hit.start, end: hit.start + Math.min(hit.text.length, Math.max(0, remaining - 700)) }
         : relevantSpan(hit, query, Math.min(index === 0 ? 1800 : 600, remaining - 700));
       const passage = await this.evidence.recordChunk(taskId, operationId, hit.chunkId, span), dto = snippetDTO(passage);
-      observation.passages.push(hit.sectionId === null ? dto : { ...dto, sectionId: hit.sectionId, headingPath: hit.headingPath ?? undefined,
-        sectionPart: hit.sectionPart ?? undefined }); observation.omitted--;
+      observation.passages.push(dto); observation.omitted--;
       if (Buffer.byteLength(JSON.stringify(observation)) > 8192) throw new PlatformError("TOOL_RESULT_LIMIT", 413, "Knowledge result exceeds its bound");
     }
     return observation;
