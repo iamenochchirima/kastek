@@ -37,16 +37,11 @@ export function registerKnowledgeRoutes(app: FastifyInstance, options: { knowled
        ORDER BY v.number DESC LIMIT 1`, [scope.organizationId, agentId])).rows[0];
     if (!latest) throw new PlatformError("AGENT_NOT_FOUND", 404, "Agent not found");
     const configuration = agentConfigurationSchema.parse(latest.configuration);
-    if (!configuration.sourceRevisionIds.length) return { profile: "lexical-v1", configuredProfile: configuration.retrievalProfile.kind, attached: 0, privateSources: 0, hits: [] };
-    const privateSources = Number((await options.knowledge.pool.query(
-      `SELECT count(DISTINCT v.source_id) AS count FROM agents_platform.version_sources v
-       JOIN agents_platform.sources s ON s.id=v.source_id AND s.organization_id=v.organization_id
-       WHERE v.organization_id=$1 AND v.version_id=$2 AND s.visibility='private' AND v.revision_id=ANY($3::uuid[])`,
-      [scope.organizationId, latest.id, configuration.sourceRevisionIds])).rows[0]?.count ?? 0);
+    if (!configuration.sourceRevisionIds.length) return { profile: "lexical-v1", configuredProfile: configuration.retrievalProfile.kind, attached: 0, hits: [] };
     const hits = await new KnowledgeRetrieval(options.knowledge.pool).search({
       organizationId: scope.organizationId, versionId: latest.id, sourceRevisionIds: configuration.sourceRevisionIds, publicOnly: true,
     }, query, { kind: "lexical-v1" }, async db => { await requireKnowledgeMember(db, scope); });
-    return { profile: "lexical-v1", configuredProfile: configuration.retrievalProfile.kind, attached: configuration.sourceRevisionIds.length, privateSources,
+    return { profile: "lexical-v1", configuredProfile: configuration.retrievalProfile.kind, attached: configuration.sourceRevisionIds.length,
       hits: hits.map(hit => ({ sourceId: hit.sourceId, revisionId: hit.revisionId, title: hit.title, text: hit.text.slice(0, 1200),
         start: hit.start, page: hit.page, rankScore: hit.rankScore })) };
   });

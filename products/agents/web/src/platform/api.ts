@@ -104,7 +104,7 @@ export type KnowledgeSource = { id: string; organizationId: string; importerAcco
 export type KnowledgeImport = { id: string; sourceId: string; revisionId: string; revision: number; acceptedGeneration: number; state: "queued" | "acquiring" | "extracting" | "indexing" | "ready" | "failed" | "cancelled"; parserRelease: string; deadline: string; contentType: string; errorCode: string | null; createdAt: string };
 export type KnowledgeSources = { sources: KnowledgeSource[]; imports: KnowledgeImport[] };
 export type KnowledgePreview = { text: string; chunks: { id: string; page: number | null; start: number; end: number; text: string }[]; acquiredAt: string; revisionId: string; revision: number };
-export type KnowledgeTest = { profile: "lexical-v1"; configuredProfile: "lexical-v1" | "hybrid-v1"; attached: number; privateSources: number;
+export type KnowledgeTest = { profile: "lexical-v1"; configuredProfile: "lexical-v1" | "hybrid-v1"; attached: number;
   hits: { sourceId: string; revisionId: string; title: string; text: string; start: number; page: number | null; rankScore: number }[] };
 export type AutomationSchedule = { kind: "once"; at: string } | { kind: "interval"; anchor: string; everySeconds: number } | { kind: "event" };
 export type Automation = { id: string; name: string; versionId: string; ownerAccountId: string; reviewerAccountId: string; input: string; expiresAt: string; maxOccurrencesPerDay: number; schedule: AutomationSchedule; revision: number; state: "active" | "paused" | "revoked" };

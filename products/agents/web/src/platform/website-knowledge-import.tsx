@@ -115,7 +115,7 @@ export function WebsiteKnowledgeImport({ organizationId, agentId, onComplete, on
       await api(`${base}/agents/${encodeURIComponent(agentId)}/configuration`, { name: agent.name, expectedRevision: agent.draftRevision, configuration, confirmImpact: true });
       const saved = await api<{ agent: Agent }>(`${base}/agents/${encodeURIComponent(agentId)}`);
       setAgent(saved.agent);
-      toast.success(current.visibility === "public" ? "Website knowledge added" : "Website knowledge added · publish in Knowledge for customer use");
+      toast.success("Website knowledge added");
       onComplete();
     } catch (e) { setError(message(e)); } finally { setBusy(false); }
   }
@@ -133,7 +133,7 @@ export function WebsiteKnowledgeImport({ organizationId, agentId, onComplete, on
       <Button type="button" disabled={busy || !url.trim() || !available} onClick={() => void start()}>{busy ? "Starting…" : "Crawl website"}</Button>
     </> : withdrawn ? <div className="space-y-3"><p role="alert" className="text-sm text-destructive">Website knowledge withdrawn</p><Button type="button" variant="outline" onClick={reset}>Import another website</Button></div>
       : statusUnavailable ? <div className="space-y-3"><p role="status" className="text-sm">Knowledge unavailable</p><Button type="button" variant="outline" disabled={busy} onClick={() => { setStatusUnavailable(false); setStatusAttempt(value => value + 1); setError(""); }}>Reload status</Button><Button type="button" variant="ghost" onClick={reset}>Import another website</Button></div>
-      : attached ? <div className="space-y-3"><p role="status" className="text-sm">Website knowledge added</p><p className="text-sm text-muted-foreground">{source?.visibility === "public" ? "Available to customer channels" : "Private · manage in Knowledge"}</p><Button type="button" variant="outline" disabled={busy} onClick={reset}>Import another website</Button></div> : <>
+      : attached ? <div className="space-y-3"><p role="status" className="text-sm">Website knowledge added</p><p className="text-sm text-muted-foreground">Available to customer channels</p><Button type="button" variant="outline" disabled={busy} onClick={reset}>Import another website</Button></div> : <>
       <p className="break-all text-sm text-muted-foreground">{crawl.url}</p>
       {active(crawl) ? <div className="space-y-3"><p role="status" className="text-sm">Crawling website · {crawl.completed} pages collected{crawl.total ? ` of ${crawl.total}` : ""}</p><Button type="button" variant="outline" disabled={busy} onClick={() => void cancel()}>Cancel crawl</Button></div>
         : job || importJobId ? <>
