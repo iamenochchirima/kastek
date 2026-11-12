@@ -79,6 +79,7 @@ export function AgentEditor() {
   const [knowledgeOpen, setKnowledgeOpen] = useState(false), [knowledgeBusy, setKnowledgeBusy] = useState(false);
   const [documentsOpen, setDocumentsOpen] = useState(false), [documentsBusy, setDocumentsBusy] = useState(false);
   const [effective, setEffective] = useState<EffectiveSettings | null>(null), [effectiveBusy, setEffectiveBusy] = useState(false);
+  const [instructionsOpen, setInstructionsOpen] = useState(false), [instructionsDraft, setInstructionsDraft] = useState("");
   async function refreshKnowledge() { const [current, sources] = await Promise.all([api<{ agent: Agent; versions: Version[] }>(path), api<KnowledgeSources>(`${organizationPath(organizationId)}/knowledge/sources`)]); setAgent(current.agent); setName(current.agent.name); setConfiguration(current.agent.draft); setVersions(current.versions); setKnowledge(sources.sources); refresh(); }
   useEffect(() => { let live = true; Promise.all([api<{ agent: Agent; versions: Version[] }>(path), api<KnowledgeSources>(`${organizationPath(organizationId)}/knowledge/sources`)]).then(([result, sources]) => { if (!live) return; setAgent(result.agent); setConfiguration(result.agent.draft); setName(result.agent.name); setVersions(result.versions); setKnowledge(sources.sources); }).catch(e => { if (live) setError(message(e)); }); return () => { live = false; }; }, [path, organizationId, agentId, session.account.id]);
   const latestDraft = useRef({ name, configuration }); latestDraft.current = { name, configuration };
@@ -214,6 +215,16 @@ export function AgentEditor() {
       toast.success("Recommended guidance added");
     } catch (reason) { toast.error(message(reason)); }
   }
+  function openInstructions() {
+    if (!configuration) return;
+    setInstructionsDraft(configuration.instructions);
+    setInstructionsOpen(true);
+  }
+  function applyInstructions() {
+    if (!configuration || !instructionsDraft.trim()) return;
+    setConfiguration({ ...configuration, instructions: instructionsDraft });
+    setInstructionsOpen(false);
+  }
   async function loadEffectiveSettings() {
     if (!configuration) return;
     setEffectiveBusy(true);
@@ -268,13 +279,15 @@ export function AgentEditor() {
           <section className="agent-config-panel agent-config-basic agent-config-instructions">
             <div className="agent-config-card-head">
               <div><h2>Instructions</h2><p>What this agent should do. Keep it specific.</p></div>
-              {agent.setup && configuration.instructions.includes("The setup below is business context") ? <span className="agent-config-note">Includes setup details</span> : null}
+              <Button type="button" size="sm" variant="outline" onClick={openInstructions}>Edit</Button>
             </div>
-            <label className="agent-instructions block space-y-2 text-sm font-medium">
-              <span className="sr-only">Instructions</span>
-              <Textarea required maxLength={8_000} rows={8} value={configuration.instructions} onChange={event => setConfiguration({ ...configuration, instructions: event.target.value })} />
-              <span aria-hidden="true" className="agent-instructions-count">{configuration.instructions.length.toLocaleString()} / 8,000</span>
-            </label>
+            <button type="button" className={`agent-instructions-preview ${configuration.instructions.trim() ? "" : "is-empty"}`} onClick={openInstructions} aria-label="Edit instructions">
+              <span className="agent-instructions-preview-text">{configuration.instructions.trim() || "No instructions yet."}</span>
+            </button>
+            <div className="agent-instructions-meta">
+              <span>{agent.setup && configuration.instructions.includes("The setup below is business context") ? "Includes setup details" : ""}</span>
+              <span aria-hidden="true">{configuration.instructions.length.toLocaleString()} / 8,000</span>
+            </div>
           </section>
           <section className="agent-config-panel agent-config-guidance">
             <div className="agent-config-card-head">
@@ -342,6 +355,16 @@ export function AgentEditor() {
     section === "settings" ? <AgentSettings organizationId={organizationId} agent={agent} onUpdated={updated => { setAgent(updated); setName(updated.name); refresh(); }} onDelete={() => { setDeleteError(""); setDeleteOpen(true); }} /> :
     null}
     </div>
+    <Dialog open={instructionsOpen} onOpenChange={value => { if (!value) setInstructionsOpen(false); }}>
+      <DialogContent className="sm:max-w-4xl">
+        <DialogHeader><DialogTitle>Instructions</DialogTitle><DialogDescription>What this agent should do. Keep it specific.</DialogDescription></DialogHeader>
+        <label className="block space-y-2 text-sm font-medium"><span className="sr-only">Instructions</span>
+          <Textarea autoFocus maxLength={8_000} className="agent-instructions-editor" value={instructionsDraft} onChange={event => setInstructionsDraft(event.target.value)} />
+        </label>
+        <div className="agent-instructions-meta"><span>Save changes to apply.</span><span aria-hidden="true">{instructionsDraft.length.toLocaleString()} / 8,000</span></div>
+        <DialogFooter><Button type="button" variant="outline" onClick={() => setInstructionsOpen(false)}>Cancel</Button><Button type="button" disabled={!instructionsDraft.trim()} onClick={applyInstructions}>Done</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
     <Dialog open={deleteOpen} onOpenChange={value => { if (!deleteBusy) setDeleteOpen(value); }}><DialogContent showCloseButton={!deleteBusy} onInteractOutside={event => { if (deleteBusy) event.preventDefault(); }} onEscapeKeyDown={event => { if (deleteBusy) event.preventDefault(); }}><DialogHeader><DialogTitle>Delete {agent.name}?</DialogTitle><DialogDescription>Connected channels and automations will stop. Conversation history and customer records will be retained. This cannot be undone.{dirty ? " Unsaved changes will be discarded." : ""}</DialogDescription></DialogHeader><ErrorMessage value={deleteError} /><DialogFooter><Button type="button" variant="outline" disabled={deleteBusy} onClick={() => setDeleteOpen(false)}>Cancel</Button><Button type="button" variant="destructive" disabled={deleteBusy} onClick={() => void deleteAgent()}>{deleteBusy ? "Deleting…" : "Delete agent"}</Button></DialogFooter></DialogContent></Dialog>
     <Dialog open={knowledgeOpen} onOpenChange={value => { if (!knowledgeBusy) setKnowledgeOpen(value); }}><DialogContent className="sm:max-w-2xl" showCloseButton={!knowledgeBusy} onInteractOutside={event => { if (knowledgeBusy) event.preventDefault(); }} onEscapeKeyDown={event => { if (knowledgeBusy) event.preventDefault(); }}><DialogHeader><DialogTitle>Import website</DialogTitle><DialogDescription>Review website content before adding it to your agent.</DialogDescription></DialogHeader><WebsiteKnowledgeImport organizationId={organizationId} agentId={agent.id} onComplete={() => void refreshKnowledge().catch(e => setError(message(e)))} onBusyChange={setKnowledgeBusy} /></DialogContent></Dialog>
     <Dialog open={documentsOpen} onOpenChange={value => { if (!documentsBusy) setDocumentsOpen(value); }}><DialogContent className="sm:max-w-2xl" showCloseButton={!documentsBusy} onInteractOutside={event => { if (documentsBusy) event.preventDefault(); }} onEscapeKeyDown={event => { if (documentsBusy) event.preventDefault(); }}><DialogHeader><DialogTitle>Add documents</DialogTitle><DialogDescription>Review content before adding it to your agent.</DialogDescription></DialogHeader><KnowledgeUpload organizationId={organizationId} agentId={agent.id} onComplete={() => { setDocumentsOpen(false); void refreshKnowledge().catch(e => setError(message(e))); }} onBusyChange={setDocumentsBusy} /></DialogContent></Dialog>
