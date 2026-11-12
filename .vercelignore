@@ -1,0 +1,12 @@
+.local
+.audit
+.git
+**/.runtime
+**/.runtime/**
+**/.next
+**/.next/**
+**/.turbo
+**/dist
+**/node_modules
+**/node_modules/**
+**/pg-socket
