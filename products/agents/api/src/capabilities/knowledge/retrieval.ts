@@ -77,7 +77,7 @@ export class KnowledgeRetrieval {
           c.section_id,c.section_ordinal,sec.parent_ordinal,sec.heading_path,sec.part,sec.chars,
           par.chars AS parent_chars
         FROM fused f JOIN eligible c ON c.id=f.id
-        LEFT JOIN LATERAL (SELECT s.id,s.ordinal,s.parent_ordinal,s.heading_path,s.part,s.chars
+        LEFT JOIN LATERAL (SELECT s.id,s.revision_id,s.ordinal,s.parent_ordinal,s.heading_path,s.part,s.chars
           FROM agents_platform.source_sections s
           WHERE s.organization_id=c.organization_id AND s.revision_id=c.revision_id
             AND c.start_offset>=s.start_offset AND c.start_offset<s.end_offset
@@ -90,7 +90,7 @@ export class KnowledgeRetrieval {
           c.section_id,c.section_ordinal,sec.parent_ordinal,sec.heading_path,sec.part,sec.chars,
           par.chars AS parent_chars
         FROM lexical l JOIN eligible c ON c.id=l.id
-        LEFT JOIN LATERAL (SELECT s.id,s.ordinal,s.parent_ordinal,s.heading_path,s.part,s.chars
+        LEFT JOIN LATERAL (SELECT s.id,s.revision_id,s.ordinal,s.parent_ordinal,s.heading_path,s.part,s.chars
           FROM agents_platform.source_sections s
           WHERE s.organization_id=c.organization_id AND s.revision_id=c.revision_id
             AND c.start_offset>=s.start_offset AND c.start_offset<s.end_offset
