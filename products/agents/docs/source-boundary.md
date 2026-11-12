@@ -294,6 +294,24 @@ deleting it. Closing or reloading resumes the exact persisted import and derives
 revision, current approval, active source, and saved agent knowledge bindings. Withdrawn, unavailable,
 failed and cancelled imports remain distinct and can be retried without reporting success.
 
+Training data lists only the sources attached to the selected agent. Sources remain workspace-owned:
+upload creates a workspace source, while **Pick from workspace** binds an existing approved source.
+The workspace Knowledge page shows how many agents use each source. Deleting an agent detaches its
+sources; it never deletes workspace knowledge. Deleting a source warns with the attached agent list
+and detaches every agent before removal.
+
+An owner can transfer an agent by email using schema148. The recipient signs in with the invited
+address, chooses a workspace they own or administer, and accepts. Acceptance copies the current
+published configuration and the attached source revisions into that workspace under new ids,
+including sources, revisions, chunks, sections, embeddings and original/text objects. Copied
+sources arrive approved and use the destination organization default model. Connected tools,
+skills, procedures, delegation bindings, booking/report workflows and channel/support tools are
+removed because they reference source-workspace credentials, bindings or agents. Model connections,
+channels, domains, conversations, tasks, evidence and version history do not move. The source agent
+and its sources remain unchanged, so old conversations keep verifying their citations. A pending
+transfer freezes editing and deletion; cancel, decline and expiry leave no copies. The invitation
+link expires after seven days and uses the existing Resend configuration.
+
 Deleting a source removes it from every agent immediately, without a republish. A seven-day soft delete is
 restorable; a forced delete also scrubs chunk content, removes sections and embeddings, and leaves a
 tombstone (source id, title, digest, actor, timestamps). Content is scrubbed rather than row-deleted because
@@ -319,7 +337,7 @@ Crawls default to 20 pages at discovery depth 2, with two active crawls per orga
 of extracted Markdown; selected combined content must fit the existing 1 MiB text-source budget.
 These are local product limits, not Firecrawl subscription credits. Pagination/oversized results
 fail explicitly rather than silently approving a partial crawl. Sources retain page URLs in
-Markdown. Candidate parsing, chunking, embedding, approval, visibility and agent configuration
+Markdown. Candidate parsing, chunking, embedding, approval and agent configuration
 continue through the existing knowledge system. A Firecrawl response is never approved knowledge.
 
 Root URLs are public HTTPS with DNS/private-address checks. Results remain on the same hostname.

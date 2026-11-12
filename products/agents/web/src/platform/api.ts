@@ -62,6 +62,7 @@ export type CustomerSetup = {
  behaviour: { agentName: string; language: string; tone: "friendly" | "professional" | "concise"; handoffInstructions: string };
 };
 export type Agent = { setup?: CustomerSetup | null; setupStep?: string | null; offering?: "faq" | "customer-service" | "booking" | null; id: string; name: string; avatar: string; draft: Configuration; draftRevision: number; updatedAt: string };
+export type AgentTransfer = { id: string; agentId: string; targetEmail: string; state: "pending" | "accepted" | "declined" | "cancelled" | "expired"; expiresAt: string; createdAt: string; settledAt: string | null; targetOrganizationId: string | null; createdAgentId: string | null };
 export type Version = { id: string; number: number; configuration: Configuration; createdAt?: string };
 export type Deployment = { id: string; versionId: string; allowedOrigins: string[] };
 export type Organization = { id: string; name: string; role: string; permissions?: string[] };

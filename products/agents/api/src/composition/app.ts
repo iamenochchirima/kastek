@@ -56,6 +56,9 @@ import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 import { pageQuery, cursorKeysFromEnvironment, readPageCursor, finishPage } from "../infrastructure/read-pages";
 import { PlatformDiscovery } from "../product/agents/discovery";
 import { registerKnowledgeRoutes } from "../product/agents/knowledge-routes";
+import { AgentTransferStore } from "../product/agents/transfer-store";
+import { registerAgentTransferRoutes } from "../product/agents/transfer-routes";
+import type { TransferEmail } from "../product/agents/transfer-store";
 import { composeAgentInstructions } from "../product/agents/identity";
 import { registerBillingRoutes } from "../product/billing/routes";
 import { assertAgentsBillingLimit } from "../product/billing/billing";
@@ -345,6 +348,19 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if (result.state !== "accepted") throw new PlatformError("INVITATION_EMAIL_FAILED", 502, "Invitation email could not be sent");
   }
   registerMemberRoutes(app, { store: members, resolveScope, account, sendInvitation: sendInvitationEmail });
+  const transfers = new AgentTransferStore(pool, new PostgresKnowledgeObjectStore(pool));
+  async function sendTransferEmail(input: TransferEmail): Promise<void> {
+    if (!invitationSender) throw new PlatformError("TRANSFER_EMAIL_UNAVAILABLE", 503, "Transfer email is unavailable");
+    const link = `${new URL(config.AGENTS_PUBLIC_URL).origin}/transfer/${encodeURIComponent(input.token)}`;
+    const result = await invitationSender.send({
+      to: input.transfer.targetEmail,
+      subject: `${input.agentName} was transferred to you`,
+      text: `${input.organizationName} transferred ${input.agentName} to you on KasiTek.\n\nReview the agent and choose a workspace:\n${link}\n\nThis link expires in 7 days.`,
+      idempotencyKey: `agent_transfer_${input.transfer.id}`,
+    });
+    if (result.state !== "accepted") throw new PlatformError("TRANSFER_EMAIL_FAILED", 502, "Transfer email could not be sent");
+  }
+  registerAgentTransferRoutes(app, { store: transfers, resolveScope, account, sendTransfer: sendTransferEmail });
   const organizationAssistant=new OrganizationAssistantStore(pool),memberChannels=new MemberChannels(pool);
   const assistantBase="/api/organizations/:organizationId";
   app.get(`${assistantBase}/assistant`,async request=>{const scope=await resolveScope(request);return organizationAssistant.getOrganizationAssistant(scope.accountId,scope.organizationId);});

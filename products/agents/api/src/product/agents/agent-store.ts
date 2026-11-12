@@ -92,10 +92,15 @@ export class AgentStore extends AuthorityStore {
       guidance: defaultAgentGuidance({ offering: agent.offering, responsibilities }),
     };
   }
+  private async assertNoPendingTransfer(db:Db, organizationId:string, agentId:string):Promise<void> {
+    if ((await db.query("SELECT 1 FROM agents_platform.agent_transfers WHERE organization_id=$1 AND agent_id=$2 AND state='pending' AND expires_at>now() LIMIT 1",[organizationId,agentId])).rowCount)
+      throw new PlatformError("AGENT_TRANSFER_PENDING",409,"Cancel the pending transfer before changing this agent");
+  }
   async deleteAgent(accountId:string, organizationId:string, agentId:string):Promise<void> {
     await this.transaction(async db => {
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [organizationId]);
       await this.membership(db,accountId,organizationId);
+      await this.assertNoPendingTransfer(db,organizationId,agentId);
       const agent=(await db.query("SELECT id FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR UPDATE",[organizationId,agentId])).rows[0] ?? absent();
       if ((await db.query(`SELECT 1 FROM agents_platform.tasks t JOIN agents_platform.agent_versions v ON v.id=t.version_id
         WHERE v.organization_id=$1 AND v.agent_id=$2 AND (t.state NOT IN ('completed','incomplete','refused','failed','cancelled') OR t.disposition<>'settled') LIMIT 1`,[organizationId,agent.id])).rowCount)
@@ -122,6 +127,7 @@ export class AgentStore extends AuthorityStore {
     configuration: AgentConfiguration; expectedRevision: number }): Promise<AgentRecord> {
     const config = agentConfigurationSchema.parse(input.configuration);
     return this.transaction(async (db) => { await this.membership(db, input.accountId, input.organizationId);
+      await this.assertNoPendingTransfer(db,input.organizationId,input.agentId);
       const current=(await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL AND draft_revision=$3 FOR UPDATE",[input.organizationId,input.agentId,input.expectedRevision])).rows[0];
       if(!current)throw new PlatformError("DRAFT_CONFLICT",409,"Agent settings changed. Refresh and try again.");
       const setup=updatedSupportHoursSetup(current,config);
@@ -134,6 +140,7 @@ export class AgentStore extends AuthorityStore {
   async updateAgentProfile(input: { accountId: string; organizationId: string; agentId: string; name?: string; avatar?: string }): Promise<AgentRecord> {
     if(input.name===undefined&&input.avatar===undefined)return this.getAgent(input.accountId,input.organizationId,input.agentId);
     return this.transaction(async (db) => { await this.membership(db, input.accountId, input.organizationId);
+      await this.assertNoPendingTransfer(db,input.organizationId,input.agentId);
       const row=(await db.query<AgentRecord>(`UPDATE agents_platform.agents SET name=coalesce($3,name),avatar=coalesce($4,avatar),updated_at=now()
         WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL RETURNING *`,[input.organizationId,input.agentId,
         input.name===undefined?null:text(input.name,120),input.avatar??null])).rows[0]??absent();
@@ -172,6 +179,7 @@ export class AgentStore extends AuthorityStore {
     let config=agentConfigurationSchema.parse(input.configuration);
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
       await this.membership(db,input.accountId,input.organizationId);
+      await this.assertNoPendingTransfer(db,input.organizationId,input.agentId);
       let agent=(await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR UPDATE",[input.organizationId,input.agentId])).rows[0]??absent();
       if(setup){
         const derivedBefore=agent.setup?customerConfigurationForSetup(agent.setup).instructions:null;
@@ -236,6 +244,7 @@ export class AgentStore extends AuthorityStore {
     return this.transaction(async (db) => {
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [input.organizationId]);
       await this.membership(db, input.accountId, input.organizationId);
+      await this.assertNoPendingTransfer(db,input.organizationId,input.agentId);
       const agent = (await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR UPDATE", [input.organizationId, input.agentId])).rows[0] ?? absent();
       if (agent.draft_revision !== input.expectedRevision) throw new PlatformError("DRAFT_CONFLICT", 409, "Agent settings changed. Refresh and try again.");
       const existing = (await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE agent_id=$1 AND draft_revision=$2 ORDER BY number DESC LIMIT 1", [agent.id, agent.draft_revision])).rows[0];

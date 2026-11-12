@@ -200,6 +200,9 @@
 .agent-avatar-picker button[aria-pressed="true"] { border-color: var(--primary); background: var(--accent); }
 .agent-avatar-picker button:disabled { opacity: .6; }
 .agent-settings-page .agent-settings-form { display: grid; gap: 20px; max-width: 560px; }
+.agent-settings-transfer { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; max-width: 760px; margin-top: 40px; padding: 18px; border: 1px solid var(--border); border-radius: 9px; }
+.agent-settings-transfer h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.agent-settings-transfer p { margin-top: 4px; color: var(--muted-foreground); font-size: 12px; line-height: 1.45; }
 .agent-settings-danger { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; max-width: 760px; margin-top: 40px; padding: 18px; border: 1px solid color-mix(in srgb, var(--destructive) 34%, var(--border)); border-radius: 9px; }
 .agent-settings-danger h2 { margin: 0; font-size: 14px; font-weight: 600; }
 .agent-settings-danger p { margin-top: 4px; color: var(--muted-foreground); font-size: 12px; line-height: 1.45; }
@@ -222,7 +225,7 @@
   .agent-unsaved-note { margin: 12px 16px 0; }
   .agent-section-heading { flex-wrap: wrap; }
   .agent-section-heading h1 { font-size: 21px; }
-  .agent-settings-danger { flex-direction: column; }
+  .agent-settings-transfer, .agent-settings-danger { flex-direction: column; }
   .agent-capability-actions { grid-column: 1 / -1; }
 }
 

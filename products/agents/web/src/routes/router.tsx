@@ -25,6 +25,7 @@ import { McpWebsiteReview } from "@/platform/mcp-website-review";
 import { McpConfigReview } from "@/platform/mcp-config-review";
 import { McpSourceReview } from "@/platform/mcp-source-review";
 import { InvitePage } from "@/platform/invite";
+import { TransferPage } from "@/platform/transfer";
 
 const LandingV2 = lazy(() => import("@/platform/landing-v2").then(module => ({ default: module.LandingV2 })));
 
@@ -46,6 +47,7 @@ export const router = createBrowserRouter([
   { path: "/app/mcp/config-review", Component: McpConfigReview },
   { path: "/app/mcp/source-review", Component: McpSourceReview },
   { path: "/invite/:token", Component: InvitePage },
+  { path: "/transfer/:token", Component: TransferPage },
   { path: "/chat/:deploymentId", Component: WebsiteChat },
   { path: "/support/return/:deploymentId", Component: CustomerReturn },
   { path: "/app", Component: WorkspaceShell, children: [
