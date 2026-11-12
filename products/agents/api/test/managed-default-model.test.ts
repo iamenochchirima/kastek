@@ -36,13 +36,13 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     return transaction(pool,db=>resolveAcceptedModelRoutes(db,{organizationId:scope.organizationId,agentId:agent.id,product:"agents",selection,
       requiresTools:true,allowManagedPaidModels,layers:[{kind:"platform",reference:"test",limits:modelServicePolicy({})}]}));
   }
-  it("initializes one encrypted restricted connection under concurrent owner bootstrap and resolves its normal grant",async()=>{
+  it("initializes one encrypted managed connection under concurrent owner bootstrap and resolves its normal grant",async()=>{
     const scope=await fixture(),ensure=initializer(),before=discoveries;
     expect((await Promise.all([ensure(scope),ensure(scope),ensure(scope)])).filter(Boolean)).toHaveLength(1);
     expect(discoveries-before).toBe(1);
     const connections=await models.list(scope);expect(connections).toHaveLength(1);expect(connections[0].custody).toBe("platform_managed");
     expect((await models.getDefault(scope)).selection?.modelId).toBe(defaultAgentsModelId);
-    expect((await models.cachedModels(scope,connections[0].id)).result?.models.map(item=>item.id)).toEqual([defaultAgentsModelId]);
+    expect((await models.cachedModels(scope,connections[0].id)).result?.models.map(item=>item.id).sort()).toEqual([defaultAgentsModelId,"paid/model"].sort());
     const route=await accepted(scope);expect(await transaction(pool,db=>models.resolveCredential(db,route.primary.binding,route.primary.consumer))).toBe("private-platform-key");
     expect(JSON.stringify(await pool.query("SELECT envelope FROM agents_platform.model_provider_credentials WHERE organization_id=$1",[scope.organizationId]))).not.toContain("private-platform-key");
     expect(JSON.stringify(connections)).not.toContain("private-platform-key");
@@ -60,19 +60,17 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
       await models.revoke(scope,connection.id,1,remove);await pool.query("DELETE FROM agents_platform.model_provider_defaults WHERE organization_id=$1",[scope.organizationId]);
       expect(await initializer()(scope)).toBe(false);expect((await pool.query("SELECT count(*)::int count FROM agents_platform.model_provider_connections WHERE organization_id=$1",[scope.organizationId])).rows[0].count).toBe(1);}
   });
-  it("blocks managed-key widening through edits, manual metadata, default selection, grants and physical dispatch",async()=>{
-    const scope=await fixture();await initializer()(scope);const [connection]=await models.list(scope),route=await accepted(scope);
-    await expect(models.update(scope,connection.id,{expectedRevision:1,apiKey:"other-key"})).rejects.toMatchObject({code:"MODEL_MANAGED_READ_ONLY"});
-    await expect(models.addManualModel(scope,connection.id,{expectedRevision:1,modelId:"paid/model"})).rejects.toMatchObject({code:"MODEL_MANAGED_READ_ONLY"});
-    await expect(models.setDefault(scope,{connectionId:connection.id,modelId:"paid/model",expectedRevision:1})).rejects.toMatchObject({code:"MODEL_MANAGED_READ_ONLY"});
-    await expect(models.grant(scope,{connectionId:connection.id,consumer:{kind:"service",serviceId:"test",product:"agents"},roles:["primary"],modelIds:["paid/model"]})).rejects.toMatchObject({code:"MODEL_MANAGED_READ_ONLY"});
-    await expect(models.probe(scope,connection.id,{expectedRevision:1,modelId:"paid/model",allowBillableRequest:true,verifyTools:false})).rejects.toMatchObject({code:"MODEL_MANAGED_READ_ONLY"});
-    await expect(transaction(pool,db=>models.resolveCredential(db,{...route.primary.binding,modelId:"paid/model"},route.primary.consumer))).rejects.toMatchObject({code:"MODEL_MANAGED_READ_ONLY"});
-    await expect(accepted(scope,{kind:"connection",connectionId:connection.id,modelId:"paid/model"})).rejects.toMatchObject({code:"MODEL_USE_DENIED"});
-  });
-  it("keeps only the allowlisted catalogue on refresh and accepts a priced default",async()=>{
+  it("keeps the managed key read-only while allowing catalogue models as defaults and grants",async()=>{
     const scope=await fixture();await initializer()(scope);const [connection]=await models.list(scope);
-    const result=await models.refreshModels(scope,connection.id,1);expect(result.models.map(item=>item.id)).toEqual([defaultAgentsModelId]);
+    await expect(models.update(scope,connection.id,{expectedRevision:1,apiKey:"other-key"})).rejects.toMatchObject({code:"MODEL_MANAGED_READ_ONLY"});
+    await expect(models.setDefault(scope,{connectionId:connection.id,modelId:"paid/model",expectedRevision:1})).resolves.toMatchObject({selection:{modelId:"paid/model"}});
+    await expect(models.grant(scope,{connectionId:connection.id,consumer:{kind:"service",serviceId:"test",product:"agents"},roles:["primary"],modelIds:["paid/model"]})).resolves.toMatchObject({modelIds:["paid/model"]});
+    const route=await accepted(scope);expect(route.primary.binding.modelId).toBe("paid/model");
+    expect(await transaction(pool,db=>models.resolveCredential(db,route.primary.binding,route.primary.consumer))).toBe("private-platform-key");
+  });
+  it("refreshes the full provider catalogue by default",async()=>{
+    const scope=await fixture();await initializer()(scope);const [connection]=await models.list(scope);
+    const result=await models.refreshModels(scope,connection.id,1);expect(result.models.map(item=>item.id).sort()).toEqual([defaultAgentsModelId,"paid/model"].sort());
     prices="1";try {expect(await initializer()(await fixture())).toBe(true);}finally{prices="0";}
   });
   it("exposes allowlisted paid models and hides them from a free plan",async()=>{

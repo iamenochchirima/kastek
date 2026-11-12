@@ -32,7 +32,7 @@ export async function resolveAcceptedModelRoutes(db: PoolClient, input: {
   }
   const connection = (await db.query(`SELECT * FROM agents_platform.model_provider_connections
     WHERE organization_id=$1 AND id=$2 FOR SHARE`, [input.organizationId, connectionId])).rows[0];
-  if (connection?.managed_model_id && !managedModelIds(connection)!.includes(modelId)) throw new PlatformError("MODEL_USE_DENIED", 403, "The managed provider does not allow this model");
+  if (connection && managedModelIds(connection) && !managedModelIds(connection)!.includes(modelId)) throw new PlatformError("MODEL_USE_DENIED", 403, "The managed provider does not allow this model");
   if (!connection || connection.state !== "active") throw new PlatformError("MODEL_CONNECTION_UNAVAILABLE", 409, "Reconnect the selected model provider");
   const definition = providerDefinitionSchema.parse(connection.definition);
   if (definition.adapter.readiness !== "installed") throw new PlatformError("MODEL_ADAPTER_NOT_INSTALLED", 503, "The selected model adapter is unavailable");

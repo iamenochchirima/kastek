@@ -173,6 +173,18 @@ receipt. Shared execution waits durably and reconciles an uncertain operation
 before another effect attempt. A saved receipt, not model text, establishes a
 completed write.
 
+## Managed model catalogue
+
+Platform-managed provider connections expose the provider's discovered catalogue. An explicit
+`AGENTS_DEFAULT_MODEL_IDS` operator allowlist can restrict a deployment; an empty
+`managed_model_ids` value means the full catalogue. The model picker remains searchable by model and
+provider name, and filters model routes whose tool support is unsupported or unverified.
+
+The full managed catalogue is available while the workspace has AI credits. At zero credits the
+picker filters platform-managed connections to free models and reports that the allowance is
+exhausted. Customer-supplied provider connections remain independent of that allowance filter on
+paid plans.
+
 ## Growth configuration
 
 Growth owns `products/growth/api/src/agents/manifest.ts`. Its four presets are Growth assistant,

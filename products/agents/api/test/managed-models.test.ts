@@ -7,10 +7,9 @@ describe("managed model allowlist", () => {
     expect(managedModelIds({})).toBeNull();
   });
 
-  it("falls back to the single pin for rows created before the allowlist", () => {
-    expect(managedModelIds({ managed_model_id: "openai/gpt-5.6-luna" })).toEqual([
-      "openai/gpt-5.6-luna",
-    ]);
+  it("exposes the full provider catalogue when the managed allowlist is empty", () => {
+    expect(managedModelIds({ managed_model_id: "openai/gpt-5.6-luna" })).toBeNull();
+    expect(managedModelIds({ managed_model_id: "openai/gpt-5.6-luna", managed_model_ids: [] })).toBeNull();
   });
 
   it("returns the stored allowlist", () => {

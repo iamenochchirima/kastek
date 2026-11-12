@@ -12,20 +12,11 @@ import {transaction} from "../../infrastructure/database";
 
 export const defaultAgentsModelId="nvidia/nemotron-3.5-lightning:free";
 
-/** Curated managed catalogue. Price spread is deliberate: cheap workhorses plus one premium model. */
-export const defaultManagedModelIds=Object.freeze([
-  defaultAgentsModelId,
-  "google/gemini-2.5-flash-lite",
-  "google/gemini-2.5-flash",
-  "anthropic/claude-haiku-5.5",
-  "openai/gpt-5.6-luna",
-  "google/gemini-2.5-pro",
-]);
-
-/** Allowlisted managed models. The default is served first; the rest form the paid catalogue. */
-function managedModelAllowlist(env:NodeJS.ProcessEnv,defaultModelId:string):string[] {
-  const raw=(env.AGENTS_DEFAULT_MODEL_IDS??defaultManagedModelIds.join(",")).split(",").map(value=>value.trim()).filter(Boolean);
-  const ids=[...new Set(raw.map(value=>modelIdSchema.parse(value)))];
+/** An optional operator allowlist. An empty value exposes the provider catalogue. */
+function managedModelAllowlist(env:NodeJS.ProcessEnv,defaultModelId:string):string[]|null {
+  const raw=env.AGENTS_DEFAULT_MODEL_IDS?.trim();
+  if(!raw)return null;
+  const ids=[...new Set(raw.split(",").map(value=>value.trim()).filter(Boolean).map(value=>modelIdSchema.parse(value)))];
   if(!ids.includes(defaultModelId))ids.unshift(defaultModelId);
   return ids.slice(0,64);
 }
@@ -37,7 +28,7 @@ export function managedModelDefaultFromEnvironment(pool:Pool,vault:ModelCredenti
   const rawKey=env.AGENTS_DEFAULT_MODEL_API_KEY??env.OPENROUTER_API_KEY;
   if(!rawKey||!vault)return undefined;
   const apiKey=modelApiKeySchema.parse(rawKey),modelId=modelIdSchema.parse(env.AGENTS_DEFAULT_MODEL_ID??defaultAgentsModelId);
-  const allowlist=managedModelAllowlist(env,modelId),allowed=new Set(allowlist);
+  const allowlist=managedModelAllowlist(env,modelId),allowed=allowlist?new Set(allowlist):null;
   const definition=getProviderDefinition("openrouter")!;
   let discovery:Promise<ModelDiscoveryResult>|undefined;
   async function eligible(db:import("pg").PoolClient,scope:ActionScope) {
@@ -56,11 +47,15 @@ export function managedModelDefaultFromEnvironment(pool:Pool,vault:ModelCredenti
     });
     const result=await modelProviderAdapter.discover(definition,{apiKey,endpoint:definition.baseUrl,fetch:network,
       observedAt:new Date().toISOString(),maxResponseBytes:2097152,maxModels:5000});
-    const filtered=result.kind==="discovered"?result.models.filter(item=>allowed.has(item.id)&&!result.unavailableModelIds?.includes(item.id)):[];
+    const filtered=result.kind==="discovered"?result.models.filter(item=>(!allowed||allowed.has(item.id))&&!result.unavailableModelIds?.includes(item.id)):[];
     // The default is a required member: a managed connection without it would need an owner decision.
     if(!filtered.some(item=>item.id===modelId))throw new PlatformError("MODEL_DEFAULT_UNAVAILABLE",503,"The managed default model is unavailable");
     const models=[...filtered].sort((left,right)=>left.id===modelId?-1:right.id===modelId?1:left.id.localeCompare(right.id));
-    return {...result,models,unavailableModelIds:allowlist.filter(id=>!models.some(item=>item.id===id))};
+    const unavailable=allowlist?allowlist.filter(id=>!models.some(item=>item.id===id)):result.kind==="discovered"?result.unavailableModelIds:undefined;
+    const catalogue:Record<string,unknown>={...result,models};
+    delete catalogue.unavailableModelIds;
+    if(unavailable)catalogue.unavailableModelIds=unavailable;
+    return catalogue as typeof result;
   }
   return async(scope:ActionScope):Promise<boolean>=>{
     if(!await transaction(pool,db=>eligible(db,scope)))return false;
@@ -75,7 +70,7 @@ export function managedModelDefaultFromEnvironment(pool:Pool,vault:ModelCredenti
       await db.query(`INSERT INTO agents_platform.model_provider_connections
         (id,organization_id,created_by,provider_id,name,endpoint,protocol,definition,custody,verification,managed_model_id,managed_model_ids)
         VALUES($1,$2,$3,'openrouter','KasiTek OpenRouter',$4,$5,$6,'platform_managed','discovered',$7,$8)`,
-      [connectionId,scope.organizationId,scope.accountId,definition.baseUrl,definition.protocol,definition,modelId,JSON.stringify(catalogueIds)]);
+      [connectionId,scope.organizationId,scope.accountId,definition.baseUrl,definition.protocol,definition,modelId,JSON.stringify(allowlist?catalogueIds:[])]);
       await db.query(`INSERT INTO agents_platform.model_provider_credentials(organization_id,connection_id,revision,endpoint,protocol,envelope,state)
         VALUES($1,$2,1,$3,$4,$5,'active')`,[scope.organizationId,connectionId,definition.baseUrl,definition.protocol,envelope]);
       await db.query(`INSERT INTO agents_platform.model_provider_catalogues(organization_id,connection_id,connection_revision,credential_revision,snapshot,snapshot_digest)

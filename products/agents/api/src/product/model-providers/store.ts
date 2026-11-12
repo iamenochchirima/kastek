@@ -136,7 +136,8 @@ export class ModelProviderStore {
     return transaction(this.pool, async db => {
       await owner(db, scope); const connection = await this.row(db, scope, input.connectionId, true);
       if (connection.state !== "active") throw changed();
-      if (connection.managed_model_id && input.modelIds.some(id => !managedModelIds(connection)!.includes(id))) throw managedReadOnly();
+      const managed = managedModelIds(connection);
+      if (managed && input.modelIds.some(id => !managed.includes(id))) throw managedReadOnly();
       if (input.consumer.kind === "agent" && !(await db.query("SELECT 1 FROM agents_platform.agents WHERE organization_id=$1 AND id=$2", [scope.organizationId, input.consumer.agentId])).rowCount) {
         throw new PlatformError("MODEL_CONSUMER_NOT_FOUND", 404, "Agent not found");
       }
@@ -167,7 +168,8 @@ export class ModelProviderStore {
       if ((prior?.revision ?? 0) !== (input.expectedRevision ?? 0)) throw new PlatformError("MODEL_DEFAULT_CHANGED", 409, "Default model changed; refresh and try again");
       const connection = await this.row(db, scope, input.connectionId);
       if (connection.state !== "active") throw changed();
-      if (connection.managed_model_id && !managedModelIds(connection)!.includes(input.modelId)) throw managedReadOnly();
+      const managed = managedModelIds(connection);
+      if (managed && !managed.includes(input.modelId)) throw managedReadOnly();
       const grantId = randomUUID(), revision = (prior?.revision ?? 0) + 1;
       await db.query(`INSERT INTO agents_platform.model_provider_use_grants(id,organization_id,connection_id,consumer,roles,model_ids)
         VALUES($1,$2,$3,$4,$5,$6)`, [grantId, scope.organizationId, connection.id,
@@ -183,7 +185,7 @@ export class ModelProviderStore {
   }
 
   async cachedModels(scope: ActionScope, id: string, agentId?: string, allowPaidModels = true): Promise<{
-    result: ModelDiscoveryResult | null; fetchedAt: string | null; stale: boolean; connectionRevision: number; credentialRevision: number;
+    result: ModelDiscoveryResult | null; fetchedAt: string | null; stale: boolean; connectionRevision: number; credentialRevision: number; paidModelsAllowed: boolean;
     status: "fresh" | "stale" | "refreshing" | "backoff" | "unavailable" | "empty"; retryAt: string | null; errorCode: string | null;
     modelVerifications: Record<string, "inference_verified" | "tools_verified">;
     toolSupport: Record<string, ModelToolSupport>;
@@ -212,7 +214,7 @@ export class ModelProviderStore {
         result = { ...result, models: result.models.filter(model => allowed.has(model.id)) };
         if (result.kind === "discovered") result.unavailableModelIds = result.unavailableModelIds?.filter(id => allowed.has(id));
       }
-      // Free plans keep the free managed models; paid plans receive the full allowlisted catalogue.
+      // Workspaces with remaining AI credits receive the full managed catalogue; exhausted workspaces keep free models.
       if (!allowPaidModels && connection.custody === "platform_managed" && result) {
         result = { ...result, models: result.models.filter(model =>
           (model.pricing?.inputMicrosPerMillionTokens ?? 0) === 0 && (model.pricing?.outputMicrosPerMillionTokens ?? 0) === 0) };
@@ -238,6 +240,7 @@ export class ModelProviderStore {
       const status = control?.lease_until?.getTime() > now ? "refreshing" : control?.error_code
         ? (control.retry_at?.getTime() > now ? "backoff" : cache ? "stale" : "unavailable") : !cache ? "empty" : stale ? "stale" : "fresh";
       return { status, modelVerifications, toolSupport, retryAt: control?.retry_at?.toISOString() ?? null, errorCode: control?.error_code ?? null,
+        paidModelsAllowed: connection.custody === "platform_managed" ? allowPaidModels : true,
         result, fetchedAt: cache ? cache.fetched_at.toISOString() : null,
         stale: !cache || Date.now() - cache.fetched_at.getTime() >= this.setupPolicy.catalogueTtlMs,
         connectionRevision: connection.revision, credentialRevision: connection.credential_revision };
@@ -285,7 +288,8 @@ export class ModelProviderStore {
     const prepared = await transaction(this.pool, async db => {
       await owner(db, scope); const connection = await this.row(db, scope, id);
       if (connection.revision !== input.expectedRevision || connection.state !== "active") throw changed();
-      if (connection.managed_model_id && !managedModelIds(connection)!.includes(input.modelId)) throw managedReadOnly();
+      const managed = managedModelIds(connection);
+      if (managed && !managed.includes(input.modelId)) throw managedReadOnly();
       const cache = (await db.query(`SELECT snapshot,snapshot_digest FROM agents_platform.model_provider_catalogues
         WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4`,
       [scope.organizationId, id, connection.revision, connection.credential_revision])).rows[0];
@@ -445,7 +449,8 @@ export class ModelProviderStore {
       [binding.organizationId, binding.connectionId])).rows[0];
     if (!connection || connection.state !== "active" || connection.revision !== binding.connectionRevision ||
       connection.credential_revision !== binding.credentialRevision || connection.endpoint !== binding.endpoint || connection.protocol !== binding.protocol) throw changed();
-    if (connection.managed_model_id && !managedModelIds(connection)!.includes(binding.modelId)) throw managedReadOnly();
+    const managed = managedModelIds(connection);
+    if (managed && !managed.includes(binding.modelId)) throw managedReadOnly();
     const grant = (await db.query("SELECT * FROM agents_platform.model_provider_use_grants WHERE organization_id=$1 AND id=$2 AND connection_id=$3 FOR SHARE",
       [binding.organizationId, binding.useGrantId, binding.connectionId])).rows[0];
     if (!grant || grant.state !== "active" || grant.revision !== binding.useGrantRevision || canonicalJson(grant.consumer) !== canonicalJson(consumer) ||

@@ -3,7 +3,7 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { BillingEntitlementSnapshot } from "@kasitek-labs/contracts";
 import { billingSnapshotToken } from "@kasitek-labs/server-support/billing-authority";
-import { assertAgentsBillingAccess, assertAgentsPaidPlan, assertManagedModelAllowance, agentsPaidModelsAllowed, billingPaidPlan } from "../src/product/billing/billing";
+import { assertAgentsBillingAccess, assertAgentsPaidPlan, assertManagedModelAllowance, agentsManagedModelCatalogueAllowed, billingPaidPlan } from "../src/product/billing/billing";
 import { BillingClient } from "@kasitek-labs/server-support/billing-client";
 
 const serviceSecret = "agents-test-billing-secret-0000000000000";
@@ -166,11 +166,14 @@ describe("Agents AI allowance access", () => {
     await expect(assertAgentsPaidPlan(pool, "org_paid")).resolves.toBeUndefined();
   });
 
-  it("hides paid managed models from the free picker", async () => {
+  it("keeps the managed catalogue while the AI allowance lasts", async () => {
     planKey = "agents-free";
-    await expect(agentsPaidModelsAllowed(pool, "org_free")).resolves.toBe(false);
+    availableCredits = "1000000";
+    await expect(agentsManagedModelCatalogueAllowed(pool, "org_free")).resolves.toBe(true);
     planKey = "agents-growth";
-    await expect(agentsPaidModelsAllowed(pool, "org_growth")).resolves.toBe(true);
+    availableCredits = "0";
+    await expect(agentsManagedModelCatalogueAllowed(pool, "org_growth")).resolves.toBe(false);
+    availableCredits = "1000000";
   });
 
   it("cancels and reactivates through the billing service", async () => {

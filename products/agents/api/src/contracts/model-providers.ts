@@ -161,5 +161,6 @@ export function managedModelIds(connection: {
 }): string[] | null {
   if (!connection.managed_model_id) return null;
   const stored = Array.isArray(connection.managed_model_ids) ? connection.managed_model_ids : [];
-  return stored.length ? stored : [connection.managed_model_id];
+  // An empty managed allowlist means the connection exposes the full provider catalogue.
+  return stored.length ? stored : null;
 }

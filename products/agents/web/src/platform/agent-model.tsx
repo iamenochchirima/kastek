@@ -17,6 +17,7 @@ type ModelPolicyPreview = {
 type Choice = { connection: ModelProviderConnection; model: ProviderModel; available: boolean; toolSupport: "supported" | "needs_verification" | "unsupported" };
 function useAgentModels(organizationId: string, agentId: string) {
   const [choices, setChoices] = useState<Choice[]>([]), [defaultModel, setDefaultModel] = useState<DefaultModel | null>(null);
+  const [paidModelsAllowed, setPaidModelsAllowed] = useState(true);
   const [loading, setLoading] = useState(true), [error, setError] = useState(""), [reloadKey,setReloadKey]=useState(0);
   useEffect(() => {
     let active = true;
@@ -25,15 +26,18 @@ function useAgentModels(organizationId: string, agentId: string) {
       .then(async ([list, selection]) => {
         const models = await Promise.allSettled(list.connections.filter(connection => connection.state === "active").map(async connection => {
           const cache = await providerApi<CachedProviderModels>(organizationId, `/${connection.id}/models?agentId=${encodeURIComponent(agentId)}`);
-          return (cache.result?.models ?? []).map(model => ({ connection, model, toolSupport: cache.toolSupport?.[model.id] ?? (model.capabilities.tools.value === false ? "unsupported" : cache.modelVerifications?.[model.id] === "tools_verified" || model.capabilities.tools.value === true && (model.capabilities.tools.source?.kind !== "operator" || model.capabilities.tools.evidence === "verified") ? "supported" : "needs_verification" as const), available: cache.result?.kind !== "discovered" || !cache.result.unavailableModelIds?.includes(model.id) }));
+          return { paidModelsAllowed: cache.paidModelsAllowed !== false,
+            choices: (cache.result?.models ?? []).map(model => ({ connection, model, toolSupport: cache.toolSupport?.[model.id] ?? (model.capabilities.tools.value === false ? "unsupported" : cache.modelVerifications?.[model.id] === "tools_verified" || model.capabilities.tools.value === true && (model.capabilities.tools.source?.kind !== "operator" || model.capabilities.tools.evidence === "verified") ? "supported" : "needs_verification" as const), available: cache.result?.kind !== "discovered" || !cache.result.unavailableModelIds?.includes(model.id) })) };
         }));
         if (!active) return;
-        setDefaultModel(selection); setChoices(models.flatMap(result => result.status === "fulfilled" ? result.value : []));
+        setDefaultModel(selection);
+        setChoices(models.flatMap(result => result.status === "fulfilled" ? result.value.choices : []));
+        setPaidModelsAllowed(!models.some(result => result.status === "fulfilled" && !result.value.paidModelsAllowed));
         if (models.some(result => result.status === "rejected")) setError("Some model lists are unavailable.");
       }).catch(cause => { if (active) setError(providerError(cause)); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [organizationId, agentId,reloadKey]);
-  return { choices, defaultModel, loading, error,reload:()=>setReloadKey(value=>value+1) };
+  return { choices, defaultModel, paidModelsAllowed, loading, error,reload:()=>setReloadKey(value=>value+1) };
 }
 function modelIncompatibility(choice: Choice, requiresTools: boolean): string | null {
   if (!choice.available || choice.model.lifecycle === "retired") return "Unavailable";
@@ -47,7 +51,7 @@ export function ChatModelPicker({ organizationId, agentId, configuration, dirty,
   organizationId: string; agentId: string; configuration: Configuration; dirty: boolean; saving: boolean;
   onSelect(selection: Selection): Promise<boolean>;
 }) {
-  const { choices, defaultModel, loading, error,reload } = useAgentModels(organizationId, agentId);
+  const { choices, defaultModel, paidModelsAllowed, loading, error,reload } = useAgentModels(organizationId, agentId);
   const active = configuration.model.selection ?? { kind: "organization_default" as const };
   const activeKey = JSON.stringify(active);
   const [open, setOpen] = useState(false), [search, setSearch] = useState(""), [pending, setPending] = useState(activeKey), [saveError, setSaveError] = useState("");
@@ -73,6 +77,7 @@ export function ChatModelPicker({ organizationId, agentId, configuration, dirty,
         label:choice.model.name,provider:`${choice.connection.name} · ${choice.model.id}`,...details(choice),disabled:Boolean(modelIncompatibility(choice,requiresTools)),reason:modelIncompatibility(choice,requiresTools)??undefined}))]}
     loading={loading} saving={saving} error={saveError||error} saveDisabled={dirty||pending===activeKey}
     onSave={()=>void apply()} onReload={reload} footer={<>
+      {!paidModelsAllowed?<p role="status" className="text-sm text-muted-foreground">AI allowance used up. Free managed models only. <Link className="underline underline-offset-4" to="/app/upgrade">Upgrade</Link></p>:null}
       {dirty?<p role="status" className="text-sm text-muted-foreground">Save configuration changes before switching models.</p>:null}
       <Link to="/app/settings" className="text-sm underline underline-offset-4">Manage model providers</Link>
     </>} />;
@@ -80,7 +85,7 @@ export function ChatModelPicker({ organizationId, agentId, configuration, dirty,
 export function AgentModel({ organizationId, agentId, configuration, onChange }: {
   organizationId: string; agentId: string; configuration: Configuration; onChange(value: Configuration): void;
 }) {
-  const { choices, defaultModel, loading, error } = useAgentModels(organizationId, agentId);
+  const { choices, defaultModel, paidModelsAllowed, loading, error } = useAgentModels(organizationId, agentId);
   const [policy, setPolicy] = useState<{ routeKey: string; value: ModelPolicyPreview } | null>(null), [previewError, setPreviewError] = useState("");
   const selection = configuration.model.selection ?? { kind: "organization_default" as const };
   const routeKey = JSON.stringify(selection), preview = policy && policy.routeKey === routeKey ? policy.value : null;
@@ -139,6 +144,7 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
         </option>)}
       </select>
     </label>
+    {!paidModelsAllowed ? <p role="status" className="text-sm text-muted-foreground">AI allowance used up. Free managed models only. <Link className="underline underline-offset-4" to="/app/upgrade">Upgrade</Link></p> : null}
     {available && (!available.available || available.model.lifecycle === "retired") && <p role="status" className="text-sm text-muted-foreground">Saved model unavailable. Choose another model.</p>}
     {error && <p role="status" className="text-sm text-muted-foreground">{error}</p>}
     {available && incompatibility(available) && available.available && available.model.lifecycle !== "retired" && <p role="status" className="text-sm text-muted-foreground">{incompatibility(available)}. {requiresTools && available.toolSupport === "needs_verification" ? "Test tool support in Model providers." : "Choose a compatible model."}</p>}

@@ -14,15 +14,20 @@ export function billingPaidPlan(snapshot: BillingEntitlementSnapshot): boolean {
   return snapshot.plan !== null && !freePlanKeys.has(snapshot.plan.key);
 }
 
+/** The managed catalogue stays open while AI credits remain; exhausted workspaces keep free models. */
+export function billingManagedCatalogueAllowed(snapshot: BillingEntitlementSnapshot): boolean {
+  return BigInt(snapshot.credits.available) > 0n;
+}
+
 /** Read-only projection for the model picker. Admission remains the enforcement point, so a billing outage does not hide models. */
-export async function agentsPaidModelsAllowed(
+export async function agentsManagedModelCatalogueAllowed(
   pool: Pool,
   organizationId: string,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<boolean> {
   if (!agentsBillingEnforcementEnabled(env)) return true;
   try {
-    return billingPaidPlan(await agentsBillingSnapshot(pool, organizationId, env));
+    return billingManagedCatalogueAllowed(await agentsBillingSnapshot(pool, organizationId, env));
   } catch {
     return true;
   }
