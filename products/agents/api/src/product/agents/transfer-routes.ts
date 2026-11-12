@@ -56,8 +56,8 @@ export function registerAgentTransferRoutes(app: FastifyInstance, options: {
 
   app.post("/api/agent-transfers/:token/decline", async request => {
     const user = await options.account(request);
-    await options.store.decline(user.id, token.parse(params(request).token));
-    request.log.info({ event: "agent.transfer_declined", accountId: user.id }, "Agent transfer declined");
+    const declined = await options.store.decline(user.id, token.parse(params(request).token));
+    request.log.info({ event: "agent.transfer_declined", accountId: user.id, organizationId: declined.sourceOrganizationId }, "Agent transfer declined");
     return { message: "Transfer declined" };
   });
 
@@ -65,7 +65,7 @@ export function registerAgentTransferRoutes(app: FastifyInstance, options: {
     const user = await options.account(request);
     const input = acceptBody.parse(request.body ?? {});
     const accepted = await options.store.accept(user.id, token.parse(params(request).token), input.organizationId);
-    request.log.info({ event: "agent.transfer_accepted", accountId: user.id, organizationId: accepted.organizationId, agentId: accepted.agentId },
+    request.log.info({ event: "agent.transfer_accepted", accountId: user.id, sourceOrganizationId: accepted.sourceOrganizationId, organizationId: accepted.organizationId, agentId: accepted.agentId },
       "Agent transfer accepted");
     return accepted;
   });

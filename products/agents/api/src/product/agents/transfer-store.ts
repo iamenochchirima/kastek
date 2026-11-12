@@ -185,21 +185,22 @@ export class AgentTransferStore {
     });
   }
 
-  async decline(accountId: string, token: string): Promise<void> {
+  async decline(accountId: string, token: string): Promise<{ sourceOrganizationId: string }> {
     if (!tokenPattern.test(token)) throw missing();
-    await transaction(this.pool, async db => {
+    return transaction(this.pool, async db => {
       await this.expireStale(db, "token_hash", digest(token));
       const transfer = (await db.query("SELECT * FROM agents_platform.agent_transfers WHERE token_hash=$1 FOR UPDATE", [digest(token)])).rows[0];
       if (!transfer) throw missing();
       const account = (await db.query("SELECT email FROM agents_platform.accounts WHERE id=$1", [accountId])).rows[0];
       if (!account || normalizeEmail(account.email) !== normalizeEmail(transfer.target_email)) throw new PlatformError("TRANSFER_EMAIL_MISMATCH", 403, "Sign in with the email address that received this transfer");
-      if (transfer.state === "declined") return;
+      if (transfer.state === "declined") return { sourceOrganizationId: transfer.organization_id };
       if (transfer.state !== "pending") throw new PlatformError("TRANSFER_NOT_PENDING", 409, "This transfer is no longer waiting");
       await db.query("UPDATE agents_platform.agent_transfers SET state='declined',target_account_id=$2,settled_at=now(),updated_at=now() WHERE id=$1", [transfer.id, accountId]);
+      return { sourceOrganizationId: transfer.organization_id };
     });
   }
 
-  async accept(accountId: string, token: string, organizationId: string): Promise<{ agentId: string; organizationId: string; alreadyAccepted: boolean }> {
+  async accept(accountId: string, token: string, organizationId: string): Promise<{ agentId: string; organizationId: string; sourceOrganizationId: string; alreadyAccepted: boolean }> {
     if (!tokenPattern.test(token)) throw missing();
     return transaction(this.pool, async db => {
       await this.expireStale(db, "token_hash", digest(token));
@@ -210,7 +211,7 @@ export class AgentTransferStore {
         throw new PlatformError("TRANSFER_EMAIL_MISMATCH", 403, "Sign in with the email address that received this transfer");
       if (transfer.state === "accepted") {
         if (transfer.target_account_id !== accountId || !transfer.created_agent_id) throw new PlatformError("TRANSFER_ALREADY_ACCEPTED", 409, "This transfer was already accepted");
-        return { agentId: transfer.created_agent_id, organizationId: transfer.target_organization_id, alreadyAccepted: true };
+        return { agentId: transfer.created_agent_id, organizationId: transfer.target_organization_id, sourceOrganizationId: transfer.organization_id, alreadyAccepted: true };
       }
       if (transfer.state !== "pending") throw new PlatformError("TRANSFER_NOT_PENDING", 409, "This transfer is no longer waiting");
       if (organizationId === transfer.organization_id) throw new PlatformError("TRANSFER_DESTINATION_DENIED", 403, "Choose a different workspace");
@@ -253,7 +254,7 @@ export class AgentTransferStore {
       }
       await db.query(`UPDATE agents_platform.agent_transfers SET state='accepted',target_account_id=$2,target_organization_id=$3,created_agent_id=$4,settled_at=now(),updated_at=now() WHERE id=$1`,
         [transfer.id, accountId, organizationId, newAgentId]);
-      return { agentId: newAgentId, organizationId, alreadyAccepted: false };
+      return { agentId: newAgentId, organizationId, sourceOrganizationId: transfer.organization_id, alreadyAccepted: false };
     });
   }
 

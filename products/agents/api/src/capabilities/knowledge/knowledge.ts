@@ -15,7 +15,7 @@ import { isProductResourceScope, requireProductResourceAccess, resourceAccountId
 import { fitUtf8 } from "../../infrastructure/utf8";
 
 export type KnowledgeScope = PersonalResourceScope | ProductResourceScope;
-export interface KnowledgeSourceDTO extends Source { canApprove: boolean; revisions: { id: string; revision: number; state: "candidate" | "approved" | "withdrawn"; acquiredAt: string; embeddingRelease: string | null }[] }
+export interface KnowledgeSourceDTO extends Source { canApprove: boolean; revisions: { id: string; revision: number; state: "candidate" | "approved" | "withdrawn"; acquiredAt: string; embeddingRelease: string | null; bytes: number }[] }
 export interface IngestionJobDTO extends IngestionJob { contentType: string; errorCode: string | null; createdAt: string }
 const missing = () => new PlatformError("SOURCE_NOT_FOUND", 404, "Source is unavailable");
 const sourceDTO = (row: Record<string, any>): Source => ({ id: row.id, organizationId: row.organization_id,
@@ -50,12 +50,12 @@ export class KnowledgeStore {
       const rows = (await db.query(`SELECT * FROM agents_platform.sources WHERE organization_id=$1
         AND ($2 IN ('owner','admin') OR importer_account_id=$3) AND ($4::jsonb IS NULL OR importer_service @> $4::jsonb)
         ORDER BY created_at,id LIMIT 200`, [scope.organizationId, role, resourceAccountId(scope), isProductResourceScope(scope) ? resourceOwnership(scope) : null])).rows;
-      const revisions = rows.length ? (await db.query(`SELECT r.source_id,r.id,r.revision,p.state,r.acquired_at,r.embedding_release
+      const revisions = rows.length ? (await db.query(`SELECT r.source_id,r.id,r.revision,p.state,r.acquired_at,r.embedding_release,r.text_bytes
         FROM agents_platform.source_revisions r JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id
         JOIN agents_platform.ingestion_jobs j ON j.revision_id=r.id AND j.organization_id=r.organization_id
         WHERE r.organization_id=$1 AND r.source_id=ANY($2::uuid[]) AND ($3 IN ('owner','admin') OR j.importer_account_id=$4)
         ORDER BY r.revision`, [scope.organizationId, rows.map(row => row.id), role, resourceAccountId(scope)])).rows : [];
-      return rows.map(row => ({ ...sourceDTO(row), canApprove: role !== "member" && (!isProductResourceScope(scope) || scope.authority === "manage"), revisions: revisions.filter(rev => rev.source_id === row.id).map(rev => ({ id: rev.id, revision: rev.revision, state: rev.state, acquiredAt: new Date(rev.acquired_at).toISOString(), embeddingRelease: rev.embedding_release })) }));
+      return rows.map(row => ({ ...sourceDTO(row), canApprove: role !== "member" && (!isProductResourceScope(scope) || scope.authority === "manage"), revisions: revisions.filter(rev => rev.source_id === row.id).map(rev => ({ id: rev.id, revision: rev.revision, state: rev.state, acquiredAt: new Date(rev.acquired_at).toISOString(), embeddingRelease: rev.embedding_release, bytes: Number(rev.text_bytes ?? 0) })) }));
     });
   }
 

@@ -25,7 +25,7 @@ export function SourceConfiguration({ agentId, sources, configuration, onChange,
   const [previewError, setPreviewError] = useState("");
   const [verifying, setVerifying] = useState<string | null>(null);
   const [testQuery, setTestQuery] = useState(""), [testResult, setTestResult] = useState<KnowledgeTest | null>(null), [testing, setTesting] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false), [pickerQuery, setPickerQuery] = useState("");
   async function testRetrieval() {
     const query = testQuery.trim();
     if (!query) return;
@@ -108,8 +108,9 @@ export function SourceConfiguration({ agentId, sources, configuration, onChange,
   const missingIds = ids.filter(id => !sources.some(source => source.revisions.some(revision => revision.id === id)));
   const attachedSources = sources.filter(source => source.revisions.some(revision => ids.includes(revision.id)));
   const availableSources = sources.filter(source => source.state === "active" && source.revisions.some(revision => revision.state === "approved") && !source.revisions.some(revision => ids.includes(revision.id)));
+  const pickerSources = availableSources.filter(source => source.title.toLowerCase().includes(pickerQuery.trim().toLowerCase()));
   return <div className="agent-knowledge-section">
-    <div className="agent-knowledge-heading"><h2>Training data</h2><div className="flex flex-wrap gap-2">{action}<Button type="button" size="sm" variant="outline" onClick={() => setPickerOpen(true)}>Pick from workspace</Button></div></div>
+    <div className="agent-knowledge-heading"><h2>Training data</h2><div className="flex flex-wrap gap-2">{action}<Button type="button" size="sm" variant="outline" onClick={() => { setPickerQuery(""); setPickerOpen(true); }}>Pick from workspace</Button></div></div>
     {!attachedSources.length && !missingIds.length ? <p className="agent-knowledge-empty">No sources attached. Add documents or pick from workspace.</p> :
     <div className="agent-knowledge-table-wrap"><table className="agent-knowledge-table"><thead><tr><th scope="col">Source</th><th scope="col">Status</th><th scope="col">Revision</th><th scope="col">Actions</th></tr></thead><tbody>
     {attachedSources.map(source => {
@@ -124,10 +125,13 @@ export function SourceConfiguration({ agentId, sources, configuration, onChange,
     <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader><DialogTitle>Pick from workspace</DialogTitle><DialogDescription>Approved sources in this workspace.</DialogDescription></DialogHeader>
-        {availableSources.length ? <div className="max-h-[50dvh] space-y-2 overflow-y-auto">{availableSources.map(source => {
+        <Input aria-label="Search sources" placeholder="Search sources" value={pickerQuery} onChange={event => setPickerQuery(event.target.value)} />
+        {pickerSources.length ? <div className="max-h-[50dvh] space-y-2 overflow-y-auto">{pickerSources.map(source => {
           const latest = source.revisions.filter(revision => revision.state === "approved").sort((a, b) => b.revision - a.revision)[0];
-          return <div key={source.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-3"><div className="min-w-0"><span className="block truncate text-sm font-medium">{source.title}</span><span className="text-xs text-muted-foreground">{source.attachedAgents?.length ? `Attached to ${source.attachedAgents.length} ${source.attachedAgents.length === 1 ? "agent" : "agents"}` : "Not attached"}{latest ? ` · Revision ${latest.revision}` : ""}</span></div><Button type="button" size="sm" disabled={!latest} onClick={() => { if (latest) update([...ids, latest.id]); }}>Attach</Button></div>;
-        })}</div> : <p className="text-sm text-muted-foreground">No other approved sources.</p>}
+          const kind = source.kind === "public_url" ? "Website" : source.kind === "provider_snapshot" ? "Snapshot" : "Document";
+          const size = latest?.bytes ? latest.bytes < 1024 ? `${latest.bytes} B` : `${Math.round(latest.bytes / 1024)} KB` : null;
+          return <div key={source.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-3"><div className="min-w-0"><span className="block truncate text-sm font-medium">{source.title}</span><span className="text-xs text-muted-foreground">{kind}{size ? ` · ${size}` : ""}{latest ? ` · Revision ${latest.revision}` : ""} · {source.attachedAgents?.length ? `Attached to ${source.attachedAgents.length} ${source.attachedAgents.length === 1 ? "agent" : "agents"}` : "Not attached"}</span></div><Button type="button" size="sm" disabled={!latest} onClick={() => { if (latest) update([...ids, latest.id]); }}>Attach</Button></div>;
+        })}</div> : <p className="text-sm text-muted-foreground">{availableSources.length ? "No matching sources." : "No other approved sources."}</p>}
         <DialogFooter><Button type="button" variant="outline" onClick={() => setPickerOpen(false)}>Done</Button></DialogFooter>
       </DialogContent>
     </Dialog>
@@ -150,7 +154,6 @@ export function SourceConfiguration({ agentId, sources, configuration, onChange,
       <div className="mt-3 flex flex-wrap items-center gap-2"><Input aria-label="Test question" className="min-w-0 flex-1" maxLength={1024} placeholder="Ask what a customer might ask" value={testQuery} onChange={event => setTestQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); void testRetrieval(); } }} /><Button type="button" size="sm" disabled={testing || !testQuery.trim()} onClick={() => void testRetrieval()}>{testing ? "Testing…" : "Test"}</Button></div>
       {testResult ? <div className="mt-3 space-y-2">
         {testResult.configuredProfile === "hybrid-v1" ? <p className="text-xs text-muted-foreground">Keyword matches only. Semantic ranking runs in private preview and live replies.</p> : null}
-        {testResult.privateSources ? <p className="text-xs text-muted-foreground">{testResult.privateSources} private {testResult.privateSources === 1 ? "source is" : "sources are"} excluded from customer retrieval.</p> : null}
         {testResult.hits.length ? testResult.hits.map(hit => <div key={`${hit.revisionId}-${hit.start}`} className="rounded-md border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground"><span className="font-medium text-foreground">{hit.title}</span>{hit.page === null ? null : <span>Page {hit.page}</span>}</div><p className="mt-1 whitespace-pre-wrap break-words text-sm">{hit.text}</p></div>) : <p className="text-sm text-muted-foreground">{testResult.attached ? "No keyword matches." : "No sources attached."}</p>}
       </div> : null}
     </details>
