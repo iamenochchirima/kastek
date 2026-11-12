@@ -22,7 +22,7 @@ import { capabilityBindingPresentation } from "../../capabilities/tool-presentat
 import { capabilityDirectory, capabilityExposure } from "../context/capability-directory";
 import { assertPublishedTools,builtinToolName,builtinToolEnabled,executeTool,fitUtf8,parseModelDelegationRequest,toolsFor } from "../../capabilities/tools";
 import { skillContext,skillReceiptGroups,skillFitsRequest } from "../context/skills";
-import { isCustomerPrincipal,PlatformError,requestDigest,terminalTaskStates } from "../../contracts/contracts";
+import { isCustomerPrincipal,KNOWLEDGE_PINNED_TOKEN_BUDGET,PlatformError,requestDigest,terminalTaskStates } from "../../contracts/contracts";
 import type { DependencyManifest } from "../../contracts/source-contracts";
 import { selectedProductContextText } from "../products/product-information";
 import { composeAgentInstructions } from "../../product/agents/identity";
@@ -227,7 +227,7 @@ async function hydrateCatalogOrFail<T extends Record<string,unknown>>(payload:T,
 }
 
 async function buildSnapshot(pool: Pool, taskId: string, step: number, working: ContextGroup[], summary: ContextSource | undefined,
-  omitted: string[], options: BusinessOptions, initialKnowledge?: KnowledgeObservation, knownGeneration?: number, knownExpiry?: number, executionObservation?: string, packingOverhead = 0, deliveredInstructionIds: readonly string[] = []): Promise<{ snapshot?: Snapshot; history: ContextGroup[]; working: ContextGroup[];
+  omitted: string[], options: BusinessOptions, initialKnowledge?: KnowledgeObservation, knownGeneration?: number, knownExpiry?: number, executionObservation?: string, packingOverhead = 0, deliveredInstructionIds: readonly string[] = [], pinnedSections: readonly ContextSource[] = []): Promise<{ snapshot?: Snapshot; history: ContextGroup[]; working: ContextGroup[];
     memoryFence?: MemoryFence; invalidated: boolean; needsCompaction: boolean; backgroundCompactionRequested?:boolean }> {
   const execution = await loadExecution(pool, taskId), task = execution.task, config = execution.configuration;
   const phase = phaseTimer(taskId, step, "snapshot");
@@ -253,9 +253,9 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     phase.finish({ replay: true });
     return {snapshot,history:[],working:[...working,...(recorded.payload.instructionGroups??[]).filter((group:ContextGroup)=>!omitted.includes(group.id)&&!working.some(existing=>existing.id===group.id))],memoryFence:snapshot.memoryFence,invalidated:false,needsCompaction:false,backgroundCompactionRequested:recordedPayload.backgroundCompactionRequested===true};
   }
-  const sources: ContextSource[] = initialKnowledge?.passages.map(passage => ({ id: passage.sourceId ?? passage.evidenceId,
-    revision: passage.revisionId ?? passage.evidenceId, kind: "knowledge", evidenceId: passage.evidenceId,
-    content: `[${passage.label}] ${passage.title} (${passage.acquiredAt})\n${passage.text}` })) ?? [];
+  const sources: ContextSource[] = [...pinnedSections, ...(initialKnowledge?.passages.map(passage => ({ id: passage.sourceId ?? passage.evidenceId,
+    revision: passage.revisionId ?? passage.evidenceId, kind: "knowledge" as const, evidenceId: passage.evidenceId,
+    content: `[${passage.label}] ${passage.title} (${passage.acquiredAt})\n${passage.text}` })) ?? [])];
   if(config.productBindings.length&&!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
   const availableProductBindings=config.productBindings.length?await options.product!.availableBindings(taskId):[];
   phase.mark("bindings");
@@ -291,7 +291,25 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const loadedSchemas=catalog?(await pool.query("SELECT output FROM agents_platform.operations WHERE task_id=$1 AND name='tools.load' AND state='completed' ORDER BY started_at,id",[taskId])).rows.map(row=>row.output):[];
   const alwaysAliases=[...recoveryTools.map(tool=>tool.function.name),...directTools.filter(tool=>/^(knowledge_|skills_|agents_|work_|support_|channel_)/.test(tool.function.name)).map(tool=>tool.function.name)];
   const exposure=catalog&&directoryProtocol?capabilityExposure(catalog,loadedSchemas,protocolVersions,contextModelPolicy(execution,"primary",new Map(),packingOverhead)):undefined;
-  const modelTools=exposure?.tools??(catalog?progressiveModelTools(catalog,loadedSchemas,alwaysAliases,protocolVersions):directTools);
+  const exposedTools=exposure?.tools??(catalog?progressiveModelTools(catalog,loadedSchemas,alwaysAliases,protocolVersions):directTools);
+  const knowledgeMode = config.knowledge?.mode ?? "retrieved";
+  const knowledgePinned = knowledgeMode === "pinned";
+  const knowledgeAgentic = knowledgeMode === "agentic";
+  const initialKnowledgeEmpty = (initialKnowledge?.passages.length ?? 0) === 0 && pinnedSections.length === 0;
+  const knowledgeCalls=working.reduce((total,group)=>total+group.messages.reduce((count,message)=>{
+    const calls=(message as {tool_calls?:Array<{function?:{name?:string}}>}).tool_calls;
+    return count+(Array.isArray(calls)?calls.filter(call=>call.function?.name==="knowledge_search"||call.function?.name==="knowledge_read").length:0);
+  },0),0);
+  const knowledgeReadFailed=working.some(group=>group.messages.some(message=>message.role==="tool"&&
+    typeof (message as {content?:unknown}).content==="string"&&(message as {content:string}).content.includes("EVIDENCE_SPAN_INVALID")));
+  const knowledgeCapReached = knowledgeAgentic && knowledgeCalls >= 3;
+  // Retrieved: one pre-loop search supplies the answer; tools stay only to recover an empty first result.
+  // Agentic: tools stay available for multi-hop work, capped. Pinned: the corpus is already present.
+  const knowledgeSearchAllowed = knowledgeAgentic ? !knowledgeCapReached
+    : knowledgeMode === "retrieved" ? initialKnowledgeEmpty && knowledgeCalls < 1 : false;
+  const knowledgeReadAllowed = knowledgeAgentic ? !knowledgeCapReached && !knowledgeReadFailed : false;
+  const modelTools=exposedTools.filter(tool=>tool.function.name==="knowledge_search"?knowledgeSearchAllowed
+    :tool.function.name==="knowledge_read"?knowledgeReadAllowed:true);
   let memoryFence: MemoryFence | undefined;
   const memory = new MemoryStore(pool);
   if (memoryReadAllowed) {
@@ -409,7 +427,16 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const memberContext=await memberIdentityContext(pool,task);
   const composedInstructions = composeAgentInstructions(config);
   const channelSafeInstructions = task.channel_binding ? customerSafeInstructions(composedInstructions) : composedInstructions;
-  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: channelSafeInstructions+memberContext+outcomeGuidance+recoveryInstructions+procedureInstructions+(directory?"\n"+directory.text:"")+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":"")+(task.channel_binding?customerChannelInstructions:"")+omittedInstructionNotice, compactContinuation: (task.execution_policy_version??1)>=2, ...(originatingRequest?{originatingRequest,currentInputOrigin:"coordinator" as const}:{}), currentInput: [task.input,...(selectedProductContext?[selectedProductContextText(selectedProductContext.reference)]:[]),...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
+  const knowledgeNotice = knowledgePinned
+    ? "\nKnowledge sources are already supplied in full. Answer from them; do not claim a lookup was performed. Say plainly when they do not contain the answer."
+    : knowledgeMode === "retrieved"
+      ? (initialKnowledgeEmpty
+        ? "\nThe knowledge base returned nothing for this question. You may search once with clearer terms; if that also returns nothing, say plainly that the information is unavailable and point to the relevant public page."
+        : "\nThe knowledge base has already been searched and the relevant sections are supplied. Answer from them. Do not claim you looked anything up. If they do not contain the answer, say so plainly and point to the relevant public page.")
+      : knowledgeCapReached
+        ? "\nKnowledge lookups are closed for this request. Answer from the knowledge already supplied and say plainly when it does not contain the answer."
+        : knowledgeReadFailed ? "\nKnowledge passage paging is closed for this request. Answer from the passages already supplied." : "";
+  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: channelSafeInstructions+memberContext+outcomeGuidance+recoveryInstructions+procedureInstructions+(directory?"\n"+directory.text:"")+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":"")+(task.channel_binding?customerChannelInstructions:"")+knowledgeNotice+omittedInstructionNotice, compactContinuation: (task.execution_policy_version??1)>=2, ...(originatingRequest?{originatingRequest,currentInputOrigin:"coordinator" as const}:{}), currentInput: [task.input,...(selectedProductContext?[selectedProductContextText(selectedProductContext.reference)]:[]),...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
     summary: invalidated ? undefined : summary, sources,
     skills: loadedSkills.sources, skillCatalog: loadedSkills.catalog,
     tools: modelTools, model: execution.models.primary.binding.modelId, modelPolicy: contextModelPolicy(execution, "primary", await nativeContextCosts(pool, execution), packingOverhead), maxInputTokens: execution.models.primary.policy.maxInputTokens, maxOutputTokens: execution.models.primary.policy.maxOutputTokens };
@@ -683,16 +710,35 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
           continuity=await guardedRun(ctx,"continuity-checkpoint",()=>loadContinuityCheckpoint(pool,taskId,options.evidence!));
           if(continuity){summary=continuity.summary;omitted=[...continuity.coveredHistoryIds];}
         }
-        const accepted = await guardedRun(ctx,"initial-knowledge-config", () => loadExecution(pool, taskId).then(value => ({ sourceRevisionIds: value.configuration.sourceRevisionIds, input: value.task.input })));
+        const accepted = await guardedRun(ctx,"initial-knowledge-config", () => loadExecution(pool, taskId).then(value => ({ sourceRevisionIds: value.configuration.sourceRevisionIds, mode: value.configuration.knowledge?.mode ?? "auto", organizationId: value.task.organization_id, input: value.task.input })));
+        if (accepted.mode === "auto" && accepted.sourceRevisionIds.length) {
+          // Existing published versions carry no knowledge mode; resolve it per task so a platform update reaches every agent without a republish.
+          accepted.mode = await guardedRun(ctx,"knowledge-mode-resolution", async () => {
+            const rows = (await pool.query(`SELECT r.text_bytes,
+                EXISTS(SELECT 1 FROM agents_platform.source_sections s WHERE s.revision_id=r.id AND s.organization_id=r.organization_id) AS ready
+              FROM agents_platform.source_revisions r WHERE r.organization_id=$1 AND r.id=ANY($2::uuid[])`,
+              [accepted.organizationId, accepted.sourceRevisionIds])).rows;
+            const bytes = rows.reduce((total, row) => total + Number(row.text_bytes ?? 0), 0);
+            const ready = rows.length === accepted.sourceRevisionIds.length && rows.every(row => row.ready);
+            return ready && Math.ceil(bytes / 4) <= KNOWLEDGE_PINNED_TOKEN_BUDGET ? "pinned" : "retrieved";
+          });
+        }
         let initialKnowledge: KnowledgeObservation | undefined;
+        let pinnedKnowledge: ContextSource[] = [];
         if (accepted.sourceRevisionIds.length) {
           if (!options.knowledgeRuntime || !options.evidence) throw new PlatformError("KNOWLEDGE_RUNTIME_UNAVAILABLE", 503, "Knowledge retrieval is unavailable");
+          if (accepted.mode === "pinned") {
+            const sections = await guardedRun(ctx,"initial-knowledge-pinned",() => options.knowledgeRuntime!.pinnedSources(taskId));
+            pinnedKnowledge = sections.map(section => ({ id: section.id, revision: section.revisionId, kind: "knowledge" as const,
+              content: `[${section.title} / ${section.headingPath}]\n${section.content}` }));
+          } else {
           const query = fitUtf8(accepted.input, 1024), id = `knowledge:${taskId}:initial`;
           const retrieved = await operation<KnowledgeObservation>(ctx, pool, taskId, { id, kind: "tool", name: "knowledge.search", request: { query },
             reservedTokens: 0, reservedMs: 90000, retrySafe: true, maxResultBytes: 8192 }, async () => {validateBuiltinArguments("knowledge.initial",{query});return { value: await options.knowledgeRuntime!.search(taskId, id, query), tokens: 0 };});
           if (!retrieved.ok) throw new PlatformError(retrieved.code, 409, "Initial knowledge retrieval is unavailable");
           validateBuiltinResult("knowledge.initial",retrieved.value);
           initialKnowledge = retrieved.value;
+          }
         }
         for (let step = 0; ; step++) {
           if(backgroundJob){
@@ -755,7 +801,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
           }
           assertPublishedTools(config,execution.toolBindings,runtime.release==="product-capabilities-v13");
           const contextResult = await ctx.run(`context:${step}`, async () => {
-            try { return { ok: true as const, value: await buildSnapshot(pool, taskId, step, working, summary, omitted, options, initialKnowledge, knownGeneration, knownExpiry, pendingStall ? "Execution observation: repeated actions returned unchanged results. Reassess the approach, choose a different action, or return the findings and unresolved blocker. Repeating the same action without new evidence will pause this request." : undefined, packingOverhead,[...deliveredInstructionIds]) }; }
+            try { return { ok: true as const, value: await buildSnapshot(pool, taskId, step, working, summary, omitted, options, initialKnowledge, knownGeneration, knownExpiry, pendingStall ? "Execution observation: repeated actions returned unchanged results. Reassess the approach, choose a different action, or return the findings and unresolved blocker. Repeating the same action without new evidence will pause this request." : undefined, packingOverhead,[...deliveredInstructionIds],pinnedKnowledge) }; }
             catch(error) { if(error instanceof PlatformError || error instanceof ModelOperationError) return {ok:false as const,code:error.code}; throw error; }
           });
           if (!contextResult.ok) { outcome=failed({code:contextResult.code,uncertain:false}); break; }

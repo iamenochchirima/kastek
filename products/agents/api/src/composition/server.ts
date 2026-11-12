@@ -1,4 +1,5 @@
 import { assertKnowledgeBackfilled } from "../capabilities/knowledge/cutover";
+import { startSectionBackfill } from "../capabilities/knowledge/backfill-sections";
 import { startNativeAnalyticsPublisher } from "../product/reporting/native-analytics";
 import { Pool } from "pg";
 import { loadPlatformConfig } from "../infrastructure/config";
@@ -13,10 +14,11 @@ async function main(): Promise<void> {
     connectionTimeoutMillis: 5000, statement_timeout: 15000, query_timeout: 20000 });
   await assertKnowledgeBackfilled(pool);
   const app = await buildPlatformApp({ config, pool });
+  const sectionBackfill = startSectionBackfill(pool, app.log);
   const telemetry = startObservationPublisher(pool, createObservationTelemetry("agents-api"));
   const metrics = createNativeMetrics(pool,"api");
   const analytics = startNativeAnalyticsPublisher(pool);
-  app.addHook("onClose", async () => { await telemetry.stop(); await analytics.stop(); await metrics?.shutdown(); await pool.end(); });
+  app.addHook("onClose", async () => { sectionBackfill.stop(); await telemetry.stop(); await analytics.stop(); await metrics?.shutdown(); await pool.end(); });
   for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => { void app.close(); });
   try { await app.listen({ host: config.HOST, port: config.PORT }); }
   catch { await app.close(); throw new Error("Agents platform could not start"); }

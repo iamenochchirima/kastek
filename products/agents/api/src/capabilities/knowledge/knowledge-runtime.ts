@@ -7,7 +7,8 @@ import type { QueryEmbeddingService } from "./query-embedding";
 import { KnowledgeRetrieval,type RetrievalHit } from "./retrieval";
 
 export interface EvidenceSnippet { evidenceId: string; label: string; citation: string; sourceId: string | null; revisionId: string | null;
-  title: string; page: number | null; acquiredAt: string; start: number; end: number; text: string }
+  title: string; page: number | null; acquiredAt: string; start: number; end: number; text: string;
+  sectionId?: string; headingPath?: string; sectionPart?: number }
 export interface KnowledgeObservation { profile: "lexical-v1" | "hybrid-v1"; passages: EvidenceSnippet[]; omitted: number }
 export const snippetDTO = (passage: EvidencePassage): EvidenceSnippet => ({ evidenceId: passage.reference.id, label: passage.label, citation: `[${passage.label}]`,
   sourceId: passage.reference.sourceId, revisionId: passage.reference.revisionId, title: fit(passage.title, 120), page: passage.page,
@@ -51,10 +52,13 @@ export class KnowledgeRuntime {
     for (const [index, hit] of hits.entries()) {
       const remaining = 8192 - Buffer.byteLength(JSON.stringify(observation));
       if (remaining < 900) break;
-      const span = relevantSpan(hit, query, Math.min(index === 0 ? 1800 : 600, remaining - 700));
+      const span = hit.sectionId !== null
+        ? { start: hit.start, end: hit.start + Math.min(hit.text.length, Math.max(0, remaining - 700)) }
+        : relevantSpan(hit, query, Math.min(index === 0 ? 1800 : 600, remaining - 700));
       const passage = await this.evidence.recordChunk(taskId, operationId, hit.chunkId, span), dto = snippetDTO(passage);
-      if (Buffer.byteLength(JSON.stringify({ ...observation, passages: [...observation.passages, dto] })) > 8192) throw new PlatformError("TOOL_RESULT_LIMIT", 413, "Knowledge result exceeds its bound");
-      observation.passages.push(dto); observation.omitted--;
+      observation.passages.push(hit.sectionId === null ? dto : { ...dto, sectionId: hit.sectionId, headingPath: hit.headingPath ?? undefined,
+        sectionPart: hit.sectionPart ?? undefined }); observation.omitted--;
+      if (Buffer.byteLength(JSON.stringify(observation)) > 8192) throw new PlatformError("TOOL_RESULT_LIMIT", 413, "Knowledge result exceeds its bound");
     }
     return observation;
   }
@@ -63,10 +67,52 @@ export class KnowledgeRuntime {
     z.uuid().parse(evidenceId); z.number().int().nonnegative().parse(offset);
     const source = await this.evidence.readPassage(taskId, evidenceId);
     if (!source.reference.chunkId) throw new PlatformError("EVIDENCE_SCOPE_DENIED", 403, "Select a knowledge passage");
-    const row = (await this.pool.query("SELECT start_offset,content FROM agents_platform.source_chunks WHERE id=$1 AND organization_id=$2", [source.reference.chunkId, source.reference.organizationId])).rows[0];
-    if (!row || offset >= row.content.length || offset > 0 && /[\uDC00-\uDFFF]/.test(row.content[offset])) throw new PlatformError("EVIDENCE_SPAN_INVALID", 400, "Select a valid passage offset");
+    const row = (await this.pool.query("SELECT start_offset,content,revision_id,section_id,ordinal FROM agents_platform.source_chunks WHERE id=$1 AND organization_id=$2", [source.reference.chunkId, source.reference.organizationId])).rows[0];
+    if (!row) throw new PlatformError("EVIDENCE_SPAN_INVALID", 400, "Select a valid passage offset");
+    // A continuation past this chunk means "the next part of the section", not an error.
+    if (offset >= row.content.length) {
+      const next = row.section_id
+        ? (await this.pool.query(`SELECT id,start_offset,content FROM agents_platform.source_chunks
+            WHERE organization_id=$1 AND revision_id=$2 AND section_id=$3 AND ordinal>$4 ORDER BY ordinal LIMIT 1`,
+          [source.reference.organizationId, row.revision_id, row.section_id, row.ordinal])).rows[0]
+        : undefined;
+      if (next) {
+        const passage = await this.evidence.recordChunk(taskId, operationId, next.id, { start: next.start_offset, end: next.start_offset + next.content.length });
+        return { passage: snippetDTO(passage), nextOffset: null };
+      }
+      const end = row.start_offset + row.content.length;
+      const passage = await this.evidence.recordChunk(taskId, operationId, source.reference.chunkId, { start: row.start_offset, end });
+      return { passage: snippetDTO(passage), nextOffset: null };
+    }
+    if (offset > 0 && /[\uDC00-\uDFFF]/.test(row.content[offset])) throw new PlatformError("EVIDENCE_SPAN_INVALID", 400, "Select a valid passage offset");
     const text = fit(row.content.slice(offset), 4096), start = row.start_offset + offset, end = start + text.length;
     const passage = await this.evidence.recordChunk(taskId, operationId, source.reference.chunkId, { start, end });
     return { passage: snippetDTO(passage), nextOffset: offset + text.length < row.content.length ? offset + text.length : null };
+  }
+
+  /** Every leaf section of the pinned source revisions, in document order, capped by a character budget. */
+  async pinnedSources(taskId: string, budgetChars = 48_000): Promise<Array<{ id: string; revisionId: string; sourceId: string; title: string; headingPath: string; content: string }>> {
+    const execution = await loadExecution(this.pool, taskId), config = execution.configuration;
+    const rows = (await this.pool.query(`SELECT sec.id,sec.revision_id,r.source_id,s.title,sec.heading_path,sec.content
+      FROM agents_platform.version_sources v
+      JOIN agents_platform.source_revisions r ON r.id=v.revision_id AND r.organization_id=v.organization_id
+      JOIN agents_platform.sources s ON s.id=v.source_id AND s.organization_id=v.organization_id
+      JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id AND p.organization_id=r.organization_id
+      JOIN agents_platform.source_sections sec ON sec.revision_id=r.id AND sec.organization_id=r.organization_id
+      WHERE v.organization_id=$1 AND v.version_id=$2 AND v.revision_id=ANY($3::uuid[]) AND s.state='active' AND p.state='approved'
+        AND (NOT $4::boolean OR s.visibility='public')
+        AND NOT EXISTS(SELECT 1 FROM agents_platform.source_sections child WHERE child.revision_id=sec.revision_id AND child.parent_ordinal=sec.ordinal)
+      ORDER BY s.title,r.revision,sec.ordinal,sec.part`, [execution.task.organization_id, execution.task.version_id,
+      config.sourceRevisionIds, isCustomerPrincipal(execution.task.principal)])).rows;
+    const selected: Array<{ id: string; revisionId: string; sourceId: string; title: string; headingPath: string; content: string }> = [];
+    let used = 0;
+    for (const row of rows) {
+      const content = String(row.content);
+      if (used + content.length > budgetChars) break;
+      used += content.length;
+      selected.push({ id: String(row.id), revisionId: String(row.revision_id), sourceId: String(row.source_id),
+        title: String(row.title), headingPath: String(row.heading_path), content });
+    }
+    return selected;
   }
 }

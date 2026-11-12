@@ -40,6 +40,7 @@ export const sourceChunkSchema = z.strictObject({
   page: z.number().int().positive().max(SOURCE_LIMITS.pages).nullable(),
   section: z.string().max(256).nullable(), text: z.string().min(1).max(SOURCE_LIMITS.textBytes), digest,
   tokens: z.number().int().positive().max(512),
+  sectionId: id.optional(), sectionOrdinal: z.number().int().nonnegative().max(4095).optional(),
 }).superRefine((chunk, context) => {
   if (chunk.end - chunk.start !== chunk.text.length) context.addIssue({ code: "custom", message: "Chunk offsets must describe UTF-16 text units" });
   if (textDigest(chunk.text) !== chunk.digest) context.addIssue({ code: "custom", message: "Chunk digest does not match its text" });

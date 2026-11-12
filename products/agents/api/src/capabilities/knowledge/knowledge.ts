@@ -7,6 +7,8 @@ import { transaction } from "../../infrastructure/database";
 import { PrivateObjectStore } from "../../infrastructure/object-store";
 import { writeSourceObject } from "./source-objects";
 import { convertStructuredSource } from "./structured-source";
+import { buildSections } from "./sections";
+import type { SectionPart } from "./sections";
 import { assertMcpJobAuthority } from "../../infrastructure/mcp-job-authority";
 import { isProductResourceScope, requireProductResourceAccess, resourceAccountId, resourceService, resourceOwnership, resourceMatchesScope,
   knowledgeJobScope, type PersonalResourceScope, type ProductResourceScope } from "../products/resource-scope";
@@ -87,7 +89,17 @@ export class KnowledgeStore {
         page: 1, section: null, text: content, digest: textDigest(content), tokens: Buffer.byteLength(content, "utf8") });
       offset = end;
     }
-    await this.publishExtraction(admitted.id, { text, chunks, normalizerRelease: "utf8-verbatim-v1", acquiredAt: new Date(admitted.created_at).toISOString() });
+    const built = buildSections({ revisionId: admitted.revision_id, text, chunks });
+    const sectionById = new Map(built.sections.map(section => [section.id, section]));
+    const sectionByChunk = new Map(built.chunks.map(item => [item.chunkId, item]));
+    for (const chunk of chunks) {
+      const mapping = sectionByChunk.get(chunk.id);
+      if (!mapping) continue;
+      chunk.section = (sectionById.get(mapping.sectionId)?.headingPath ?? "Document").slice(0, 256);
+      chunk.sectionId = mapping.sectionId;
+      chunk.sectionOrdinal = mapping.sectionOrdinal;
+    }
+    await this.publishExtraction(admitted.id, { text, chunks, sections: built.sections, normalizerRelease: "utf8-verbatim-v1", acquiredAt: new Date(admitted.created_at).toISOString() });
     return this.getJob(scope, admitted.id);
   }
 
@@ -310,12 +322,25 @@ export class KnowledgeStore {
 
   }
 
-  async publishExtraction(jobId: string, output: { text: string; chunks: SourceChunk[]; normalizerRelease: string; acquiredAt: string; embeddings?: number[][] }): Promise<void> {
+  async publishExtraction(jobId: string, output: { text: string; chunks: SourceChunk[]; sections?: SectionPart[]; normalizerRelease: string; acquiredAt: string; embeddings?: number[][] }): Promise<void> {
     if (!this.objects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE", 503, "Private storage is unavailable");
     z.uuid().parse(jobId); z.iso.datetime().parse(output.acquiredAt); z.string().min(1).max(128).parse(output.normalizerRelease);
     const bytes = Buffer.from(output.text);
     if (!bytes.length || bytes.length > SOURCE_LIMITS.textBytes || output.chunks.length < 1 || output.chunks.length > SOURCE_LIMITS.chunks) throw new PlatformError("EXTRACTION_LIMIT", 413, "Extracted content exceeds its limit");
     const chunks = output.chunks.map(chunk => sourceChunkSchema.parse(chunk));
+    const sections = (output.sections ?? []).map(section => {
+      z.uuid().parse(section.id); z.number().int().nonnegative().max(4095).parse(section.ordinal);
+      z.number().int().positive().max(64).parse(section.part); z.string().min(1).max(4096).parse(section.headingPath);
+      if (section.end <= section.start || section.end > output.text.length || output.text.slice(section.start, section.end) !== section.content) {
+        throw new PlatformError("EXTRACTION_INTEGRITY", 409, "Extracted sections are invalid");
+      }
+      return section;
+    });
+    const sectionIds = new Set(sections.map(section => section.id));
+    for (const chunk of chunks) {
+      if (chunk.sectionId && !sectionIds.has(chunk.sectionId)) throw new PlatformError("EXTRACTION_INTEGRITY", 409, "Chunk section is unknown");
+    }
+    if (chunks.some(chunk => chunk.sectionId) && !sections.length) throw new PlatformError("EXTRACTION_INTEGRITY", 409, "Sections are missing");
     const before = (await this.pool.query("SELECT * FROM agents_platform.ingestion_jobs WHERE id=$1", [jobId])).rows[0];
     if (!before) throw missing();
     if (before.embedding_release) {
@@ -342,8 +367,12 @@ export class KnowledgeStore {
       await db.query(`INSERT INTO agents_platform.source_revisions(id,organization_id,source_id,revision,raw_key,text_key,raw_digest,text_digest,chunk_set_digest,raw_bytes,text_bytes,chunk_count,parser_release,normalizer_release,embedding_release,acquired_at,embedding_digest)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`, [job.revision_id, job.organization_id, job.source_id, job.revision, job.raw_key, textKey, job.raw_digest,
         textDigest(bytes), requestDigest(chunks), job.raw_bytes, bytes.length, chunks.length, job.parser_release, output.normalizerRelease, job.embedding_release, output.acquiredAt, output.embeddings ? requestDigest(output.embeddings) : null]);
-      for (const chunk of chunks) await db.query(`INSERT INTO agents_platform.source_chunks(id,organization_id,revision_id,ordinal,start_offset,end_offset,page,section,content,content_digest,token_count)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, [chunk.id, job.organization_id, job.revision_id, chunk.ordinal, chunk.start, chunk.end, chunk.page, chunk.section, chunk.text, chunk.digest, chunk.tokens]);
+      for (const section of sections) await db.query(`INSERT INTO agents_platform.source_sections(id,organization_id,revision_id,ordinal,parent_ordinal,level,heading,heading_path,part,start_offset,end_offset,chars,content,content_digest)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, [section.id, job.organization_id, job.revision_id, section.ordinal, section.parentOrdinal,
+        section.level, section.heading, section.headingPath, section.part, section.start, section.end, section.content.length, section.content, section.digest]);
+      for (const chunk of chunks) await db.query(`INSERT INTO agents_platform.source_chunks(id,organization_id,revision_id,ordinal,start_offset,end_offset,page,section,content,content_digest,token_count,section_id,section_ordinal)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, [chunk.id, job.organization_id, job.revision_id, chunk.ordinal, chunk.start, chunk.end, chunk.page,
+        chunk.section, chunk.text, chunk.digest, chunk.tokens, chunk.sectionId ?? null, chunk.sectionOrdinal ?? null]);
       if (output.embeddings) for (const [index, vector] of output.embeddings.entries()) await db.query(
         "INSERT INTO agents_platform.chunk_embeddings(organization_id,chunk_id,embedding_release,embedding) VALUES($1,$2,$3,$4::public.vector)",
         [job.organization_id, chunks[index]!.id, job.embedding_release, `[${vector.join(",")}]`]);

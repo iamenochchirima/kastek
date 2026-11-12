@@ -7,6 +7,7 @@ import { textDigest,type SourceChunk } from "../../contracts/source-contracts";
 import { transaction } from "../../infrastructure/database";
 import { PrivateObjectStore } from "../../infrastructure/object-store";
 import { type DocumentInput,type DocumentOutput,type DocumentRuntime } from "./document-runtime";
+import { buildSections,embeddingText } from "./sections";
 import { KnowledgeStore,requireKnowledgeMember } from "./knowledge";
 import { acquirePublicSource,SourceAcquisitionError } from "./source-acquisition";
 import { writeSourceObject } from "./source-objects";
@@ -198,35 +199,41 @@ export function createIngestionWorkflow(service: IngestionService) {
           return service.stage(jobId, "chunk", { kind: "chunk", pages: parsed.pages, maxTokens: 384, overlap: 48 }, job.profileRelease);
         });
         await bounded("chunk-cleanup", () => service.cleanup(chunksReceipt.allocationId));
+        const plan = await bounded("sections", async () => {
+          const parsed = await service.read(parsedReceipt), chunked = await service.read(chunksReceipt);
+          if (parsed.kind !== "parse" || chunked.kind !== "chunk") throw failure("DOCUMENT_STAGE_INVALID");
+          const built = buildSections({ revisionId: job.revisionId, text: parsed.text,
+            chunks: chunked.chunks.map((chunk, ordinal) => ({ id: stableChunkId(job.revisionId, ordinal), start: chunk.start, end: chunk.end })) });
+          const mapped = new Map(built.chunks.map(item => [item.chunkId, item]));
+          const bySection = new Map(built.sections.map(item => [item.id, item]));
+          const chunks: SourceChunk[] = chunked.chunks.map((chunk, ordinal) => {
+            const id = stableChunkId(job.revisionId, ordinal), section = mapped.get(id);
+            const headingPath = section ? bySection.get(section.sectionId)?.headingPath ?? "Document" : "Document";
+            return { id, revisionId: job.revisionId, ordinal, start: chunk.start, end: chunk.end, page: chunk.page,
+              section: headingPath.slice(0, 256), text: chunk.text, digest: textDigest(chunk.text), tokens: chunk.tokenCount,
+              ...(section ? { sectionId: section.sectionId, sectionOrdinal: section.sectionOrdinal } : {}) };
+          });
+          return { text: parsed.text, chunks, sections: built.sections, texts: chunks.map(chunk => embeddingText(chunk.section ?? "Document", chunk.text)) };
+        });
         const embeddings: StageReceipt[] = [];
         if (job.embeddingRelease) {
-          const batches = await bounded("embedding-batches", async () => {
-            const chunked = await service.read(chunksReceipt);
-            if (chunked.kind !== "chunk") throw failure("DOCUMENT_STAGE_INVALID");
-            return Math.ceil(chunked.chunks.length / 16);
-          });
+          const batches = Math.ceil(plan.texts.length / 16);
           for (let index = 0; index < batches; index++) {
-            const receipt = await bounded(`embed:${index}`, async () => {
-              const chunked = await service.read(chunksReceipt);
-              if (chunked.kind !== "chunk") throw failure("DOCUMENT_STAGE_INVALID");
-              return service.stage(jobId, "embed", { kind: "embed", mode: "document", texts: chunked.chunks.slice(index * 16, (index + 1) * 16).map(chunk => chunk.text) }, job.profileRelease, index);
-            });
+            const receipt = await bounded(`embed:${index}`, () => service.stage(jobId, "embed",
+              { kind: "embed", mode: "document", texts: plan.texts.slice(index * 16, (index + 1) * 16) }, job.profileRelease, index));
             embeddings.push(receipt);
             await bounded(`embed-cleanup:${index}`, () => service.cleanup(receipt.allocationId));
           }
         }
         await bounded("publish", async () => {
-          const parsed = await service.read(parsedReceipt), chunked = await service.read(chunksReceipt);
-          if (parsed.kind !== "parse" || chunked.kind !== "chunk") throw failure("DOCUMENT_STAGE_INVALID");
-          const chunks: SourceChunk[] = chunked.chunks.map((chunk, ordinal) => ({ id: stableChunkId(job.revisionId, ordinal), revisionId: job.revisionId,
-            ordinal, start: chunk.start, end: chunk.end, page: chunk.page, section: null, text: chunk.text, digest: textDigest(chunk.text), tokens: chunk.tokenCount }));
           const vectors: number[][] = [];
           for (const receipt of embeddings) {
             const output = await service.read(receipt);
             if (output.kind !== "embed" || output.mode !== "document") throw failure("DOCUMENT_STAGE_INVALID");
             vectors.push(...output.vectors);
           }
-          await service.knowledge.publishExtraction(jobId, { text: parsed.text, chunks, normalizerRelease: "nfc-lf-utf16-v1", acquiredAt: job.acquiredAt,
+          await service.knowledge.publishExtraction(jobId, { text: plan.text, chunks: plan.chunks, sections: plan.sections,
+            normalizerRelease: "nfc-lf-utf16-v1", acquiredAt: job.acquiredAt,
             ...(job.embeddingRelease ? { embeddings: vectors } : {}) });
         });
         return { state: "ready" as const };

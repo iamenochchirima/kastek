@@ -97,6 +97,7 @@ export const agentConfigurationSchema = z.strictObject({
   capabilities: businessCapabilitiesSchema,
   supportHours: supportHoursSchema.optional(),
   memory: z.strictObject({ enabled: z.boolean() }).default({ enabled: false }),
+  knowledge: z.strictObject({ mode: z.enum(["auto", "retrieved", "agentic", "pinned"]).default("auto") }).optional(),
   context: z.union([z.strictObject({mode:z.literal("automatic")}),z.strictObject({ maxInputTokens: storagePositiveInteger,
     compactAtTokens: storagePositiveInteger })]).default({mode:"automatic"}),
   tools: z.array(toolNameSchema).max(toolNameSchema.options.length).refine(tools => new Set(tools).size === tools.length, "Duplicate tool").default([]),
@@ -121,6 +122,26 @@ export function connectedToolAuthorityIds(configuration: Pick<AgentConfiguration
 export function sourceAuthorityIds(configuration: Pick<AgentConfiguration, "sourceRevisionIds" | "capabilities">): string[] {
   return [...new Set([...configuration.sourceRevisionIds, ...(configuration.capabilities.delegation.enabled
     ? configuration.capabilities.delegation.bindings.flatMap(binding => binding.sourceRevisionIds) : [])])];
+}
+
+/** Pinned knowledge is frozen into a version, so it is capped at publication rather than truncated at runtime. */
+export const KNOWLEDGE_PINNED_TOKEN_BUDGET = 12_000;
+export function resolveKnowledgeMode(input: { requested: "auto" | "retrieved" | "agentic" | "pinned";
+  offering: "faq" | "customer-service" | null; sourceBytes: number }): "retrieved" | "agentic" | "pinned" {
+  const support = input.offering === "faq" || input.offering === "customer-service";
+  if (support && input.requested === "agentic") {
+    throw new PlatformError("KNOWLEDGE_MODE_UNSUPPORTED", 409, "Customer-support agents cannot use agentic knowledge retrieval");
+  }
+  if (input.requested === "agentic") return "agentic";
+  if (input.requested === "retrieved") return "retrieved";
+  const tokens = Math.ceil(input.sourceBytes / 4);
+  if (input.requested === "pinned") {
+    if (tokens > KNOWLEDGE_PINNED_TOKEN_BUDGET) {
+      throw new PlatformError("KNOWLEDGE_PINNED_TOO_LARGE", 409, "Pinned knowledge exceeds the context budget; use retrieved or reduce the sources");
+    }
+    return "pinned";
+  }
+  return tokens <= KNOWLEDGE_PINNED_TOKEN_BUDGET ? "pinned" : "retrieved";
 }
 
 export function defaultBusinessConfiguration(): AgentConfiguration {

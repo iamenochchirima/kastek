@@ -13,8 +13,9 @@ const evidence=z.strictObject({evidenceId:uuid,label:z.string().min(1).max(64),c
 const memoryMetadata = z.strictObject({ id: uuid, revision: z.number().int().positive(), content: z.string().max(8192),
   origin: z.enum(["user_supplied", "model_candidate"]), verified: z.literal(false), updatedAt: z.iso.datetime({ offset: true }),
   expiresAt: z.iso.datetime({ offset: true }).nullable(), assertion: memoryAssertionSchema, evidence: evidence.pick({ evidenceId: true, label: true, citation: true }).optional() });
-const snippet=evidence.extend({sourceId:uuid.nullable(),revisionId:uuid.nullable(),page:nonnegative.nullable(),acquiredAt:z.iso.datetime({offset:true}),start:nonnegative,end:nonnegative});
-const knowledgeResult=z.strictObject({profile:z.enum(["lexical-v1","hybrid-v1"]),passages:z.array(snippet).max(8),omitted:nonnegative});
+const snippet=evidence.extend({sourceId:uuid.nullable(),revisionId:uuid.nullable(),page:nonnegative.nullable(),acquiredAt:z.iso.datetime({offset:true}),start:nonnegative,end:nonnegative,
+  sectionId:uuid.optional(),headingPath:z.string().min(1).max(4096).optional(),sectionPart:z.number().int().positive().max(64).optional()});
+const knowledgeResult=z.strictObject({profile:z.enum(["lexical-v1","hybrid-v1"]),passages:z.array(snippet).max(32),omitted:nonnegative});
 export const specialistRequestsSchema=z.strictObject({requests:z.array(z.strictObject({bindingId:z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),brief:z.string().trim().min(1).max(8192)})).min(1).max(2)});
 export const legacyDelegationResultSchema=z.strictObject({children:z.array(z.strictObject({taskId:uuid,bindingId:z.string(),state:taskStateSchema,output:z.string().max(2048),outputTruncated:z.boolean(),originalBytes:nonnegative,errorCode:z.string().nullable(),sourceRevisionIds:z.array(uuid).max(20),connectedToolBindingIds:z.array(uuid).max(8),usage:z.strictObject({tokens:nonnegative,modelCalls:nonnegative,toolCalls:nonnegative})})).max(2),partial:z.boolean()});
 const artifact=z.strictObject({id:uuid,name:z.string().min(1).max(80),contentType:z.string().min(1).max(128),bytes:nonnegative,contentDigest:z.string().regex(/^[a-f0-9]{64}$/),taskId:uuid,rootTaskId:uuid});
