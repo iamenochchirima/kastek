@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api, message, organizationPath, type Agent, type AgentTransfer } from "./api";
-import { ErrorMessage } from "./shell";
+import { ErrorMessage, useWorkspace } from "./shell";
 import { AgentAvatar, agentAvatarOptions } from "./agent-avatar";
 
 const dateLabel = (value: string) => {
@@ -15,6 +15,8 @@ const dateLabel = (value: string) => {
 export function AgentSettings({ organizationId, agent, onUpdated, onDelete }: {
   organizationId: string; agent: Agent; onUpdated: (agent: Agent) => void; onDelete: () => void;
 }) {
+  const { session } = useWorkspace();
+  const canTransfer = session.organizations.find(organization => organization.id === organizationId)?.role === "owner";
   const path = `${organizationPath(organizationId)}/agents/${encodeURIComponent(agent.id)}`;
   const [name, setName] = useState(agent.name), [avatar, setAvatar] = useState(agent.avatar);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
@@ -59,7 +61,7 @@ export function AgentSettings({ organizationId, agent, onUpdated, onDelete }: {
       <label className="block space-y-2 text-sm font-medium">Name<Input required maxLength={120} value={name} disabled={busy} onChange={event => setName(event.target.value)} /></label>
       <div><Button type="submit" disabled={busy || unchanged || !name.trim()}>{busy ? "Saving…" : "Save changes"}</Button></div>
     </form>
-    <section className="agent-settings-transfer"><div><h2>Transfer agent</h2>{transfer ? <p>Waiting for {transfer.targetEmail} to accept. Expires {dateLabel(transfer.expiresAt)}. The agent is locked until the transfer settles.</p> : <p>Send this agent to another account. The recipient chooses the workspace when they accept.</p>}</div>{transfer ? <Button type="button" variant="outline" disabled={transferBusy} onClick={() => void cancelTransfer()}>{transferBusy ? "Cancelling…" : "Cancel transfer"}</Button> : <Button type="button" variant="outline" onClick={() => { setTransferError(""); setTransferOpen(true); }}>Transfer agent</Button>}</section>
+    {canTransfer ? <section className="agent-settings-transfer"><div><h2>Transfer agent</h2>{transfer ? <p>Waiting for {transfer.targetEmail} to accept. Expires {dateLabel(transfer.expiresAt)}. The agent is locked until the transfer settles.</p> : <p>Send this agent to another account. The recipient chooses the workspace when they accept.</p>}</div>{transfer ? <Button type="button" variant="outline" disabled={transferBusy} onClick={() => void cancelTransfer()}>{transferBusy ? "Cancelling…" : "Cancel transfer"}</Button> : <Button type="button" variant="outline" onClick={() => { setTransferError(""); setTransferOpen(true); }}>Transfer agent</Button>}</section> : null}
     {transferError && !transferOpen ? <ErrorMessage value={transferError} /> : null}
     <section className="agent-settings-danger"><div><h2>Delete agent</h2><p>Connected channels and automations will stop. Conversation history and customer records are retained. Attached knowledge stays in the workspace.</p></div><Button type="button" variant="destructive" disabled={Boolean(transfer)} onClick={onDelete}>Delete agent</Button></section>
     <Dialog open={transferOpen} onOpenChange={value => { if (!transferBusy) setTransferOpen(value); }}>
