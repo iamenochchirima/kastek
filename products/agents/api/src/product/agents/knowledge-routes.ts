@@ -9,8 +9,21 @@ export function registerKnowledgeRoutes(app: FastifyInstance, options: { knowled
   const organizationBase = "/api/organizations/:organizationId", base = `${organizationBase}/knowledge`, params = (request: FastifyRequest) => request.params as Record<string, string>;
   app.get(`${base}/sources`, async request => {
     const scope = await options.resolveScope(request);
-    const [sources, imports, role] = await Promise.all([options.knowledge.list(scope), options.knowledge.listImports(scope), requireKnowledgeMember(options.knowledge.pool, scope)]);
-    return { sources, imports, canApprove: role !== "member" };
+    const [sources, imports, role, usage] = await Promise.all([options.knowledge.list(scope), options.knowledge.listImports(scope), requireKnowledgeMember(options.knowledge.pool, scope),
+      options.knowledge.pool.query(`WITH pins AS (
+          SELECT a.id AS agent_id,a.name,jsonb_array_elements_text(a.draft->'sourceRevisionIds')::uuid AS revision_id
+          FROM agents_platform.agents a WHERE a.organization_id=$1 AND a.deleted_at IS NULL
+          UNION
+          SELECT a.id,a.name,jsonb_array_elements_text(v.configuration->'sourceRevisionIds')::uuid
+          FROM agents_platform.agents a
+          JOIN LATERAL (SELECT configuration FROM agents_platform.agent_versions v WHERE v.agent_id=a.id ORDER BY v.number DESC LIMIT 1) v ON true
+          WHERE a.organization_id=$1 AND a.deleted_at IS NULL
+        )
+        SELECT r.source_id,array_agg(DISTINCT p.name ORDER BY p.name) AS agents
+        FROM pins p JOIN agents_platform.source_revisions r ON r.id=p.revision_id AND r.organization_id=$1
+        GROUP BY r.source_id`, [scope.organizationId])]);
+    const attached = new Map((usage.rows as { source_id: string; agents: string[] }[]).map(row => [row.source_id, row.agents]));
+    return { sources: sources.map(source => ({ ...source, attachedAgents: attached.get(source.id) ?? [] })), imports, canApprove: role !== "member" };
   });
   /** Owner-facing keyword check against the saved draft; semantic ranking is exercised by private preview. */
   app.post(`${organizationBase}/agents/:agentId/knowledge/test`, async request => {
