@@ -197,11 +197,21 @@ export function AgentEditor() {
     else if (id === "bookings") { goSection("capabilities"); requestAnimationFrame(() => document.getElementById("agent-booking-config")?.scrollIntoView({ behavior: "smooth", block: "start" })); }
     else navigate(`/app/agents/${agent.id}?setup=guided`);
   }
+  async function recommendedDefaults() {
+    return api<{ defaults: { identity: AgentIdentity; guidance: AgentGuidance } }>(`${path}/identity-defaults`);
+  }
   async function applyRecommendedIdentity() {
     try {
-      const result = await api<{ defaults: { identity: AgentIdentity; guidance: AgentGuidance } }>(`${path}/identity-defaults`);
-      setConfiguration(current => current ? { ...current, identity: result.defaults.identity, guidance: result.defaults.guidance } : current);
+      const result = await recommendedDefaults();
+      setConfiguration(current => current ? { ...current, identity: result.defaults.identity } : current);
       toast.success("Recommended identity added");
+    } catch (reason) { toast.error(message(reason)); }
+  }
+  async function applyRecommendedGuidance() {
+    try {
+      const result = await recommendedDefaults();
+      setConfiguration(current => current ? { ...current, guidance: result.defaults.guidance } : current);
+      toast.success("Recommended guidance added");
     } catch (reason) { toast.error(message(reason)); }
   }
   async function loadEffectiveSettings() {
@@ -252,51 +262,78 @@ export function AgentEditor() {
     section === "conversations" ? <AgentConversations organizationId={organizationId} agentId={agent.id} onNewChat={newChat} /> :
     section === "capabilities" ? <><AgentCapabilities agent={agent} configuration={configuration} knowledgeCount={knowledgeCount} busy={busy || dirty || pendingSetup} onToggle={(id, enabled) => void changeCapabilities(id, enabled)} onConfigure={configureCapability} />{agent.setup?.responsibilities.includes("bookings") ? <section className="agent-section agent-capability-config" id="agent-booking-config"><BookingPolicies agentId={agent.id} configuration={configuration} onChange={setConfiguration} embedded returnTo={`/app/agents/${agent.id}?section=capabilities`} onBeforeConnect={async () => { await beforeConnect(); }} onBusyChange={setBusy} /></section> : null}</> :
     section === "knowledge" ? <section className="agent-section agent-knowledge-page"><p className="agent-section-lead">Sources this agent answers from.</p><SourceConfiguration agentId={agent.id} sources={knowledge} configuration={configuration} onChange={setConfiguration} onRefresh={refreshKnowledge} action={<div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" disabled={dirty || busy} onClick={() => setDocumentsOpen(true)}><Upload size={15} />Add documents</Button>{["faq", "customer-service"].includes(agent.offering ?? "") && (!agent.setup || agent.setup.responsibilities.some(value => ["answer-questions", "customer-support"].includes(value))) ? <Button type="button" size="sm" variant="outline" disabled={dirty || busy} onClick={() => setKnowledgeOpen(true)}><Upload size={15} />Import website</Button> : null}</div>} /></section> :
-    section === "behaviour" ? <section className="agent-section agent-behaviour-page"><nav className="agent-subtabs" aria-label="Behaviour sections">{([["general", "General"], ["tools", "Tools"], ["skills", "Skills"]] as const).map(([id, label]) => <button key={id} type="button" onClick={() => setBehaviourTab(id)} aria-current={behaviourTab === id ? "page" : undefined}>{label}</button>)}</nav>
-      {behaviourTab === "general" ? <div className="agent-general-grid"><form id="agent-behaviour-form" className="agent-general-form" onSubmit={event => void save(event)}>
-        {!agent.draft.identity ? <section className="agent-config-panel agent-config-review"><div><h2>Review your identity</h2><p className="mt-1 text-sm text-muted-foreground">This agent uses its instructions only. Add identity and guidance to separate who it is from what it does.</p></div><Button type="button" size="sm" variant="outline" onClick={() => void applyRecommendedIdentity()}>Use recommended</Button></section> : null}
-        <section className="agent-config-panel agent-config-identity">
-          <div className="flex flex-wrap items-start justify-between gap-3"><div><h2>Identity</h2><p className="mt-1 text-sm text-muted-foreground">Who this agent is and how it speaks.</p></div>{!configuration.identity ? <Button type="button" size="sm" variant="outline" onClick={() => void applyRecommendedIdentity()}>Use recommended</Button> : null}</div>
-          {configuration.identity ? <div className="mt-4 grid gap-4">
-            <label className="block space-y-2 text-sm font-medium">Purpose<Textarea required rows={2} maxLength={600} value={configuration.identity.purpose} onChange={event => updateIdentity({ purpose: event.target.value })} /></label>
-            <label className="block space-y-2 text-sm font-medium">Voice<Textarea required rows={2} maxLength={600} value={configuration.identity.voice} onChange={event => updateIdentity({ voice: event.target.value })} /></label>
-            <label className="block space-y-2 text-sm font-medium">Values<Textarea rows={2} maxLength={600} value={configuration.identity.values} onChange={event => updateIdentity({ values: event.target.value })} /></label>
-            <label className="block space-y-2 text-sm font-medium">Boundaries<Textarea rows={3} maxLength={800} value={configuration.identity.boundaries} onChange={event => updateIdentity({ boundaries: event.target.value })} /></label>
-            <label className="block space-y-2 text-sm font-medium">When refusing<Textarea rows={2} maxLength={400} value={configuration.identity.refusal} onChange={event => updateIdentity({ refusal: event.target.value })} /></label>
-            <label className="block space-y-2 text-sm font-medium">Escalation<Textarea rows={2} maxLength={400} value={configuration.identity.escalation} onChange={event => updateIdentity({ escalation: event.target.value })} /></label>
-            <label className="block space-y-2 text-sm font-medium">Examples (one per line)<Textarea rows={3} maxLength={1500} value={configuration.identity.examples.join("\n")} onChange={event => updateIdentity({ examples: event.target.value.split("\n").map(value => value.trim()).filter(Boolean).slice(0, 5) })} /></label>
-          </div> : <p className="mt-3 text-sm text-muted-foreground">No identity yet. The agent uses its instructions only.</p>}
-        </section>
-        <section className="agent-config-panel agent-config-basic"><h2>Instructions</h2>
-          {agent.setup && configuration.instructions.includes("The setup below is business context") ? <details className="agent-instructions-disclosure" onInvalid={event => { event.currentTarget.open = true; }}><summary>Instructions</summary><label className="agent-instructions block space-y-2 text-sm font-medium"><span className="sr-only">Instructions</span><Textarea required maxLength={8_000} rows={7} value={configuration.instructions} onChange={event => setConfiguration({ ...configuration, instructions: event.target.value })} /><span aria-hidden="true" className="agent-instructions-count">{configuration.instructions.length.toLocaleString()} / 8,000</span></label></details> : <label className="agent-instructions block space-y-2 text-sm font-medium">Instructions<Textarea required maxLength={8_000} rows={7} value={configuration.instructions} onChange={event => setConfiguration({ ...configuration, instructions: event.target.value })} /><span aria-hidden="true" className="agent-instructions-count">{configuration.instructions.length.toLocaleString()} / 8,000</span></label>}
-        </section>
-        <section className="agent-config-panel agent-config-guidance">
-          <div className="flex flex-wrap items-start justify-between gap-3"><div><h2>Guidance</h2><p className="mt-1 text-sm text-muted-foreground">What to stay within, avoid and redirect.</p></div>{!configuration.guidance ? <Button type="button" size="sm" variant="outline" onClick={() => void applyRecommendedIdentity()}>Use recommended</Button> : null}</div>
-          <div className="mt-4 grid gap-4">
-            <label className="block space-y-2 text-sm font-medium">Topic scope<Textarea rows={2} maxLength={800} value={configuration.guidance?.topicScope ?? ""} onChange={event => updateGuidance({ topicScope: event.target.value })} /></label>
-            <label className="block space-y-2 text-sm font-medium">Avoid (one per line)<Textarea rows={3} maxLength={2000} value={(configuration.guidance?.avoid ?? []).join("\n")} onChange={event => updateGuidance({ avoid: event.target.value.split("\n").map(value => value.trim()).filter(Boolean).slice(0, 20) })} /></label>
-            <label className="block space-y-2 text-sm font-medium">Refusal style<select className="w-full min-w-0 rounded-md border border-border bg-background p-2 text-sm" value={configuration.guidance?.refusalStyle ?? "brief"} onChange={event => updateGuidance({ refusalStyle: event.target.value as AgentGuidance["refusalStyle"] })}><option value="brief">Brief</option><option value="warm">Warm</option><option value="formal">Formal</option></select></label>
-            <label className="block space-y-2 text-sm font-medium">Redirect to<Input maxLength={300} value={configuration.guidance?.redirectTo ?? ""} onChange={event => updateGuidance({ redirectTo: event.target.value })} /></label>
-          </div>
-        </section>
-        <section className="agent-config-panel agent-config-memory"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2>Memory</h2><p className="mt-1 text-sm text-muted-foreground">Remember accepted preferences across conversations.</p></div>{memoryAvailable || configuration.memory?.enabled ? <div className="flex items-center gap-2"><label htmlFor="agent-memory-enabled" className="text-sm font-medium">Enabled</label><Switch id="agent-memory-enabled" checked={configuration.memory?.enabled ?? false} disabled={busy || !editableSection} onCheckedChange={value => { if (memoryAvailable || !value) setMemoryEnabled(value); }} aria-label="Enable memory" /></div> : <span className="max-w-56 text-xs text-muted-foreground">Not available for customer agents.</span>}</div><div className="mt-3"><AgentMemory agentId={agent.id} enabled={configuration.memory?.enabled ?? false} /></div></section>
-        {agent.setup?.responsibilities.includes("customer-support") || configuration.supportHours || configuration.tools?.some(tool => tool.startsWith("support.") || tool === "channel.request_handoff") ? <section className="agent-config-panel agent-config-support" aria-label="Human support">
-          <details className="agent-support-disclosure" ref={supportSection}>
-            <summary><span>Human support</span><span className="agent-support-state" data-state={configuration.supportHours ? "set" : "unset"}>{configuration.supportHours ? "Configured" : "Not set"}</span></summary>
-            <div className="agent-support-body">
-              {configuration.supportHours ? <SupportHoursFields value={configuration.supportHours} onChange={supportHours => { setConfiguration({ ...configuration, supportHours }); setSupportHoursError(""); }} error={supportHoursError || undefined} /> : <Button type="button" size="sm" variant="outline" onClick={() => setConfiguration({ ...configuration, supportHours: agent.setup?.supportHours ?? defaultSupportHours() })}>Set support hours</Button>}
+    section === "behaviour" ? <section className="agent-section agent-behaviour-page"><header className="agent-section-heading"><div><h1>Behaviour</h1><p>How this agent introduces itself, responds, and remembers.</p></div></header><nav className="agent-subtabs" aria-label="Behaviour sections">{([["general", "General"], ["tools", "Tools"], ["skills", "Skills"]] as const).map(([id, label]) => <button key={id} type="button" onClick={() => setBehaviourTab(id)} aria-current={behaviourTab === id ? "page" : undefined}>{label}</button>)}</nav>
+      {behaviourTab === "general" ? <form id="agent-behaviour-form" className="agent-general-grid" onSubmit={event => void save(event)}>
+        <div className="agent-general-primary">
+          <section className="agent-config-panel agent-config-basic agent-config-instructions">
+            <div className="agent-config-card-head">
+              <div><h2>Instructions</h2><p>What this agent should do. Keep it specific.</p></div>
+              {agent.setup && configuration.instructions.includes("The setup below is business context") ? <span className="agent-config-note">Includes setup details</span> : null}
             </div>
-          </details>
-        </section> : null}
-        <section className="agent-config-panel agent-config-model"><h2>Model</h2><AgentModel key={`${organizationId}:${agent.id}`} organizationId={organizationId} agentId={agent.id} configuration={configuration} onChange={setConfiguration} /></section>
-        {configuration.capabilities.sandbox.enabled || searchParams.get("setup") === "analysis" ? <section className="agent-config-panel"><AnalysisConfiguration configuration={configuration} onChange={setConfiguration} /></section> : null}
-        {configuration.executionKind === "business" && !agent.offering ? <SpecialistConfiguration key={agent.id} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} configuration={configuration} onChange={setConfiguration} /> : null}
-        <details className="agent-config-panel agent-effective-settings" onToggle={event => { if (event.currentTarget.open && !effective && !effectiveBusy) void loadEffectiveSettings(); }}><summary className="cursor-pointer font-medium">Effective settings</summary><div className="mt-3 space-y-3 text-sm">
-          {effectiveBusy ? <Loading /> : effective ? <><pre className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-border p-3 font-sans text-sm leading-6">{effective.composed}</pre><p className="text-muted-foreground">{effective.sources} {effective.sources === 1 ? "source" : "sources"} · {effective.tools} tools · {effective.connectedTools} connected · {effective.skills} skills</p></> : <p className="text-muted-foreground">Preview the prompt the agent runs with.</p>}
-          <Button type="button" size="sm" variant="outline" disabled={effectiveBusy} onClick={() => void loadEffectiveSettings()}>Refresh preview</Button>
-        </div></details>
-        <details className="agent-config-history rounded-md border border-border p-4 text-sm"><summary className="cursor-pointer font-medium">Configuration history</summary><div className="mt-3 space-y-3">{versions.map((snapshot, index) => <div key={snapshot.id} className="flex flex-wrap items-center justify-between gap-2"><span>{snapshot.createdAt ? new Date(snapshot.createdAt).toLocaleString() : index === 0 ? "Current configuration" : "Previous configuration"}</span><Button type="button" size="sm" variant="outline" disabled={busy} onClick={async () => { if (dirty && !await confirm({ title: "Replace unsaved changes?", description: "Load this saved configuration into the editor. Apply it with Save changes.", confirmLabel: "Load configuration" })) return; setConfiguration(structuredClone(snapshot.configuration)); setSupportHoursError(""); toast.success("Configuration loaded. Save changes to apply it."); }}>Load configuration</Button></div>)}</div></details>
-      </form></div> : null}
+            <label className="agent-instructions block space-y-2 text-sm font-medium">
+              <span className="sr-only">Instructions</span>
+              <Textarea required maxLength={8_000} rows={8} value={configuration.instructions} onChange={event => setConfiguration({ ...configuration, instructions: event.target.value })} />
+              <span aria-hidden="true" className="agent-instructions-count">{configuration.instructions.length.toLocaleString()} / 8,000</span>
+            </label>
+          </section>
+          <section className="agent-config-panel agent-config-guidance">
+            <div className="agent-config-card-head">
+              <div><h2>Guidance</h2><p>What to stay within, avoid and redirect.</p></div>
+              {!configuration.guidance ? <Button type="button" size="sm" variant="outline" onClick={() => void applyRecommendedGuidance()}>Use recommended guidance</Button> : null}
+            </div>
+            <div className="agent-guidance-fields">
+              <label className="agent-field agent-field-wide">Topic scope<Textarea rows={2} maxLength={800} value={configuration.guidance?.topicScope ?? ""} onChange={event => updateGuidance({ topicScope: event.target.value })} /></label>
+              <label className="agent-field agent-field-wide">Avoid (one per line)<Textarea rows={3} maxLength={2000} value={(configuration.guidance?.avoid ?? []).join("\n")} onChange={event => updateGuidance({ avoid: event.target.value.split("\n").map(value => value.trim()).filter(Boolean).slice(0, 20) })} /></label>
+              <label className="agent-field">Refusal style<select className="w-full min-w-0 rounded-md border border-border bg-background p-2 text-sm" value={configuration.guidance?.refusalStyle ?? "brief"} onChange={event => updateGuidance({ refusalStyle: event.target.value as AgentGuidance["refusalStyle"] })}><option value="brief">Brief</option><option value="warm">Warm</option><option value="formal">Formal</option></select></label>
+              <label className="agent-field">Redirect to<Input maxLength={300} value={configuration.guidance?.redirectTo ?? ""} onChange={event => updateGuidance({ redirectTo: event.target.value })} /></label>
+            </div>
+          </section>
+        </div>
+        <aside className="agent-general-aside">
+          <section className="agent-config-panel agent-config-identity">
+            <div className="agent-config-card-head"><div><h2>Identity</h2><p>Who this agent is and how it speaks.</p></div></div>
+            {configuration.identity ? <div className="agent-identity-fields">
+              <label className="agent-field">Purpose<Textarea required rows={2} maxLength={600} value={configuration.identity.purpose} onChange={event => updateIdentity({ purpose: event.target.value })} /></label>
+              <label className="agent-field">Voice<Textarea required rows={2} maxLength={600} value={configuration.identity.voice} onChange={event => updateIdentity({ voice: event.target.value })} /></label>
+              <details className="agent-identity-more">
+                <summary>Values and boundaries</summary>
+                <div className="agent-identity-more-fields">
+                  <label className="agent-field">Values<Textarea rows={2} maxLength={600} value={configuration.identity.values} onChange={event => updateIdentity({ values: event.target.value })} /></label>
+                  <label className="agent-field">Boundaries<Textarea rows={3} maxLength={800} value={configuration.identity.boundaries} onChange={event => updateIdentity({ boundaries: event.target.value })} /></label>
+                  <label className="agent-field">When refusing<Textarea rows={2} maxLength={400} value={configuration.identity.refusal} onChange={event => updateIdentity({ refusal: event.target.value })} /></label>
+                  <label className="agent-field">Escalation<Textarea rows={2} maxLength={400} value={configuration.identity.escalation} onChange={event => updateIdentity({ escalation: event.target.value })} /></label>
+                  <label className="agent-field">Examples (one per line)<Textarea rows={3} maxLength={1500} value={configuration.identity.examples.join("\n")} onChange={event => updateIdentity({ examples: event.target.value.split("\n").map(value => value.trim()).filter(Boolean).slice(0, 5) })} /></label>
+                </div>
+              </details>
+            </div> : <div className="agent-config-empty"><p>No identity yet. The agent uses its instructions only.</p><Button type="button" size="sm" variant="outline" onClick={() => void applyRecommendedIdentity()}>Use recommended identity</Button></div>}
+          </section>
+          <section className="agent-config-panel agent-config-memory">
+            <div className="agent-config-card-head">
+              <div><h2>Memory</h2><p>Remember accepted preferences across conversations.</p></div>
+              {memoryAvailable || configuration.memory?.enabled ? <div className="agent-switch-row"><Switch id="agent-memory-enabled" checked={configuration.memory?.enabled ?? false} disabled={busy || !editableSection} onCheckedChange={value => { if (memoryAvailable || !value) setMemoryEnabled(value); }} aria-label="Enable memory" /></div> : null}
+            </div>
+            {memoryAvailable || configuration.memory?.enabled ? <div className="agent-memory-review"><AgentMemory agentId={agent.id} enabled={configuration.memory?.enabled ?? false} label="Review memory" variant="outline" /></div> : <p className="agent-config-note">Not available for customer agents.</p>}
+          </section>
+        </aside>
+        <div className="agent-general-secondary">
+          <section className="agent-config-panel agent-config-model"><AgentModel key={`${organizationId}:${agent.id}`} organizationId={organizationId} agentId={agent.id} configuration={configuration} onChange={setConfiguration} /></section>
+          {agent.setup?.responsibilities.includes("customer-support") || configuration.supportHours || configuration.tools?.some(tool => tool.startsWith("support.") || tool === "channel.request_handoff") ? <section className="agent-config-panel agent-config-support" aria-label="Human support">
+            <details className="agent-support-disclosure" ref={supportSection}>
+              <summary><span>Human support</span><span className="agent-support-state" data-state={configuration.supportHours ? "set" : "unset"}>{configuration.supportHours ? "Configured" : "Not set"}</span></summary>
+              <div className="agent-support-body">
+                {configuration.supportHours ? <SupportHoursFields value={configuration.supportHours} onChange={supportHours => { setConfiguration({ ...configuration, supportHours }); setSupportHoursError(""); }} error={supportHoursError || undefined} /> : <Button type="button" size="sm" variant="outline" onClick={() => setConfiguration({ ...configuration, supportHours: agent.setup?.supportHours ?? defaultSupportHours() })}>Set support hours</Button>}
+              </div>
+            </details>
+          </section> : null}
+          {configuration.capabilities.sandbox.enabled || searchParams.get("setup") === "analysis" ? <section className="agent-config-panel"><AnalysisConfiguration configuration={configuration} onChange={setConfiguration} /></section> : null}
+          {configuration.executionKind === "business" && !agent.offering ? <SpecialistConfiguration key={agent.id} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} configuration={configuration} onChange={setConfiguration} /> : null}
+          <details className="agent-config-panel agent-effective-settings" onToggle={event => { if (event.currentTarget.open && !effective && !effectiveBusy) void loadEffectiveSettings(); }}><summary className="cursor-pointer font-medium">Effective settings</summary><div className="mt-3 space-y-3 text-sm">
+            {effectiveBusy ? <Loading /> : effective ? <><pre className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-border p-3 font-sans text-sm leading-6">{effective.composed}</pre><p className="text-muted-foreground">{effective.sources} {effective.sources === 1 ? "source" : "sources"} · {effective.tools} tools · {effective.connectedTools} connected · {effective.skills} skills</p></> : <p className="text-muted-foreground">Preview the prompt the agent runs with.</p>}
+            <Button type="button" size="sm" variant="outline" disabled={effectiveBusy} onClick={() => void loadEffectiveSettings()}>Refresh preview</Button>
+          </div></details>
+          <details className="agent-config-history rounded-md border border-border p-4 text-sm"><summary className="cursor-pointer font-medium">Configuration history</summary><div className="mt-3 space-y-3">{versions.map((snapshot, index) => <div key={snapshot.id} className="flex flex-wrap items-center justify-between gap-2"><span>{snapshot.createdAt ? new Date(snapshot.createdAt).toLocaleString() : index === 0 ? "Current configuration" : "Previous configuration"}</span><Button type="button" size="sm" variant="outline" disabled={busy} onClick={async () => { if (dirty && !await confirm({ title: "Replace unsaved changes?", description: "Load this saved configuration into the editor. Apply it with Save changes.", confirmLabel: "Load configuration" })) return; setConfiguration(structuredClone(snapshot.configuration)); setSupportHoursError(""); toast.success("Configuration loaded. Save changes to apply it."); }}>Load configuration</Button></div>)}</div></details>
+        </div>
+      </form> : null}
       {behaviourTab === "tools" ? <><AgentCatalogue key={`${agent.id}.tools`} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} kind="tools" configuration={configuration} onChange={setConfiguration} onBeforeConnect={beforeConnect} /><AgentProcedures key={agent.id} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} configuration={configuration} onChange={setConfiguration} disabled={busy} /><CustomerRecordTools configuration={configuration} onChange={setConfiguration} />{configuration.executionKind === "business" && !agent.offering ? <TaskControlTools configuration={configuration} onChange={setConfiguration} /> : null}</> : null}
       {behaviourTab === "skills" ? <AgentCatalogue key={`${agent.id}.skills`} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} kind="skills" configuration={configuration} onChange={setConfiguration} onBeforeConnect={beforeConnect} /> : null}
     </section> :

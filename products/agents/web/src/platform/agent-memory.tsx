@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { api, organizationPath } from "./api";
 import { useWorkspace } from "./shell";
 
-export function AgentMemory({ agentId, enabled }: { agentId: string; enabled: boolean }) {
+export function AgentMemory({ agentId, enabled, label = "Memory", variant = "ghost" }: { agentId: string; enabled: boolean; label?: string; variant?: "ghost" | "outline" }) {
   const { organizationId, session } = useWorkspace();
   const [open, setOpen] = useState(false);
   const scopeKey = `${session.account.id}:${organizationId}:${agentId}`;
@@ -19,7 +19,7 @@ export function AgentMemory({ agentId, enabled }: { agentId: string; enabled: bo
     return api(`${memory}/forget`, { operationId: change.requestKey, expectedRevision: change.expectedRevision });
   };
   return <>
-    <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(true)}><PiBrain aria-hidden size={16} />Memory</Button>
+    <Button type="button" variant={variant} size="sm" onClick={() => setOpen(true)}><PiBrain aria-hidden size={16} />{label}</Button>
     <AgentMemoryPanel key={scopeKey} open={open} onOpenChange={setOpen} scopeKey={scopeKey} enabled={enabled}
       load={async (page = {}) => {
         const query = new URLSearchParams({ offset: String(page.offset ?? 0), limit: String(page.limit ?? 30) });
