@@ -266,13 +266,13 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     if (!options.connected) throw new PlatformError("CONNECTED_RUNTIME_UNAVAILABLE", 503, "Connected reads are unavailable");
     return options.connected.modelToolsFor(execution.connectedBindings);
   })() : [])],task.harness_release==="product-capabilities-v13",new Map(execution.toolBindings.map(binding=>[binding.name,binding.version]))).filter(tool => (Boolean(task.channel_binding) || !["channel_request_handoff", "support_request_handoff", "support_request_handoff_v2", "support_get_status", "support_get_status_v2", "procedures_discover", "procedures_load", "procedures_start", "procedures_inspect", "procedures_update", "procedures_cancel", "support_request_assistance", "support_update_assistance"].includes(tool.function.name))
-    && (tool.function.name!=="artifact_create" || Boolean(options.artifacts?.objects)&&!task.channel_binding&&["human","automation"].includes(task.principal.kind))
+    && tool.function.name!=="artifact_create"
     && !(config.procedures?.length && ["channel_request_handoff","support_request_handoff","support_request_handoff_v2"].includes(tool.function.name))
     && !(config.tools.includes("support.request_handoff") && tool.function.name === "channel_request_handoff")
     && !(config.tools.includes("support.request_handoff_v2") && tool.function.name === "support_request_handoff"))));
   const directTools = visibleTools.filter(tool => !tool.function.name.startsWith("memory_") ||
     memoryOperations.includes(tool.function.name === "memory_propose" ? "memory.propose" : "memory.read"));
-  const memoryReadAllowed = config.memory.enabled && memoryOperations.includes("memory.read");
+  const memoryReadAllowed = config.memory.enabled && memoryOperations.includes("memory.read") && Boolean(task.channel_binding);
   const sharedProtocol=task.harness_release===SHARED_HARNESS_RELEASE;
   const toolCalling=execution.models.primary.model.capabilities.tools.value===true;
   const hasRetainedRecords=BigInt(task.turn_sequence)>1n||working.length>0||Boolean(initialKnowledge)||
@@ -426,7 +426,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const originatingRequest=sharedProtocol&&task.parent_task_id?await originatingRequestContext(pool,task):undefined;
   const memberContext=await memberIdentityContext(pool,task);
   const composedInstructions = composeAgentInstructions(config);
-  const channelSafeInstructions = task.channel_binding ? customerSafeInstructions(composedInstructions) : composedInstructions;
+  const channelSafeInstructions = customerSafeInstructions(composedInstructions);
   const knowledgeNotice = knowledgePinned
     ? "\nKnowledge sources are already supplied in full. Answer from them; do not claim a lookup was performed. Say plainly when they do not contain the answer."
     : knowledgeMode === "retrieved"
@@ -716,10 +716,13 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
           accepted.mode = await guardedRun(ctx,"knowledge-mode-resolution", async () => {
             const rows = (await pool.query(`SELECT r.text_bytes,
                 EXISTS(SELECT 1 FROM agents_platform.source_sections s WHERE s.revision_id=r.id AND s.organization_id=r.organization_id) AS ready
-              FROM agents_platform.source_revisions r WHERE r.organization_id=$1 AND r.id=ANY($2::uuid[])`,
+              FROM agents_platform.source_revisions r
+              JOIN agents_platform.sources src ON src.id=r.source_id AND src.organization_id=r.organization_id
+              JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id AND p.organization_id=r.organization_id
+              WHERE r.organization_id=$1 AND r.id=ANY($2::uuid[]) AND src.state='active' AND p.state='approved'`,
               [accepted.organizationId, accepted.sourceRevisionIds])).rows;
             const bytes = rows.reduce((total, row) => total + Number(row.text_bytes ?? 0), 0);
-            const ready = rows.length === accepted.sourceRevisionIds.length && rows.every(row => row.ready);
+            const ready = rows.length > 0 && rows.every(row => row.ready);
             return ready && Math.ceil(bytes / 4) <= KNOWLEDGE_PINNED_TOKEN_BUDGET ? "pinned" : "retrieved";
           });
         }

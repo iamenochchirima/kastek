@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash,randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import { z } from "zod";
 import { PlatformError,requestDigest } from "../../contracts/contracts";
@@ -320,6 +320,65 @@ export class KnowledgeStore {
       await db.query("INSERT INTO agents_platform.source_mutations(organization_id,account_id,operation_id,request_digest,result,actor_service) VALUES($1,$2,$3,$4,$5,$6)", [scope.organizationId, resourceAccountId(scope), input.operationId, digest, JSON.stringify(result), resourceService(scope)]);
       return result;
 
+  }
+
+  /** Soft delete removes the source from every agent immediately; force also purges its content. */
+  async deleteSource(scope: KnowledgeScope, sourceId: string, force: boolean): Promise<{ source: Source; purged: boolean }> {
+    z.uuid().parse(sourceId);
+    return transaction(this.pool, async db => {
+      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [scope.organizationId]);
+      await requireKnowledgeMember(db, scope, true);
+      const row = (await db.query("SELECT * FROM agents_platform.sources WHERE id=$1 AND organization_id=$2 FOR UPDATE", [sourceId, scope.organizationId])).rows[0];
+      if (!row) throw missing();
+      await this.requireSourceScope(db, scope, sourceId);
+      if (row.state === "deleted") {
+        const existing = (await db.query("SELECT id FROM agents_platform.source_deletions WHERE organization_id=$1 AND source_id=$2", [scope.organizationId, sourceId])).rowCount;
+        if (existing) return { source: sourceDTO(row), purged: force };
+      }
+      const digestRow = (await db.query("SELECT text_digest FROM agents_platform.source_revisions WHERE organization_id=$1 AND source_id=$2 ORDER BY revision DESC LIMIT 1", [scope.organizationId, sourceId])).rows[0];
+      await db.query(`INSERT INTO agents_platform.source_deletions(id,organization_id,source_id,title,content_digest,actor_account_id,state,deleted_at,purge_after)
+        VALUES($1,$2,$3,$4,$5,$6,'soft',now(),now()+($7::text||' days')::interval)
+        ON CONFLICT(organization_id,source_id) DO UPDATE SET deleted_at=now(),state='soft',purge_after=now()+($7::text||' days')::interval`,
+        [randomUUID(), scope.organizationId, sourceId, row.title, digestRow?.text_digest ?? null, resourceAccountId(scope), force ? "0" : "7"]);
+      await db.query("UPDATE agents_platform.sources SET state='deleted',generation=generation+1 WHERE id=$1", [sourceId]);
+      await db.query("UPDATE agents_platform.source_revision_policy SET state='withdrawn' WHERE source_id=$1", [sourceId]);
+      await db.query("UPDATE agents_platform.ingestion_jobs SET state='cancelled',updated_at=now() WHERE source_id=$1 AND state NOT IN ('ready','failed','cancelled')", [sourceId]);
+      if (force) {
+        const revisions = db.query("SELECT id FROM agents_platform.source_revisions WHERE organization_id=$1 AND source_id=$2", [scope.organizationId, sourceId]);
+        const ids = (await revisions).rows.map(item => item.id);
+        const scrubbed = createHash("sha256").update("[deleted]").digest("hex");
+        if (ids.length) {
+          await db.query("DELETE FROM agents_platform.chunk_embeddings WHERE organization_id=$1 AND chunk_id IN (SELECT id FROM agents_platform.source_chunks WHERE organization_id=$1 AND revision_id=ANY($2::uuid[]))", [scope.organizationId, ids]);
+          // Evidence references chunk and revision ids, so content is scrubbed in place rather than row-deleted.
+          await db.query(`UPDATE agents_platform.source_chunks SET section_id=NULL,section_ordinal=NULL,content='[deleted]',content_digest=$3,token_count=1
+            WHERE organization_id=$1 AND revision_id=ANY($2::uuid[])`, [scope.organizationId, ids, scrubbed]);
+          await db.query("DELETE FROM agents_platform.source_sections WHERE organization_id=$1 AND revision_id=ANY($2::uuid[])", [scope.organizationId, ids]);
+          await db.query("UPDATE agents_platform.source_revisions SET text_digest=$3,chunk_set_digest=$3,embedding_digest=NULL WHERE organization_id=$1 AND id=ANY($2::uuid[])", [scope.organizationId, ids, scrubbed]);
+        }
+        await db.query("UPDATE agents_platform.source_objects SET next_cleanup_at=now() WHERE organization_id=$1 AND job_id IN (SELECT id FROM agents_platform.ingestion_jobs WHERE organization_id=$1 AND source_id=$2)", [scope.organizationId, sourceId]);
+        await db.query("UPDATE agents_platform.source_deletions SET state='purged',purged_at=now() WHERE organization_id=$1 AND source_id=$2", [scope.organizationId, sourceId]);
+      }
+      return { source: sourceDTO((await db.query("SELECT * FROM agents_platform.sources WHERE id=$1", [sourceId])).rows[0]), purged: force };
+    });
+  }
+
+  async restoreSource(scope: KnowledgeScope, sourceId: string): Promise<Source> {
+    z.uuid().parse(sourceId);
+    return transaction(this.pool, async db => {
+      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [scope.organizationId]);
+      await requireKnowledgeMember(db, scope, true);
+      const row = (await db.query("SELECT * FROM agents_platform.sources WHERE id=$1 AND organization_id=$2 FOR UPDATE", [sourceId, scope.organizationId])).rows[0];
+      if (!row) throw missing();
+      await this.requireSourceScope(db, scope, sourceId);
+      if (row.state !== "deleted") return sourceDTO(row);
+      const deletion = (await db.query("SELECT state,deleted_at FROM agents_platform.source_deletions WHERE organization_id=$1 AND source_id=$2 FOR UPDATE", [scope.organizationId, sourceId])).rows[0];
+      if (!deletion || deletion.state === "purged") throw new PlatformError("SOURCE_PURGED", 409, "The deleted source's content is no longer available");
+      const latest = (await db.query("SELECT id FROM agents_platform.source_revisions WHERE organization_id=$1 AND source_id=$2 ORDER BY revision DESC LIMIT 1", [scope.organizationId, sourceId])).rows[0];
+      await db.query("UPDATE agents_platform.sources SET state='active',generation=generation+1 WHERE id=$1", [sourceId]);
+      if (latest) await db.query("UPDATE agents_platform.source_revision_policy SET state='approved' WHERE organization_id=$1 AND revision_id=$2", [scope.organizationId, latest.id]);
+      await db.query("DELETE FROM agents_platform.source_deletions WHERE organization_id=$1 AND source_id=$2", [scope.organizationId, sourceId]);
+      return sourceDTO((await db.query("SELECT * FROM agents_platform.sources WHERE id=$1", [sourceId])).rows[0]);
+    });
   }
 
   async publishExtraction(jobId: string, output: { text: string; chunks: SourceChunk[]; sections?: SectionPart[]; normalizerRelease: string; acquiredAt: string; embeddings?: number[][] }): Promise<void> {

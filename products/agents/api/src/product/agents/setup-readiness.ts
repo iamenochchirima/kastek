@@ -32,13 +32,13 @@ export async function customerSetupReadiness(pool: Pool, accountId: string, orga
       const credential = await db.query("SELECT 1 FROM agents_platform.model_provider_credentials WHERE organization_id=$1 AND connection_id=$2 AND revision=$3 AND state='active'", [organizationId, routes.primary.binding.connectionId, routes.primary.binding.credentialRevision]);
       if (!credential.rowCount) throw new PlatformError("MODEL_CREDENTIAL_UNAVAILABLE", 409, "Reconnect the model provider");
     });
-    const sources = (await db.query(`SELECT r.id,s.state,s.visibility,p.state AS policy_state FROM agents_platform.source_revisions r
+    const sources = (await db.query(`SELECT r.id,s.state,p.state AS policy_state FROM agents_platform.source_revisions r
       JOIN agents_platform.sources s ON s.id=r.source_id AND s.organization_id=r.organization_id
       JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id AND p.organization_id=r.organization_id
       WHERE r.organization_id=$1 AND r.id=ANY($2::uuid[])`, [organizationId, configuration.sourceRevisionIds])).rows;
     const approved = sources.length === configuration.sourceRevisionIds.length && sources.every(s => s.state === "active" && s.policy_state === "approved");
     requirements.knowledge = !configuration.sourceRevisionIds.length ? deferred() : approved ? ready() : missing("KNOWLEDGE_NOT_APPROVED");
-    requirements.customerKnowledge = !configuration.sourceRevisionIds.length ? deferred() : approved && sources.every(s => s.visibility === "public") ? ready() : missing("KNOWLEDGE_NOT_PUBLIC");
+    requirements.customerKnowledge = !configuration.sourceRevisionIds.length ? deferred() : approved ? ready() : missing("KNOWLEDGE_NOT_PUBLIC");
     const responsibilities = agent.setup?.responsibilities ?? [];
     requirements.bookings = responsibilities.includes("bookings") ? configuration.capabilities.businessActions.enabled
       ? await check(() => loadBookingPolicy(db, organizationId, agentId, configuration.capabilities.businessActions as Parameters<typeof loadBookingPolicy>[3])) : missing("BOOKING_POLICY_REQUIRED") : deferred();

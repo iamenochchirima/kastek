@@ -71,7 +71,13 @@ export function registerKnowledgeRoutes(app: FastifyInstance, options: { knowled
   app.get(`${base}/imports/:jobId`, async request => ({ job: await options.knowledge.getJob(await options.resolveScope(request), z.uuid().parse(params(request).jobId)) }));
   app.post(`${base}/imports/:jobId/cancel`, async request => ({ job: await options.knowledge.cancel(await options.resolveScope(request), z.uuid().parse(params(request).jobId)) }));
   app.post(`${base}/sources/:sourceId/policy`, async request => ({ source: await options.knowledge.setPolicy(await options.resolveScope(request), z.uuid().parse(params(request).sourceId),
-    z.strictObject({ operationId: z.string(), expectedGeneration: z.number(), action: z.enum(["approve", "withdraw", "visibility"]), revisionId: z.uuid().optional(), visibility: z.enum(["private", "public"]).optional() }).parse(request.body)) }));
+    z.strictObject({ operationId: z.string(), expectedGeneration: z.number(), action: z.enum(["approve", "withdraw"]), revisionId: z.uuid().optional() }).parse(request.body)) }));
+  app.delete(`${base}/sources/:sourceId`, async request => {
+    const scope = await options.resolveScope(request);
+    const force = z.strictObject({ force: z.enum(["true", "false"]).optional() }).parse(request.query ?? {}).force === "true";
+    return options.knowledge.deleteSource(scope, z.uuid().parse(params(request).sourceId), force);
+  });
+  app.post(`${base}/sources/:sourceId/restore`, async request => ({ source: await options.knowledge.restoreSource(await options.resolveScope(request), z.uuid().parse(params(request).sourceId)) }));
   app.post(`${base}/sources/:sourceId/verify`, async request => {
     const scope = await options.resolveScope(request);
     const body = z.strictObject({ reviewDueAt: z.iso.datetime().optional() }).parse(request.body ?? {});

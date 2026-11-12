@@ -333,7 +333,7 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
     const row = (await db.query(`SELECT s.*,p.state AS revision_state FROM agents_platform.sources s
       JOIN agents_platform.source_revision_policy p ON p.source_id=s.id AND p.organization_id=s.organization_id
       WHERE s.id=$1 AND s.organization_id=$2 AND p.revision_id=$3 FOR SHARE OF s,p`, [dependency.sourceId, execution.task.organization_id, dependency.revisionId])).rows[0];
-    if (!row || row.state !== "active" || row.revision_state !== "approved" || row.generation !== dependency.generation || row.visibility !== dependency.visibility || isCustomerPrincipal(execution.task.principal) && row.visibility !== "public") throw unavailable();
+    if (!row || row.state !== "active" || row.revision_state !== "approved" || row.generation !== dependency.generation || row.visibility !== dependency.visibility) throw unavailable();
   }
   for (const dependency of dependencies.filter(item => item.kind === "connection")) {
     if (dependency.kind !== "connection") continue;

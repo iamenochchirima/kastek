@@ -293,14 +293,13 @@ export class AgentStore extends AuthorityStore {
         const connection=await db.query("SELECT id FROM agents_platform.connections WHERE id=$1 AND organization_id=$2 AND account_id=$3 AND state='active' AND profile_id='report-delivery-v1' AND expires_at>now() FOR SHARE",[config.capabilities.workflows.connectionId,input.organizationId,input.accountId]);
         if(!connection.rowCount)throw new PlatformError("WORKFLOW_CONNECTION_UNAVAILABLE",409,"Choose an active report connection owned by this account");
       }
-      const sources = (await db.query(`SELECT r.id,r.source_id,r.embedding_release,r.text_bytes,s.visibility FROM agents_platform.source_revisions r
+      const sources = (await db.query(`SELECT r.id,r.source_id,r.embedding_release,r.text_bytes FROM agents_platform.source_revisions r
         JOIN agents_platform.sources s ON s.id=r.source_id AND s.organization_id=r.organization_id
         JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id AND p.organization_id=r.organization_id
         WHERE r.organization_id=$1 AND r.id=ANY($2::uuid[]) AND s.state='active' AND p.state='approved' ORDER BY s.id FOR SHARE OF s,p`, [input.organizationId, sourceAuthorityIds(config)])).rows;
       if (sources.length !== sourceAuthorityIds(config).length || new Set(sources.map(source => source.source_id)).size !== sources.length) throw new PlatformError("SOURCE_REVISION_UNAVAILABLE", 409, "Choose one approved revision per source");
       config.knowledge = { mode: resolveKnowledgeMode({ requested: config.knowledge?.mode ?? "auto", offering: agent.offering,
         sourceBytes: sources.reduce((total, source) => total + Number(source.text_bytes ?? 0), 0) }) };
-      if (sources.some(source => source.visibility === "private") && !(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role IN ('owner','admin') AND revoked_at IS NULL", [input.organizationId, input.accountId])).rowCount) throw new PlatformError("SOURCE_GRANT_DENIED", 403, "An owner or admin must publish protected knowledge grants");
       const retrieval = config.retrievalProfile;
       if (retrieval.kind === "hybrid-v1" && sources.some(source => source.embedding_release !== retrieval.embeddingRelease)) throw new PlatformError("RETRIEVAL_PROFILE_CONFLICT", 409, "Source indexes do not match the retrieval profile");
       const connected = (await db.query(`SELECT b.id,b.binding FROM agents_platform.capability_bindings b JOIN agents_platform.connections c ON c.id=b.connection_id

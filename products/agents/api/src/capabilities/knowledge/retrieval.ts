@@ -38,7 +38,6 @@ export class KnowledgeRetrieval {
         JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id AND p.organization_id=r.organization_id
         JOIN agents_platform.version_sources v ON v.revision_id=r.id AND v.source_id=s.id AND v.organization_id=s.organization_id
         WHERE c.organization_id=$1 AND v.version_id=$2 AND r.id=ANY($3::uuid[]) AND s.state='active' AND p.state='approved'
-          AND (NOT $4::boolean OR s.visibility='public')
       ), lexical_query AS (
         SELECT string_agg(quote_literal(term),' | ')::tsquery AS expression
         FROM unnest(tsvector_to_array(to_tsvector('english',$5))) AS terms(term)
@@ -59,7 +58,6 @@ export class KnowledgeRetrieval {
           JOIN agents_platform.sources s ON s.id=r.source_id AND s.id=v.source_id AND s.organization_id=r.organization_id
           JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id AND p.source_id=s.id AND p.organization_id=r.organization_id
           WHERE v.organization_id=$1 AND v.version_id=$2 AND s.state='active' AND p.state='approved'
-          AND (NOT $5::boolean OR s.visibility='public')
           AND r.id=ANY($3::uuid[]) AND (r.embedding_release IS DISTINCT FROM $4 OR EXISTS(
             SELECT 1 FROM agents_platform.source_chunks c LEFT JOIN agents_platform.chunk_embeddings e ON e.chunk_id=c.id
             WHERE c.revision_id=r.id AND (e.chunk_id IS NULL OR e.embedding_release<>$4)))`, [scope.organizationId, scope.versionId, scope.sourceRevisionIds, profile.embeddingRelease, scope.publicOnly])).rows[0];
