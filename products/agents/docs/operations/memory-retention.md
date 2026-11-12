@@ -1,6 +1,6 @@
 # Learned-memory retention
 
-Owner: Agents engineering. Reviewed: 3 November 2026.
+Owner: Agents engineering. Reviewed: 12 November 2026.
 
 Accepted memory has no automatic expiry unless its record explicitly supplies one. Correction
 starts a 30-day retention period for the superseded revision body. Forget immediately removes the
@@ -30,6 +30,27 @@ it is not a promise that every independent record containing the same fact is ph
 An unavailable maintenance worker leaves due content retained but suppressed; investigate
 `MEMORY_RETENTION_PENDING` without restoring recall or deleting effect receipts.
 
+## Context injection
+
+Memory is opt-in per internal agent. Behaviour → General exposes the toggle only when the agent has
+no customer offering and uses a program that supports personal memory. Enabling it adds
+`memory.search`, `memory.read` and `memory.propose` to the configuration and grants
+`memory.read`/`memory.propose` for execution. Customer-facing agents cannot enable memory, and
+website or channel deployments still reject it.
+
+Before the first model call, an eligible human turn reads at most eight accepted memories relevant
+to the current input, plus recent records when the query has no useful terms. It injects
+1,200-byte excerpts with the memory id, revision, assertion context and update/expiry times.
+A truncated record is marked as an excerpt, and `memory.read` returns the full accepted record.
+Candidates are never injected. The turn records a `context.memory_retrieved` task event with the
+scope generation, retrieved and kept counts, injected bytes and next page offset. No query
+text or memory content is written to the event.
+
+The pre-loop read applies to eligible internal human turns, not only channel-bound turns. Visitor
+and customer principals never receive personal memory. The memory profile is currently off or
+personal; team scopes, automatic post-turn consolidation and embedding-ranked recall remain
+separate workstreams in the parked memory plan.
+
 ## Restore deletion fences
 
 `export_memory_deletion_ledger()` returns tombstones, scope generation and all revision fingerprints.
@@ -46,6 +67,12 @@ eligibility are separate operational controls. Do not advertise physical erasure
 Forget acknowledgement or a successful memory-store cleanup count.
 
 ## Release and rollback
+
+Memory context injection is configuration-driven and needs no migration. Rollback removes the
+pre-loop read and the Behaviour toggle; stored memories, candidates, revisions and deletion fences
+remain intact. Disabling memory on an agent removes its memory tools and stops injection on the
+next published version.
+
 
 Apply schema111 before starting the updated worker. It backfills fingerprints, existing forgotten
 tombstones and historical supersession times without deleting bodies during migration. No task,

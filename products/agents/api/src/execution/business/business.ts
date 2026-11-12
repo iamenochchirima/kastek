@@ -22,7 +22,7 @@ import { capabilityBindingPresentation } from "../../capabilities/tool-presentat
 import { capabilityDirectory, capabilityExposure } from "../context/capability-directory";
 import { assertPublishedTools,builtinToolName,builtinToolEnabled,executeTool,fitUtf8,parseModelDelegationRequest,toolsFor } from "../../capabilities/tools";
 import { skillContext,skillReceiptGroups,skillFitsRequest } from "../context/skills";
-import { isCustomerPrincipal,KNOWLEDGE_PINNED_TOKEN_BUDGET,PlatformError,requestDigest,terminalTaskStates } from "../../contracts/contracts";
+import { isCustomerPrincipal,KNOWLEDGE_PINNED_TOKEN_BUDGET,PlatformError,requestDigest,terminalTaskStates,type AgentConfiguration } from "../../contracts/contracts";
 import type { DependencyManifest } from "../../contracts/source-contracts";
 import { selectedProductContextText } from "../products/product-information";
 import { composeAgentInstructions } from "../../product/agents/identity";
@@ -272,7 +272,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     && !(config.tools.includes("support.request_handoff_v2") && tool.function.name === "support_request_handoff"))));
   const directTools = visibleTools.filter(tool => !tool.function.name.startsWith("memory_") ||
     memoryOperations.includes(tool.function.name === "memory_propose" ? "memory.propose" : "memory.read"));
-  const memoryReadAllowed = config.memory.enabled && memoryOperations.includes("memory.read") && Boolean(task.channel_binding);
+  const memoryReadAllowed = memoryContextAllowed(config, task.principal.kind, memoryOperations);
   const sharedProtocol=task.harness_release===SHARED_HARNESS_RELEASE;
   const toolCalling=execution.models.primary.model.capabilities.tools.value===true;
   const hasRetainedRecords=BigInt(task.turn_sequence)>1n||working.length>0||Boolean(initialKnowledge)||
@@ -313,16 +313,26 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   let memoryFence: MemoryFence | undefined;
   const memory = new MemoryStore(pool);
   if (memoryReadAllowed) {
-    const selected = await memory.readForContext({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal,taskId },task.input);
+    const selected = await memory.readForContext({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal,taskId },task.input,8);
     const eligible = options.evidence ? new Set((await options.evidence.checkMemories(taskId,selected.memories.map(item=>item.id))).filter(item=>item.eligible).map(item=>item.id)) : undefined;
     const memories = selected.memories.filter(item=>!eligible || eligible.has(item.id));
     const expiries = memories.flatMap(item => item.expiresAt ? [new Date(item.expiresAt).getTime()] : []);
     memoryFence = { id: selected.scope.id, generation: selected.generation,
       ...(expiries.length ? { expiresAt: Math.min(...expiries) } : {}) };
-    sources.push(...memories.map(item => ({ id: item.id, revision: item.revision, kind: "memory" as const, content: item.content,
-      memoryAssertion:{...item.assertion,origin:item.origin,reviewStatus:"accepted" as const,verified:false as const,updatedAt:item.updatedAt,expiresAt:item.expiresAt} })));
+    let injectedBytes = 0;
+    for (const item of memories) {
+      const content = fitUtf8(item.content, 1200), excerpt = content !== item.content;
+      injectedBytes += Buffer.byteLength(content, "utf8");
+      sources.push({ id: item.id, revision: item.revision, kind: "memory" as const, content,
+        ...(excerpt ? { excerpt: true as const } : {}),
+        memoryAssertion:{...item.assertion,origin:item.origin,reviewStatus:"accepted" as const,verified:false as const,updatedAt:item.updatedAt,expiresAt:item.expiresAt} });
+    }
     const coverage=memoryRecallCoverage(memories.length,selected.nextOffset);
     if(coverage)sources.push(coverage);
+    await event(pool, taskId, `memory-context:${taskId}`, "context.memory_retrieved", {
+      scopeGeneration: selected.generation, retrieved: selected.memories.length, kept: memories.length,
+      injectedBytes, nextOffset: selected.nextOffset, queryBytes: Buffer.byteLength(task.input, "utf8"),
+    }).catch(() => undefined);
   }
   const skills = !config.skillIds.length ? [] : (task.product !== "agents" || task.principal.kind === "automation" || isCustomerPrincipal(task.principal)) ?
     await loadSkillRevisions(pool,task.organization_id,execution.agentId,config.skillIds) :
@@ -619,6 +629,11 @@ export async function awaitBackgroundCompaction(ctx:restate.WorkflowContext,pool
  * the evidence checks it triggers and the organization lock they hold. Active constraints survive
  * independently through the instruction ledger; older facts remain reachable via history_search.
  */
+/** Personal memory is injected only for enabled, human-authorized internal turns. */
+export function memoryContextAllowed(configuration: Pick<AgentConfiguration, "memory">, principalKind: string, operations: readonly string[]): boolean {
+  return configuration.memory.enabled && principalKind === "human" && operations.includes("memory.read");
+}
+
 /** Recall truncation is disclosed rather than presented as the whole memory. */
 export function memoryRecallCoverage(shown: number, nextOffset: number | null) {
   if (nextOffset === null) return null;

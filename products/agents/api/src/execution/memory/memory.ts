@@ -112,8 +112,8 @@ export class MemoryStore {
   async read(scope: MemoryScope, query?: string, page: { offset?: number; limit?: number } = {}) {
     return memoryTransaction(this.pool, async db => this.readResolved(db, await this.resolveScope(db, scope), query, false, page));
   }
-  async readForContext(scope: MemoryScope, query: string) {
-    return memoryTransaction(this.pool, async db => this.readResolved(db, await this.resolveScope(db, scope), query, false, { includeRecent: true }));
+  async readForContext(scope: MemoryScope, query: string, limit = 8) {
+    return memoryTransaction(this.pool, async db => this.readResolved(db, await this.resolveScope(db, scope), query, false, { includeRecent: true, limit }));
   }
   async list(scope: MemoryManagementScope, page: { offset?: number; limit?: number } = {}) { return memoryTransaction(this.pool, db => this.readResolved(db, scope, undefined, true, page)); }
   private async readResolved(db: PoolClient, scope: MemoryManagementScope, query: string | undefined, management: boolean, options: { includeRecent?: boolean; offset?: number; limit?: number } = {}) {

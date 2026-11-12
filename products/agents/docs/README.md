@@ -30,7 +30,7 @@ passed with MiniMax M3.1 Flash on21 October2026. Other provider accounts were no
 account compatibility. See [implementation boundaries](source-boundary.md) for
 operator limits, verification scope, and remaining work.
 
-Owner: Agents engineering. Last reviewed: 2026-11-04.
+Owner: Agents engineering. Last reviewed: 2026-11-12.
 
 The standalone product offers a customer-service agent with selectable question answering, support,
 booking and enquiry responsibilities across customer channels, with a shared inbox for staff
@@ -51,7 +51,7 @@ separate Booking creation offering remains unavailable.
 A live Google OAuth application has not been accepted.
 
 The current business harness supports contextual conversations, reviewed personal
-memory, pinned skills, configured tool rounds, and recoverable compaction. New configurations use
+memory injected before the first model call, pinned skills, configured tool rounds, and recoverable compaction. New configurations use
 Automatic model-aware context; explicit older limits remain binding. Optional
 delegation, isolated analysis, approved Python package scripts, reviewed report delivery, durable automation, approved knowledge revisions and connected read tools are opt-in. These documents describe the maintained
 implementation and boundaries:

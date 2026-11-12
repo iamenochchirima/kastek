@@ -33,8 +33,10 @@ import { AgentOverview } from "./agent-overview";
 import { AgentConversations } from "./agent-conversations";
 import { AgentCapabilities, type CapabilityId } from "./agent-capabilities";
 import { AgentSettings } from "./agent-settings";
+import { Switch } from "@/components/ui/switch";
 
 const sections = ["overview", "conversations", "capabilities", "knowledge", "behaviour", "widget", "deploy", "settings"] as const;
+const memoryTools = ["memory.search", "memory.read", "memory.propose"] as const;
 type EffectiveSettings = { composed: string; sources: number; tools: number; connectedTools: number; skills: number };
 type Section = (typeof sections)[number];
 type BehaviourTab = "general" | "tools" | "skills";
@@ -122,7 +124,15 @@ export function AgentEditor() {
     return false;
   }
   function normalizedConfiguration(value: Configuration): Configuration {
-    return value.supportHours ? { ...value, supportHours: normalizeSupportHours(value.supportHours) } : value;
+    const tools = new Set(value.tools ?? []);
+    for (const tool of memoryTools) if (value.memory?.enabled) tools.add(tool); else tools.delete(tool);
+    return { ...value, tools: [...tools] as NonNullable<Configuration["tools"]>, ...(value.supportHours ? { supportHours: normalizeSupportHours(value.supportHours) } : {}) };
+  }
+  function setMemoryEnabled(enabled: boolean) {
+    if (!configuration) return;
+    const tools = new Set(configuration.tools ?? []);
+    for (const tool of memoryTools) if (enabled) tools.add(tool); else tools.delete(tool);
+    setConfiguration({ ...configuration, memory: { enabled }, tools: [...tools] as NonNullable<Configuration["tools"]> });
   }
   async function save(event?: FormEvent) {
     event?.preventDefault();
@@ -234,6 +244,7 @@ export function AgentEditor() {
   const chatOpen = Boolean(conversationId) || rawSection === "chat";
   const view = chatOpen ? "chat" : "section";
   const knowledgeCount = configuration.sourceRevisionIds?.length ?? 0;
+  const memoryAvailable = configuration.executionKind === "business" && !agent.offering && configuration.program?.id !== "grounded-conversation";
   return <div className={`agent-editor agent-view-${view}`}><header className="agent-editor-header"><div className="flex min-w-0 items-center gap-3"><AgentAvatar id={agent.avatar} size={34} /><h1 className="truncate text-lg font-semibold">{agent.name}</h1></div><div className="flex shrink-0 items-center gap-2">{chatOpen ? <AgentMemory agentId={agent.id} enabled={agent.draft.memory?.enabled ?? false} /> : null}{chatOpen || section === "conversations" ? <Button size="sm" variant="outline" onClick={newChat}><Plus size={15} />New chat</Button> : editableSection ? <Button size="sm" onClick={() => void save()} disabled={!needsApply || busy}>{busy ? "Saving…" : "Save changes"}</Button> : null}</div></header>
     <div className="agent-editor-body"><ErrorMessage value={error} />{!chatOpen && editableSection && pendingSetup ? <p role="status" className="agent-unsaved-note">Save changes to apply the updated setup.</p> : null}
     {chatOpen ? <Chat endpoint={`${organizationPath(organizationId)}/tasks`} key={`${agent.id}.${conversationId ?? "new"}.${chatGeneration}`} storageKey={`agents.chat.${session.account.id}.${organizationId}.${agent.id}.${conversationId ?? "new"}`} agentId={agent.id} initialConversationId={conversationId} expectedAgentId={agent.id} onConversationReady={id => { refresh(); if (!conversationId) navigate(`/app/agents/${agent.id}/conversations/${id}`, { replace: true }); }} view="chat" composerAccessory={<ChatModelPicker organizationId={organizationId} agentId={agent.id} configuration={agent.draft} dirty={dirty} saving={busy} onSelect={changeChatModel} />} cancellable /> :
@@ -268,7 +279,7 @@ export function AgentEditor() {
             <label className="block space-y-2 text-sm font-medium">Redirect to<Input maxLength={300} value={configuration.guidance?.redirectTo ?? ""} onChange={event => updateGuidance({ redirectTo: event.target.value })} /></label>
           </div>
         </section>
-        <section className="agent-config-panel agent-config-memory"><h2>Memory</h2><AgentMemory agentId={agent.id} enabled={agent.draft.memory?.enabled ?? false} /></section>
+        <section className="agent-config-panel agent-config-memory"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2>Memory</h2><p className="mt-1 text-sm text-muted-foreground">Remember accepted preferences across conversations.</p></div>{memoryAvailable || configuration.memory?.enabled ? <div className="flex items-center gap-2"><label htmlFor="agent-memory-enabled" className="text-sm font-medium">Enabled</label><Switch id="agent-memory-enabled" checked={configuration.memory?.enabled ?? false} disabled={busy || !editableSection} onCheckedChange={value => { if (memoryAvailable || !value) setMemoryEnabled(value); }} aria-label="Enable memory" /></div> : <span className="max-w-56 text-xs text-muted-foreground">Not available for customer agents.</span>}</div><div className="mt-3"><AgentMemory agentId={agent.id} enabled={configuration.memory?.enabled ?? false} /></div></section>
         {agent.setup?.responsibilities.includes("customer-support") || configuration.supportHours || configuration.tools?.some(tool => tool.startsWith("support.") || tool === "channel.request_handoff") ? <section className="agent-config-panel agent-config-support" aria-label="Human support">
           <details className="agent-support-disclosure" ref={supportSection}>
             <summary><span>Human support</span><span className="agent-support-state" data-state={configuration.supportHours ? "set" : "unset"}>{configuration.supportHours ? "Configured" : "Not set"}</span></summary>

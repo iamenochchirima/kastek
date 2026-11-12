@@ -7,6 +7,7 @@ import { Pool } from "pg";
 import Fastify from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MemoryStore } from "../src/execution/memory/memory";
+import { memoryContextAllowed } from "../src/execution/business/business";
 import { registerMemoryRoutes } from "../src/product/agents/memory-routes";
 import { defaultBusinessConfiguration, type AgentConfiguration } from "../src/contracts/contracts";
 import { contextGrantCeiling } from "../src/execution/models/settings";
@@ -49,6 +50,25 @@ suite("scoped PostgreSQL memory and immutable skills", () => {
     const other = await fixture(); expect((await memory.read(other.scope)).memories).toEqual([]);
     await expect(memory.read({ ...f.scope, principal: other.scope.principal })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
     await expect(memory.read({ ...f.scope, principal: { kind: "visitor", deploymentId: randomUUID(), sessionId: randomUUID() } })).rejects.toMatchObject({ code: "MEMORY_SCOPE_DENIED" });
+  });
+  it("injects personal memory only for enabled, human-authorized turns", () => {
+    expect(memoryContextAllowed({ memory: { enabled: true } }, "human", ["memory.read"])).toBe(true);
+    expect(memoryContextAllowed({ memory: { enabled: false } }, "human", ["memory.read"])).toBe(false);
+    expect(memoryContextAllowed({ memory: { enabled: true } }, "visitor", ["memory.read"])).toBe(false);
+    expect(memoryContextAllowed({ memory: { enabled: true } }, "channel_customer", ["memory.read"])).toBe(false);
+    expect(memoryContextAllowed({ memory: { enabled: true } }, "human", [])).toBe(false);
+  });
+  it("bounds pre-loop recall and keeps the full record available by id", async () => {
+    const f = await fixture();
+    for (let index = 0; index < 6; index++) {
+      const candidate = await memory.propose(f.scope, { operationId: randomUUID(), kind: "semantic", content: `Report preference ${index} for research summaries.` });
+      await memory.mutate(f.management, candidate.id, { action: "accept", operationId: randomUUID(), expectedRevision: 1 });
+    }
+    const selected = await memory.readForContext(f.scope, "report research preference", 3);
+    expect(selected.memories).toHaveLength(3);
+    expect(selected.nextOffset).toBe(3);
+    const full = await memory.readOne(f.scope, selected.memories[0]!.id);
+    expect(full.memory.content).toBe(selected.memories[0]!.content);
   });
   it("deduplicates proposals, detects request conflicts, prevents stale correction and forgotten-memory resurrection", async () => {
     const f = await fixture(), operationId = randomUUID();
