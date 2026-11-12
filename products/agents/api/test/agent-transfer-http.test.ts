@@ -173,6 +173,32 @@ describe.skipIf(!parent)("agent transfer", () => {
     expect(replay.body.agentId).toBe(newAgentId);
   });
 
+  it("expires without leaving copies", async () => {
+    const owner = await account(`expire-${randomUUID()}@example.test`, "Owner");
+    const sourceOrg = await organization(owner.id, "Expire source");
+    const sourceSession = await session(owner.id);
+    const recipient = await account(`expire-recipient-${randomUUID()}@example.test`, "Recipient");
+    const destinationOrg = await organization(recipient.id, "Expire destination");
+    const recipientSession = await session(recipient.id);
+    const agent = await store.createAgent({ accountId: owner.id, organizationId: sourceOrg.id, name: "Expiring agent" });
+    const configuration = defaultBusinessConfiguration();
+    await store.saveConfiguration({ accountId: owner.id, organizationId: sourceOrg.id, agentId: agent.id, configuration, expectedRevision: agent.draft_revision });
+
+    messages.length = 0;
+    const initiated = await request(sourceSession.token, "POST", `/api/organizations/${sourceOrg.id}/agents/${agent.id}/transfers`, { email: recipient.email });
+    expect(initiated.status).toBe(201);
+    const token = transferToken(messages[0]!);
+    await pool.query("UPDATE agents_platform.agent_transfers SET created_at=now()-interval '8 days',expires_at=now()-interval '1 minute' WHERE id=$1", [initiated.body.transfer.id]);
+    const preview = await request(null, "GET", `/api/agent-transfers/${token}`);
+    expect(preview.status).toBe(200);
+    expect(preview.body.transfer.state).toBe("expired");
+    const accepted = await request(recipientSession.token, "POST", `/api/agent-transfers/${token}/accept`, { organizationId: destinationOrg.id });
+    expect(accepted.status).toBe(409);
+    expect(accepted.body.error.code).toBe("TRANSFER_NOT_PENDING");
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.sources WHERE organization_id=$1", [destinationOrg.id])).rows[0]!.count).toBe(0);
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.agents WHERE organization_id=$1 AND name='Expiring agent'", [destinationOrg.id])).rows[0]!.count).toBe(0);
+  });
+
   it("declines without leaving copies and unfreezes the source agent", async () => {
     const owner = await account(`decline-${randomUUID()}@example.test`, "Owner");
     const sourceOrg = await organization(owner.id, "Decline source");
