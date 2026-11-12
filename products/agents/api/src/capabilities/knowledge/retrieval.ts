@@ -74,7 +74,7 @@ export class KnowledgeRetrieval {
           SELECT id,1.0/(60+rank) AS score FROM lexical UNION ALL SELECT id,1.0/(60+rank) AS score FROM semantic
         ) candidates GROUP BY id)
         SELECT c.id,c.revision_id,f.score + hb.boost AS rank_score,
-          c.section_id,c.section_ordinal,sec.parent_ordinal,sec.heading_path,sec.part,sec.chars,
+          sec.id AS section_id,sec.ordinal AS section_ordinal,sec.parent_ordinal,sec.heading_path,sec.part,sec.chars,
           par.chars AS parent_chars
         FROM fused f JOIN eligible c ON c.id=f.id
         LEFT JOIN LATERAL (SELECT s.id,s.revision_id,s.ordinal,s.parent_ordinal,s.heading_path,s.part,s.chars
@@ -87,7 +87,7 @@ export class KnowledgeRetrieval {
         ORDER BY rank_score DESC,c.id LIMIT ${RETRIEVAL_PROFILE.candidateChunks}`;
       } else sql = `${scoped}
         SELECT c.id,c.revision_id,1.0/(60+l.rank) + hb.boost AS rank_score,
-          c.section_id,c.section_ordinal,sec.parent_ordinal,sec.heading_path,sec.part,sec.chars,
+          sec.id AS section_id,sec.ordinal AS section_ordinal,sec.parent_ordinal,sec.heading_path,sec.part,sec.chars,
           par.chars AS parent_chars
         FROM lexical l JOIN eligible c ON c.id=l.id
         LEFT JOIN LATERAL (SELECT s.id,s.revision_id,s.ordinal,s.parent_ordinal,s.heading_path,s.part,s.chars
