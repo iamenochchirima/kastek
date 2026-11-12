@@ -69,7 +69,7 @@ export function managedModelDefaultFromEnvironment(pool:Pool,vault:ModelCredenti
       const envelope=vault.seal({organizationId:scope.organizationId,connectionId,credentialRevision:1,endpoint:definition.baseUrl,protocol:definition.protocol},apiKey);
       await db.query(`INSERT INTO agents_platform.model_provider_connections
         (id,organization_id,created_by,provider_id,name,endpoint,protocol,definition,custody,verification,managed_model_id,managed_model_ids)
-        VALUES($1,$2,$3,'openrouter','KasiTek OpenRouter',$4,$5,$6,'platform_managed','discovered',$7,$8)`,
+        VALUES($1,$2,$3,'openrouter','OpenRouter',$4,$5,$6,'platform_managed','discovered',$7,$8)`,
       [connectionId,scope.organizationId,scope.accountId,definition.baseUrl,definition.protocol,definition,modelId,JSON.stringify(allowlist?catalogueIds:[])]);
       await db.query(`INSERT INTO agents_platform.model_provider_credentials(organization_id,connection_id,revision,endpoint,protocol,envelope,state)
         VALUES($1,$2,1,$3,$4,$5,'active')`,[scope.organizationId,connectionId,definition.baseUrl,definition.protocol,envelope]);

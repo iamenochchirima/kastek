@@ -19,10 +19,10 @@ function modelPrice(pricing: AgentModelOption["pricing"]): string {
   if (pricing.inputMicrosPerMillionTokens === 0 && pricing.outputMicrosPerMillionTokens === 0) return "Free";
   const price = (value: number | null) => typeof value === "number" && Number.isFinite(value) && value >= 0
     ? new Intl.NumberFormat("en-US", { style: "currency", currency: pricing.currency, minimumFractionDigits: 0, maximumFractionDigits: 6 }).format(value / 1_000_000) : "Unavailable";
-  return `${price(pricing.inputMicrosPerMillionTokens)} / ${price(pricing.outputMicrosPerMillionTokens)} · 1M`;
+  return `${price(pricing.inputMicrosPerMillionTokens)}/${price(pricing.outputMicrosPerMillionTokens)}`;
 }
 export interface AgentModelPickerProps {
-  label: string; readOnly?: boolean; disabled?: boolean;
+  label: string; ariaLabel?: string; readOnly?: boolean; disabled?: boolean;
   open: boolean; onOpenChange(open: boolean): void;
   options: AgentModelOption[]; selectedId: string; onSelect(id: string): void;
   search: string; onSearch(value: string): void;
@@ -32,14 +32,14 @@ export interface AgentModelPickerProps {
 }
 
 /** Shared model selection presentation. Each product owns catalogue access and saved configuration. */
-export function AgentModelPicker({ label, readOnly, disabled, open, onOpenChange, options, selectedId, onSelect,
+export function AgentModelPicker({ label, ariaLabel, readOnly, disabled, open, onOpenChange, options, selectedId, onSelect,
   search, onSearch, loading, saving, error, saveDisabled, description = "Applies to new messages.", footer, onSave, onReload }: AgentModelPickerProps) {
   const group = React.useId(), term = search.trim().toLocaleLowerCase();
   const visible = options.filter(option => !term || `${option.label} ${option.provider ?? ""}`.toLocaleLowerCase().includes(term));
   if (readOnly) return <span className="max-w-[min(45vw,16rem)] truncate text-xs text-muted-foreground" title={label}>{label}</span>;
   return <>
     <Button type="button" variant="ghost" size="sm" className="min-h-11 min-w-0 max-w-[min(45vw,16rem)] gap-1.5 px-2 text-xs sm:min-h-8" title={label}
-      aria-label={`Chat model: ${label}`} disabled={disabled} onClick={() => onOpenChange(true)}><span className="truncate">{label}</span><PiCaretDown aria-hidden className="size-3 shrink-0" /></Button>
+      aria-label={ariaLabel ?? `Chat model: ${label}`} disabled={disabled} onClick={() => onOpenChange(true)}><span className="truncate">{label}</span><PiCaretDown aria-hidden className="size-3 shrink-0" /></Button>
     <Dialog open={open} onOpenChange={value => { if (!saving) onOpenChange(value); }}><DialogContent className="flex max-h-[85dvh] flex-col sm:max-w-lg">
       <DialogHeader><DialogTitle>Choose model</DialogTitle><DialogDescription className="sr-only">{description}</DialogDescription></DialogHeader>
       <Input className="min-h-11 sm:min-h-9" aria-label="Search models" placeholder="Search models" value={search} onChange={event => onSearch(event.target.value)} disabled={loading || saving} />

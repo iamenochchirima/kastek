@@ -1,6 +1,5 @@
 import { useEffect, useId, useState } from "react";
 import { Link } from "react-router-dom";
-import { PiMagnifyingGlass } from "react-icons/pi";
 import { AgentModelPicker } from "@kasitek-labs/ui/agent-model-picker";
 import { Input } from "@/components/ui/input";
 import { api, message, organizationPath, type Configuration } from "./api";
@@ -85,7 +84,7 @@ export function ChatModelPicker({ organizationId, agentId, configuration, dirty,
 export function AgentModel({ organizationId, agentId, configuration, onChange }: {
   organizationId: string; agentId: string; configuration: Configuration; onChange(value: Configuration): void;
 }) {
-  const { choices, defaultModel, paidModelsAllowed, loading, error } = useAgentModels(organizationId, agentId);
+  const { choices, defaultModel, paidModelsAllowed, loading, error, reload } = useAgentModels(organizationId, agentId);
   const [policy, setPolicy] = useState<{ routeKey: string; value: ModelPolicyPreview } | null>(null), [previewError, setPreviewError] = useState("");
   const selection = configuration.model.selection ?? { kind: "organization_default" as const };
   const routeKey = JSON.stringify(selection), preview = policy && policy.routeKey === routeKey ? policy.value : null;
@@ -103,13 +102,22 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
     }, 250);
     return () => { active = false; clearTimeout(timer); cancel.abort(); };
   }, [organizationId, agentId, configurationKey, routeKey]);
-  const [search, setSearch] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false), [modelSearch, setModelSearch] = useState(""), [pending, setPending] = useState(JSON.stringify(selection));
   const current = JSON.stringify(selection);
   const requiresTools = Boolean(configuration.tools?.length || configuration.connectedToolBindingIds?.length || configuration.skillIds?.length || configuration.procedures?.length);
   const incompatibility = (choice: Choice) => modelIncompatibility(choice, requiresTools);
-  const filtered = choices.filter(choice => `${choice.connection.name} ${choice.connection.providerId} ${choice.model.id} ${choice.model.name}`.toLowerCase().includes(search.toLowerCase()));
   const selected = choices.find(choice => selection.kind === "connection" && choice.connection.id === selection.connectionId && choice.model.id === selection.modelId);
-  const available = selection.kind === "organization_default" ? choices.find(choice => choice.connection.id === defaultModel?.selection?.connectionId && choice.model.id === defaultModel.selection.modelId) : selected;
+  const defaultChoice = choices.find(choice => choice.connection.id === defaultModel?.selection?.connectionId && choice.model.id === defaultModel.selection.modelId);
+  const defaultReason = defaultChoice ? incompatibility(defaultChoice) : "No available default model";
+  const selectedLabel = selection.kind === "organization_default" ? defaultChoice?.model.name ?? "Choose model" : selected?.model.name ?? selection.modelId;
+  const modelMetrics = (choice: Choice | undefined) => choice ? { contextWindowTokens: choice.model.contextTokens.value, maxOutputTokens: choice.model.maxOutputTokens.value,
+    pricing: choice.model.pricing ? { ...choice.model.pricing, currency: "USD" as const } : null } : {};
+  const modelOptions = [
+    { id: JSON.stringify({ kind: "organization_default" }), label: defaultChoice ? `${defaultChoice.model.name} · Default` : "Default", ...modelMetrics(defaultChoice), disabled: Boolean(defaultReason), reason: defaultReason ?? undefined },
+    ...choices.map(choice => ({ id: JSON.stringify({ kind: "connection", connectionId: choice.connection.id, modelId: choice.model.id }),
+      label: choice.model.name, provider: choice.model.id, ...modelMetrics(choice), disabled: Boolean(incompatibility(choice)), reason: incompatibility(choice) ?? undefined })),
+  ];
+  const available = selection.kind === "organization_default" ? defaultChoice : selected;
   const limits = preview?.limits, controls = preview?.controls;
   const customContext=configuration.context&&!("mode" in configuration.context)?configuration.context:undefined;
   const automaticInput=preview?.effectivePolicy?.maxInputTokens,automaticThreshold=preview?.effectivePolicy?.compactAtTokens;
@@ -125,6 +133,11 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
   const field = (name: string) => ({ "aria-invalid": Boolean(fieldError(name)), "aria-describedby": fieldError(name) ? errorsId : undefined });
   const effective = (name: string) => typeof preview?.effectivePolicy?.[name] === "number" ? Number(preview.effectivePolicy[name]).toLocaleString() : "Unknown";
   function update(values: Partial<Configuration["model"]>) { onChange({ ...configuration, model: { ...configuration.model, ...values } }); }
+  function applyModel() {
+    if (pending === current) { setPickerOpen(false); return; }
+    update({ selection: JSON.parse(pending) as Configuration["model"]["selection"] });
+    setPickerOpen(false);
+  }
   function updateGeneration(values: Partial<NonNullable<Configuration["model"]["generation"]>>) {
     const next = { ...generation, ...values };
     if (next.temperature === undefined) delete next.temperature;
@@ -132,24 +145,26 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
     update({ generation: Object.keys(next).length ? next : undefined });
   }
   return <div className="agent-model-section space-y-4">
-    <label className="block space-y-2 text-sm font-medium"><span className="agent-model-heading">Model</span>
-      <span className="agent-model-search"><PiMagnifyingGlass size={16} aria-hidden="true" /><Input aria-label="Search agent models" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search models" /></span>
-      <select aria-label="Agent model" className="min-h-10 w-full rounded-md border bg-background p-2 font-normal" value={current} disabled={loading}
-        onChange={event => update({ selection: JSON.parse(event.target.value) as Configuration["model"]["selection"] })}>
-        <option value={JSON.stringify({ kind: "organization_default" })}>Organization default{defaultModel?.selection ? ` · ${defaultModel.selection.modelId}` : ""}</option>
-        {selection.kind === "connection" && !filtered.some(choice => choice.connection.id === selection.connectionId && choice.model.id === selection.modelId) &&
-          <option value={current}>{selected?.connection.name ?? "Saved connection"} · {selection.modelId}</option>}
-        {filtered.map(choice => <option disabled={Boolean(incompatibility(choice))} key={`${choice.connection.id}:${choice.model.id}`} value={JSON.stringify({ kind: "connection", connectionId: choice.connection.id, modelId: choice.model.id })}>
-          {choice.connection.name} · {choice.model.name} · {choice.model.id}{incompatibility(choice) ? ` · ${incompatibility(choice)}` : ""}
-        </option>)}
-      </select>
-    </label>
+    <div className="space-y-2">
+      <span className="agent-model-heading">Model</span>
+      <AgentModelPicker label={`${selectedLabel}${selection.kind === "organization_default" ? " · Default" : ""}`}
+        ariaLabel={`Agent model: ${selectedLabel}`} open={pickerOpen}
+        onOpenChange={value => { if (value) { setPending(current); setModelSearch(""); } setPickerOpen(value); }}
+        options={modelOptions} selectedId={pending} onSelect={setPending} search={modelSearch} onSearch={setModelSearch}
+        loading={loading} error={error} saveDisabled={pending === current || !modelOptions.some(option => option.id === pending && !option.disabled)}
+        onSave={applyModel} onReload={reload} description="Applies to this agent after saving changes."
+        footer={<div className="space-y-2">
+          {!paidModelsAllowed ? <p role="status" className="text-sm text-muted-foreground">AI allowance used up. Free managed models only. <Link className="underline underline-offset-4" to="/app/upgrade">Upgrade</Link></p> : null}
+          <p className="text-xs text-muted-foreground">Save changes to apply.</p>
+          <Link to="/app/settings" className="text-sm underline underline-offset-4">Manage model providers</Link>
+        </div>} />
+    </div>
     {!paidModelsAllowed ? <p role="status" className="text-sm text-muted-foreground">AI allowance used up. Free managed models only. <Link className="underline underline-offset-4" to="/app/upgrade">Upgrade</Link></p> : null}
     {available && (!available.available || available.model.lifecycle === "retired") && <p role="status" className="text-sm text-muted-foreground">Saved model unavailable. Choose another model.</p>}
     {error && <p role="status" className="text-sm text-muted-foreground">{error}</p>}
     {available && incompatibility(available) && available.available && available.model.lifecycle !== "retired" && <p role="status" className="text-sm text-muted-foreground">{incompatibility(available)}. {requiresTools && available.toolSupport === "needs_verification" ? "Test tool support in Model providers." : "Choose a compatible model."}</p>}
     {available && <details className="text-xs text-muted-foreground"><summary className="min-h-10 cursor-pointer content-center">Model details</summary><dl className="space-y-2 break-words">
-      <div><dt className="font-medium text-foreground">Provider route</dt><dd>{available.connection.providerId} · {available.connection.name} · {available.model.id}</dd></div>
+      <div><dt className="font-medium text-foreground">Provider route</dt><dd>{available.connection.providerId} · {available.model.id}</dd></div>
       <div><dt className="font-medium text-foreground">Modalities</dt><dd>Input: {available.model.inputModalities?.join(", ") || "Unknown"} · Output: {available.model.outputModalities?.join(", ") || "Unknown"}</dd></div>
     </dl></details>}
     <Link to="/app/settings" className="inline-block text-sm underline underline-offset-4">Manage model providers</Link>
