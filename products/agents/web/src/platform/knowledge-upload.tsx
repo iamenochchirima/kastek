@@ -150,7 +150,7 @@ export function KnowledgeUpload({ organizationId, agentId, onComplete, onBusyCha
         const revision = source?.revisions.find(item => item.id === job.revisionId);
         if (!source || !revision) throw new Error("Reload the document and try again.");
         if (revision.state === "withdrawn") throw new Error(`${entry.file.name} was withdrawn.`);
-        if ((revision.state === "candidate" || source.visibility !== "public") && !source.canApprove) throw new Error("An owner must approve these documents in Knowledge.");
+        if (revision.state === "candidate" && !source.canApprove) throw new Error("An owner must approve these documents in Knowledge.");
         revisionIds.push(revision.id);
       }
       const configuration = { ...agent.draft, sourceRevisionIds: [...new Set([...(agent.draft.sourceRevisionIds ?? []), ...revisionIds])], tools: [...new Set([...(agent.draft.tools ?? []), "knowledge.search" as const, "knowledge.read" as const])] };
@@ -162,10 +162,9 @@ export function KnowledgeUpload({ organizationId, agentId, onComplete, onBusyCha
       }
       await api(`${agentPath}/configuration`, { name: agent.name, expectedRevision: agent.draftRevision, configuration, confirmImpact: true });
       await refreshSources().catch(() => undefined);
-      const privateSources = selected.filter(entry => currentSources.find(item => item.id === entry.job!.sourceId)?.visibility !== "public");
       const keys = new Set(selected.map(entry => entry.key));
       setEntries(current => current.map(entry => keys.has(entry.key) ? { ...entry, state: "added", error: undefined } : entry));
-      toast.success(privateSources.length ? "Knowledge added · publish in Knowledge for customer use" : "Knowledge added");
+      toast.success("Knowledge added");
       onComplete?.();
     } catch (e) { setError(message(e)); } finally { setBusy(false); }
   }
