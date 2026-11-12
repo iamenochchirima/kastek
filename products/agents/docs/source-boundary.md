@@ -288,11 +288,17 @@ Training data → Import website. Owners can enter a bare domain, follow crawl p
 select pages, inspect extracted Markdown, and import the selection as one knowledge candidate.
 The next review shows the normalized candidate. **Approve and use** approves the revision, publishes
 it for customer replies, and attaches it through the normal revision-checked agent configuration API.
-Knowledge added from an agent's document or website flow is customer-visible by default; owners can
-change visibility later in the workspace Knowledge page. Closing or reloading resumes the exact persisted import and derives
-completion from its ready revision, current approval, active source, and saved agent knowledge bindings.
-Approved private sources display their customer-channel restriction. Withdrawn, unavailable, failed and
-cancelled imports remain distinct and can be retried without reporting success. An approved source that
+Knowledge has no visibility split: an attached source is usable in every conversation with that agent,
+including customer channels. Removing a source from customer answers is done by not attaching it, or by
+deleting it. Closing or reloading resumes the exact persisted import and derives completion from its ready
+revision, current approval, active source, and saved agent knowledge bindings. Withdrawn, unavailable,
+failed and cancelled imports remain distinct and can be retried without reporting success.
+
+Deleting a source removes it from every agent immediately, without a republish. A seven-day soft delete is
+restorable; a forced delete also scrubs chunk content, removes sections and embeddings, and leaves a
+tombstone (source id, title, digest, actor, timestamps). Content is scrubbed rather than row-deleted because
+evidence references chunk and revision ids; no answer can use a deleted source because retrieval admits only
+active, approved sources. An approved source that
 is not attached offers **Use knowledge** without approving it again. Skipping website import leaves the
 agent usable. The importer refreshes the saved draft before attachment to preserve other source/tool
 bindings and uses the normal revision conflict check against concurrent edits.
@@ -372,9 +378,9 @@ with no membership history. Concurrent requests reuse that workspace. Existing o
 memberships are not replaced. Additional workspaces remain an explicit Settings action.
 
 Model-provider contracts and a reviewed JSON registry now exist under `api/src/contracts/`
-and `api/src/adapters/models/`. Registry records cover twelve providers. OpenRouter, OpenAI,
-Anthropic, and Google have installed fixture-tested adapters. Eight profiles remain `planned`.
-Installation does not claim live account verification. Shared messages no longer depend on
+and `api/src/adapters/models/`. Registry records cover thirteen providers. OpenRouter, OpenCode,
+OpenAI, Anthropic, and Google have installed fixture-tested adapters. All registered profiles
+have installed adapters. Installation does not claim live account verification. Shared messages no longer depend on
 the business adapter's file. The running business loop uses accepted model bindings through
 `execution/models/runtime.ts`; it does not select a deployment environment key or a fixed model.
 
