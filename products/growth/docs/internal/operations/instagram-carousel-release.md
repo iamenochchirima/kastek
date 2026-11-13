@@ -11,7 +11,7 @@ Change: Publish two to twenty attached images to Instagram as a carousel.
 Owner: iamenochchirima
 Risk: standard
 Affected services and user surfaces: Growth API social publisher, Growth web content composer, Instagram publishing.
-Platform release version or release ID: pending production deployment.
+Platform release version or release ID: deployed 13 November 2026 from commit ffb092432.
 Commit: 023e294ec.
 Tracker: KAS-302.
 API/schema/migration changes: none.
@@ -78,3 +78,19 @@ cannot publish.
   its own limit.
 - Alt text on attached images is not yet forwarded to Instagram.
 - Facebook and Threads carousels remain a separate follow-up.
+
+## Production outcome
+
+Deployed on 13 November 2026 from `ffb092432`.
+
+- Growth API: Railway deployment `64e73b17-467f-4d35-a750-959b6371b11b` reached `SUCCESS`.
+  `https://api.kasitek.co.za/health` returned 200. The API log shows
+  `billing_usage_forwarder` disabled for the missing billing configuration and no worker
+  failure.
+- Growth web: Vercel prebuilt deployment `dpl_6VAzcwjaidgGtvQSruTEAwNUGHvE` is the production
+  deployment for `https://app.kasitek.co.za`.
+- Production bundle `social-shared-DkuCqeHc.js` contains
+  `INSTAGRAM ... media:{images:{supported:true,maxCount:20}`.
+- Production bundle `posts-workspace-CNBYnTHD.js` contains the updated fallback copy
+  `Used only when no image is attached.`
+- The live two-image carousel publish remains owner-run with the connected Instagram account.
