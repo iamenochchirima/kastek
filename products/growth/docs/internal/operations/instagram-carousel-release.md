@@ -12,6 +12,7 @@ Owner: iamenochchirima
 Risk: standard
 Affected services and user surfaces: Growth API social publisher, Growth web content composer, Instagram publishing.
 Platform release version or release ID: pending production deployment.
+Commit: 023e294ec.
 Tracker: KAS-302.
 API/schema/migration changes: none.
 Feature flag or rollout method: no new flag; deploy the Growth API and web together.
