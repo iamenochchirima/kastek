@@ -17,7 +17,7 @@ export function resolveDeliveryMedia<T extends DeliveryMediaItem>(
   if (!value || typeof value !== "object" || Array.isArray(value)) return [...common];
   const snapshot = value as Record<string, unknown>;
   if (snapshot.schema !== "kasitek-content-delivery-v1") return [...common];
-  if (snapshot.platform !== job.platform || !Array.isArray(snapshot.media) || snapshot.media.length > 10) throw invalid();
+  if (snapshot.platform !== job.platform || !Array.isArray(snapshot.media) || snapshot.media.length > 20) throw invalid();
   const seen = new Set<string>();
   return snapshot.media.map((item: unknown, index: number) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) throw invalid();

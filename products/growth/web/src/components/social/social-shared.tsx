@@ -255,7 +255,7 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
     supportsAnalytics: true,
     supportsInbox: true,
     supportsVariants: true,
-    media: { images: { supported: true, maxCount: 1 }, videos: { supported: false, maxCount: 0 } },
+    media: { images: { supported: true, maxCount: 20 }, videos: { supported: false, maxCount: 0 } },
   },
   THREADS: {
     canPublish: true,

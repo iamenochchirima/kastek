@@ -240,6 +240,20 @@ function attachedUrl(
       return publicMediaUrl(config, item.assetId);
   return null;
 }
+function attachedUrls(
+  media: Record<string, unknown>[],
+  config: CoreConfig,
+  kind: string | null,
+): string[] {
+  const urls: string[] = [];
+  for (const item of media)
+    if (
+      (kind === null || item.kind === kind) &&
+      typeof item.assetId === "string"
+    )
+      urls.push(publicMediaUrl(config, item.assetId));
+  return urls;
+}
 async function attachedImages(
   pool: Pool,
   config: CoreConfig,
@@ -403,13 +417,19 @@ export async function executeSocialPublishJob(
         break;
       }
       case "INSTAGRAM": {
-        const image =
-          trimmed(
+        if (job.media.some((item) => item.kind !== "IMAGE"))
+          throw bad("Instagram posts currently support image attachments only");
+        // Attached images take precedence; the legacy URL field is a single-image fallback.
+        const images = attachedUrls(job.media, config, "IMAGE");
+        if (!images.length) {
+          const manual = trimmed(
             typeof job.post_metadata?.instagramImageUrl === "string"
               ? job.post_metadata.instagramImageUrl
               : null,
-          ) ?? attachedUrl(job.media, config, "IMAGE");
-        if (image === null)
+          );
+          if (manual) images.push(manual);
+        }
+        if (!images.length)
           throw bad(
             "Attach an image or add a public HTTPS image URL before publishing to Instagram",
           );
@@ -424,7 +444,7 @@ export async function executeSocialPublishJob(
           channel.access_token!,
           channel.external_account_id,
           channel.metadata,
-          image,
+          images,
           text,
           options,
         );

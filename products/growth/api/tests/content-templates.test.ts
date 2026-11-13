@@ -13,7 +13,7 @@ test("literal template validation rejects undeclared, malformed and duplicate fi
   assert.throws(() => validateTemplateInput({ ...base, variants: [null as never] }), /Versions/);
   assert.throws(() => validateTemplateInput({ ...base, media: [{ assetId: "common" }], variants: [{ platform: "FACEBOOK", content: "Caption", media: [{ assetId: "foreign" }] }] }), /belong/);
   assert.throws(() => validateTemplateInput({ ...base, media: [{ assetId: "common" }], variants: [{ platform: "FACEBOOK", content: "Caption", media: [{ assetId: "common", crop: { x: Number.POSITIVE_INFINITY } }] }] }), /crop/);
-  assert.throws(() => validateTemplateInput({ ...base, media: Array.from({ length: 11 }, (_, i) => ({ assetId: `asset-${i}` })) }), /Media is invalid/);
+  assert.throws(() => validateTemplateInput({ ...base, media: Array.from({ length: 21 }, (_, i) => ({ assetId: `asset-${i}` })) }), /Media is invalid/);
   const ordered = validateTemplateInput({ ...base, media: [{ assetId: "one", sortOrder: 9 }, { assetId: "two", sortOrder: 1 }], variants: [{ platform: "FACEBOOK", content: "Caption", media: [{ assetId: "one", sortOrder: 9, crop: { x: 0.1 } }, { assetId: "two", sortOrder: 1, crop: { x: 0.2 } }] }] });
   assert.deepEqual(ordered.media?.map(item => [item.assetId, item.sortOrder]), [["two", 0], ["one", 1]]);
   assert.deepEqual(ordered.variants?.[0]?.media?.map(item => [item.assetId, item.sortOrder, item.crop]), [["two", 0, { x: 0.2 }], ["one", 1, { x: 0.1 }]]);

@@ -69,7 +69,7 @@ export function validateTemplateInput(input: TemplateInput): TemplateInput {
   return { name, content, description, category, channels: [...input.channels], variants: normalizedVariants, fields: fields.map(f => ({ key: f.key, label: f.label, required: f.required ?? true, ...(f.defaultValue === undefined ? {} : { defaultValue: f.defaultValue }) })), media };
 }
 function normalizeMedia(media: TemplateMedia[]): TemplateMedia[] {
-  if (!Array.isArray(media) || media.length > 10) fail("template_invalid", "Media is invalid");
+  if (!Array.isArray(media) || media.length > 20) fail("template_invalid", "Media is invalid");
   const ids = new Set<string>();
   return media.map((m, i) => {
     if (!m || typeof m.assetId !== "string" || !m.assetId || ids.has(m.assetId)) fail("template_invalid", "Media must reference unique assets");

@@ -249,51 +249,25 @@ export async function publishPostToThreads(
   );
   return [requireId(posted.id, "Threads did not return a post id"), text];
 }
-export async function publishPostToInstagram(
-  config: CoreConfig,
-  encrypted: string,
-  account: string | null,
-  metadata: Record<string, unknown> | null,
-  image: string,
-  caption: string,
-  options: ProviderOptions = {},
-): Promise<[string, string]> {
-  if (account === null)
-    throw bad("Instagram connection is missing an account identifier");
-  httpsUrl(image, "Instagram");
-  const token = decryptSocialSecret(config, encrypted),
-    graph =
-      metadata?.authMethod === "instagram_login" ? INSTAGRAM_GRAPH : META_GRAPH;
-  const container = await providerJson(
-    `${graph}/${account}/media`,
-    {
-      method: "POST",
-      headers: headers(token),
-      body: new URLSearchParams({ image_url: image, caption }),
-    },
-    "Failed to create the Instagram media container",
-    options,
-  );
-  const id = requireId(
-    container.id,
-    "Instagram did not return a media container identifier",
-  );
-  let ready = false;
+async function waitForInstagramContainer(
+  graph: string,
+  token: string,
+  id: string,
+  label: string,
+  options: ProviderOptions,
+): Promise<void> {
   for (let attempt = 0; attempt < 15; attempt++) {
     const status = await providerJson(
       `${graph}/${id}?fields=status_code%2Cstatus`,
       { headers: headers(token) },
-      "Failed to check the Instagram media container",
+      `Failed to check the Instagram ${label}`,
       options,
     );
     const code =
       typeof status.status_code === "string"
         ? status.status_code.toUpperCase()
         : null;
-    if (code === "FINISHED") {
-      ready = true;
-      break;
-    }
+    if (code === "FINISHED") return;
     if (code !== null && !["IN_PROGRESS", "PENDING"].includes(code)) {
       const raw =
         typeof status.status_code === "string" ? status.status_code : "unknown";
@@ -301,22 +275,128 @@ export async function publishPostToInstagram(
         typeof status.status === "string" ? status.status.trim() : "";
       throw bad(
         detail
-          ? `Instagram media container ${raw}: ${Array.from(detail).slice(0, 300).join("")}`
-          : `Instagram media container returned terminal status ${raw}`,
+          ? `Instagram ${label} ${raw}: ${Array.from(detail).slice(0, 300).join("")}`
+          : `Instagram ${label} returned terminal status ${raw}`,
       );
     }
     if (attempt < 14) await (options.sleep ?? delay)(1000);
   }
-  if (!ready)
-    throw bad(
-      "Instagram media container did not become ready before the publish timeout",
+  throw bad(
+    `Instagram ${label} did not become ready before the publish timeout`,
+  );
+}
+
+export async function publishPostToInstagram(
+  config: CoreConfig,
+  encrypted: string,
+  account: string | null,
+  metadata: Record<string, unknown> | null,
+  images: string | string[],
+  caption: string,
+  options: ProviderOptions = {},
+): Promise<[string, string]> {
+  if (account === null)
+    throw bad("Instagram connection is missing an account identifier");
+  const urls = (Array.isArray(images) ? images : [images]).map((value) =>
+    value.trim(),
+  );
+  if (!urls.length)
+    throw bad("Attach at least one image before publishing to Instagram");
+  if (urls.length > 20)
+    throw bad("Instagram carousels can include at most 20 images");
+  for (const url of urls) httpsUrl(url, "Instagram");
+  const token = decryptSocialSecret(config, encrypted),
+    graph =
+      metadata?.authMethod === "instagram_login" ? INSTAGRAM_GRAPH : META_GRAPH;
+  let creationId: string;
+  if (urls.length === 1) {
+    const container = await providerJson(
+      `${graph}/${account}/media`,
+      {
+        method: "POST",
+        headers: headers(token),
+        body: new URLSearchParams({ image_url: urls[0]!, caption }),
+      },
+      "Failed to create the Instagram media container",
+      options,
     );
+    creationId = requireId(
+      container.id,
+      "Instagram did not return a media container identifier",
+    );
+    await waitForInstagramContainer(
+      graph,
+      token,
+      creationId,
+      "media container",
+      options,
+    );
+  } else {
+    const children: string[] = [];
+    for (const url of urls) {
+      const container = await providerJson(
+        `${graph}/${account}/media`,
+        {
+          method: "POST",
+          headers: headers(token),
+          body: new URLSearchParams({
+            image_url: url,
+            is_carousel_item: "true",
+          }),
+        },
+        "Failed to create an Instagram carousel item",
+        options,
+      );
+      children.push(
+        requireId(
+          container.id,
+          "Instagram did not return a carousel item identifier",
+        ),
+      );
+    }
+    await Promise.all(
+      children.map((child, index) =>
+        waitForInstagramContainer(
+          graph,
+          token,
+          child,
+          `carousel item ${index + 1} container`,
+          options,
+        ),
+      ),
+    );
+    const container = await providerJson(
+      `${graph}/${account}/media`,
+      {
+        method: "POST",
+        headers: headers(token),
+        body: new URLSearchParams({
+          media_type: "CAROUSEL",
+          children: children.join(","),
+          caption,
+        }),
+      },
+      "Failed to create the Instagram carousel container",
+      options,
+    );
+    creationId = requireId(
+      container.id,
+      "Instagram did not return a carousel container identifier",
+    );
+    await waitForInstagramContainer(
+      graph,
+      token,
+      creationId,
+      "carousel container",
+      options,
+    );
+  }
   const posted = await providerJson(
     `${graph}/${account}/media_publish`,
     {
       method: "POST",
       headers: headers(token),
-      body: new URLSearchParams({ creation_id: id }),
+      body: new URLSearchParams({ creation_id: creationId }),
     },
     "Failed to publish the Instagram post",
     options,

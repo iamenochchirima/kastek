@@ -93,6 +93,66 @@ test("provider publishing fixtures preserve multi-stage calls, trusted uploads, 
     ),
     ["ig-post", "caption"],
   );
+  const carouselStart = calls.length;
+  assert.deepEqual(
+    await publishPostToInstagram(
+      config,
+      encrypted,
+      "ig-id",
+      { authMethod: "instagram_login" },
+      [
+        "https://synthetic.example/one.png",
+        "https://synthetic.example/two.png",
+      ],
+      "carousel caption",
+      {
+        fetch: fixture([
+          response({ id: "ig-child-1" }),
+          response({ id: "ig-child-2" }),
+          response({ status_code: "FINISHED" }),
+          response({ status_code: "FINISHED" }),
+          response({ id: "ig-carousel" }),
+          response({ status_code: "FINISHED" }),
+          response({ id: "ig-carousel-post" }),
+        ]),
+        sleep: async () => {
+          throw Error("unexpected sleep");
+        },
+      },
+    ),
+    ["ig-carousel-post", "carousel caption"],
+  );
+  const carouselCalls = calls.slice(carouselStart);
+  assert.equal(carouselCalls.length, 7);
+  const firstChild = carouselCalls[0]!.init.body as URLSearchParams;
+  assert.equal(firstChild.get("image_url"), "https://synthetic.example/one.png");
+  assert.equal(firstChild.get("is_carousel_item"), "true");
+  assert.equal(firstChild.get("caption"), null);
+  const secondChild = carouselCalls[1]!.init.body as URLSearchParams;
+  assert.equal(secondChild.get("image_url"), "https://synthetic.example/two.png");
+  assert.equal(secondChild.get("is_carousel_item"), "true");
+  const carousel = carouselCalls[4]!.init.body as URLSearchParams;
+  assert.equal(carousel.get("media_type"), "CAROUSEL");
+  assert.equal(carousel.get("children"), "ig-child-1,ig-child-2");
+  assert.equal(carousel.get("caption"), "carousel caption");
+  assert.equal(
+    (carouselCalls[6]!.init.body as URLSearchParams).get("creation_id"),
+    "ig-carousel",
+  );
+  await assert.rejects(
+    publishPostToInstagram(
+      config,
+      encrypted,
+      "ig-id",
+      null,
+      Array.from(
+        { length: 21 },
+        (_, index) => `https://synthetic.example/${index}.png`,
+      ),
+      "too many",
+    ),
+    /at most 20 images/,
+  );
   assert.deepEqual(
     await publishPostToLinkedin(
       config,
@@ -183,8 +243,8 @@ test(
     });
     try {
       await pool.query(`CREATE TYPE "SocialPlatform" AS ENUM('FACEBOOK','INSTAGRAM','THREADS','TIKTOK','BLUESKY','LINKEDIN','X');CREATE TYPE "SocialChannelStatus" AS ENUM('CONNECTED','DISCONNECTED','NEEDS_REAUTH');CREATE TYPE "SocialPostStatus" AS ENUM('DRAFT','SCHEDULED','PROCESSING','PUBLISHED','FAILED');CREATE TYPE "SocialVariantStatus" AS ENUM('DRAFT','APPROVED','NEEDS_EDITS');CREATE TYPE "SocialPublishJobStatus" AS ENUM('PENDING','QUEUED','PROCESSING','PUBLISHED','FAILED','CANCELED');CREATE TYPE "ContentMediaProcessingStatus" AS ENUM('READY','FAILED');CREATE TYPE "ContentMediaScanStatus" AS ENUM('CLEAN','PENDING');
- CREATE TABLE "SocialChannelConnection"(id text PRIMARY KEY,"userId" text,"orgId" text,platform "SocialPlatform",status "SocialChannelStatus","displayName" text,handle text,"externalAccountId" text,"accessToken" text,"refreshToken" text,metadata jsonb,"lastSyncedAt" timestamp,"createdAt" timestamp DEFAULT NOW(),"updatedAt" timestamp DEFAULT NOW());
- CREATE TABLE "SocialPost"(id text PRIMARY KEY,"userId" text,"orgId" text,"primaryChannelId" text,title text,prompt text,content text,channels "SocialPlatform"[],status "SocialPostStatus","scheduledFor" timestamp,"publishedAt" timestamp,metadata jsonb,"createdAt" timestamp,"updatedAt" timestamp);
+ CREATE TABLE "SocialChannelConnection"(id text PRIMARY KEY,"userId" text,"orgId" text,platform "SocialPlatform",status "SocialChannelStatus","displayName" text,handle text,"externalAccountId" text,"accessToken" text,"refreshToken" text,metadata jsonb,"lastSyncedAt" timestamp,"createdAt" timestamp DEFAULT NOW(),"updatedAt" timestamp DEFAULT NOW(),"agentReviewRevision" bigint DEFAULT 1);
+ CREATE TABLE "SocialPost"(id text PRIMARY KEY,"userId" text,"orgId" text,"primaryChannelId" text,title text,prompt text,content text,channels "SocialPlatform"[],status "SocialPostStatus","scheduledFor" timestamp,"publishedAt" timestamp,metadata jsonb,"createdAt" timestamp,"updatedAt" timestamp,"agentReviewRevision" bigint DEFAULT 1);
  CREATE TABLE "SocialPostVariant"(id text PRIMARY KEY,"postId" text REFERENCES "SocialPost" ON DELETE CASCADE,platform "SocialPlatform",content text,status "SocialVariantStatus","aiGenerated" boolean,metadata jsonb,"createdAt" timestamp,"updatedAt" timestamp);
  CREATE TABLE "SocialPublishJob"(id text PRIMARY KEY,"userId" text,"orgId" text,"postId" text REFERENCES "SocialPost" ON DELETE CASCADE,"variantId" text,"channelConnectionId" text,platform "SocialPlatform",status "SocialPublishJobStatus","scheduledFor" timestamp,"publishedAt" timestamp,"externalPostId" text,"errorMessage" text,metadata jsonb,"deliverySnapshot" jsonb,"createdAt" timestamp,"updatedAt" timestamp);
  CREATE TABLE "ContentMediaAsset"(id text PRIMARY KEY,"orgId" text,kind text,"mimeType" text,"fileName" text,"byteSize" bigint,width integer,height integer,"durationMs" integer,"processingStatus" "ContentMediaProcessingStatus","scanStatus" "ContentMediaScanStatus");

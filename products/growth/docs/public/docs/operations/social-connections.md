@@ -135,7 +135,7 @@ and preflight. They do not describe every format a provider may support.
 | Destination | Growth formats |
 | --- | --- |
 | Facebook | Text; one image |
-| Instagram | One image with caption |
+| Instagram | One image or a carousel of up to 20 images with caption |
 | Threads | Text; one image |
 | TikTok | Video or photo through the supported upload/HTTPS media flow |
 | LinkedIn | Text; one image |

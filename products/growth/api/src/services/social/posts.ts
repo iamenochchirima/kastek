@@ -202,8 +202,8 @@ async function validateMedia(
     .filter((item) => item.assetId.trim() !== "")
     .map((item) => ({ ...item }));
   if (!media.length) return [];
-  if (media.length > 10)
-    throw bad("A post can include at most 10 media assets");
+  if (media.length > 20)
+    throw bad("A post can include at most 20 media assets");
   const ids = media.map((item) => item.assetId.trim());
   const available = (
     await pool.query<{ id: string; defaultAltText: string | null }>(SQL[8].replace("SELECT id", 'SELECT id,"defaultAltText"'), [orgId, ids])

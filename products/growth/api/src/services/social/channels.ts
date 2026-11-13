@@ -34,7 +34,13 @@ export function platformCapabilities(
           media: {
             images: {
               supported: images,
-              maxCount: images ? ["BLUESKY", "X"].includes(platform) ? 4 : 1 : 0,
+              maxCount: images
+                ? platform === "INSTAGRAM"
+                  ? 20
+                  : ["BLUESKY", "X"].includes(platform)
+                    ? 4
+                    : 1
+                : 0,
             },
             videos: { supported: videos, maxCount: videos ? 1 : 0 },
           },
