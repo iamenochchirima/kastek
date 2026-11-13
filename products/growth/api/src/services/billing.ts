@@ -66,6 +66,7 @@ export async function requireCapability(
   orgId: string,
   key: string,
 ): Promise<void> {
+  if (!billingEnforcementEnabled()) return;
   const definition = CAPABILITIES.find((item) => item.key === key);
   if (!definition) throw new ApiError(500, "internal_error", `Unknown capability: ${key}`);
   const snapshot = await getBillingSnapshot(pool, serviceConfig(), orgId);
@@ -97,6 +98,7 @@ export async function meterLimit(
   orgId: string,
   key: string,
 ): Promise<bigint | null> {
+  if (!billingEnforcementEnabled()) return null;
   const snapshot = await getBillingSnapshot(pool, serviceConfig(), orgId);
   const limit = snapshot.meters[key]?.limit;
   return limit == null ? null : BigInt(limit);
@@ -108,6 +110,7 @@ export async function resourceLimit(
   orgId: string,
   key: string,
 ): Promise<number | null> {
+  if (!billingEnforcementEnabled()) return null;
   const snapshot = await getBillingSnapshot(pool, serviceConfig(), orgId);
   const value = snapshot.limits[key];
   if (value === null || value === undefined) return null;
@@ -163,6 +166,7 @@ export async function requireMeterAvailable(
   key: string,
   quantity: number | bigint | string,
 ): Promise<void> {
+  if (!billingEnforcementEnabled()) return;
   const snapshot = await getBillingSnapshot(pool, serviceConfig(), orgId);
   const meter = snapshot.meters[key];
   if (
@@ -203,7 +207,7 @@ export async function recordMeterUsage(
       JSON.stringify(metadata ?? {}),
     ],
   );
-  if (inserted.rowCount) {
+  if (inserted.rowCount && billingEnforcementEnabled()) {
     const row = await pool.query<UsageOutboxRow>(
       `SELECT id, "orgId", "meterKey", quantity, "sourceType", "sourceId",
               "idempotencyKey", attempts, metadata

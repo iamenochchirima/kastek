@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { requireAiCredit, requireCapability, requireMeterAvailable, requireResourceLimit } from "../src/services/billing.js";
 import { analyticsQueryNeedsPlan } from "../src/routes/analytics.js";
+import { runBillingUsageForwarder } from "../src/workers/billing-usage-forwarder.js";
 
 test("seat and channel guards allow within the plan and deny above it", async () => {
   await requireResourceLimit(null as never, "org-guard", "limit.team_seats", 2);
@@ -42,6 +43,44 @@ test("content capabilities deny missing plan features", async () => {
     /not included/,
   );
   await requireCapability(null as never, "org-content", "feature.content.publish");
+});
+
+test("billing guards and the usage forwarder are disabled when central billing is not configured", async () => {
+  const keys = [
+    "BILLING_SERVICE_URL",
+    "BILLING_SERVICE_SECRET",
+    "BILLING_SNAPSHOT_SECRET",
+  ] as const;
+  const saved = new Map(keys.map((key) => [key, process.env[key]]));
+  for (const key of keys) delete process.env[key];
+  try {
+    await requireCapability(null as never, "org", "feature.content.manage");
+    await requireResourceLimit(null as never, "org", "limit.connected_channels", 100);
+    await requireMeterAvailable(null as never, "org", "social_publishes", 100);
+    await requireAiCredit(null as never, "org");
+
+    const warnings: Record<string, unknown>[] = [];
+    await runBillingUsageForwarder(
+      null as never,
+      null as never,
+      {
+        info() {},
+        warn(fields) {
+          warnings.push(fields);
+        },
+        error() {},
+      },
+      new AbortController().signal,
+    );
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0]?.reason, "billing_not_configured");
+  } finally {
+    for (const key of keys) {
+      const value = saved.get(key);
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });
 
 test("overview analytics stays free while full reports require the plan", () => {

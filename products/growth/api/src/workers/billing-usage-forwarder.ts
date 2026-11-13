@@ -14,8 +14,14 @@ export async function runBillingUsageForwarder(
   signal: AbortSignal,
 ): Promise<void> {
   const config = billingServiceConfig(process.env);
-  if (!config)
-    throw new Error("Central billing is required for the usage forwarder");
+  if (!config) {
+    log.warn({
+      event: "worker.disabled",
+      worker: "billing_usage_forwarder",
+      reason: "billing_not_configured",
+    });
+    return;
+  }
   log.info({ event: "worker.started", worker: "billing_usage_forwarder" });
   while (!signal.aborted) {
     try {

@@ -246,3 +246,83 @@ billing service rejects checkout. There are no `BILLING_LIMIT_REACHED`, `BILLING
   bounded 503 before the return-origin configuration was corrected.
 - Meter expiry and grace expiry run in the billing worker; the local worker was not left running.
   The verification called `expireCreditGrants` directly.
+
+## Production API availability hotfix (13 November 2026)
+
+```text
+Change: Keep the Growth API available when central billing is not configured.
+Owner: iamenochchirima
+Risk: medium
+Affected services and user surfaces: Growth API, background workers, billing enforcement, usage outbox.
+Platform release version or release ID: pending production deployment.
+API/schema/migration changes: none.
+Feature flag or rollout method: billing enforcement follows BILLING_SERVICE_URL, BILLING_SERVICE_SECRET and BILLING_SNAPSHOT_SECRET. Absent configuration disables enforcement.
+Analytics events and success metrics: no new events; success is `/health` 200 and the API worker group staying up.
+Logs, metrics, dashboards, and alerts: `worker.disabled` with `reason=billing_not_configured`; existing worker logs.
+User, API, internal, and operational documentation: this record.
+Validation evidence: Growth API full suite 113/113, including billing guards and process modes; Growth API typecheck.
+Rollback or disable plan: redeploy the previous Growth API image or configure central billing and redeploy.
+Post-release review date: 14 days after deployment.
+```
+
+### What changed
+
+- `billing_usage_forwarder` no longer throws when central billing is not configured. It logs
+  `worker.disabled` with `reason=billing_not_configured` and returns without aborting the other
+  API workers.
+- Billing guards (`requireCapability`, `resourceLimit`, `meterLimit`, `requireMeterAvailable`)
+  become no-ops when central billing is not configured, matching the existing
+  `billingEnforcementEnabled` behaviour already used by AI credits and public API metering.
+- `recordMeterUsage` still writes to `BillingUsageOutbox`, but skips immediate forwarding when
+  billing is not configured. Rows remain pending for the forwarder once billing is enabled.
+- Billing summary and admin billing endpoints still return 503 while central billing is absent.
+
+### Why
+
+The production `growth-api` crash-looped because `billing_usage_forwarder` required billing
+configuration the service did not have. The worker failure aborted the API worker group and
+terminated the process, so `/health` returned 502. This change prevents an optional integration
+from taking down the API.
+
+### Impact and limits
+
+- Until central billing is deployed and `BILLING_*` is configured, Growth feature and limit
+  enforcement is skipped. This is intended for the hotfix window only.
+- AI credit admission already skipped enforcement when billing was absent; this change makes the
+  other guards consistent.
+- Usage rows accumulate in `BillingUsageOutbox` and must be forwarded after billing is configured.
+- The billing page and billing summary endpoints remain unavailable.
+
+### Validation
+
+- Growth API test suite: 113/113 passed, including the no-billing billing guard path and the
+  process-mode test.
+- Growth API typecheck passed.
+- Local API started on port 4010 with `BILLING_*` empty: `/health` returned 200, the process
+  stayed up, and the log showed `worker.disabled` with `reason=billing_not_configured`.
+- Local API with `BILLING_*` configured logs `worker.started` for
+  `billing_usage_forwarder`.
+- With `BILLING_*` configured, confirm the forwarder forwards pending rows.
+
+### Rollout
+
+1. Build the Growth API image from the hotfix commit.
+2. Deploy it to the production `growth-api` service.
+3. Verify `https://api.kasitek.co.za/health` returns 200.
+4. Verify the process stays up for at least one worker interval and logs `worker.disabled`, not
+   `worker.failed`.
+5. Verify Growth web loads and a WhatsApp connection can be created and linked.
+
+### Rollback
+
+- Redeploy the previous Growth API image. Billing remains unavailable and the crash loop returns.
+- If central billing is configured first, remove this hotfix only after the forwarder starts
+  successfully with billing enabled.
+
+### Follow-up
+
+- Deploy the central billing service to production and set `BILLING_SERVICE_URL`,
+  `BILLING_SERVICE_SECRET` and `BILLING_SNAPSHOT_SECRET`.
+- Confirm `BillingUsageOutbox` drains and billing enforcement resumes.
+- Connect a WhatsApp number in the production KasiTek organization and link it to the production
+  Growth assistant.
