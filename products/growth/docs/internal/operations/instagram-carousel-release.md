@@ -98,4 +98,4 @@ Deployed on 13 November 2026 from `ffb092432`.
 - Follow-up `6d2f456f9` fixed the batch preflight Instagram media cap. Railway deployment
   `df32461e-3647-4d2c-a201-455ecdd0912e` reached `SUCCESS`; `https://api.kasitek.co.za/health`
   returned 200.
-- The live two-image carousel publish remains owner-run with the connected Instagram account.
+- The owner confirmed the production Instagram carousel publish works.
