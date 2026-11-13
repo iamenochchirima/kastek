@@ -274,10 +274,11 @@ test("content admission keeps unknown outcomes blocked and approval hashes stabl
   assert.equal(aggregateBatchStatus(3, 0, 1, 1, 0, 1, 0, 0), "PROCESSING");
   assert.equal(aggregateBatchStatus(3, 0, 0, 0, 0, 0, 3, 0), "BLOCKED");
   assert.equal(aggregateBatchStatus(3, 1, 0, 0, 1, 0, 0, 1), "UNKNOWN");
-  assert.deepEqual(platformMediaError("INSTAGRAM", ["IMAGE", "IMAGE"], 2), [
-    "media_count_exceeded",
-    "INSTAGRAM accepts at most 1 media item",
-  ]);
+  assert.equal(platformMediaError("INSTAGRAM", ["IMAGE", "IMAGE"], 2), undefined);
+  assert.deepEqual(
+    platformMediaError("INSTAGRAM", Array.from({ length: 21 }, () => "IMAGE"), 21),
+    ["media_count_exceeded", "INSTAGRAM accepts at most 20 media items"],
+  );
   assert.equal(platformMediaError("TIKTOK", ["VIDEO"], 1), undefined);
   assert.equal(textLengthError("X", "😀".repeat(280)), undefined);
   assert.equal(

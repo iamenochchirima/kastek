@@ -36,6 +36,7 @@ Post-release review date: 14 days after deployment.
   is attached.
 - Instagram media capability is 20 images in both the API and web. The general post media cap
   moves from 10 to 20 so the composer and durable delivery snapshot can carry the full carousel.
+- Batch preflight accepts up to 20 Instagram media items, matching the adapter and composer.
 - Facebook, Threads and LinkedIn remain single-image. X and Bluesky remain four images.
 
 ## Provider behavior
@@ -50,6 +51,7 @@ once; child containers do not receive the caption.
   the final publish call. It asserts `is_carousel_item=true`, ordered `children`, `media_type=CAROUSEL`
   and the caption on the parent. It also rejects a 21-image request before any provider call.
 - Capability test asserts `platformCapabilities("INSTAGRAM").media.images.maxCount === 20`.
+- Batch admission test allows two Instagram images and rejects 21 with the 20-item limit.
 - Growth API full suite: 187 passed, 98 skipped, 0 failed. Focused social files: 5 passed, 3 skipped.
 - Growth API typecheck, Growth web typecheck and production build passed.
 - `pnpm verify:boundaries` passed for 2,785 source and script files.

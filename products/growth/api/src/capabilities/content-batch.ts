@@ -100,7 +100,8 @@ export function platformMediaError(
     "BLUESKY",
     "X",
   ].includes(platform);
-  const max = ["BLUESKY", "X"].includes(platform) ? 4 : 1;
+  const max =
+    platform === "INSTAGRAM" ? 20 : ["BLUESKY", "X"].includes(platform) ? 4 : 1;
   if (!imageOnly && platform !== "TIKTOK")
     return [
       "unsupported_platform",
