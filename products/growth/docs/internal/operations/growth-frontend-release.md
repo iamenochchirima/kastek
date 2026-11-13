@@ -295,3 +295,23 @@ new UI or scheduling contract causes regressions; never replay campaigns during 
 
 Live template submission/sync, consenting calls and WhatsApp Inbox calling remain owner-run.
 No production release or model eval is implied by local engineering verification.
+
+## Production promotion — login redesign (13 November 2026)
+
+- Source: `398daac4369f6dafcb20d6dd1b1a1c08bddb3cb6`.
+- Artifact: clean detached worktree, Vercel prebuilt build for project `kasitek`.
+- Candidate: `https://kasitek-4aso5ajut-iamenochchirimas-projects.vercel.app`
+  (`dpl_BKKSFXsn3KVzMBuvMF3HkepqQfBr`).
+- Previous production: `https://kasitek-hyj6ooh96-iamenochchirimas-projects.vercel.app`
+  (`dpl_9UqHnSaFjiqQahmp8KCM54sjSWxu`), created 6 November 2026.
+- Promoted: `app.kasitek.co.za`. The live manifest `assets/manifest-6b9b45d5.js` points to
+  `assets/page-CELCFwus.js`, which contains `Welcome back.`, `Sign In | KasiTek Growth` and the
+  new auth shell.
+- Checks: Vercel prebuilt build; `pnpm --filter client typecheck`; `check:routes`; source ESLint
+  with 0 errors and 3 existing warnings. Candidate and production login chunks were compared.
+- Rollback: promote `dpl_9UqHnSaFjiqQahmp8KCM54sjSWxu` back to `app.kasitek.co.za`.
+- Not verified: authenticated production login, OAuth callbacks, passkeys and provider recovery
+  flows remain owner-run acceptance.
+
+The Agents login redesign was already live from the current `kasitek-agents` bundle. Agency has
+no resolving production host and remains deferred.

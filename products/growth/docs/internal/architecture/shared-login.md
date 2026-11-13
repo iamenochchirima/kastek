@@ -104,7 +104,10 @@ immediately denied organization access while leaving the identity session valid.
 method-link browser checks remain outstanding.
 Rollback: stop local services and revert this development change; no compatibility login
 mode. Restore only a deliberate development backup when schema recovery is necessary.
-Production monitoring and release date: pending production work.
+Production monitoring and release date: pending production work. The Growth frontend login refresh
+was promoted on 13 November 2026 from `398daac43` as deployment `dpl_BKKSFXsn3KVzMBuvMF3HkepqQfBr`;
+see [Release the Growth frontend](../operations/growth-frontend-release.md#production-promotion--login-redesign-13-november-2026).
+Full shared-login production acceptance remains pending.
 
 ## References
 
