@@ -255,6 +255,7 @@ Owner: iamenochchirima
 Risk: medium
 Affected services and user surfaces: Growth API, background workers, billing enforcement, usage outbox.
 Platform release version or release ID: pending production deployment.
+Hotfix commit: 8f4875414.
 API/schema/migration changes: none.
 Feature flag or rollout method: billing enforcement follows BILLING_SERVICE_URL, BILLING_SERVICE_SECRET and BILLING_SNAPSHOT_SECRET. Absent configuration disables enforcement.
 Analytics events and success metrics: no new events; success is `/health` 200 and the API worker group staying up.
