@@ -95,4 +95,7 @@ Deployed on 13 November 2026 from `ffb092432`.
   `INSTAGRAM ... media:{images:{supported:true,maxCount:20}`.
 - Production bundle `posts-workspace-CNBYnTHD.js` contains the updated fallback copy
   `Used only when no image is attached.`
+- Follow-up `6d2f456f9` fixed the batch preflight Instagram media cap. Railway deployment
+  `df32461e-3647-4d2c-a201-455ecdd0912e` reached `SUCCESS`; `https://api.kasitek.co.za/health`
+  returned 200.
 - The live two-image carousel publish remains owner-run with the connected Instagram account.
