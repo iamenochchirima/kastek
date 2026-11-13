@@ -584,11 +584,15 @@ does not verify inference or tools. Refresh failures retain selections and expos
 backoff. Reconnection requires explicit current-model reauthorization after revoked use.
 Reviewed official routes use native input-count endpoints before generation. Compatible
 routes label byte estimates; finite spending caps fail when no enforceable bound exists.
-OpenRouter, OpenAI, Anthropic, Google and the eight additional reviewed provider profiles have
-installed adapters. Controlled protocol fixtures do not establish live account acceptance.
-The editor previews effective limits against authorized cached metadata. Reviewed model-specific
-generation controls are optional; accepted tasks pin their settings and controls revision alongside
-the route. Schedules and evaluation trials retain exact accepted routes across default changes.
+OpenRouter, OpenCode, OpenAI, Anthropic, Google and the eight additional reviewed provider
+profiles have installed adapters. Controlled protocol fixtures do not establish live account
+acceptance.
+The editor previews effective limits against authorized cached metadata. Reasoning controls are
+capability-driven: gateway catalogues publish their effort sets and native routes use reviewed
+profiles. Only published levels are selectable; an unset level sends no reasoning parameter, and a
+model without published levels exposes no control. Accepted tasks pin their settings and controls
+revision alongside the route. Schedules and evaluation trials retain exact accepted routes across
+default changes.
 The existing observation pipeline records redacted invocation timing, usage and quota signals.
 Remaining acceptance work is listed in the [implementation status](../source-boundary.md).
 

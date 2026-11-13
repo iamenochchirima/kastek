@@ -150,7 +150,7 @@ export default env => ({...base(env),cacheDir:${JSON.stringify(resolve(evidenceD
       const configuration = defaultBusinessConfiguration();
       configuration.model.selection = { kind: "connection", connectionId: connection.id, modelId };
       configuration.model.maxOutputTokens = 4096;
-      if (model.capabilities.reasoning.value === true) configuration.model.generation = { reasoning: { kind: "effort", value: "low" } };
+      if (model.reasoningOptions?.efforts.includes("low")) configuration.model.generation = { reasoning: { kind: "effort", value: "low" } };
       configuration.instructions = "Call knowledge_search exactly once before replying to each user question. Use the tool result. If it has no approved passages, explain that no approved information is available. Do not invent opening hours or facts. Keep the final answer to one sentence.";
       configuration.tools = ["knowledge.search"];
       const created = await platform.createConfiguredAgent({ ...scope, name: "Live provider acceptance", configuration });

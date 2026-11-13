@@ -16,9 +16,13 @@ export async function connectFixtureModel(
   supportedParameters: string[] = ["tools"],
   pricing: { prompt: string; completion: string } = { prompt: "0", completion: "0" },
 ) {
+  const reasoning = supportedParameters.includes("reasoning")
+    ? { supported_efforts: ["low", "medium", "high", "none"], default_effort: "medium", default_enabled: true, mandatory: false }
+    : undefined;
   const store = new ModelProviderStore(pool, vault, builtinProviderRegistry, { discoveryFetch: async () => ({ status: 200,
     body: JSON.stringify({ data: [{ id: modelId, name: "Fixture model", context_length: 262144,
       top_provider: { max_completion_tokens: 32768 }, supported_parameters: supportedParameters,
+      ...(reasoning ? { reasoning } : {}),
       architecture: { input_modalities: ["text"], output_modalities: ["text"] }, pricing }] }) }) });
   const scope = { accountId, organizationId };
   const connection = await store.create(scope, { providerId: "openrouter", name: "Fixture", apiKey: "fixture-model-key" });

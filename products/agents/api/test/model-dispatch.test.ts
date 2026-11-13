@@ -250,6 +250,7 @@ describe("native input counter dispatch", () => {
   it("sends the pinned reviewed reasoning choice in the actual provider body", async () => {
     const route=officialRoute("openai_chat_completions","openrouter","https://openrouter.ai/api/v1");
     route.model.capabilities.reasoning={value:true,evidence:"discovered",source};
+    route.model.reasoningOptions={efforts:["low","medium","high"],defaultEffort:"medium",defaultEnabled:true,mandatory:false,supportsMaxTokens:false,source};
     route.generation={reasoning:{kind:"effort",value:"high"}};route.generationRevision=modelControlsRevision;
     route.binding.generationDigest=requestDigest({generation:route.generation,revision:modelControlsRevision});
     const state=input(route),server=await fixture("openai_chat_completions",undefined,200,undefined,"https://openrouter.ai");

@@ -50,6 +50,7 @@ describe("bounded provider model discovery", () => {
       id: "lab/model", name: "Lab model", context_length: 128000,
       top_provider: { context_length: 100000, max_completion_tokens: 16000 },
       supported_parameters: ["tools", "reasoning_effort", "structured_outputs"],
+      reasoning: { supported_efforts: ["high", "medium", "low", "none"], default_effort: "medium", default_enabled: true, mandatory: false, supports_max_tokens: true },
       architecture: { input_modalities: ["text", "image", "file"], output_modalities: ["text"] },
       pricing: { prompt: "0.0000001", completion: "0.0000004", input_cache_read: "0.000000025", input_cache_write: "0.000000125" },
     }] });
@@ -64,11 +65,53 @@ describe("bounded provider model discovery", () => {
         tools: { value: true, evidence: "discovered", source }, reasoning: { value: true, evidence: "discovered", source },
         structuredOutput: { value: true, evidence: "discovered", source },
       },
+      reasoningOptions: { efforts: ["high", "medium", "low", "none"], defaultEffort: "medium", defaultEnabled: true, mandatory: false, supportsMaxTokens: true, source },
       pricing: { currency: "USD", inputMicrosPerMillionTokens: 100000, outputMicrosPerMillionTokens: 400000, cachedInputMicrosPerMillionTokens: 25000, cacheWriteMicrosPerMillionTokens: 125000, source },
     });
     expect(model.revision).toMatch(/^[a-f0-9]{64}$/);
     expect((await discoverProviderModels(provider, options)).models[0]!.revision).toBe(model.revision);
     expect(JSON.stringify(model)).not.toContain("verified");
+  });
+
+  it("keeps only canonical published efforts and ignores unknown values", async () => {
+    const { provider, options } = setup("openrouter", { data: [{
+      id: "deepseek/deepseek-v4.1-flash-1017", supported_parameters: ["tools", "reasoning"],
+      reasoning: { supported_efforts: ["max", "high", "low", "none", "ultra"], default_effort: "high", mandatory: false },
+    }] });
+    const model = (await discoverProviderModels(provider, options)).models[0]!;
+    const source = { kind: "discovery", reference: "https://openrouter.ai/api/v1/models", observedAt };
+    expect(model.reasoningOptions).toMatchObject({ efforts: ["max", "high", "low", "none"], defaultEffort: "high", defaultEnabled: null, mandatory: false, supportsMaxTokens: false, source });
+  });
+
+  it("normalizes OpenCode catalogue metadata, including free models, without inventing capabilities", async () => {
+    const { provider, options, fetch } = setup("opencode", { data: [{
+      id: "deepseek-v4.1-flash-free", name: "DeepSeek V4.1 Flash Free",
+      modalities: { input: ["text"], output: ["text"] },
+      capabilities: { tools: { supported: true, choice: ["auto", "none", "required", "tool"] }, reasoning: { supported: true, toggle: true, effort: ["low", "high", "max"] }, structured_output: true },
+      limit: { context: 200000, input: 160000, output: 32000 },
+      cost: { text: { input: { price: 0, cache: { read: 0 } }, output: { price: 0 } } },
+    }] });
+    const result = await discoverProviderModels(provider, options);
+    const model = result.models[0]!;
+    const source = { kind: "discovery", reference: "https://opencode.ai/inference/openai/v1/models", observedAt };
+    expect(fetch.mock.calls[0]![0]).toMatchObject({
+      url: "https://opencode.ai/inference/openai/v1/models",
+      headers: { Accept: "application/json", Authorization: `Bearer ${privateKey}` },
+    });
+    expect(result).toMatchObject({ kind: "discovered", visibility: "public_catalog" });
+    expect(model).toMatchObject({
+      id: "deepseek-v4.1-flash-free", contextTokens: { value: 200000, source },
+      maxInputTokens: { value: 160000, source }, maxOutputTokens: { value: 32000, source },
+      inputModalities: ["text"], outputModalities: ["text"],
+      capabilities: {
+        tools: { value: true, evidence: "discovered", source },
+        reasoning: { value: true, evidence: "discovered", source },
+        structuredOutput: { value: true, evidence: "discovered", source },
+      },
+      reasoningOptions: { efforts: ["low", "high", "max"], defaultEffort: null, defaultEnabled: null, mandatory: false, supportsMaxTokens: false, source },
+      pricing: { currency: "USD", inputMicrosPerMillionTokens: 0, outputMicrosPerMillionTokens: 0, cachedInputMicrosPerMillionTokens: 0, cacheWriteMicrosPerMillionTokens: null, source },
+    });
+    expect(JSON.stringify(model)).not.toContain(privateKey);
   });
 
   it("distinguishes absent capabilities and unrepresentable prices from explicitly unsupported and free", async () => {
@@ -79,6 +122,7 @@ describe("bounded provider model discovery", () => {
     ] });
     const result = await discoverProviderModels(provider, options);
     expect(result.models[0]!.capabilities.tools.value).toBeNull();
+    expect(result.models[0]!.reasoningOptions).toBeNull();
     expect(result.models[0]!.pricing).toMatchObject({ inputMicrosPerMillionTokens: null, outputMicrosPerMillionTokens: null });
     expect(result.models[1]!.capabilities.tools).toMatchObject({ value: false, evidence: "discovered" });
     expect(result.models[1]!.pricing).toMatchObject({ inputMicrosPerMillionTokens: 0, outputMicrosPerMillionTokens: 0 });

@@ -185,6 +185,19 @@ picker filters platform-managed connections to free models and reports that the 
 exhausted. Customer-supplied provider connections remain independent of that allowance filter on
 paid plans.
 
+Model changes publish immediately. Saving a model from the agent's Model section builds the
+configuration from the saved draft, creates a new immutable version, and repoints active website
+and channel deployments in the same request. Unrelated unsaved edits are not included. The
+page-level Save changes remains for the rest of the configuration.
+
+Reasoning is capability-driven. The picker appears only when the selected route publishes effort
+levels, either through OpenRouter or OpenCode catalogue metadata or through a reviewed native
+provider profile. It shows Provider default plus only the published levels; `xhigh` is labelled
+Extra high and `max` is labelled Maximum. When no level is chosen, no reasoning field is sent and
+the model uses its native default. When a model publishes no levels, no control is shown. Token
+budget-only controls are not editable; an existing saved budget remains visible with an explicit
+reset to the model default.
+
 ## Growth configuration
 
 Growth owns `products/growth/api/src/agents/manifest.ts`. Its four presets are Growth assistant,

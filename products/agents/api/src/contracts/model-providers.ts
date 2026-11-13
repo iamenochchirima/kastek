@@ -50,6 +50,20 @@ const sourcedCapability = z.strictObject({
 }).refine(field => field.value === null ? field.evidence === "unknown" : field.source !== null && field.evidence !== "unknown",
   "Capability evidence must agree with its value");
 
+export const reasoningEffortSchema = z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
+export type ReasoningEffort = z.infer<typeof reasoningEffortSchema>;
+
+/** Published per-model effort controls. A model with no selectable levels has no entry. */
+export const reasoningOptionsSchema = z.strictObject({
+  efforts: z.array(reasoningEffortSchema).min(1).refine(values => new Set(values).size === values.length, "Efforts must be unique"),
+  defaultEffort: reasoningEffortSchema.nullable(),
+  defaultEnabled: z.boolean().nullable(),
+  mandatory: z.boolean(),
+  supportsMaxTokens: z.boolean(),
+  source: metadataSourceSchema,
+});
+export type ReasoningOptions = z.infer<typeof reasoningOptionsSchema>;
+
 export const modelDescriptorSchema = z.strictObject({
   id: modelIdSchema,
   providerId: identifier,
@@ -60,6 +74,7 @@ export const modelDescriptorSchema = z.strictObject({
   maxInputTokens: sourcedCapacity,
   maxOutputTokens: sourcedCapacity,
   capabilities: z.strictObject({ tools: sourcedCapability, reasoning: sourcedCapability, structuredOutput: sourcedCapability }),
+  reasoningOptions: reasoningOptionsSchema.nullable().optional(),
   inputModalities: z.array(z.enum(["text", "image", "audio", "video"])),
   outputModalities: z.array(z.enum(["text", "image", "audio", "video"])),
   pricing: z.strictObject({

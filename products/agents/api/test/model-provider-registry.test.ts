@@ -8,7 +8,7 @@ describe("reviewed inference provider registry", () => {
   it("loads data snapshots independently of credential and adapter installation", () => {
     expect(parseProviderRegistry(JSON.stringify(profiles))).toEqual(builtinProviderRegistry);
     expect(builtinProviderRegistry.map(provider => provider.id)).toEqual([
-      "openrouter", "openai", "anthropic", "google", "xai", "deepseek", "mistral", "groq", "together", "fireworks", "moonshot", "zai",
+      "openrouter", "opencode", "openai", "anthropic", "google", "xai", "deepseek", "mistral", "groq", "together", "fireworks", "moonshot", "zai",
     ]);
     expect(builtinProviderRegistry.filter(provider => provider.adapter.readiness === "installed").map(provider => provider.id)).toEqual(builtinProviderRegistry.map(provider => provider.id));
     expect(getProviderDefinition("missing")).toBeUndefined();

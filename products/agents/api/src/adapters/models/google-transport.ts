@@ -116,7 +116,7 @@ export async function callGoogleProviderModel(request: ProviderTransportRequest,
       thinkingConfig = request.reasoning.thinkingConfig;
       if (Object.keys(thinkingConfig).some(key => !["thinkingBudget", "thinkingLevel", "includeThoughts"].includes(key)) ||
           thinkingConfig.thinkingBudget !== undefined && (!count(thinkingConfig.thinkingBudget) || thinkingConfig.thinkingBudget > request.maxOutputTokens) ||
-          thinkingConfig.thinkingLevel !== undefined && !["MINIMAL", "LOW", "MEDIUM", "HIGH"].includes(String(thinkingConfig.thinkingLevel)) ||
+          thinkingConfig.thinkingLevel !== undefined && !["MINIMAL", "LOW", "MEDIUM", "HIGH", "XHIGH"].includes(String(thinkingConfig.thinkingLevel)) ||
           thinkingConfig.includeThoughts !== undefined && typeof thinkingConfig.includeThoughts !== "boolean") throw rejected("MODEL_REASONING_CONFIGURATION_INVALID");
     }
     const payload: JsonObject = { contents,

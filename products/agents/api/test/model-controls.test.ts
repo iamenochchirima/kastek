@@ -16,15 +16,44 @@ import { loadExecution } from "../src/execution/lifecycle/execution";
 const source={kind:"official" as const,reference:"controlled-model-metadata",observedAt:"2026-10-21T00:00:00.000Z"};
 function descriptor(providerId:string,id:string,protocol:ModelDescriptor["protocol"]):ModelDescriptor {
  return {providerId,id,protocol,name:id,revision:"fixture",contextTokens:{value:262144,source},maxInputTokens:{value:null,source:null},maxOutputTokens:{value:32768,source},
-  capabilities:{tools:{value:true,evidence:"verified",source},reasoning:{value:true,evidence:"discovered",source},structuredOutput:{value:null,evidence:"unknown",source:null}},inputModalities:["text"],outputModalities:["text"],pricing:null,lifecycle:"active"};
+  capabilities:{tools:{value:true,evidence:"verified",source},reasoning:{value:true,evidence:"discovered",source},structuredOutput:{value:null,evidence:"unknown",source:null}},
+  ...(providerId==="openrouter"?{reasoningOptions:{efforts:["low","medium","high"] as const,defaultEffort:"medium" as const,defaultEnabled:true,mandatory:false,supportsMaxTokens:false,source}}:{}),
+  inputModalities:["text"],outputModalities:["text"],pricing:null,lifecycle:"active"};
 }
 describe("reviewed model generation controls",()=>{
  it("keeps effort choices model-specific and hides unknown compatibility",()=>{
   const model=descriptor("openai","gpt-5.1","openai_responses"),policy={maxOutputTokens:4096};
   expect(modelControls(model,policy,"https://api.openai.com/v1").reasoning?.values).toEqual(["none","low","medium","high"]);
+  const undiscovered={...model,capabilities:{...model.capabilities,reasoning:{value:null,evidence:"unknown" as const,source:null}}};
+  expect(modelControls(undiscovered,policy,"https://api.openai.com/v1").reasoning?.values).toEqual(["none","low","medium","high"]);
   expect(modelControls({...model,id:"gpt-5-pro"},policy,"https://api.openai.com/v1").reasoning).toBeNull();
   expect(modelControls(model,policy,"https://private.example/v1").reasoning).toBeNull();
   expect(()=>validateGeneration(model,policy,"https://api.openai.com/v1",{reasoning:{kind:"effort",value:"max"}})).toThrow("MODEL_REASONING_CONFIGURATION_INVALID");
+ });
+ it("uses published gateway efforts and never invents a fallback",()=>{
+  const model:ModelDescriptor={...descriptor("openrouter","deepseek/deepseek-v4.1-flash-1017","openai_chat_completions"),
+    reasoningOptions:{efforts:["max","high","low","none"],defaultEffort:"high",defaultEnabled:true,mandatory:false,supportsMaxTokens:false,source}};
+  expect(modelControls(model,{maxOutputTokens:4096},"https://openrouter.ai/api/v1").reasoning).toMatchObject({
+    kind:"effort",values:["max","high","low","none"],default:"high",mandatory:false,supportsMaxTokens:false});
+  expect(()=>validateGeneration(model,{maxOutputTokens:4096},"https://openrouter.ai/api/v1",{reasoning:{kind:"effort",value:"medium"}}))
+    .toThrow("MODEL_REASONING_CONFIGURATION_INVALID");
+  expect(()=>validateGeneration(model,{maxOutputTokens:4096},"https://openrouter.ai/api/v1",{reasoning:{kind:"effort",value:"none"}})).not.toThrow();
+  expect(modelControls({...model,reasoningOptions:null},{maxOutputTokens:4096},"https://openrouter.ai/api/v1").reasoning).toBeNull();
+ });
+ it("rejects off when the model requires reasoning",()=>{
+  const model:ModelDescriptor={...descriptor("openrouter","fixture/mandatory","openai_chat_completions"),
+    reasoningOptions:{efforts:["none","high"],defaultEffort:"high",defaultEnabled:true,mandatory:true,supportsMaxTokens:false,source}};
+  expect(()=>validateGeneration(model,{maxOutputTokens:4096},"https://openrouter.ai/api/v1",{reasoning:{kind:"effort",value:"none"}}))
+    .toThrow("MODEL_REASONING_CONFIGURATION_INVALID");
+  expect(()=>validateGeneration(model,{maxOutputTokens:4096},"https://openrouter.ai/api/v1",{reasoning:{kind:"effort",value:"high"}})).not.toThrow();
+ });
+ it("leaves native thinking parameters absent when no reasoning is configured",()=>{
+  const anthropicPayload:Record<string,unknown>={max_tokens:4096};
+  applyGeneration(descriptor("anthropic","claude-sonnet-5-5","anthropic_messages"),{maxOutputTokens:4096},"https://api.anthropic.com/v1",{},anthropicPayload);
+  expect(anthropicPayload).not.toHaveProperty("thinking");expect(anthropicPayload).not.toHaveProperty("output_config");
+  const googlePayload:Record<string,unknown>={generationConfig:{maxOutputTokens:4096}};
+  applyGeneration(descriptor("google","gemini-4-hydrogen","google_generate_content"),{maxOutputTokens:4096},"https://generativelanguage.googleapis.com/v1beta",{},googlePayload);
+  expect(googlePayload.generationConfig).not.toHaveProperty("thinkingConfig");
  });
  it("enforces sourced manual-thinking ranges within the actual reply allowance",()=>{
   const model=descriptor("anthropic","claude-sonnet-4-5","anthropic_messages"),policy={maxOutputTokens:4096},endpoint="https://api.anthropic.com/v1";
@@ -58,6 +87,17 @@ describe("reviewed model generation controls",()=>{
     }});
   if(effort)expect(body!.reasoning).toEqual({effort});else expect(body).not.toHaveProperty("reasoning");
   expect(body).not.toHaveProperty("reasoning_effort");expect(body!.max_tokens).toBe(policy.maxOutputTokens);
+ });
+ it("sends OpenCode effort through the OpenAI-compatible reasoning_effort field",async()=>{
+  const model:ModelDescriptor={...descriptor("opencode","deepseek-v4.1-flash","openai_chat_completions"),
+    reasoningOptions:{efforts:["low","high","max"],defaultEffort:"high",defaultEnabled:true,mandatory:false,supportsMaxTokens:false,source}};
+  const endpoint="https://opencode.ai/inference/openai/v1";let body:Record<string,unknown>|undefined;
+  await callProviderModel({provider:model.providerId,protocol:model.protocol,model:model.id,baseUrl:endpoint,credentialRevision:"fixture",contextWindowTokens:262144,maxOutputTokens:4096,
+    reasoningCapable:true,messages:[{role:"user",content:"Hello"}]},{apiKey:"fixture-key",preparePayload:payload=>applyGeneration(model,{maxOutputTokens:4096},endpoint,{reasoning:{kind:"effort",value:"low"}},payload),fetch:async(_url,init)=>{
+      body=JSON.parse(String(init?.body));
+      return new Response(`data: ${JSON.stringify({id:"fixture-response",model:model.id,choices:[{index:0,delta:{role:"assistant",content:"Hello"},finish_reason:"stop"}]})}\n\ndata: [DONE]\n\n`,{headers:{"Content-Type":"text/event-stream"}});
+    }});
+  expect(body!.reasoning_effort).toBe("low");expect(body).not.toHaveProperty("reasoning");
  });
  it("keeps OpenRouter assistant reasoning continuity when preserving provider defaults",async()=>{
   const model=descriptor("openrouter","fixture/reasoning","openai_chat_completions"),policy={maxOutputTokens:4096},endpoint="https://openrouter.ai/api/v1";
@@ -98,7 +138,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  it("derives preview limits and errors without inference or authority changes",async()=>{
   const f=await fixture();try{
    const path=`/api/organizations/${f.org.id}/agents/${f.agent.id}/model-policy`,preview=await f.app.inject({method:"POST",url:path,payload:{configuration:f.configuration}});
-   expect(preview.statusCode).toBe(200);const body=preview.json();expect(body.errors).toEqual([]);expect(body.controls.reasoning).toMatchObject({kind:"effort",values:["low","medium","high"]});
+   expect(preview.statusCode).toBe(200);const body=preview.json();expect(body.errors).toEqual([]);expect(body.controls.reasoning).toMatchObject({kind:"effort",values:["low","medium","high","none"]});
    expect(body.limits).toMatchObject({maxRootTokens:null,maxOutputTokens:32768,maxCallDurationMs:120000});
    const bad=structuredClone(f.configuration);bad.context={maxInputTokens:8192,compactAtTokens:8192};
    const invalid=await f.app.inject({method:"POST",url:path,payload:{configuration:bad}});expect(invalid.statusCode).toBe(200);expect(invalid.json().errors.some((error:{field:string})=>error.field==="context.compactAtTokens")).toBe(true);

@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { requestDigest } from "../../contracts/contracts";
 import {
-  metadataSourceSchema, modelDescriptorSchema, modelEndpointSchema, providerDefinitionSchema,
-  type ModelDescriptor, type ProviderDefinition,
+  metadataSourceSchema, modelDescriptorSchema, modelEndpointSchema, providerDefinitionSchema, reasoningEffortSchema,
+  type ModelDescriptor, type ProviderDefinition, type ReasoningOptions,
 } from "../../contracts/model-providers";
 
 export interface ModelDiscoveryRequest {
@@ -93,6 +93,38 @@ function modalities(value: unknown): ModelDescriptor["inputModalities"] {
     value === "text" || value === "image" || value === "audio" || value === "video"))];
 }
 
+function efforts(value: unknown): ReasoningOptions["efforts"] {
+  const values = stringArray(value) ?? [];
+  return [...new Set(values.filter((value): value is ReasoningOptions["efforts"][number] =>
+    reasoningEffortSchema.safeParse(value).success))];
+}
+
+/** OpenRouter publishes selectable effort levels and their defaults on the model record. */
+function openRouterReasoningOptions(value: unknown, source: MetadataSource): ReasoningOptions | null {
+  const record = optionalObject(value), available = efforts(record?.supported_efforts);
+  if (!available.length) return null;
+  const rawDefault = record?.default_effort;
+  return {
+    efforts: available,
+    defaultEffort: typeof rawDefault === "string" && available.includes(rawDefault as ReasoningOptions["efforts"][number])
+      ? rawDefault as ReasoningOptions["efforts"][number] : null,
+    defaultEnabled: typeof record?.default_enabled === "boolean" ? record.default_enabled : null,
+    mandatory: record?.mandatory === true,
+    supportsMaxTokens: record?.supports_max_tokens === true,
+    source,
+  };
+}
+
+/** OpenCode publishes selectable effort levels under capabilities.reasoning.effort. */
+function openCodeReasoningOptions(value: unknown, source: MetadataSource): ReasoningOptions | null {
+  const record = optionalObject(value), available = efforts(record?.effort);
+  if (!available.length) return null;
+  return {
+    efforts: available, defaultEffort: null, defaultEnabled: null,
+    mandatory: record?.toggle === false, supportsMaxTokens: false, source,
+  };
+}
+
 /** OpenRouter prices are decimal USD/token strings; scale exactly to micro-USD/million tokens. */
 export function usdPerTokenToMicrosPerMillion(value: unknown): number | null {
   if (typeof value !== "string") return null;
@@ -118,6 +150,13 @@ export function usdPerTokenToMicrosPerMillion(value: unknown): number | null {
   return integer <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(integer) : null;
 }
 
+/** OpenCode publishes USD per million tokens as numbers, not per-token strings. */
+export function usdPerMillionToMicros(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+  const micros = Math.round(value * 1_000_000);
+  return Number.isSafeInteger(micros) ? micros : null;
+}
+
 function openRouterModel(record: JsonObject, model: ModelDescriptor, source: MetadataSource): void {
   const top = optionalObject(record.top_provider);
   model.contextTokens = positiveCapacity(record.context_length, source);
@@ -132,6 +171,8 @@ function openRouterModel(record: JsonObject, model: ModelDescriptor, source: Met
     reasoning: capability(parameters === undefined ? undefined : parameters.includes("reasoning") || parameters.includes("reasoning_effort"), source),
     structuredOutput: capability(parameters === undefined ? undefined : parameters.includes("structured_outputs"), source),
   };
+  model.reasoningOptions = openRouterReasoningOptions(record.reasoning, source);
+  if (model.reasoningOptions) model.capabilities.reasoning = capability(true, source);
   const architecture = optionalObject(record.architecture);
   model.inputModalities = modalities(architecture?.input_modalities);
   model.outputModalities = modalities(architecture?.output_modalities);
@@ -143,6 +184,41 @@ function openRouterModel(record: JsonObject, model: ModelDescriptor, source: Met
       outputMicrosPerMillionTokens: usdPerTokenToMicrosPerMillion(pricing.completion),
       cachedInputMicrosPerMillionTokens: usdPerTokenToMicrosPerMillion(pricing.input_cache_read),
       cacheWriteMicrosPerMillionTokens: usdPerTokenToMicrosPerMillion(pricing.input_cache_write),
+      source,
+    };
+    model.pricing = { ...normalized, revision: requestDigest(normalized) };
+  }
+}
+
+function opencodeModel(record: JsonObject, model: ModelDescriptor, source: MetadataSource): void {
+  const limit = optionalObject(record.limit);
+  model.contextTokens = positiveCapacity(limit?.context, source);
+  model.maxInputTokens = positiveCapacity(limit?.input, source);
+  model.maxOutputTokens = positiveCapacity(limit?.output, source);
+  const capabilities = optionalObject(record.capabilities);
+  const tools = optionalObject(capabilities?.tools);
+  const toolChoice = Array.isArray(tools?.choice) ? tools.choice : undefined;
+  const reasoning = optionalObject(capabilities?.reasoning);
+  model.capabilities = {
+    tools: capability(typeof tools?.supported === "boolean" ? tools.supported : toolChoice?.length ? true : undefined, source),
+    reasoning: capability(reasoning?.supported, source),
+    structuredOutput: capability(capabilities?.structured_output, source),
+  };
+  model.reasoningOptions = openCodeReasoningOptions(reasoning, source);
+  if (model.reasoningOptions) model.capabilities.reasoning = capability(true, source);
+  const modalitiesRecord = optionalObject(record.modalities);
+  model.inputModalities = modalities(modalitiesRecord?.input);
+  model.outputModalities = modalities(modalitiesRecord?.output);
+  const text = optionalObject(optionalObject(record.cost)?.text);
+  if (text) {
+    const input = optionalObject(text.input);
+    const output = optionalObject(text.output);
+    const normalized = {
+      currency: "USD" as const,
+      inputMicrosPerMillionTokens: usdPerMillionToMicros(input?.price),
+      outputMicrosPerMillionTokens: usdPerMillionToMicros(output?.price),
+      cachedInputMicrosPerMillionTokens: usdPerMillionToMicros(optionalObject(input?.cache)?.read),
+      cacheWriteMicrosPerMillionTokens: usdPerMillionToMicros(optionalObject(input?.cache)?.write),
       source,
     };
     model.pricing = { ...normalized, revision: requestDigest(normalized) };
@@ -178,10 +254,12 @@ function normalizeModel(record: JsonObject, provider: ProviderDefinition, source
     revision: "pending",
     contextTokens: { value: null, source: null }, maxInputTokens: { value: null, source: null }, maxOutputTokens: { value: null, source: null },
     capabilities: { tools: capability(undefined, source), reasoning: capability(undefined, source), structuredOutput: capability(undefined, source) },
+    reasoningOptions: null,
     inputModalities: [], outputModalities: [], pricing: null,
     lifecycle: lifecycle === "active" || lifecycle === "deprecated" || lifecycle === "retired" ? lifecycle : "unknown",
   };
   if (provider.id === "openrouter") openRouterModel(record, model, source);
+  else if (provider.id === "opencode") opencodeModel(record, model, source);
   else nativeModel(record, model, source);
   model.revision = requestDigest(model);
   return modelDescriptorSchema.parse(model);
@@ -251,7 +329,7 @@ export async function discoverProviderModels(provider: ProviderDefinition, optio
       models.push(model);
     }
     const result: ModelDiscoveryResult = {
-      kind: "discovered", visibility: configured.id === "openrouter" ? "public_catalog" : "credential_scoped", models,
+      kind: "discovered", visibility: configured.id === "openrouter" || configured.id === "opencode" ? "public_catalog" : "credential_scoped", models,
       observedAt: options.observedAt, complete: envelope.has_more !== true && !envelope.nextPageToken,
     };
     if (JSON.stringify(result).includes(options.apiKey)) throw new ModelDiscoveryError("invalid_response");

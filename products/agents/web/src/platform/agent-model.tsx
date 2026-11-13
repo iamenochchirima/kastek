@@ -11,7 +11,8 @@ type ModelPolicyPreview = {
     maxCallDurationMs: number | null; maxRootTokens: number | null; safetyTokens: number | null };
   effectivePolicy: Record<string, unknown> | null; errors: { field: string; message: string }[];
   controls: { temperature: { min: number; max: number; source: string } | null;
-    reasoning: { kind: "effort" | "budget" | "level"; values?: string[]; minTokens?: number; maxTokens?: number; source: string } | null };
+    reasoning: { kind: "effort" | "budget" | "level"; values?: string[]; minTokens?: number; maxTokens?: number;
+      default?: string | null; defaultEnabled?: boolean | null; mandatory?: boolean; supportsMaxTokens?: boolean; source: string } | null };
 };
 type Choice = { connection: ModelProviderConnection; model: ProviderModel; available: boolean; toolSupport: "supported" | "needs_verification" | "unsupported" };
 function useAgentModels(organizationId: string, agentId: string) {
@@ -45,7 +46,21 @@ function modelIncompatibility(choice: Choice, requiresTools: boolean): string | 
   if (requiresTools && choice.toolSupport === "needs_verification") return "Tool test required";
   return null;
 }
+const levelOrder = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
+function levelLabel(value: string): string {
+  if (value === "xhigh") return "Extra high";
+  if (value === "max") return "Maximum";
+  if (value === "none") return "Off";
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+function orderedLevels(values: readonly string[]): string[] {
+  return [...values].sort((left, right) => levelOrder.indexOf(left) - levelOrder.indexOf(right));
+}
 type Selection = NonNullable<Configuration["model"]["selection"]>;
+export type ModelSettingsPatch = {
+  selection?: Selection;
+  generation?: Configuration["model"]["generation"];
+};
 export function ChatModelPicker({ organizationId, agentId, configuration, dirty, saving, onSelect }: {
   organizationId: string; agentId: string; configuration: Configuration; dirty: boolean; saving: boolean;
   onSelect(selection: Selection): Promise<boolean>;
@@ -81,8 +96,9 @@ export function ChatModelPicker({ organizationId, agentId, configuration, dirty,
       <Link to="/app/settings" className="text-sm underline underline-offset-4">Manage model providers</Link>
     </>} />;
 }
-export function AgentModel({ organizationId, agentId, configuration, onChange }: {
+export function AgentModel({ organizationId, agentId, configuration, onChange, onSaveSettings }: {
   organizationId: string; agentId: string; configuration: Configuration; onChange(value: Configuration): void;
+  onSaveSettings?: (patch: ModelSettingsPatch) => Promise<boolean>;
 }) {
   const { choices, defaultModel, paidModelsAllowed, loading, error, reload } = useAgentModels(organizationId, agentId);
   const [policy, setPolicy] = useState<{ routeKey: string; value: ModelPolicyPreview } | null>(null), [previewError, setPreviewError] = useState("");
@@ -103,6 +119,9 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
     return () => { active = false; clearTimeout(timer); cancel.abort(); };
   }, [organizationId, agentId, configurationKey, routeKey]);
   const [pickerOpen, setPickerOpen] = useState(false), [modelSearch, setModelSearch] = useState(""), [pending, setPending] = useState(JSON.stringify(selection));
+  const [savingModel, setSavingModel] = useState(false), [saveError, setSaveError] = useState("");
+  const [savingReasoning, setSavingReasoning] = useState(false), [reasoningError, setReasoningError] = useState("");
+  const saving = savingModel || savingReasoning, readOnly = !onSaveSettings;
   const current = JSON.stringify(selection);
   const requiresTools = Boolean(configuration.tools?.length || configuration.connectedToolBindingIds?.length || configuration.skillIds?.length || configuration.procedures?.length);
   const incompatibility = (choice: Choice) => modelIncompatibility(choice, requiresTools);
@@ -124,40 +143,86 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
   const canSetContext=typeof automaticInput==="number"&&typeof automaticThreshold==="number";
   const generation = configuration.model.generation, reasoning = generation?.reasoning;
   const reasoningControl = controls?.reasoning;
-  const reasonValue = reasoning ? reasoning.kind === "budget" ? "budget" : reasoning.value : "provider_default";
-  const reasonSupported = !reasoning || reasoningControl?.kind === reasoning.kind && (reasoning.kind === "budget"
-    ? (reasoningControl.minTokens === undefined || reasoning.tokens >= reasoningControl.minTokens) && (reasoningControl.maxTokens === undefined || reasoning.tokens <= reasoningControl.maxTokens)
-    : Boolean(reasoningControl.values?.includes(reasoning.value)));
-  const unavailableGeneration = preview && generation && ((generation.temperature !== undefined && !controls?.temperature) || !reasonSupported);
+  const levelControl = reasoningControl?.kind === "effort" || reasoningControl?.kind === "level" ? reasoningControl : null;
+  const budgetControl = reasoningControl?.kind === "budget" ? reasoningControl : null;
+  const levelValues = orderedLevels((levelControl?.values ?? []).filter(value => !(value === "none" && levelControl?.mandatory)));
+  const reasonValue = reasoning?.kind === "effort" || reasoning?.kind === "level" ? reasoning.value : "provider_default";
+  const reasonSupported = !reasoning || (reasoning.kind === "budget"
+    ? Boolean(budgetControl) && (budgetControl!.minTokens === undefined || reasoning.tokens >= budgetControl!.minTokens) && (budgetControl!.maxTokens === undefined || reasoning.tokens <= budgetControl!.maxTokens)
+    : Boolean(levelValues.includes(reasoning.value)));
+  const defaultLabel = levelControl?.default && (levelControl.defaultEnabled === true || levelControl.mandatory === true)
+    ? `Provider default (${levelLabel(levelControl.default)})` : "Provider default";
+  const unavailableGeneration = preview && generation && generation.temperature !== undefined && !controls?.temperature;
   const fieldError = (name: string) => preview?.errors.filter(error => error.field === name || error.field.endsWith(`.${name}`) || error.field === "model.generation" && ["temperature", "reasoning"].includes(name)).map(error => error.message).join(" ") ?? "";
   const field = (name: string) => ({ "aria-invalid": Boolean(fieldError(name)), "aria-describedby": fieldError(name) ? errorsId : undefined });
   const effective = (name: string) => typeof preview?.effectivePolicy?.[name] === "number" ? Number(preview.effectivePolicy[name]).toLocaleString() : "Unknown";
   function update(values: Partial<Configuration["model"]>) { onChange({ ...configuration, model: { ...configuration.model, ...values } }); }
-  function applyModel() {
+  async function applyModel() {
     if (pending === current) { setPickerOpen(false); return; }
-    update({ selection: JSON.parse(pending) as Configuration["model"]["selection"] });
-    setPickerOpen(false);
+    const selection = JSON.parse(pending) as Configuration["model"]["selection"];
+    if (!onSaveSettings) { update({ selection }); setPickerOpen(false); return; }
+    setSavingModel(true); setSaveError("");
+    try {
+      if (await onSaveSettings({ selection })) setPickerOpen(false);
+    } catch (error) { setSaveError(message(error)); }
+    finally { setSavingModel(false); }
   }
-  function updateGeneration(values: Partial<NonNullable<Configuration["model"]["generation"]>>) {
+  function nextGeneration(values: Partial<NonNullable<Configuration["model"]["generation"]>>) {
     const next = { ...generation, ...values };
     if (next.temperature === undefined) delete next.temperature;
     if (next.reasoning === undefined) delete next.reasoning;
-    update({ generation: Object.keys(next).length ? next : undefined });
+    return Object.keys(next).length ? next : undefined;
+  }
+  function updateGeneration(values: Partial<NonNullable<Configuration["model"]["generation"]>>) {
+    update({ generation: nextGeneration(values) });
+  }
+  async function applyGeneration(next: Configuration["model"]["generation"]) {
+    if (!onSaveSettings) { update({ generation: next }); return; }
+    setSavingReasoning(true); setReasoningError("");
+    try { await onSaveSettings({ generation: next }); }
+    catch (error) { setReasoningError(message(error)); }
+    finally { setSavingReasoning(false); }
+  }
+  async function applyReasoning(value: string) {
+    if (!levelControl && value !== "provider_default") return;
+    await applyGeneration(nextGeneration({ reasoning: value === "provider_default" ? undefined
+      : { kind: levelControl!.kind === "level" ? "level" as const : "effort" as const, value } }));
   }
   return <div className="agent-model-section space-y-4">
     <div className="space-y-2">
       <span className="agent-model-heading">Model</span>
-      <AgentModelPicker label={`${selectedLabel}${selection.kind === "organization_default" ? " · Default" : ""}`}
+      <AgentModelPicker readOnly={readOnly} label={`${selectedLabel}${selection.kind === "organization_default" ? " · Default" : ""}`}
         ariaLabel={`Agent model: ${selectedLabel}`} open={pickerOpen}
-        onOpenChange={value => { if (value) { setPending(current); setModelSearch(""); } setPickerOpen(value); }}
+        onOpenChange={value => { if (value) { setPending(current); setModelSearch(""); setSaveError(""); } setPickerOpen(value); }}
         options={modelOptions} selectedId={pending} onSelect={setPending} search={modelSearch} onSearch={setModelSearch}
-        loading={loading} error={error} saveDisabled={pending === current || !modelOptions.some(option => option.id === pending && !option.disabled)}
-        onSave={applyModel} onReload={reload} description="Applies to this agent after saving changes."
+        disabled={saving} loading={loading} saving={savingModel} error={saveError || error} saveDisabled={pending === current || !modelOptions.some(option => option.id === pending && !option.disabled)}
+        onSave={() => void applyModel()} onReload={reload} description="Saves and publishes the model immediately."
         footer={<div className="space-y-2">
           {!paidModelsAllowed ? <p role="status" className="text-sm text-muted-foreground">AI allowance used up. Free managed models only. <Link className="underline underline-offset-4" to="/app/upgrade">Upgrade</Link></p> : null}
-          <p className="text-xs text-muted-foreground">Save changes to apply.</p>
+          <p className="text-xs text-muted-foreground">Selecting Save model publishes this change immediately.</p>
           <Link to="/app/settings" className="text-sm underline underline-offset-4">Manage model providers</Link>
         </div>} />
+      {levelControl ? (readOnly ? <div className="max-w-sm space-y-2 text-sm">
+        <p className="font-medium">Reasoning</p>
+        <p className="text-muted-foreground">{reasoning ? levelLabel(reasonValue) : defaultLabel}</p>
+      </div> : <label className="block max-w-sm space-y-2">
+        <span className="text-sm font-medium">Reasoning</span>
+        <select aria-label="Reasoning" aria-invalid={Boolean(reasoningError) || Boolean(fieldError("reasoning")) || Boolean(reasoning && !reasonSupported) || undefined} className="min-h-10 w-full rounded-md border bg-background p-2 text-sm" disabled={saving || checkingPolicy} value={reasonValue} onChange={event => void applyReasoning(event.target.value)}>
+          <option value="provider_default">{defaultLabel}</option>
+          {reasoning && !reasonSupported ? <option value={reasonValue}>Saved: {levelLabel(reasonValue)} (unavailable)</option> : null}
+          {levelValues.map(value => <option key={value} value={value}>{levelLabel(value)}</option>)}
+        </select>
+        {reasoningError ? <p role="alert" className="text-sm text-destructive">{reasoningError}</p> : null}
+      </label>) : budgetControl && reasoning?.kind === "budget" ? <div className="max-w-sm space-y-2 text-sm">
+        <p className="font-medium">Reasoning</p>
+        <p className="text-muted-foreground">Saved reasoning budget: {reasoning.tokens.toLocaleString()} tokens.</p>
+        {readOnly ? null : <button type="button" className="min-h-10 text-sm underline underline-offset-4" disabled={saving} onClick={() => void applyReasoning("provider_default")}>Reset to model default</button>}
+        {reasoningError ? <p role="alert" className="text-sm text-destructive">{reasoningError}</p> : null}
+      </div> : null}
+      {reasoning && !reasonSupported && !(budgetControl && reasoning.kind === "budget") ? <div className="max-w-sm space-y-2 text-sm">
+        <p role="alert" className="text-destructive">Saved reasoning is unavailable for this model.</p>
+        {readOnly ? null : <button type="button" className="min-h-10 text-sm underline underline-offset-4" disabled={saving} onClick={() => void applyGeneration(nextGeneration({ reasoning: undefined }))}>Reset to model default</button>}
+      </div> : null}
     </div>
     {!paidModelsAllowed ? <p role="status" className="text-sm text-muted-foreground">AI allowance used up. Free managed models only. <Link className="underline underline-offset-4" to="/app/upgrade">Upgrade</Link></p> : null}
     {available && (!available.available || available.model.lifecycle === "retired") && <p role="status" className="text-sm text-muted-foreground">Saved model unavailable. Choose another model.</p>}
@@ -187,17 +252,9 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
           <label className="block space-y-2">Compact at tokens<Input type="number" min={1} max={customContext.maxInputTokens-1} required {...field("compactAtTokens")} value={customContext.compactAtTokens} onChange={event => onChange({ ...configuration, context: { ...customContext,compactAtTokens:Number(event.target.value) } })} /></label></>:null}
           {controls?.temperature && <label className="block space-y-2">Temperature<Input aria-label="Temperature" type="number" step="any" min={controls.temperature.min} max={controls.temperature.max} placeholder="Provider default" {...field("temperature")}
             value={generation?.temperature ?? ""} onChange={event => updateGeneration({ temperature: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>}
-          {reasoningControl && <label className="block space-y-2">Reasoning<select aria-label="Reasoning" className="min-h-10 w-full rounded-md border bg-background p-2 font-normal" {...field("reasoning")} value={reasonValue}
-            onChange={event => updateGeneration({ reasoning: event.target.value === "provider_default" ? undefined : reasoningControl.kind === "budget" ? { kind: "budget", tokens: reasoningControl.minTokens ?? 1 } : { kind: reasoningControl.kind, value: event.target.value } })}>
-            <option value="provider_default">Provider default</option>
-            {reasoning && !reasonSupported && <option value={reasonValue}>Saved: {reasonValue} (unavailable)</option>}
-            {reasoningControl.kind === "budget" ? <option value="budget">Token budget</option> : reasoningControl.values?.map(value => <option value={value} key={value}>{value}</option>)}
-          </select></label>}
-          {reasoningControl?.kind === "budget" && reasoning?.kind === "budget" && <label className="block space-y-2">Reasoning tokens<Input aria-label="Reasoning tokens" type="number" min={reasoningControl.minTokens} max={reasoningControl.maxTokens} {...field("reasoning")} value={reasoning.tokens}
-            onChange={event => updateGeneration({ reasoning: { kind: "budget", tokens: Number(event.target.value) } })} /></label>}
         </div>
         {unavailableGeneration && <p role="alert" className="text-sm text-destructive">Saved generation settings are unavailable for this model.</p>}
-        {generation && Object.keys(generation).length > 0 && <button type="button" className="min-h-10 text-sm underline underline-offset-4" onClick={() => update({ generation: undefined })}>Reset provider defaults</button>}
+        {!readOnly && generation && Object.keys(generation).length > 0 && <button type="button" className="min-h-10 text-sm underline underline-offset-4" disabled={saving} onClick={() => void applyGeneration(undefined)}>Reset provider defaults</button>}
         {preview?.errors.length ? <ul id={errorsId} className="space-y-1 text-sm text-destructive" role="alert">{preview.errors.map((error, index) => <li key={`${error.field}:${index}`}>{error.message}</li>)}</ul> : null}
       </div>
     </details>

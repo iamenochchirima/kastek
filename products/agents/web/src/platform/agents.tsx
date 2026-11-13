@@ -22,7 +22,7 @@ import { AgentProcedures } from "./agent-procedures";
 import { AgentCatalogue } from "./catalogue";
 import { AnalysisConfiguration } from "./analysis-configuration";
 import { BookingPolicies } from "./booking-policies";
-import { AgentModel, ChatModelPicker } from "./agent-model";
+import { AgentModel, ChatModelPicker, type ModelSettingsPatch } from "./agent-model";
 import { AgentChannels } from "./agent-channels";
 import { WebsiteChannelSettings } from "./website-channel-settings";
 import { WebsiteKnowledgeImport } from "./website-knowledge-import";
@@ -92,7 +92,7 @@ export function AgentEditor() {
   const editableSection = canConfigure && (section === "knowledge" || section === "behaviour" || section === "capabilities");
   const blocker = useBlocker(({ currentLocation, nextLocation }) => !deleted.current && dirty && currentLocation.pathname !== nextLocation.pathname);
   useEffect(() => { if (blocker.state !== "blocked") return; let live = true; void confirm({ title: "Discard unsaved changes?", description: "Your configuration has not been saved.", confirmLabel: "Discard changes", variant: "destructive" }).then(discard => { if (live) { if (discard) blocker.proceed(); else blocker.reset(); } }); return () => { live = false; }; }, [blocker, confirm]);
-  async function applyConfiguration(configuration: Configuration, name: string, draftBefore = { name, configuration }, expectedRevision = agent?.draftRevision): Promise<boolean> {
+  async function applyConfiguration(configuration: Configuration, name: string, draftBefore = { name, configuration }, expectedRevision = agent?.draftRevision, successMessage?: string, preserveLocalDraft = false): Promise<boolean> {
     if (!agent) return false;
     if (!checkSupportHours(configuration)) return false;
     configuration = normalizedConfiguration(configuration);
@@ -108,9 +108,12 @@ export function AgentEditor() {
     }
     setAgent(result.agent);
     const unchanged = JSON.stringify(latestDraft.current) === JSON.stringify(draftBefore);
-    if (unchanged) { setName(result.agent.name); setConfiguration(result.agent.draft); }
+    if (!preserveLocalDraft && unchanged) { setName(result.agent.name); setConfiguration(result.agent.draft); }
     setVersions(current => [result.snapshot, ...current.filter(item => item.id !== result.snapshot.id)]);
-    refresh(); toast.success(unchanged ? "Changes saved" : "Changes saved. Newer edits remain unsaved.");
+    refresh();
+    const base = successMessage ?? "Changes saved";
+    toast.success(preserveLocalDraft ? (dirty ? `${base}. Other unsaved changes remain unsaved.` : base)
+      : (unchanged ? base : `${base}. Other unsaved changes remain unsaved.`));
     return true;
   }
   function checkSupportHours(value: Configuration): boolean {
@@ -141,6 +144,21 @@ export function AgentEditor() {
     if (!agent || !configuration) return;
     setBusy(true); setError("");
     try { await applyConfiguration(configuration, name); } catch (e) { setError(message(e)); } finally { setBusy(false); }
+  }
+  async function saveModelSettings(patch: ModelSettingsPatch): Promise<boolean> {
+    if (!agent) return false;
+    // Publish from the current saved draft so unrelated unsaved edits remain unsaved.
+    const { agent: currentAgent } = await api<{ agent: Agent }>(path);
+    const model = { ...currentAgent.draft.model, ...patch };
+    // Generation settings are model-specific. A model switch uses the new model's defaults.
+    if (patch.selection !== undefined) model.generation = undefined;
+    const next = { ...currentAgent.draft, model };
+    const saved = await applyConfiguration(next, currentAgent.name, { name: currentAgent.name, configuration: next }, currentAgent.draftRevision,
+      patch.selection !== undefined ? "Model published" : "Reasoning published", true);
+    if (saved) setConfiguration(current => current ? { ...current, model: {
+      ...current.model, ...patch, ...(patch.selection !== undefined ? { generation: undefined } : {}),
+    } } : current);
+    return saved;
   }
   async function changeChatModel(selection: NonNullable<Configuration["model"]["selection"]>) {
     if (!agent || busy || dirty) return false;
@@ -329,7 +347,7 @@ export function AgentEditor() {
           </section>
         </aside>
         <div className="agent-general-secondary">
-          <section className="agent-config-panel agent-config-model"><AgentModel key={`${organizationId}:${agent.id}`} organizationId={organizationId} agentId={agent.id} configuration={configuration} onChange={setConfiguration} /></section>
+          <section className="agent-config-panel agent-config-model"><AgentModel key={`${organizationId}:${agent.id}`} organizationId={organizationId} agentId={agent.id} configuration={configuration} onChange={setConfiguration} onSaveSettings={editableSection ? saveModelSettings : undefined} /></section>
           {agent.setup?.responsibilities.includes("customer-support") || configuration.supportHours || configuration.tools?.some(tool => tool.startsWith("support.") || tool === "channel.request_handoff") ? <section className="agent-config-panel agent-config-support" aria-label="Human support">
             <details className="agent-support-disclosure" ref={supportSection}>
               <summary><span>Human support</span><span className="agent-support-state" data-state={configuration.supportHours ? "set" : "unset"}>{configuration.supportHours ? "Configured" : "Not set"}</span></summary>

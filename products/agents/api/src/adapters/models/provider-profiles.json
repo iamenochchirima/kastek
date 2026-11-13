@@ -10,6 +10,16 @@
     "adapter": { "id": "openrouter-chat-completions", "revision": "2", "readiness": "installed" }
   },
   {
+    "id": "opencode",
+    "name": "OpenCode",
+    "protocol": "openai_chat_completions",
+    "baseUrl": "https://opencode.ai/inference/openai/v1",
+    "auth": { "kind": "bearer" },
+    "discovery": { "kind": "models_endpoint", "path": "/models" },
+    "officialDocsUrl": "https://opencode.ai/docs/zen/",
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
+  },
+  {
     "id": "openai",
     "name": "OpenAI",
     "protocol": "openai_responses",

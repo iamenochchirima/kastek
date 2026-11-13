@@ -56,7 +56,7 @@ export function emitModelInvocation(input: ModelInvocationEvent): void {
     if (result && typeof result.catch === "function") void result.catch(() => { /* Exporters are best effort. */ });
   } catch { /* Exporters are best effort. */ }
 }
-const providers = new Set(["openrouter", "openai", "anthropic", "google", "xai", "deepseek", "mistral", "groq", "together", "fireworks", "moonshot", "zai"]);
+const providers = new Set(["openrouter", "opencode", "openai", "anthropic", "google", "xai", "deepseek", "mistral", "groq", "together", "fireworks", "moonshot", "zai"]);
 /** Process-local attempts only. Database usage ledgers remain the accounting authority. */
 export function createModelInvocationMetrics(meter: Meter): () => void {
   const attempts = meter.createCounter("agents.model.invocations");
