@@ -14,8 +14,10 @@ Affected services and surfaces: Growth web sign-in at `app.kasitek.co.za`; Labs 
 `kasitek.co.za` and its Vercel project `kasitek-app`.
 
 API/schema/migration changes: not applicable. Feature flag or rollout method: no feature flag;
-Growth will be deployed as a prebuilt Vercel production artifact, and Labs as its linked Vercel
-project. Platform release version: `0.9.10`; release tag: `platform-v0.9.10`.
+Growth was deployed as a prebuilt Vercel production artifact, and Labs from the committed
+monorepo snapshot through its linked Vercel project. Platform release version: `0.9.10`;
+release tag: `platform-v0.9.10`; source commit:
+`2d34bd5d4d529e402e413ec03ee49ff31e9abdbe`.
 
 ## Measurement and observability
 
@@ -38,7 +40,14 @@ needed; the sign-in contract is unchanged.
 - Growth typecheck, focused ESLint, production build, and Vercel output packaging: passed under
   Node 24.15.0.
 - `pnpm verify:boundaries`: passed.
-- Vercel production deployments and HTTP smoke checks: pending.
+- Growth deployment `dpl_EeDJ2VCT8KMSuoF3TaigZSGNy1Kr` is `READY` at
+  `https://app.kasitek.co.za`; Labs deployment `dpl_2dsKAADgJKWePR97GPohxerjDgzA` is `READY` at
+  `https://kasitek.co.za`.
+- Production smoke checks passed: the Growth login route and new-copy bundle returned HTTP 200;
+  the Labs homepage, privacy policy, Analytics client bundle, and `/_vercel/insights/script.js`
+  returned HTTP 200. The new privacy disclosure appeared on the live policy page.
+- Loaded the live Labs homepage in a browser after deployment to trigger a real page view. Vercel
+  dashboard counts may take time to appear.
 - GitHub CI is not a deployment gate for this owner-requested direct Vercel rollout.
 
 Rollback: restore the prior Vercel deployment for each project. Disable Web Analytics in the
@@ -46,4 +55,4 @@ Rollback: restore the prior Vercel deployment for each project. Disable Web Anal
 Restore the prior privacy-policy text if tracking is removed.
 
 Post-release review: confirm production page views appear in the Vercel Analytics dashboard after
-deployment and normal traffic; data may take time to appear.
+normal traffic; data may take time to appear.
