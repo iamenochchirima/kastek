@@ -1,5 +1,4 @@
-import { ArrowUpRight } from "lucide-react";
-import { Link, Outlet } from "react-router";
+import { Outlet } from "react-router";
 
 import styles from "./auth-shell.module.css";
 
@@ -7,17 +6,15 @@ export function AuthShell() {
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
-        <header className={styles.topbar}>
-          <Link to="/" className={styles.brand} aria-label="KasiTek Growth home">
-            kasitek<span>/ growth</span>
-          </Link>
-          <Link to="/" className={styles.home}>
-            Back to home <ArrowUpRight size={14} aria-hidden="true" />
-          </Link>
-        </header>
-
         <main className={styles.main}>
           <div className={styles.card}>
+            <img
+              src="/logo.png"
+              alt="KasiTek"
+              width={36}
+              height={36}
+              className={styles.logo}
+            />
             <Outlet />
           </div>
           <p className={styles.legal}>
