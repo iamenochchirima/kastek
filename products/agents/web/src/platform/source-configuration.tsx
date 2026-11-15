@@ -107,10 +107,14 @@ export function SourceConfiguration({ agentId, sources, configuration, onChange,
   }
   const missingIds = ids.filter(id => !sources.some(source => source.revisions.some(revision => revision.id === id)));
   const attachedSources = sources.filter(source => source.revisions.some(revision => ids.includes(revision.id)));
+  const attachedBytes = attachedSources.reduce((total, source) => total
+    + (source.revisions.find(revision => ids.includes(revision.id))?.bytes ?? 0), 0);
+  const pinnedOverCore = configuration.knowledge?.mode === "pinned" && (attachedSources.length > 8 || attachedBytes > 6_000);
   const availableSources = sources.filter(source => source.state === "active" && source.revisions.some(revision => revision.state === "approved") && !source.revisions.some(revision => ids.includes(revision.id)));
   const pickerSources = availableSources.filter(source => source.title.toLowerCase().includes(pickerQuery.trim().toLowerCase()));
   return <div className="agent-knowledge-section">
     <div className="agent-knowledge-heading"><h2>Training data</h2><div className="flex flex-wrap gap-2">{action}<Button type="button" size="sm" variant="outline" onClick={() => { setPickerQuery(""); setPickerOpen(true); }}>Pick from workspace</Button></div></div>
+    {pinnedOverCore ? <p className="text-sm text-muted-foreground">Large source sets use retrieved knowledge.</p> : null}
     {!attachedSources.length && !missingIds.length ? <p className="agent-knowledge-empty">No sources attached. Add documents or pick from workspace.</p> :
     <div className="agent-knowledge-table-wrap"><table className="agent-knowledge-table"><thead><tr><th scope="col">Source</th><th scope="col">Status</th><th scope="col">Revision</th><th scope="col">Actions</th></tr></thead><tbody>
     {attachedSources.map(source => {

@@ -89,8 +89,23 @@ export class KnowledgeRuntime {
     return { passage: snippetDTO(passage), nextOffset: offset + text.length < row.content.length ? offset + text.length : null };
   }
 
-  /** Every leaf section of the pinned source revisions, in document order, capped by a character budget. */
-  async pinnedSources(taskId: string, budgetChars = 48_000): Promise<Array<{ id: string; revisionId: string; sourceId: string; title: string; headingPath: string; content: string }>> {
+  /** A legacy pinned agent stays pinned only when the whole leaf set fits pinned-core. */
+  async pinnedEligible(taskId: string, maxSections = 8, maxChars = 6_000): Promise<boolean> {
+    const execution = await loadExecution(this.pool, taskId), config = execution.configuration;
+    const row = (await this.pool.query(`SELECT count(*)::int AS sections,coalesce(sum(sec.chars),0)::int AS chars
+      FROM agents_platform.version_sources v
+      JOIN agents_platform.source_revisions r ON r.id=v.revision_id AND r.organization_id=v.organization_id
+      JOIN agents_platform.sources s ON s.id=v.source_id AND s.organization_id=v.organization_id
+      JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id AND p.organization_id=r.organization_id
+      JOIN agents_platform.source_sections sec ON sec.revision_id=r.id AND sec.organization_id=r.organization_id
+      WHERE v.organization_id=$1 AND v.version_id=$2 AND v.revision_id=ANY($3::uuid[]) AND s.state='active' AND p.state='approved'
+        AND NOT EXISTS(SELECT 1 FROM agents_platform.source_sections child WHERE child.revision_id=sec.revision_id AND child.parent_ordinal=sec.ordinal)`,
+    [execution.task.organization_id, execution.task.version_id, config.sourceRevisionIds])).rows[0];
+    return Boolean(row && row.sections > 0 && row.sections <= maxSections && row.chars <= maxChars);
+  }
+
+  /** Explicit pinned knowledge is reduced to pinned-core: at most eight leaf sections and about 2,000 rendered tokens. */
+  async pinnedSources(taskId: string, budgetChars = 6_000): Promise<Array<{ id: string; revisionId: string; sourceId: string; title: string; headingPath: string; content: string }>> {
     const execution = await loadExecution(this.pool, taskId), config = execution.configuration;
     const rows = (await this.pool.query(`SELECT sec.id,sec.revision_id,r.source_id,s.title,sec.heading_path,sec.content
       FROM agents_platform.version_sources v
@@ -106,6 +121,7 @@ export class KnowledgeRuntime {
     const selected: Array<{ id: string; revisionId: string; sourceId: string; title: string; headingPath: string; content: string }> = [];
     let used = 0;
     for (const row of rows) {
+      if (selected.length >= 8) break;
       const content = String(row.content);
       if (used + content.length > budgetChars) break;
       used += content.length;

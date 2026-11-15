@@ -27,6 +27,7 @@ export type Configuration = {
   productBindings?: unknown[];
   commissionableProductBindings?: unknown[];
   retrievalProfile?: { kind: "lexical-v1" } | { kind: "hybrid-v1"; embeddingRelease: string };
+  knowledge?: { mode: "auto" | "retrieved" | "agentic" | "pinned" };
   memory?: { enabled: boolean };
   context?: { mode: "automatic" } | { maxInputTokens: number; compactAtTokens: number };
   supportHours?: SupportHours;
