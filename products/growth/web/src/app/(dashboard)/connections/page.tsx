@@ -1,5 +1,6 @@
 import { useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import WhatsappEmbeddedSignupCard from "@/components/dashboard/settings/whatsapp-embedded-signup-card";
+import TelegramConnectionCard from "@/components/dashboard/settings/telegram-connection-card";
 import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsapp-manual-connection-card";
 import { ConnectionsManager, type MailboxConnection } from "@/components/dashboard/connections/connections-manager";
 import type { WhatsappConnectionView, WorkspaceConnection } from "@/lib/connections";
@@ -120,6 +121,8 @@ export default function ConnectionsPage() {
             capabilities: requestedCapabilities,
           } : undefined}
         />
+
+        <TelegramConnectionCard />
 
         <ConnectionsManager
           emailConnections={emailResponse.connections}

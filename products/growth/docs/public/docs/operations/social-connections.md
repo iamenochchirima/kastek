@@ -200,3 +200,18 @@ Request `business_management` only when the Solution Partner flow actually perfo
 portfolio operations that require it. Do not add it to the consent configuration merely to make
 the permission list look complete. The Meta app review submission must show the real user flow for
 each requested permission. A code release cannot complete this external approval gate.
+
+## Telegram and the Growth assistant
+
+Create a bot with `@BotFather` in Telegram, then open **Connections** → **Connect Telegram** in
+Growth and enter the bot name and token. The token is verified and stored by Agents; Growth keeps
+only the bot name, username and connection health. A bot can be connected to one Growth workspace.
+
+To route messages to the Growth assistant, open **Agents**, use the Growth assistant card menu and
+choose **Channels**. Link the Telegram bot or an eligible WhatsApp number after confirming the
+warning. Inbound messages then go to the assistant instead of the Growth Inbox. Unlink a channel to
+revoke the assistant route.
+
+Owners and admins can connect and change channels. Members can view the channel list. If Telegram
+setup is unavailable, the Growth deployment is missing the channel webhook origin or the Agents
+connection vault configuration.

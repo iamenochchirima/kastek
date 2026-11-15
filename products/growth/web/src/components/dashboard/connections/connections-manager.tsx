@@ -34,7 +34,7 @@ export type MailboxConnection = {
   id: string; provider: string; emailAddress: string; displayName: string; status: string;
   healthStatus: string; syncStatus: string; inboxStatus: string; inboundStatus: string; outboundStatus: string;
 };
-const providerPurposes: Record<string, string> = { WHATSAPP: "Customer messages", FACEBOOK: "Pages and messages", INSTAGRAM: "Messages and publishing", LINKEDIN: "Profiles and company publishing", THREADS: "Social publishing", TIKTOK: "Video publishing", X: "Posts and replies", BLUESKY: "Social publishing" };
+const providerPurposes: Record<string, string> = { WHATSAPP: "Customer messages", TELEGRAM: "Assistant messages", FACEBOOK: "Pages and messages", INSTAGRAM: "Messages and publishing", LINKEDIN: "Profiles and company publishing", THREADS: "Social publishing", TIKTOK: "Video publishing", X: "Posts and replies", BLUESKY: "Social publishing" };
 function MailBrand({ provider }: { provider: string }) {
   if (provider === "google") return <img src="/images/integrations/google-gmail.svg" width={28} height={28} alt="" />;
   return <FaMicrosoft className="size-7 text-blue-600" />;
@@ -47,6 +47,14 @@ const FacebookBrandIcon = getPlatformBrandIcon("FACEBOOK") ?? MessageCircle;
 const InstagramBrandIcon = getPlatformBrandIcon("INSTAGRAM") ?? MessageCircle;
 
 const providerDetails = {
+  TELEGRAM: {
+    label: "Telegram",
+    availableLabel: "Bots via Agents",
+    icon: getPlatformBrandIcon("TELEGRAM") ?? MessageCircle,
+    iconClass: getPlatformBrandColor("TELEGRAM"),
+    connectPath: "#telegram-setup",
+    connectLabel: "Connect",
+  },
   WHATSAPP: {
     label: "WhatsApp",
     availableLabel: "Available to connect",
@@ -206,7 +214,9 @@ function normalizeBlueskyHandle(value: string) {
 }
 
 function displayableConnections(connections: WorkspaceConnection[]) {
-  return connections.filter((connection) => connection.status !== "DISCONNECTED");
+  // Telegram is projected for shared access records, but its credential and routing controls
+  // live in the Telegram card or the Growth assistant, never in this generic editor.
+  return connections.filter((connection) => connection.status !== "DISCONNECTED" && connection.provider !== "TELEGRAM");
 }
 
 type AccessOption = (typeof ACCESS_OPTIONS)[number] & {
@@ -361,10 +371,11 @@ export function ConnectionsManager({
   const filteredMailboxes = emailConnections.filter(connection => matchesSearch([connection.displayName, connection.emailAddress, connection.provider]) && matchesStatus(emailStatus(connection)));
   const statuses = [...shownConnections.map(connection => connection.status), ...emailConnections.map(emailStatus)];
   const counts = { all: statuses.length, connected: statuses.filter(status => status === "CONNECTED").length, attention: statuses.filter(attention).length };
-  const catalogue = Object.entries(providerDetails).filter(([provider, detail]) => matchesSearch([provider, detail.label]) && (category === "all" || category === "messaging" && ["WHATSAPP", "FACEBOOK", "INSTAGRAM", "X"].includes(provider) || category === "publishing" && provider !== "WHATSAPP"));
+  const catalogue = Object.entries(providerDetails).filter(([provider, detail]) => matchesSearch([provider, detail.label]) && (category === "all" || category === "messaging" && ["WHATSAPP", "TELEGRAM", "FACEBOOK", "INSTAGRAM", "X"].includes(provider) || category === "publishing" && !["WHATSAPP", "TELEGRAM"].includes(provider)));
 
   function connectProvider(provider: string) {
     setAddOpen(false);
+    if (provider === "TELEGRAM") { document.getElementById("telegram-setup")?.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
     if (provider === "WHATSAPP") { beginWhatsappEmbeddedSignup(); return; }
     if (provider === "FACEBOOK" || provider === "INSTAGRAM") { setSelectedAccess(DEFAULT_ACCESS_KEYS); setInstagramConnectionMethod("instagram"); setConnectionPicker(provider); return; }
     if (provider === "BLUESKY") { setSelectedAccess(DEFAULT_ACCESS_KEYS); setBlueskyOpen(true); return; }

@@ -18,6 +18,15 @@ actual model route, child allocation and permitted source/tool scope. Updating a
 silently update a pin. A text draft remains private to its requesting member; saving to Growth or
 publishing content is not implemented by this feature.
 
+## Growth product assistant
+
+Growth's own assistant uses a separate product binding, not the organization-assistant member
+linking above. A Growth admin connects a Telegram bot in Growth → Connections and links it, or an
+eligible WhatsApp account, from the Growth assistant's Channels dialog. Agents resolves the
+`growth-assistant` target per workspace and acts through a product-owned service principal; the
+Growth user does not need an Agents account. The bot token stays in the Agents vault and is never
+projected into Growth. See [Growth assistant channels](../growth-integration.md#growth-product-assistant-channels).
+
 ## Enablement and linking
 
 Deploy matching API, worker and web code with schema094 and schema095; adaptive orchestration

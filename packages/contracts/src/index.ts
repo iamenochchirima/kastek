@@ -309,6 +309,7 @@ export * from "./admin-reporting-diagnostics.js";
 
 export * from "./growth-agent-provisioning.js";
 export * from "./growth-agent-channels.js";
+export * from "./growth-channel-admin.js";
 
 export * from "./admin-customers.js";
 

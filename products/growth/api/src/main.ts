@@ -20,6 +20,8 @@ import { registerAnalyticsRoutes } from "./routes/analytics.js";
 import { registerConnectionRoutes } from "./routes/connections.js";
 import { registerEarlyAccessRoutes } from "./routes/early-access.js";
 import { registerWhatsappConnectionRoutes } from "./routes/whatsapp-connections.js";
+import { registerTelegramConnectionRoutes } from "./routes/telegram-connections.js";
+import { registerAssistantChannelRoutes } from "./routes/assistant-channels.js";
 import { registerWhatsappMarketingRoutes } from "./routes/whatsapp.js";
 import { registerSocialRoutes } from "./routes/social.js";
 import { registerEmailRoutes } from "./routes/email.js";
@@ -192,6 +194,8 @@ export const CORE_REGISTRARS = [
   registerConnectionRoutes,
   registerEarlyAccessRoutes,
   registerWhatsappConnectionRoutes,
+  registerTelegramConnectionRoutes,
+  registerAssistantChannelRoutes,
   registerWhatsappMarketingRoutes,
   registerSocialRoutes,
   registerEmailRoutes,

@@ -129,7 +129,7 @@ export class ChannelStore {
       await owner(db, scope);
       if (!(await db.query(`SELECT 1 FROM agents_platform.agents a JOIN agents_platform.agent_versions v
         ON v.organization_id=a.organization_id AND v.agent_id=a.id WHERE a.organization_id=$1 AND a.id=$2
-        AND a.deleted_at IS NULL AND a.offering IN ('faq','customer-service') AND v.configuration->>'executionKind'='business'
+        AND a.deleted_at IS NULL AND a.offering IN ('faq','customer-service','growth-assistant') AND v.configuration->>'executionKind'='business'
         ORDER BY v.number DESC LIMIT 1 FOR SHARE OF a,v`, [scope.organizationId, input.agentId])).rowCount) {
         throw new PlatformError("CHANNEL_AGENT_UNAVAILABLE", 409, "Select an existing saved customer agent");
       }
@@ -292,7 +292,7 @@ export class ChannelStore {
       await owner(db,scope);
       const found=(await db.query(`SELECT 1 FROM agents_platform.agents a JOIN agents_platform.agent_versions v
         ON v.organization_id=a.organization_id AND v.agent_id=a.id WHERE a.organization_id=$1 AND a.id=$2
-        AND a.deleted_at IS NULL AND a.offering IN ('faq','customer-service') AND v.configuration->>'executionKind'='business'
+        AND a.deleted_at IS NULL AND a.offering IN ('faq','customer-service','growth-assistant') AND v.configuration->>'executionKind'='business'
         ORDER BY v.number DESC LIMIT 1 FOR SHARE OF a,v`,[scope.organizationId,agentId])).rowCount;
       if(!found)throw new PlatformError("CHANNEL_AGENT_UNAVAILABLE",409,"Select an existing saved customer agent");
     });
@@ -373,9 +373,10 @@ export class ChannelStore {
       const asset = (await db.query("SELECT 1 FROM agents_platform.channel_assets WHERE organization_id=$1 AND connection_id=$2 AND provider_asset_id=$3 AND eligible=true FOR SHARE", [scope.organizationId, id, connection.asset_id])).rowCount;
       if (!asset) throw new PlatformError("CHANNEL_ASSET_UNAVAILABLE", 409, "The selected channel asset is unavailable");
       const version = (await db.query(`SELECT v.* FROM agents_platform.agent_versions v JOIN agents_platform.agents a ON a.organization_id=v.organization_id AND a.id=v.agent_id
-        WHERE v.organization_id=$1 AND v.agent_id=$2 AND a.deleted_at IS NULL AND a.offering IN ('faq','customer-service') ORDER BY v.number DESC LIMIT 1 FOR SHARE OF v,a`, [scope.organizationId, input.agentId])).rows[0];
+        WHERE v.organization_id=$1 AND v.agent_id=$2 AND a.deleted_at IS NULL AND a.offering IN ('faq','customer-service','growth-assistant') ORDER BY v.number DESC LIMIT 1 FOR SHARE OF v,a`, [scope.organizationId, input.agentId])).rows[0];
       if (!version || version.configuration.executionKind !== "business") throw new PlatformError("CHANNEL_AGENT_UNAVAILABLE", 409, "Select an existing saved customer agent");
-      await new DeploymentStore(this.pool).assertWebsiteConfigurationInTransaction(db, { organizationId: scope.organizationId, agentId: input.agentId, version: version as VersionRecord });
+      if (connection.kind === "website")
+        await new DeploymentStore(this.pool).assertWebsiteConfigurationInTransaction(db, { organizationId: scope.organizationId, agentId: input.agentId, version: version as VersionRecord });
       const existing = (await db.query("SELECT * FROM agents_platform.channel_deployments WHERE organization_id=$1 AND connection_id=$2 AND state='active' FOR UPDATE", [scope.organizationId, id])).rows[0];
       if (existing && existing.agent_id !== input.agentId && !input.confirmReassignment) throw new PlatformError("CHANNEL_REASSIGNMENT_REQUIRED", 409, "Confirm changing the agent serving this channel");
       if (existing?.agent_id === input.agentId) return deploymentDto(existing);

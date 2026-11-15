@@ -198,6 +198,66 @@ To rotate verifier keys, use `GROWTH_AGENTS_PUBLIC_KEYS_JSON` or
 configuration control key in `GROWTH_AGENTS_CONTROL_PUBLIC_KEYS_JSON`; its separate private key
 never belongs to the Growth browser service. Restart matching services after configuration changes.
 
+## Growth product assistant channels
+
+Growth's own assistant is a product-owned business agent, not an organization assistant. Growth
+selects it through an explicit target binding in the Agents workspace linked to the Growth
+organization. There is one active `growth-assistant` per workspace; schema `151` enforces that
+uniqueness. A caller never sends an Agents agent ID. Agents resolves the target from the workspace
+and rejects a workspace without one.
+
+Growth administrators do not need an Agents account or the Agents UI. The Growth API signs each
+request with the existing product-service key. Agents verifies the signature and request digest,
+then acts through one product-owned service principal per workspace
+(`https://growth.kasitek.co.za/products/channel-admin`). The Growth user remains the audited actor
+in Growth and in the request digest. Agents records the actor issuer and subject, operation,
+workspace, connection and outcome in bounded logs without bot tokens or message contents.
+
+`POST /internal/v1/products/growth/channels` carries the channel operations as a discriminated
+contract:
+
+| Operation | Effect |
+| --- | --- |
+| `telegram.connect` | Creates and verifies a bot through the existing `TelegramSetupService`. The token is encrypted in the Agents vault and never returned. |
+| `telegram.health` | Rechecks provider identity and webhook ownership. |
+| `telegram.rotate` | Replaces the bot token with the current connection revision. |
+| `telegram.disconnect` | Removes the Agents webhook and revokes deployments for that connection. |
+| `channel.list` | Returns Telegram connections and their deployments. |
+| `assistant.target` | Returns the workspace's Growth assistant ID, or omits it when provisioning is incomplete. |
+| `channel.bind` / `channel.unbind` | Binds or revokes a Telegram connection against the resolved Growth assistant. |
+| `growth.link` / `growth.unlink` | Creates or removes a Growth-managed WhatsApp grant and deployment against the resolved Growth assistant. |
+
+Every mutating request carries a UUID `requestId`. Agents stores the request digest and response in
+`agents_platform.product_request_results`; an identical replay returns the stored response, a
+reused ID with different input returns `409`, and a failed request releases the reservation. A
+Telegram bot already connected to the workspace is rejected before setup so a retry cannot steal
+its webhook.
+
+Telegram credential setup lives in Growth → Connections. Link and unlink live in the Growth
+assistant's Channels dialog. The dialog warns before linking that inbound messages stop appearing
+in the Growth Inbox and move to the assistant. Owners and admins can manage channels; members can
+view the same list without mutation controls. Unlinking Telegram revokes the Agents deployment and
+restores the prior routing behaviour. Unlinking WhatsApp calls `growth.unlink`, which revokes the
+Growth grant, deployment and connection, then marks the Growth grant revoked.
+
+Growth projects each Telegram connection into its own `ExternalConnection` row with
+`sourceType='TELEGRAM'`. The projection contains the Agents connection ID, bot ID and username,
+setup and webhook state, and inbound/outbound capability checks. It never contains the bot token.
+Growth removes a projection when Agents no longer lists the connection. The generic connection
+editor omits Telegram because credential and routing controls live in the Telegram card and the
+assistant dialog.
+
+Set `AGENTS_CHANNEL_WEBHOOK_ORIGIN` on the Agents API to the public Agents origin, for example
+`https://agents.kasitek.co.za`. Without it, Telegram setup is unavailable and returns
+`CHANNEL_SETUP_NOT_CONFIGURED`. The existing `AGENTS_CONNECTION_KEYS` and
+`AGENTS_CONNECTION_ACTIVE_KEY` vault configuration must also be present. Apply Agents schema `151`
+before deploying the API that uses the request-result table.
+
+Apply the change with the Agents API, workers and Growth API/web. To roll back, deploy the previous
+Agents and Growth artifacts together; the additive table and offering constraint remain. Existing
+Telegram connections continue to route through their Agents deployments. Remove a webhook with the
+bot owner's token if a connection must be retired during rollback.
+
 ## Automatically provision organisation defaults
 
 Growth records a durable setup job in the same transaction as each organisation and owner

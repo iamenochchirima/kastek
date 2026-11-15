@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import type { AgentConfiguration, AgentGuidance, AgentIdentity } from "../../contracts/contracts";
 
 type DefaultInput = {
-  offering?: "faq" | "customer-service" | null;
+  offering?: "faq" | "customer-service" | "growth-assistant" | null;
   responsibilities?: readonly string[] | null;
 };
 

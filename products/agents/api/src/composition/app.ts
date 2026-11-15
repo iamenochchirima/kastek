@@ -135,6 +135,7 @@ import { exportExecutionHistory } from "../product/evaluation/history-export";
 
 import {registerGrowthProvisionRoute} from "../product/integrations/growth-provisioning";
 import { registerGrowthProductRoutes } from "../product/integrations/growth-routes";
+import { registerGrowthChannelAdminRoutes } from "../product/integrations/growth-channels";
 import { growthServiceTrustFromEnvironment } from "../adapters/products/growth-service-auth";
 import { GrowthProductRuntime } from "../execution/products/growth-runtime";
 import { createConfiguredProductRuntime } from "../execution/products/configured-runtime";
@@ -270,7 +271,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     reply.header("cache-control", "no-store");
     reply.header("x-content-type-options", "nosniff");
     if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
-        request.url.split("?")[0] !== "/internal/v1/products/growth/commands" && request.url.split("?")[0] !== "/internal/v1/products/growth/provision" && request.url.split("?")[0] !== "/internal/v1/products/growth/usage" && request.url.split("?")[0] !== "/internal/agents/channel-events" &&
+        request.url.split("?")[0] !== "/internal/v1/products/growth/commands" && request.url.split("?")[0] !== "/internal/v1/products/growth/provision" && request.url.split("?")[0] !== "/internal/v1/products/growth/usage" && request.url.split("?")[0] !== "/internal/v1/products/growth/channels" && request.url.split("?")[0] !== "/internal/agents/channel-events" &&
         ![AGENCY_AGENT_COMMAND_PATH, AGENCY_AGENT_MODEL_PATH].includes(request.url.split("?")[0]!) &&
         !["/mcp","/oauth/token","/oauth/register","/oauth/revoke"].includes(request.url.split("?")[0]!) && !request.url.startsWith("/api/website/") && !request.url.startsWith("/api/automation-events/") && !request.url.startsWith("/api/channel-webhooks/") && request.url.split("?")[0] !== "/api/auth/backchannel-logout" && request.headers.origin !== origin) {
       throw new PlatformError("ORIGIN_DENIED", 403, "Request origin is not allowed");
@@ -375,6 +376,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     resolveActor:async request=>{const user=await account(request);return {issuer:user.issuer,subject:user.subject};},
     resolveSessionId:async request=>{await account(request);return hash(request.cookies[sessionCookie]!);}});
   registerWebsiteAppearanceRoutes(app,{pool,resolveScope});
+  registerGrowthChannelAdminRoutes(app,{pool,trust:growthServiceTrustFromEnvironment(),store:channelServices.channels,telegram:channelServices.telegram});
   registerChannelSupportRoutes(app,{inbox,delivery:channelServices.delivery,attachments:channelServices.attachments,templates:channelServices.templates,media:channelServices.media,resolveScope});
   await registerChannelWebhooks(app,{channels:channelServices.channels,delivery:channelServices.delivery,profiles:channelServices.profiles,
     growthTrust:growthServiceTrustFromEnvironment()});

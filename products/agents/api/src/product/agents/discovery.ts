@@ -4,7 +4,7 @@ import type { Account } from "../../contracts/records";
 import { finishPage,readPageCursor,type PageQuery } from "../../infrastructure/read-pages";
 import { PlatformStore } from "./store";
 
-export interface AgentSummary {id:string;name:string;avatar:string;draftRevision:number;updatedAt:Date;offering:"faq"|"customer-service"|null;responsibilities:string[];activeChannels:string[];lastCustomerConversationAt:Date|null;latestVersion:{id:string;number:number;draftRevision:number;executionKind:string}|null;hasUnpublishedChanges:boolean}
+export interface AgentSummary {id:string;name:string;avatar:string;draftRevision:number;updatedAt:Date;offering:"faq"|"customer-service"|"growth-assistant"|null;responsibilities:string[];activeChannels:string[];lastCustomerConversationAt:Date|null;latestVersion:{id:string;number:number;draftRevision:number;executionKind:string}|null;hasUnpublishedChanges:boolean}
 export interface ConversationSummary {id:string;agentId:string;agentName:string;versionId:string;versionNumber:number;title:string;updatedAt:Date;state:TaskState;canContinue:true}
 export interface TaskSummary {id:string;agentId:string;agentName:string;versionId:string;versionNumber:number;conversationId:string|null;state:TaskState;createdAt:Date;updatedAt:Date;canControl:boolean;reviewOnly:boolean}
 const missing=()=>{throw new PlatformError("NOT_FOUND",404,"Record not found");};

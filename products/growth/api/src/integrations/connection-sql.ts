@@ -203,11 +203,11 @@ export const SYNC_CAPABILITIES_1 = `INSERT INTO "ExternalConnectionCapability" (
         FROM "ExternalConnection" connection
         CROSS JOIN LATERAL (
             SELECT * FROM (VALUES
-                ('MESSAGING_INBOUND', NULL::text, ARRAY['WHATSAPP', 'FACEBOOK', 'INSTAGRAM']),
-                ('MESSAGING_OUTBOUND', NULL::text, ARRAY['WHATSAPP', 'FACEBOOK', 'INSTAGRAM']),
+                ('MESSAGING_INBOUND', NULL::text, ARRAY['WHATSAPP', 'FACEBOOK', 'INSTAGRAM', 'TELEGRAM']),
+                ('MESSAGING_OUTBOUND', NULL::text, ARRAY['WHATSAPP', 'FACEBOOK', 'INSTAGRAM', 'TELEGRAM']),
                 ('CAMPAIGNS_SEND', 'feature.campaigns.send', ARRAY['WHATSAPP']),
                 ('TEMPLATES_MANAGE', 'feature.templates.manage', ARRAY['WHATSAPP']),
-                ('AGENT_CHANNEL', 'feature.agents.manage', ARRAY['WHATSAPP', 'FACEBOOK', 'INSTAGRAM']),
+                ('AGENT_CHANNEL', 'feature.agents.manage', ARRAY['WHATSAPP', 'FACEBOOK', 'INSTAGRAM', 'TELEGRAM']),
                 ('SOCIAL_PUBLISH', 'feature.content.publish', ARRAY['FACEBOOK', 'INSTAGRAM', 'THREADS', 'TIKTOK', 'BLUESKY', 'LINKEDIN', 'X']),
                 ('SOCIAL_ANALYTICS', 'feature.analytics.view', ARRAY['FACEBOOK', 'INSTAGRAM', 'THREADS', 'TIKTOK', 'BLUESKY', 'LINKEDIN', 'X']),
                 ('COMMENTS_MANAGE', 'feature.content.manage', ARRAY['FACEBOOK', 'INSTAGRAM', 'X']),
@@ -253,6 +253,7 @@ export const SYNC_CONSUMERS_1 = `INSERT INTO "ExternalConnectionConsumer" (
                 WHEN connection.provider = 'WHATSAPP' THEN ARRAY['inbox', 'campaigns', 'agents']
                 WHEN connection.provider = 'FACEBOOK' THEN ARRAY['inbox', 'content', 'agents']
                 WHEN connection.provider = 'INSTAGRAM' THEN ARRAY['inbox', 'content', 'agents']
+                WHEN connection.provider = 'TELEGRAM' THEN ARRAY['agents']
                 WHEN connection.provider = 'TWILIO' THEN ARRAY['calls', 'inbox']
                 ELSE ARRAY['content']
             END) AS product_key

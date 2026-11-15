@@ -127,7 +127,7 @@ export function sourceAuthorityIds(configuration: Pick<AgentConfiguration, "sour
 /** Pinned knowledge is frozen into a version, so it is capped at publication rather than truncated at runtime. */
 export const KNOWLEDGE_PINNED_TOKEN_BUDGET = 12_000;
 export function resolveKnowledgeMode(input: { requested: "auto" | "retrieved" | "agentic" | "pinned";
-  offering: "faq" | "customer-service" | null; sourceBytes: number }): "retrieved" | "agentic" | "pinned" {
+  offering: "faq" | "customer-service" | "growth-assistant" | null; sourceBytes: number }): "retrieved" | "agentic" | "pinned" {
   const support = input.offering === "faq" || input.offering === "customer-service";
   if (support && input.requested === "agentic") {
     throw new PlatformError("KNOWLEDGE_MODE_UNSUPPORTED", 409, "Customer-support agents cannot use agentic knowledge retrieval");

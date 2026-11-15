@@ -1,4 +1,4 @@
-export type ProviderAdapter = 'MetaFacebook' | 'MetaInstagram' | 'InstagramDirect' | 'WhatsApp' | 'Threads' | 'TikTok' | 'LinkedInMember' | 'LinkedInOrganization' | 'X' | 'Bluesky' | 'GoogleEmail' | 'MicrosoftEmail' | 'Unknown';
+export type ProviderAdapter = 'MetaFacebook' | 'MetaInstagram' | 'InstagramDirect' | 'WhatsApp' | 'Telegram' | 'Threads' | 'TikTok' | 'LinkedInMember' | 'LinkedInOrganization' | 'X' | 'Bluesky' | 'GoogleEmail' | 'MicrosoftEmail' | 'Unknown';
 export interface CapabilityRule {
     supported: boolean;
     requestable: boolean;
@@ -13,6 +13,7 @@ export function adapterFor(provider: string, authMode?: string | null, metadata?
         case 'FACEBOOK': return 'MetaFacebook';
         case 'INSTAGRAM': return authMode === 'instagram_login' ? 'InstagramDirect' : 'MetaInstagram';
         case 'WHATSAPP': return 'WhatsApp';
+        case 'TELEGRAM': return 'Telegram';
         case 'THREADS': return 'Threads';
         case 'TIKTOK': return 'TikTok';
         case 'LINKEDIN': return metadata?.accountType === 'organization' ? 'LinkedInOrganization' : 'LinkedInMember';
@@ -23,8 +24,8 @@ export function adapterFor(provider: string, authMode?: string | null, metadata?
         default: return 'Unknown';
     }
 }
-export function authMode(adapter: ProviderAdapter): string { return { MetaFacebook: 'meta_login', MetaInstagram: 'meta_login', InstagramDirect: 'instagram_login', WhatsApp: 'whatsapp_embedded_signup', Threads: 'threads_oauth', TikTok: 'tiktok_oauth', LinkedInMember: 'linkedin_oauth', LinkedInOrganization: 'linkedin_oauth', X: 'x_oauth', Bluesky: 'bluesky_oauth', GoogleEmail: 'google_email_oauth', MicrosoftEmail: 'microsoft_email_oauth', Unknown: 'unknown' }[adapter]; }
-export function providerName(adapter: ProviderAdapter): string { return { MetaFacebook: 'FACEBOOK', MetaInstagram: 'INSTAGRAM', InstagramDirect: 'INSTAGRAM', WhatsApp: 'WHATSAPP', Threads: 'THREADS', TikTok: 'TIKTOK', LinkedInMember: 'LINKEDIN', LinkedInOrganization: 'LINKEDIN', X: 'X', Bluesky: 'BLUESKY', GoogleEmail: 'GOOGLE', MicrosoftEmail: 'MICROSOFT', Unknown: 'UNKNOWN' }[adapter]; }
+export function authMode(adapter: ProviderAdapter): string { return { MetaFacebook: 'meta_login', MetaInstagram: 'meta_login', InstagramDirect: 'instagram_login', WhatsApp: 'whatsapp_embedded_signup', Telegram: 'telegram_bot', Threads: 'threads_oauth', TikTok: 'tiktok_oauth', LinkedInMember: 'linkedin_oauth', LinkedInOrganization: 'linkedin_oauth', X: 'x_oauth', Bluesky: 'bluesky_oauth', GoogleEmail: 'google_email_oauth', MicrosoftEmail: 'microsoft_email_oauth', Unknown: 'unknown' }[adapter]; }
+export function providerName(adapter: ProviderAdapter): string { return { MetaFacebook: 'FACEBOOK', MetaInstagram: 'INSTAGRAM', InstagramDirect: 'INSTAGRAM', WhatsApp: 'WHATSAPP', Telegram: 'TELEGRAM', Threads: 'THREADS', TikTok: 'TIKTOK', LinkedInMember: 'LINKEDIN', LinkedInOrganization: 'LINKEDIN', X: 'X', Bluesky: 'BLUESKY', GoogleEmail: 'GOOGLE', MicrosoftEmail: 'MICROSOFT', Unknown: 'UNKNOWN' }[adapter]; }
 const unsupported = (): CapabilityRule => ({ supported: false, requestable: false, requiresTargetCheck: false, providerPermission: null, grants: [], requestScopes: [] });
 const unknownSupported = (): CapabilityRule => ({ supported: true, requestable: false, requiresTargetCheck: true, providerPermission: null, grants: [], requestScopes: [] });
 const rule = (permission: string, requestable = true, target = false, grants = [permission], scopes = grants): CapabilityRule => ({ supported: true, requestable, requiresTargetCheck: target, providerPermission: permission || null, grants, requestScopes: scopes });
@@ -70,6 +71,10 @@ export function capability(adapter: ProviderAdapter, key: string): CapabilityRul
                 return rule('whatsapp_business_management', true, true, ['whatsapp_business_management', 'business_management']);
             if (key === 'SOCIAL_ANALYTICS')
                 return unknownSupported();
+            break;
+        case 'Telegram':
+            if (['MESSAGING_INBOUND', 'MESSAGING_OUTBOUND'].includes(key))
+                return rule('telegram_bot', false, true);
             break;
         case 'Threads':
             if (publishing.includes(key))

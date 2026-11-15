@@ -22,7 +22,7 @@ export interface CatalogueRouteOptions {
 export async function readAgentCatalogue(options: CatalogueRouteOptions, scope: ActionScope, kind: "tools" | "skills", raw: unknown) {
   const query = catalogueQuerySchema.parse(raw);
   const agent = query.agentId ? await options.getAgent(scope, query.agentId) : undefined;
-  const purpose = agent ? agent.offering ?? "general" : query.purpose ?? "general";
+  const purpose = agent ? (agent.offering === "growth-assistant" ? "general" : agent.offering ?? "general") : query.purpose ?? "general";
   const [connections, bindings, skills, permissions, calendarProviderId] = await Promise.all([
     options.listConnections(scope), options.listBindings(scope),
     kind === "skills" ? options.listSkills?.(scope, agent?.id) ?? Promise.resolve([]) : Promise.resolve([]),

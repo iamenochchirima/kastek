@@ -58,6 +58,19 @@ function eligible(row: ConnectionRow): { inbound: boolean; outbound: boolean } {
     outbound: permissions.some(item => item.definition.key === "MESSAGING_OUTBOUND" && item.definition.state === "GRANTED"),
   };
 }
+export function growthManagedConnectionEligibility(row: {
+  id: string;
+  provider: string;
+  sourceType: string;
+  externalAccountId: string | null;
+  metadata: Record<string, unknown> | null;
+}): { access: { inbound: boolean; outbound: boolean }; permissionRevision: string } {
+  return {
+    access: eligible(row as ConnectionRow),
+    permissionRevision: permissionRevision(row as ConnectionRow),
+  };
+}
+
 function grantDto(row: GrantRow, core: CoreContext): GrowthAgentChannelGrant {
   return {
     grantId: String(row.id), growthActor: { issuer: growthAgentIdentityIssuer(core.config), subject: String(row.actorId) },
