@@ -545,3 +545,96 @@ for (const width of [390, 1440]) for (const removePhoto of [false, true]) test(`
   expect(updateRequests).toBe(2);
   expect(post.media).toHaveLength(removePhoto ? 0 : 1);
 });
+
+test("reorders composer media and saves the visible publishing order", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 950 });
+  await page.addInitScript(() => localStorage.setItem("kasitek-theme", "dark"));
+  await page.route("**/api/social/channels", route => route.fulfill({ json: { channels: [] } }));
+  let uploaded = 0;
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=", "base64");
+  await page.route("**/api/social/media**", route => {
+    if (route.request().method() === "POST") {
+      const id = ++uploaded;
+      return route.fulfill({ json: { asset: { id: `photo-${id}`, kind: "IMAGE", mimeType: "image/png", fileName: `Photo ${id}.png`, byteSize: png.length, width: 1, height: 1, durationMs: null } } });
+    }
+    if (new URL(route.request().url()).pathname.startsWith("/api/social/media/photo-")) {
+      const color = ["#737c8e", "#815858", "#426b62", "#625675", "#7c6c4d", "#49627a"][Number(route.request().url().split("-").at(-1)) - 1];
+      return route.fulfill({ contentType: "image/svg+xml", body: `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="320"><rect width="640" height="320" fill="${color}"/><circle cx="300" cy="160" r="80" fill="#ffffff22"/></svg>` });
+    }
+    return route.continue();
+  });
+
+  await page.goto("/content");
+  const launcher = page.getByRole("button", { name: "Create post", exact: true }).first();
+  await launcher.click();
+  const composer = page.getByRole("dialog", { name: "New post", exact: true });
+  await expect(composer.getByRole("button", { name: "Close", exact: true })).toHaveCount(1);
+  await composer.getByRole("button", { name: "Draft for Instagram", exact: true }).click();
+  await composer.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(composer.getByRole("heading", { name: "Media", exact: true })).toBeVisible();
+  await expect(composer.getByLabel("Instagram image URL")).toBeHidden();
+  await composer.getByText("Use an image URL", { exact: true }).click();
+  await expect(composer.getByLabel("Instagram image URL")).toBeVisible();
+  await composer.getByLabel("Instagram image URL").press("Escape");
+  await expect(composer.getByLabel("Instagram image URL")).toBeHidden();
+  await composer.getByRole("textbox", { name: "Post text" }).fill("Our latest studio photos.");
+
+  await composer.locator('input[type="file"]').setInputFiles(Array.from({ length: 6 }, (_, index) => ({
+    name: `photo-${index + 1}.png`, mimeType: "image/png", buffer: png,
+  })));
+  const grid = composer.getByRole("list", { name: "Media publishing order" });
+  const photos = grid.getByRole("img");
+  const order = () => photos.evaluateAll(elements => elements.map(element => element.getAttribute("alt")));
+  await expect(photos).toHaveCount(6);
+  await expect(grid.getByText("Cover", { exact: true })).toBeVisible();
+
+  const handle = grid.getByRole("button", { name: /Reorder media 2: Photo 2/ });
+  const from = (await handle.boundingBox())!;
+  const target = (await photos.first().boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target.x + target.width / 4, target.y + target.height / 2, { steps: 12 });
+  await expect(grid.locator("li").first().locator('[data-insertion="before"]')).toBeVisible();
+  await composer.screenshot({ path: testInfo.outputPath("composer-dragging.png") });
+  await page.mouse.up();
+  expect(await order()).toEqual(["Photo 2.png", "Photo 1.png", "Photo 3.png", "Photo 4.png", "Photo 5.png", "Photo 6.png"]);
+
+  await grid.getByRole("button", { name: /Reorder media 3: Photo 3/ }).press("Enter");
+  await page.getByRole("menuitem", { name: "Move earlier", exact: true }).click();
+  await expect(grid.getByRole("button", { name: /Reorder media 2: Photo 3/ })).toBeFocused();
+  expect(await order()).toEqual(["Photo 2.png", "Photo 3.png", "Photo 1.png", "Photo 4.png", "Photo 5.png", "Photo 6.png"]);
+
+  for (const [width, theme] of [[1440, "dark"], [768, "light"], [390, "dark"]] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(value => {
+      document.documentElement.dataset.theme = value;
+      document.documentElement.classList.toggle("dark", value === "dark");
+    }, theme);
+    expect(await composer.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await expect(composer.getByRole("button", { name: "Continue", exact: true })).toBeInViewport();
+    await composer.screenshot({ path: testInfo.outputPath(`composer-${width}-${theme}.png`) });
+  }
+
+  const touch = await page.context().newCDPSession(page);
+  await touch.send("Emulation.setTouchEmulationEnabled", { enabled: true });
+  const tap = async (element: typeof handle) => {
+    await element.scrollIntoViewIfNeeded();
+    const { x, y, width, height } = (await element.boundingBox())!;
+    await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: x + width / 2, y: y + height / 2 }] });
+    await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  };
+  await tap(grid.getByRole("button", { name: /Reorder media 1: Photo 2/ }));
+  await tap(page.getByRole("menuitem", { name: "Move later", exact: true }));
+  await touch.detach();
+  await composer.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(composer.getByRole("img", { name: "Attached image" }).first()).toHaveAttribute("src", /photo-3$/);
+  await composer.getByRole("button", { name: "Back", exact: true }).click();
+  expect(await order()).toEqual(["Photo 3.png", "Photo 2.png", "Photo 1.png", "Photo 4.png", "Photo 5.png", "Photo 6.png"]);
+  await composer.getByRole("button", { name: "Continue", exact: true }).click();
+  await composer.getByRole("button", { name: "Continue", exact: true }).click();
+  const requestPromise = page.waitForRequest(request => request.method() === "POST" && new URL(request.url()).pathname === "/api/social/posts");
+  await composer.getByRole("button", { name: "Save draft", exact: true }).click();
+  expect((await requestPromise).postDataJSON().media).toEqual([3, 2, 1, 4, 5, 6].map((id, sortOrder) => ({ assetId: `photo-${id}`, sortOrder, altText: null })));
+  await expect(composer).toHaveCount(0);
+  await expect(launcher).toBeFocused();
+});

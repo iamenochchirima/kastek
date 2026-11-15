@@ -31,6 +31,20 @@ workspace administration, retain bytes and references, and never delete provider
 metadata/archive changes. A lost acknowledgement can recover the earlier result even after
 another edit. Reusing an operation identity with different input fails.
 
+## Composer media order
+
+The New post composer's Post step shows media in a numbered grid without filenames on the
+thumbnails. With multiple items attached, the first is marked Cover. Drag an item's handle to
+reposition it; the insertion marker shows where it will land. The item's menu also offers Move
+earlier and Move later for keyboard and touch use. Instagram's fallback image URL is available
+under Use an image URL and applies when no image is attached.
+
+Reordering changes only the current post's attachment sequence. The composer updates each
+attachment's existing `sortOrder` while preserving its asset ID and alt text. Versions previews
+use that sequence, and saving a draft, scheduling or publishing passes it through the existing
+post payload. Delivery uses the saved order where the destination supports multiple attachments.
+The media library and provider limits are unchanged. No API or schema changes are required.
+
 ## Social templates
 
 `ContentTemplate` is workspace-owned and separate from WhatsApp templates at `/templates`.

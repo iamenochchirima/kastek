@@ -45,6 +45,7 @@ import {
   Copy01Icon,
   FileAudioIcon,
   FileImageIcon,
+  GripIcon,
   FileVideoIcon,
   FilterHorizontalIcon,
   Mail01Icon,
@@ -72,6 +73,7 @@ export const Cable = roundedIcon(Link01Icon);
 export const CalendarDays = roundedIcon(Calendar03Icon);
 export const CalendarCheck = roundedIcon(CalendarCheckIn01Icon);
 export const Code2 = roundedIcon(CodeIcon);
+export const Grip = roundedIcon(GripIcon);
 export const ChevronDown = roundedIcon(ArrowDown01Icon);
 export const ChevronsLeft = roundedIcon(ArrowLeftDoubleIcon);
 export const ChevronsRight = roundedIcon(ArrowRightDoubleIcon);

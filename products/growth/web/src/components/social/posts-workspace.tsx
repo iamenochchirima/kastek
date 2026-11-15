@@ -1,3 +1,4 @@
+import { ComposerMediaGrid } from "./composer-media-grid";
 import { ContentSourceLinks } from "./content-source-links";
 import { MediaPicker } from "./content-media-library";
 import { contentOperation, getEditablePost, type MediaAsset } from "@/lib/content-library";
@@ -8,7 +9,7 @@ import { toast } from "sonner";
 import { scheduledPostTimestamp } from "@/lib/content-schedule";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, FileImage, Play, Plus, RotateCcw, Smartphone, Sparkles, Upload, X } from "@/components/ui/interface-icons";
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, FileImage, Play, Plus, RotateCcw, Smartphone, Sparkles, Upload, X } from "@/components/ui/interface-icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,7 +19,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PostsLibraryWorkspace } from "@/components/social/posts-library-workspace";
 import {
@@ -176,17 +176,6 @@ function mediaUrl(assetId: string) {
   return apiUrl(`/api/social/media/${encodeURIComponent(assetId)}`);
 }
 
-function formatMediaSize(bytes: number) {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDuration(durationMs: number | null) {
-  if (!durationMs) return "";
-  const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
-  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`;
-}
-
 function formatBatchPreflightError(preflight: PublishBatchPreflight) {
   const blocked = preflight.targets
     .filter((target) => !["READY", "ALREADY_PUBLISHED"].includes(target.state))
@@ -220,6 +209,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   const [publishingKey, setPublishingKey] = useState<string | null>(null);
   const [jobActionId, setJobActionId] = useState<string | null>(null);
   const [activeVariantPlatform, setActiveVariantPlatform] = useState<SocialPlatform>("FACEBOOK");
+  const composerTriggerRef = useRef<HTMLElement | null>(null);
   const [composerStep, setComposerStep] = useState<ComposerStep>(1);
   const [tiktokPrivacyOptions, setTiktokPrivacyOptions] = useState<ComposerState["tiktokPrivacyLevel"][]>([]);
   const [activityPost, setActivityPost] = useState<{ post: SocialPost; events: SocialPostActivityEvent[] } | null>(null);
@@ -729,6 +719,17 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     }));
   }
 
+  function moveMedia(assetId: string, targetId: string, side: "before" | "after") {
+    setComposer(current => {
+      const selected = current.media.find(item => item.assetId === assetId);
+      const remaining = current.media.filter(item => item.assetId !== assetId);
+      const target = remaining.findIndex(item => item.assetId === targetId);
+      if (!selected || target < 0) return current;
+      remaining.splice(target + (side === "after" ? 1 : 0), 0, selected);
+      return { ...current, media: remaining.map((item, sortOrder) => ({ ...item, sortOrder })) };
+    });
+  }
+
   function openContentAgent(platform?: SocialPlatform) {
     setIsComposerOpen(false);
     const content = platform ? composer.variants.find((variant) => variant.platform === platform)?.content || composer.content : composer.content;
@@ -1223,27 +1224,38 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         </DialogContent> : null}
       </Dialog>
 
-      <Sheet open={isComposerOpen} onOpenChange={setIsComposerOpen}>
+      <Dialog open={isComposerOpen} onOpenChange={setIsComposerOpen}>
         {isComposerOpen ? (
-          <SheetContent className="w-full max-w-[760px] gap-0 border-l border-border bg-card p-0 sm:max-w-[760px]">
-            <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
-              <div>
-                <SheetTitle className="text-lg font-semibold text-foreground">{composer.id ? "Edit post" : "New post"}</SheetTitle>
-                <p className="mt-1 text-sm text-muted-foreground">Step {composerStep} of 4</p>
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => setIsComposerOpen(false)} aria-label="Close composer">
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+          <DialogContent
+            className="flex w-[calc(100%-1rem)] max-w-[min(66rem,calc(100%-1rem))] max-h-[calc(100dvh-1rem)] flex-col gap-0 overflow-hidden bg-card p-0 sm:w-[calc(100%-3rem)] sm:max-w-[min(66rem,calc(100%-3rem))] sm:max-h-[calc(100dvh-3rem)] sm:p-0"
+            onOpenAutoFocus={() => {
+              composerTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            }}
+            onCloseAutoFocus={event => {
+              event.preventDefault();
+              composerTriggerRef.current?.focus();
+            }}
+          >
+            <DialogHeader className="shrink-0 px-4 pb-2 pt-5 pr-12 text-left sm:px-6 sm:pt-6">
+              <DialogTitle className="text-xl leading-tight">{composer.id ? "Edit post" : "New post"}</DialogTitle>
+              <DialogDescription className="sr-only">Choose destinations, write your post, tailor versions and review.</DialogDescription>
+            </DialogHeader>
 
-            <div className="flex gap-1 border-b border-border px-4 sm:px-6">
+            <ol aria-label="Post creation steps" className="flex shrink-0 items-center justify-between gap-1 border-b border-border px-4 py-3 sm:gap-3 sm:px-6">
               {["Destinations", "Post", "Versions", "Review"].map((label, index) => {
-                const step = (index + 1) as ComposerStep;
-                return <div key={label} className={`flex-1 border-b-2 px-1 py-3 text-center text-xs font-medium ${composerStep === step ? "border-foreground text-foreground" : composerStep > step ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}>{label}</div>;
+                const step = index + 1;
+                const active = composerStep === step;
+                return (
+                  <li key={label} aria-current={active ? "step" : undefined} className="flex min-w-0 flex-1 flex-col items-center gap-1 text-[11px] sm:flex-row sm:gap-2 sm:text-xs">
+                    <span className={`grid size-6 shrink-0 place-items-center rounded-full border text-xs font-medium ${active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-muted text-muted-foreground"}`}>{step}</span>
+                    <span className={active ? "font-semibold text-foreground" : "text-muted-foreground"}>{label}</span>
+                    {step < 4 ? <span aria-hidden="true" className="mx-1 hidden h-px flex-1 bg-border sm:block" /> : null}
+                  </li>
+                );
               })}
-            </div>
+            </ol>
 
-            <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
               {error ? <p className="mb-4 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
               {composerStep === 1 ? (
                 <section className="space-y-5">
@@ -1303,18 +1315,44 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
               ) : null}
 
               {composerStep === 2 ? (
-                <section className="space-y-5">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="text-xl font-semibold text-foreground">Write the post</h2><p className="mt-1 text-sm text-muted-foreground">Add text or media. You can tailor each destination next.</p></div><Button type="button" variant="outline" className="shrink-0 gap-2" onClick={() => openContentAgent()}><Sparkles className="h-4 w-4" />Draft with agent</Button></div>
-                  <label className="block space-y-2"><span className="text-sm text-muted-foreground">Post text (optional)</span><Textarea value={composer.content} onChange={(event) => setComposer((current) => ({ ...current, content: event.target.value }))} placeholder="Write your post..." className="min-h-[180px] resize-y leading-6" /></label>
-                  <div className="space-y-3 rounded-xl border border-border p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div><p className="text-sm font-medium text-foreground">Media (optional)</p><p className="text-xs text-muted-foreground">Attach images or videos to this post.</p></div>
-                      <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => mediaInputRef.current?.click()} disabled={saving}><Upload className="h-3.5 w-3.5" />Add media</Button><Button type="button" variant="outline" size="sm" disabled={saving} onClick={()=>setMediaPickerOpen(true)}>Media library</Button>
-                      <input ref={mediaInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" multiple className="hidden" onChange={(event) => { const files = Array.from(event.target.files || []); void files.reduce((chain, file) => chain.then(() => uploadMedia(file)), Promise.resolve()); }} />
+                <section className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label htmlFor="composer-post-text" className="text-sm font-medium text-foreground">Post text</label>
+                      <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => openContentAgent()}><Sparkles className="size-4" />Draft with agent</Button>
                     </div>
-                  {composer.media.length ? <div className="grid gap-3 sm:grid-cols-2">{composer.media.map((item) => <div key={item.assetId} className="group relative overflow-hidden rounded-lg border border-border bg-secondary/20">{item.kind === "VIDEO" ? <video className="h-32 w-full object-cover" src={mediaUrl(item.assetId)} muted playsInline preload="metadata" /> : <img width={640} height={320} className="h-32 w-full object-cover" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />}{item.kind === "VIDEO" ? <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[11px] text-white"><Play className="h-3 w-3" />{formatDuration(item.durationMs)}</span> : null}<div className="flex items-center gap-2 p-2"><span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{item.fileName || (item.kind === "VIDEO" ? "Video" : "Image")} · {formatMediaSize(item.byteSize)}</span><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeMedia(item.assetId)} aria-label="Remove media"><X className="h-3.5 w-3.5" /></Button></div></div>)}</div> : null}
+                    <Textarea id="composer-post-text" value={composer.content} onChange={(event) => setComposer((current) => ({ ...current, content: event.target.value }))} placeholder="Write your post..." className="min-h-24 resize-y rounded-lg leading-6 sm:min-h-28" />
                   </div>
-                  {composer.channels.includes("INSTAGRAM") ? <label className="block space-y-2"><span className="text-sm text-muted-foreground">Instagram image URL</span><Input type="url" value={composer.instagramImageUrl} onChange={(event) => setComposer((current) => ({ ...current, instagramImageUrl: event.target.value }))} placeholder="https://example.com/image.jpg" /><span className="block text-xs text-muted-foreground">Used only when no image is attached.</span></label> : null}
+                  <section aria-labelledby="composer-media-title" className="space-y-3 border-t border-border pt-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <h2 id="composer-media-title" className="text-base font-semibold">Media</h2>
+                        {composer.media.length ? <Badge variant="secondary">{composer.media.length} {composer.media.length === 1 ? "item" : "items"}</Badge> : null}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => mediaInputRef.current?.click()} disabled={saving}><Upload className="size-4" />Upload</Button>
+                        <Button type="button" variant="outline" size="sm" className="gap-1.5" disabled={saving} onClick={() => setMediaPickerOpen(true)}><FileImage className="size-4" />Media library</Button>
+                      </div>
+                    </div>
+                    <input ref={mediaInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" multiple className="hidden" onChange={(event) => { const files = Array.from(event.target.files || []); void files.reduce((chain, file) => chain.then(() => uploadMedia(file)), Promise.resolve()); }} />
+                    {composer.media.length ? (
+                      <ComposerMediaGrid media={composer.media} mediaUrl={mediaUrl} onMove={moveMedia} onRemove={removeMedia} />
+                    ) : (
+                      <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-border py-6 text-sm text-muted-foreground"><FileImage className="size-4" />No media attached</div>
+                    )}
+                  </section>
+                  {composer.channels.includes("INSTAGRAM") ? (
+                    <details data-dialog-disclosure className="group">
+                      <summary className="flex w-fit cursor-pointer list-none items-center gap-2 rounded-md py-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+                        <ChevronDown className="size-4 group-open:rotate-180" />Use an image URL
+                      </summary>
+                      <label className="mt-2 block space-y-2">
+                        <span className="text-sm text-muted-foreground">Instagram image URL</span>
+                        <Input type="url" value={composer.instagramImageUrl} onChange={(event) => setComposer((current) => ({ ...current, instagramImageUrl: event.target.value }))} placeholder="https://example.com/image.jpg" />
+                        <span className="block text-xs text-muted-foreground">Used only when no image is attached.</span>
+                      </label>
+                    </details>
+                  ) : null}
                   {composer.channels.includes("TIKTOK") ? <div className="space-y-3 rounded-xl border border-border p-4"><p className="text-sm font-medium">TikTok publishing</p><label className="block space-y-2"><span className="text-sm text-muted-foreground">Optional verified media URL</span><Input type="url" value={composer.tiktokMediaUrl} onChange={(event) => setComposer((current) => ({ ...current, tiktokMediaUrl: event.target.value, tiktokConsent: false }))} placeholder="https://media.your-domain.com/post.mp4" /><span className="block text-xs text-muted-foreground">Use this only when the media is hosted on a TikTok-verified HTTPS domain. Uploaded media can be used instead.</span></label><div className="grid gap-3 sm:grid-cols-2"><label className="block space-y-2"><span className="text-sm text-muted-foreground">Media type for URL</span><Select value={composer.tiktokMediaType} onValueChange={(value) => setComposer((current) => ({ ...current, tiktokMediaType: value as ComposerState["tiktokMediaType"], tiktokConsent: false }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="VIDEO">Video</SelectItem><SelectItem value="PHOTO">Photo</SelectItem></SelectContent></Select></label><label className="block space-y-2"><span className="text-sm text-muted-foreground">Privacy</span><Select value={composer.tiktokPrivacyLevel} disabled={!tiktokPrivacyOptions.length} onValueChange={(value) => setComposer((current) => ({ ...current, tiktokPrivacyLevel: value as ComposerState["tiktokPrivacyLevel"], tiktokConsent: false }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{tiktokPrivacyOptions.map((option) => <SelectItem key={option} value={option}>{option === "SELF_ONLY" ? "Only me" : option === "PUBLIC_TO_EVERYONE" ? "Public" : option === "MUTUAL_FOLLOW_FRIENDS" ? "Friends" : "Followers"}</SelectItem>)}</SelectContent></Select><span className="block text-xs text-muted-foreground">Options are loaded from the connected TikTok creator account.</span></label></div><label className="flex items-start gap-2 text-sm"><Checkbox className="mt-1" checked={composer.tiktokConsent} onCheckedChange={(checked) => setComposer((current) => ({ ...current, tiktokConsent: checked === true }))} /><span>I consent to send the selected media and caption to TikTok for direct publishing.</span></label></div> : null}
                 </section>
               ) : null}
@@ -1354,7 +1392,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
               ) : null}
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-4 sm:px-6">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 sm:px-6">
               <Button variant="ghost" onClick={() => composerStep === 1 ? setIsComposerOpen(false) : setComposerStep((current) => (current - 1) as ComposerStep)}>{composerStep === 1 ? "Cancel" : <><ArrowLeft className="mr-2 h-4 w-4" />Back</>}</Button>
               {composerStep < 4 ? <Button onClick={advanceComposerStep}>Continue<ArrowRight className="ml-2 h-4 w-4" /></Button> : (
                 <div className="flex flex-wrap items-center gap-2">
@@ -1364,9 +1402,9 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                 </div>
               )}
             </div>
-          </SheetContent>
+          </DialogContent>
         ) : null}
-      </Sheet>
+      </Dialog>
     </div>
   );
 }
