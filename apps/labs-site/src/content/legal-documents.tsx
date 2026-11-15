@@ -18,6 +18,7 @@ export const privacySections: DocumentSection[] = [
       "Name, email address, phone number, business name, and service enquiry details.",
       "Account and authentication information for platform access.",
       "Usage, device, browser, and interaction data needed for analytics, security, and service improvement.",
+      "KasiTek Labs uses Vercel Web Analytics to measure aggregate site visits, page paths, referrers, and general device and browser information. Vercel states that Web Analytics does not use cookies and reports anonymized, aggregated data.",
       "Business content and operational data provided for website, agent, campaign, or automation setup.",
       "Information received from connected communication and social platforms where a client chooses to connect those services to KasiTek.",
     ],

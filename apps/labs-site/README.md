@@ -59,6 +59,10 @@ Company and project enquiries stay on Labs routes. Chat uses an explicitly confi
   the upstream API origin for the quote-request and waitlist routes, in that precedence order.
   In development they otherwise target `http://localhost:4000`; in production they default to
   `https://api.kasitek.co.za`.
+- Vercel Web Analytics is rendered from the root layout and tracks page views across the public
+  Labs site. It is enabled for the `kasitek-app` Vercel project. The privacy policy describes the
+  aggregate page, referrer, device, and browser data collected; Vercel says Web Analytics does not
+  use cookies. See [Vercel Web Analytics](https://vercel.com/docs/analytics).
 
 Moving the source into this repository does not change the hosting project, domains, or deployed
 environment. Those remain separate cutover work.

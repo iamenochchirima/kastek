@@ -58,18 +58,6 @@
 :global(.auth-primary:hover) { background: #2b453a; transform: translateY(-1px); }
 :global(.auth-secondary) { display: block; margin-top: 22px; text-align: center; font-size: 13px; line-height: 1.5; color: var(--auth-muted); }
 :global(.auth-secondary a) { color: var(--auth-ink); text-decoration: underline; text-underline-offset: 3px; }
-:global(.auth-security) {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 28px 0 0;
-  padding-top: 20px;
-  border-top: 1px solid var(--auth-line);
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--auth-muted);
-}
-:global(.auth-security svg) { flex: 0 0 auto; margin-top: 1px; color: #4f6b2a; }
 .page :global(a:focus-visible), .page :global(button:focus-visible), .page :global(input:focus-visible) {
   outline: 3px solid #699236;
   outline-offset: 4px;

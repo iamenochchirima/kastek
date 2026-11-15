@@ -1,4 +1,4 @@
-import { ArrowRight, ShieldCheck } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
 import { loginUrl } from "@/lib/shared-login";
 
@@ -18,11 +18,6 @@ export default function LoginForm({ signup = false }: { signup?: boolean }) {
         <Link to={`${signup ? "/login" : "/signup"}?returnTo=${encodeURIComponent(returnTo ?? "/workspace")}`}>
           {signup ? "Sign in" : "Create an account"}
         </Link>
-      </p>
-      <p className="auth-security">
-        <ShieldCheck size={15} aria-hidden="true" />
-        Secure sign-in through KasiTek Identity. Your password and passkeys are
-        never stored in this workspace.
       </p>
     </div>
   );

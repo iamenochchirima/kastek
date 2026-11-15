@@ -11,7 +11,7 @@ export default function PrivacyPolicyPage() {
   return (
     <LabsInnerShell>
       <InnerHero
-        context="Last updated: March 2, 2026"
+        context="Last updated: November 15, 2026"
         title={<>Privacy Policy</>}
         introduction="How KasiTek collects, uses and protects information across its websites, software, connected platforms and delivery services."
       />

@@ -25,7 +25,7 @@ export default function LoginPage() {
     <div>
       <h1 className="auth-card-title">Welcome back.</h1>
       <p className="auth-card-description">
-        Sign in to your KasiTek workspace. Email, Google and passkeys are supported.
+        Sign in to your workspace.
       </p>
       <div className="auth-card-form">
         <Suspense fallback={null}>
