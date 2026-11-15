@@ -15,8 +15,9 @@ Owner: Enoch Chirima. Risk: low.
 Affected service and surfaces: Growth web authentication shell, covering sign-in, signup, and
 sign-in error routes. No API, database, migration, permission, or provider changes.
 
-Platform release ID: `0.9.9`; release tag: `platform-v0.9.9`. The exact commit and Vercel
-deployment ID will be recorded after publication.
+Platform release ID: `0.9.9`; release tag: `platform-v0.9.9`; source commit:
+`ca8acb9de3996585ed86b2775adfc577ee003844` (includes `ac6be6145`, the authentication UI
+change).
 
 ## Measurement, logs, and documentation
 
@@ -34,9 +35,16 @@ required.
   scanned generated Vercel bundle files and reported errors there; the source-scoped check passed.
 - `pnpm verify:boundaries` passed.
 - Local visual inspection passed at desktop and 390 px mobile widths.
-- Validation ran under Node `23.11.1`; the workspace declares Node `>=24 <25`.
-- Rollout: publish the approved release commit to `main`; verify the production Vercel deployment
-  and sign-in route before closing this record.
+- Rebuilt and packaged under Node `24.15.0`, matching the workspace requirement.
+- CI's Growth build passed; its separate browser-contract step failed in the existing route
+  validation assertion `route validation rejects a wrong module, missing file and incomplete
+  baseline`. The authentication change's focused checks passed; this unrelated assertion did not
+  block the owner-approved direct deployment.
+- Rollout: pushed `ca8acb9de3996585ed86b2775adfc577ee003844` to `main` and published the prebuilt
+  Growth artifact directly to Vercel production. Deployment `dpl_PjWqxKskRgyMVfsmfeypJKScMgfU`
+  is `READY` and aliased to `https://app.kasitek.co.za`.
+- Production smoke check: `https://app.kasitek.co.za/login` returned HTTP 200 and all 22 referenced
+  assets returned HTTP 200.
 
 ## Rollback
 
@@ -44,4 +52,4 @@ Restore the preceding Vercel frontend deployment or revert the authentication-sh
 redeploy. No data, API contract, or migration rollback is required.
 
 Post-release review: verify the production sign-in page, account-creation link, and authentication
-redirect after the Vercel deployment completes.
+redirect in the browser.
