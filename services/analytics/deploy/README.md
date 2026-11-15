@@ -57,6 +57,11 @@ Configure the API health check at `/health/ready`; it returns `503` until Postgr
 and the base Analytics migration has been applied. The worker is a background process and does not
 open an HTTP port.
 
+Run the API and worker in the same Railway region as the Analytics PostgreSQL database. A report
+executes many short queries; cross-region calls add latency to every one and can push the report
+past the Core gateway timeout even when the data is small. Production Analytics uses
+`asia-southeast1` for the database, API and worker.
+
 ## Backups and recovery
 
 `scripts/backup.sh` creates a custom-format PostgreSQL dump with a checksum and metadata. Keep all
