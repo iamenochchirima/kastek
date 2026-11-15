@@ -11,7 +11,7 @@ Change: Growth-native Telegram connection and assistant channel link/manage flow
 Owner: iamenochchirima
 Risk: standard
 Affected services and user surfaces: Agents API, Growth API, Growth web Connections and Agents hub, Telegram provider setup, Growth-managed WhatsApp link.
-Platform release version or release ID: pending production deployment.
+Platform release version or release ID: commit 459918d62; Agents API 6f903064-8f8f-4bed-86b9-97e25168cbac; Agents worker daf2d07a-87bc-481a-b7e3-9465ce3fd018; Growth API 360e7e0b-53e2-431c-86fc-3dfe5600e11e; Growth web kasitek-b1vn9zqnd-iamenochchirimas-projects.vercel.app.
 API/schema/migration changes: Agents schema 150 (growth-assistant offering) and 151 (unique assistant per workspace, product request results); no Growth schema change.
 Feature flag or rollout method: deploy Agents API/worker before Growth API/web; set AGENTS_CHANNEL_WEBHOOK_ORIGIN on the Agents API and worker.
 Analytics events and success metrics: existing Agents channel lifecycle telemetry plus bounded `growth.channel.admin` structured logs; success is an active Telegram connection, a bound assistant deployment and a provider-confirmed reply.
@@ -115,7 +115,37 @@ this release.
 5. Connect a real Telegram bot, link it to the Growth assistant, send a message and confirm the
    reply. Link and unlink the KasiAI WhatsApp number and confirm routing.
 
-Deployment IDs, commit identity and production health results are appended after the release.
+## Production outcome
+
+Deployed on 15 November 2026 from `459918d62` against production agents-db
+`agents_db`, Growth database and `app.kasitek.co.za`.
+
+- Agents schema: `node dist/composition/setup.js` inside the production `agents-api`
+  container reported `Agents platform schema ready`. `product_request_results` and
+  `agents_one_growth_assistant_per_organization` exist. The production Growth assistant
+  `ed54817b-c463-4479-b642-66d1774f1e1d` has offering `growth-assistant`.
+- Agents API: Railway deployment `6f903064-8f8f-4bed-86b9-97e25168cbac` reached `SUCCESS`.
+  `https://agents-api-production-907e.up.railway.app/ready` returns 200.
+- Agents worker: Railway deployment `daf2d07a-87bc-481a-b7e3-9465ce3fd018` reached `SUCCESS`
+  from the same commit.
+- Growth API: Railway deployment `360e7e0b-53e2-431c-86fc-3dfe5600e11e` reached `SUCCESS`.
+  `https://api.kasitek.co.za/health` returns 200.
+- Growth web: Vercel production deployment
+  `kasitek-b1vn9zqnd-iamenochchirimas-projects.vercel.app` is aliased to
+  `https://app.kasitek.co.za` (manifest `ae8616af`). The production Connections chunk contains
+  `Connect Telegram`, `telegram-setup`, `Bots via Agents` and `Assistant messages`. The Agents
+  chunk contains `Growth assistant channels` and `Route messages to the Growth assistant`.
+- `AGENTS_CHANNEL_WEBHOOK_ORIGIN=https://agents.kasitek.co.za` is set on the production
+  `agents-api` and `agents-worker`.
+- `POST /internal/v1/products/growth/channels` on the production Agents API returns
+  `401 PRODUCT_SERVICE_DENIED` without a service token, so the route is live and protected.
+- `GET /api/assistant/channels` and `GET /api/telegram/connections` on the production Growth API
+  return 401 without a session, so the new routes are live.
+- The production Growth tenant `r9lk9wxcrpf3nr91oc03qe71` maps to Agents organization
+  `5e0d652c-6c6b-463f-a20e-750054418717`.
+
+Live Telegram message acceptance and WhatsApp inbound/outbound acceptance remain owner-run with
+real provider credentials. No bot token or customer message was used in this release validation.
 
 ## Rollback
 
