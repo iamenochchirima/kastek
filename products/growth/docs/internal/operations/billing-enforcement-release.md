@@ -328,3 +328,35 @@ from taking down the API.
 - Confirm `BillingUsageOutbox` drains and billing enforcement resumes.
 - Connect a WhatsApp number in the production KasiTek organization and link it to the production
   Growth assistant.
+
+## Production migration — central billing outbox (15 November 2026)
+
+Production Growth was running API commit `398daac43` against a database that was three migrations
+behind. Every `POST /v1/operations/{operation}` request wrote a `BillingUsageOutbox` row, but the
+table did not exist, so PostgreSQL returned SQLSTATE `42P01` and the Content templates and Media
+pages showed "Database operation failed".
+
+Applied to the Railway `growth-db` production database:
+
+- `20261107160000_centralize_billing_and_usage_outbox`
+- `20261108130000_billing_usage_metadata`
+- `20261111150000_growth_agent_usage_cursor`
+
+Pre-migration backup: `/tmp/opencode/growth-prod-backups/growth-prod-20261115-pre-billing-migrations.dump`
+(custom format, 1.2 MB, SHA-256 `f2af10427987131646affa232282d625e7c5ab46442d90eae2e07d59d52e8c9c`).
+The first migration drops the legacy billing tables now owned by the central billing service.
+Pre-migration row counts: `UsageEvent` 196, `Product` 4, and one row each in `CreditAccount`,
+`CreditGrant`, `CreditLedgerEntry` and `ReferralCode`; the remaining legacy tables were empty.
+
+Validation:
+
+- `prisma migrate status`: 107 migrations, database schema up to date.
+- `BillingUsageOutbox` exists with the `metadata` jsonb column; `GrowthAgentUsageCursor` exists.
+- A transactional outbox insert succeeded and was rolled back.
+- The production `beginRequest` path created one `PublicApiRequest` audit row and one
+  `BillingUsageOutbox` row for the KasiTek organisation; both test rows were deleted.
+- `listContentTemplates` and `listLibraryMedia` against production returned 0 templates and 21
+  media assets with no database error.
+
+Rollback: restore the backup. The dropped legacy tables are not recreated by the application; the
+central billing service remains the authority for billing data.
