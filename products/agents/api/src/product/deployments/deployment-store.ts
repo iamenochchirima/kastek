@@ -74,6 +74,13 @@ export class DeploymentStore extends AuthorityStore {
         VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`, [randomUUID(), input.organizationId, input.agentId, version.id, JSON.stringify(origins), input.accountId, appearance])).rows[0]!;
   }
   async assertWebsiteConfigurationInTransaction(db:PoolClient,input:{organizationId:string;agentId:string;version:VersionRecord}):Promise<void> {
+      return this.assertChannelConfigurationInTransaction(db,input,false);
+  }
+  /** Product-owned assistant channels may use Growth product bindings, but no other private layer. */
+  async assertProductAssistantChannelInTransaction(db:PoolClient,input:{organizationId:string;agentId:string;version:VersionRecord}):Promise<void> {
+      return this.assertChannelConfigurationInTransaction(db,input,true);
+  }
+  private async assertChannelConfigurationInTransaction(db:PoolClient,input:{organizationId:string;agentId:string;version:VersionRecord},allowProductBindings:boolean):Promise<void> {
       const {version}=input;
       if(version.organization_id!==input.organizationId||version.agent_id!==input.agentId)denied();
       if (version.configuration.capabilities.sandbox.enabled || version.configuration.capabilities.workflows.enabled) throw new PlatformError("WEBSITE_CAPABILITY_DENIED",409,"Customer agents cannot run analysis or private workflows");
@@ -83,15 +90,16 @@ export class DeploymentStore extends AuthorityStore {
         throw new PlatformError("PRIVATE_AGENT_CONFIGURATION",409,"Website agents cannot use personal memory or protected skills");
       await assertPublicSkillPolicy(db,input.organizationId,input.agentId,websiteConfig.skillIds);
       await assertCustomerNativeBindings(db,input.organizationId,connectedToolAuthorityIds(websiteConfig));
-      await this.assertCustomerSubtreeInTransaction(db,version,websiteConfig,new Set());
+      await this.assertCustomerSubtreeInTransaction(db,version,websiteConfig,new Set(),allowProductBindings);
       if(websiteConfig.capabilities.businessActions.enabled)await loadBookingPolicy(db,input.organizationId,input.agentId,websiteConfig.capabilities.businessActions);
       if ((await db.query(`SELECT 1 FROM agents_platform.version_sources v JOIN agents_platform.sources s ON s.id=v.source_id
         JOIN agents_platform.source_revision_policy p ON p.revision_id=v.revision_id WHERE v.version_id=$1 AND (s.state<>'active' OR p.state<>'approved')`, [version.id])).rowCount) throw new PlatformError("PRIVATE_KNOWLEDGE", 409, "Website agents require approved public knowledge");
   }
-  private async assertCustomerSubtreeInTransaction(db:PoolClient,version:VersionRecord,configuration:VersionRecord["configuration"],trail:Set<string>):Promise<void> {
+  private async assertCustomerSubtreeInTransaction(db:PoolClient,version:VersionRecord,configuration:VersionRecord["configuration"],trail:Set<string>,allowProductBindings=false):Promise<void> {
     if(trail.has(version.id))throw new PlatformError("DELEGATION_SCOPE_DENIED",409,"Specialist publication contains a cycle");
     if(configuration.memory.enabled || configuration.capabilities.sandbox.enabled || configuration.capabilities.workflows.enabled ||
-       configuration.productBindings.length || configuration.commissionableProductBindings?.length || configuration.tools.some(name=>name.startsWith("memory.")))
+       (!allowProductBindings && (configuration.productBindings.length || configuration.commissionableProductBindings?.length)) ||
+       configuration.tools.some(name=>name.startsWith("memory.")))
       throw new PlatformError("PRIVATE_AGENT_CONFIGURATION",409,"Customer specialists require public capabilities");
     await assertPublicSkillPolicy(db,version.organization_id,version.agent_id,configuration.skillIds);
     await assertCustomerNativeBindings(db,version.organization_id,connectedToolAuthorityIds(configuration));
@@ -103,7 +111,7 @@ export class DeploymentStore extends AuthorityStore {
       const next=new Set([...trail,version.id]);
       for(const binding of configuration.capabilities.delegation.bindings) {
         const child=await this.version(db,version.organization_id,binding.versionId);
-        await this.assertCustomerSubtreeInTransaction(db,child,delegatedConfiguration(configuration,binding,agentConfigurationSchema.parse(child.configuration)),next);
+        await this.assertCustomerSubtreeInTransaction(db,child,delegatedConfiguration(configuration,binding,agentConfigurationSchema.parse(child.configuration)),next,allowProductBindings);
       }
     }
   }
@@ -133,14 +141,19 @@ export class DeploymentStore extends AuthorityStore {
     return this.createChannelGrantForState(db,input,'handoff_pending');
   }
   private async createChannelGrantForState(db:PoolClient,input:{deploymentId:string;participantId:string;rootTokenLimit?:number},state:'automation_active'|'handoff_pending'):Promise<ExecutionGrant> {
-    const deployment = (await db.query(`SELECT d.* FROM agents_platform.channel_deployments d
+    const deployment = (await db.query(`SELECT d.*,c.mode AS connection_mode,a.offering AS agent_offering FROM agents_platform.channel_deployments d
       JOIN agents_platform.channel_connections c ON c.organization_id=d.organization_id AND c.id=d.connection_id
+      JOIN agents_platform.agents a ON a.organization_id=d.organization_id AND a.id=d.agent_id
       JOIN agents_platform.customer_conversations p ON p.organization_id=d.organization_id AND p.channel_deployment_id=d.id
       WHERE d.id=$1 AND p.id=$2 AND p.agent_id=d.agent_id AND p.state=$3
-        AND d.state='active' AND c.state='active' AND c.kind<>'website' AND p.channel_kind=c.kind FOR SHARE OF d,c,p`,
+        AND d.state='active' AND c.state='active' AND c.kind<>'website' AND p.channel_kind=c.kind FOR SHARE OF d,c,p,a`,
     [input.deploymentId, input.participantId,state])).rows[0] ?? absent();
     const version = await this.version(db, deployment.organization_id, deployment.version_id);
-    await this.assertWebsiteConfigurationInTransaction(db, { organizationId: deployment.organization_id, agentId: deployment.agent_id, version });
+    const productAssistantChannel = deployment.agent_offering === "growth-assistant" && deployment.connection_mode === "growth_managed";
+    if (productAssistantChannel)
+      await this.assertProductAssistantChannelInTransaction(db, { organizationId: deployment.organization_id, agentId: deployment.agent_id, version });
+    else
+      await this.assertWebsiteConfigurationInTransaction(db, { organizationId: deployment.organization_id, agentId: deployment.agent_id, version });
     const config = agentConfigurationSchema.parse(version.configuration);
     const grant = executionGrantSchema.parse({ id: randomUUID(), product: "agents", organizationId: deployment.organization_id,
       resourceId: deployment.id, callerClientId: "agents-channel", principal: { kind: "channel_customer", deploymentId: deployment.id, participantId: input.participantId },
