@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import { PiChatCircle } from "react-icons/pi";
 import { AgentComposer, AgentConversationScroll, AgentMessage } from "../agent.js";
+import { Button } from "../button.js";
 import { Skeleton } from "../skeleton.js";
 import type { AssistantChatProps } from "./assistant-types.js";
 import { cn } from "../utils.js";
 
-export function AssistantChat({ className, messagesClassName, scrollKey, loading = false, loadingContent, leading, historyAction, empty, emptyTitle = "How can I help?", emptyDescription, emptyIcon, turns, extra, renderAssistant, status, error, composer }: AssistantChatProps) {
+export function AssistantChat({ className, messagesClassName, scrollKey, loading = false, loadingContent, leading, historyAction, empty, emptyTitle = "How can I help?", emptyDescription, emptyIcon, turns, extra, renderAssistant, renderSources, stream, status, error, composer }: AssistantChatProps) {
   const isEmpty = empty ?? (!loading && turns.length === 0);
   return <div className={cn("assistant-chat flex h-full min-h-0 min-w-0 flex-col bg-background", className)}>
     {leading}
@@ -20,11 +21,20 @@ export function AssistantChat({ className, messagesClassName, scrollKey, loading
         {turns.map((turn, index) => <article key={turn.id} aria-label={turn.label ?? `Turn ${index + 1}`} className="space-y-4">
           {turn.user.map(message => <AgentMessage key={message.id} id={message.id} role="user" createdAt={message.createdAt} text={message.text} />)}
           {turn.details}
-          {turn.assistant.map(message => <AgentMessage key={message.id} id={message.id} role="assistant" createdAt={message.createdAt}>{renderAssistant(message)}</AgentMessage>)}
+          {turn.assistant.map(message => <AgentMessage key={message.id} id={message.id} role="assistant" createdAt={message.createdAt}>{renderAssistant(message)}{renderSources && message.sources?.length ? renderSources(message.sources) : null}</AgentMessage>)}
         </article>)}
         {extra}
       </>}
     </AgentConversationScroll>
+    {stream ? <div className="assistant-chat-stream flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-4 py-2 text-sm">
+      {stream.label ? <p role="status" className="min-w-0 flex-1 text-xs text-muted-foreground">{stream.label}</p> : null}
+      {stream.error ? <p role="alert" className="min-w-0 flex-1 text-sm text-destructive">{stream.error}</p> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        {stream.actions}
+        {stream.onRetry ? <Button type="button" variant="outline" size="sm" disabled={stream.retryDisabled} onClick={stream.onRetry}>{stream.retryLabel ?? "Retry"}</Button> : null}
+        {stream.onStop ? <Button type="button" variant="outline" size="sm" disabled={stream.stopDisabled} onClick={stream.onStop}>{stream.stopLabel ?? "Stop"}</Button> : null}
+      </div>
+    </div> : null}
     {status}
     {error}
     {composer}

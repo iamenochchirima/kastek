@@ -3,13 +3,20 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { api, ApiError, loadTaskDetail, message, readStored, terminal, writeStored, type Task } from "./api";
 import { PiRobot as Bot } from "react-icons/pi";
-import { ErrorMessage } from "./shell";
 import { cleanupPending } from "./task-activity";
-import { AssistantChat, AssistantChatComposer, type AssistantChatTurn } from "@kasitek-labs/ui/assistant";
+import { applyAssistantStreamEvent, AssistantChat, AssistantChatComposer, type AssistantChatStream, type AssistantChatTurn, type AssistantStreamEvent, type AssistantStreamState } from "@kasitek-labs/ui/assistant";
 import { TaskExecutionBody } from "./execution-view";
 
 type SavedChat = { id: string; label: string; entries: Entry[] };
 type Entry = { requestKey: string; input: string; agentId?: string; conversationId?: string; versionId?: string; versionNumber?: number; task?: Task };
+function taskStreamEvent(task: Task, previous?: string): AssistantStreamEvent | null {
+  if (!previous) return { type: "accepted", messageId: task.id };
+  if (task.state === previous) return null;
+  if (task.state === "completed") return { type: "completed", message: { id: task.id, role: "assistant", text: task.output ?? "" } };
+  if (["failed", "refused", "incomplete", "cancelled"].includes(task.state)) return { type: "failed", code: task.errorCode ?? undefined, message: task.errorCode ?? "Task did not complete." };
+  if (task.state === "uncertain") return { type: "uncertain", code: task.errorCode ?? undefined, message: "Task outcome is unknown." };
+  return { type: "status", state: task.state };
+}
 function restorable(entries: Entry[]): Entry[] {
   return entries.map(entry => ({ ...entry, input: entry.task ? "" : entry.input, task: entry.task ? {
     id: entry.task.id, state: entry.task.state, output: null, errorCode: null,
@@ -38,6 +45,16 @@ export function Chat({ endpoint, storageKey, token, agentId, versionId, versionN
   pinnedVersion.current = onPinnedVersion;
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const last = entries.at(-1);
+  const [streamState, setStreamState] = useState<AssistantStreamState>({ state: "idle" });
+  const streamTask = useRef<{ id: string; state: string } | null>(null);
+  useEffect(() => {
+    const task = last?.task;
+    if (!task) { setStreamState({ state: "idle" }); streamTask.current = null; return; }
+    const previous = streamTask.current?.id === task.id ? streamTask.current.state : undefined;
+    const event = taskStreamEvent(task, previous);
+    streamTask.current = { id: task.id, state: task.state };
+    if (event) setStreamState(current => applyAssistantStreamEvent(current, event));
+  }, [last?.task, last?.task?.id, last?.task?.state, last?.task?.output]);
   const followedId = last?.task?.id;
   const activeId = last?.task && !terminal(last.task.state) ? last.task.id : undefined;
   const unknown = Boolean(last && !last.task);
@@ -169,6 +186,16 @@ export function Chat({ endpoint, storageKey, token, agentId, versionId, versionN
         else setEntries(current => current.map(item => item.task?.id === entry.task?.id ? { ...item, task: { ...item.task!, output: null, outputAvailability: "unavailable", orchestration: undefined, canSteer: false, children: [], artifacts: [], actions: [] } } : item)); }} />
       : <p className="text-xs text-muted-foreground" role="status">{sending ? "Submitting…" : "Request outcome unknown"}</p>,
   }));
+  const chatStream: AssistantChatStream = {
+    state: streamState.state,
+    error: error || undefined,
+    retryLabel: unknown && !sending ? "Retry request" : undefined,
+    onRetry: unknown && !sending ? () => void submit(last!, entries.slice(0, -1)) : undefined,
+    stopLabel: cancellable && activeId ? "Cancel task" : undefined,
+    onStop: cancellable && activeId ? () => void cancel() : undefined,
+    stopDisabled: sending || continuing || last?.task?.state === "cancel_requested",
+    actions: cancellable && conversationId ? <Button variant="ghost" size="sm" onClick={() => { setHistoryGeneration(value => value + 1); setRefreshGeneration(value => value + 1); }}>Refresh conversation</Button> : undefined,
+  };
   return <section className={`chat-workspace ${view === "activity" ? "chat-activity-view" : ""}`} aria-label="Conversation">
     <AssistantChat
       className="h-full"
@@ -183,12 +210,10 @@ export function Chat({ endpoint, storageKey, token, agentId, versionId, versionN
       </div> : null}
       historyAction={historyCursor ? <Button variant="outline" size="sm" onClick={() => void loadMoreHistory()} disabled={historyLoading}>{historyLoading ? "Loading…" : "Older messages"}</Button> : null}
       renderAssistant={() => null}
-      error={<div className="chat-feedback">{cancellable && conversationId ? <Button variant="ghost" size="sm" onClick={() => { setHistoryGeneration(value => value + 1); setRefreshGeneration(value => value + 1); }}>Refresh conversation</Button> : null}<ErrorMessage value={error} />
-        {unknown && !sending ? <Button variant="outline" onClick={() => void submit(last!, entries.slice(0, -1))}>Retry request</Button> : null}
-      </div>}
+      stream={chatStream}
       composer={view === "chat" ? <AssistantChatComposer label={canSteer ? "Update instructions" : "Message"} sendLabel={canSteer ? "Queue instructions" : "Send message"} maxLength={canSteer ? 4000 : undefined} placeholder={canSteer ? "Add instructions…" : "Message your agent…"} value={input} onChange={value => { setInput(value); writeStored(`${storageKey}.draft`, value); }}
         onSubmit={() => void send()} disabled={sending || Boolean(activeId) && !canSteer || unknown || historyLoading || accessDenied} sending={sending}
-        context={composerAccessory} actions={<>{cancellable && needsContinuation ? <Button type="button" onClick={() => void continueTask()} disabled={sending || continuing}>{continuing ? "Continuing…" : "Continue task"}</Button> : null}{cancellable && activeId ? <Button type="button" variant="outline" disabled={sending || continuing || last?.task?.state === "cancel_requested"} onClick={() => void cancel()}>Cancel task</Button> : null}</>} /> : null}
+        context={composerAccessory} actions={<>{cancellable && needsContinuation ? <Button type="button" onClick={() => void continueTask()} disabled={sending || continuing}>{continuing ? "Continuing…" : "Continue task"}</Button> : null}</>} /> : null}
     />
   </section>;
 }

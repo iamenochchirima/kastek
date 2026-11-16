@@ -476,13 +476,15 @@ test("new conversation retries creation instead of reopening the saved conversat
   await page.goto("/agents");
   await page.getByRole("button", { name: "New conversation", exact: true }).click();
   await page.getByRole("button", { name: /Growth assistant Guidance/ }).click();
-  const chat = page.getByRole("region", { name: "Agent conversation", exact: true });
-  await chat.getByRole("textbox", { name: "Message agent" }).fill("An existing conversation");
-  await chat.getByRole("button", { name: "Send message", exact: true }).click();
-  await expect(chat.locator('[data-role="user"]').getByText("An existing conversation", { exact: true })).toBeVisible();
-  await chat.getByRole("link", { name: "Expand conversation", exact: true }).click();
+  const panel = page.getByRole("dialog", { name: "Growth assistant" });
+  const panelChat = panel.getByRole("region", { name: "Agent conversation", exact: true });
+  await panelChat.getByRole("textbox", { name: "Message agent" }).fill("An existing conversation");
+  await panelChat.getByRole("button", { name: "Send message", exact: true }).click();
+  await expect(panelChat.locator('[data-role="user"]').getByText("An existing conversation", { exact: true })).toBeVisible();
+  await panelChat.getByRole("link", { name: "Expand conversation", exact: true }).click();
   await expect(page).toHaveURL(/\/agents\/conversations\//);
-  await expect(chat.locator('[data-role="user"]').getByText("An existing conversation", { exact: true })).toBeVisible();
+  const pageChat = page.getByRole("region", { name: "Agent conversation", exact: true });
+  await expect(pageChat.locator('[data-role="user"]').getByText("An existing conversation", { exact: true })).toBeVisible();
   let fail = true;
   const identities: string[] = [];
   await page.route("**/api/agents/conversations", async route => {
@@ -491,12 +493,13 @@ test("new conversation retries creation instead of reopening the saved conversat
     if (fail) { fail = false; return route.fulfill({ status: 503, json: { error: "Unavailable" } }); }
     return route.continue();
   });
-  await chat.getByRole("button", { name: "New conversation", exact: true }).click();
+  await pageChat.getByRole("button", { name: "New conversation", exact: true }).click();
   await expect(page).toHaveURL(/\/agents$/);
-  await expect(chat.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
-  await chat.getByRole("button", { name: "Retry", exact: true }).click();
-  await expect(chat.getByRole("textbox", { name: "Message agent" })).toBeEnabled();
-  await expect(chat.getByText("An existing conversation", { exact: true })).toHaveCount(0);
+  const retryPanel = page.getByRole("dialog", { name: "Growth assistant" }).getByRole("region", { name: "Agent conversation", exact: true });
+  await expect(retryPanel.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
+  await retryPanel.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(retryPanel.getByRole("textbox", { name: "Message agent" })).toBeEnabled();
+  await expect(retryPanel.getByText("An existing conversation", { exact: true })).toHaveCount(0);
   expect(identities).toHaveLength(2); expect(identities[0]).toBe(identities[1]);
 });
 

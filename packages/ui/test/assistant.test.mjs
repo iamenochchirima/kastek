@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AssistantChannelsView, AssistantChat, AssistantLauncher, AssistantLibrary, AssistantNavigation, AssistantSettingsView } from "../dist/assistant/index.js";
+import { AssistantChannelsView, AssistantChat, AssistantLauncher, AssistantLibrary, AssistantNavigation, AssistantSettingsView, applyAssistantStreamEvent } from "../dist/assistant/index.js";
 
 const noop = () => {};
 
@@ -60,6 +60,29 @@ test("shared chat renders turns, details, composer and empty state", () => {
   assert.match(empty, /How can I help\?/);
 });
 
+test("shared stream state renders retry, stop and source controls", () => {
+  const stream = renderToStaticMarkup(createElement(AssistantChat, {
+    scrollKey: "stream", turns: [], renderAssistant: () => null,
+    stream: { state: "failed", error: "Unavailable", retryLabel: "Retry message", onRetry: noop, stopLabel: "Stop", onStop: noop },
+  }));
+  assert.match(stream, /Unavailable/); assert.match(stream, /Retry message/); assert.match(stream, /Stop/);
+  const sources = renderToStaticMarkup(createElement(AssistantChat, {
+    scrollKey: "sources", turns: [{ id: "turn", user: [], assistant: [{ id: "answer", role: "assistant", text: "Answer", sources: [{ id: "source", title: "Launch brief" }] }] }],
+    renderAssistant: message => message.text, renderSources: rows => createElement("span", null, rows[0].title),
+  }));
+  assert.match(sources, /Launch brief/);
+});
+
+test("assistant stream reducer normalizes accepted, status, completed, failed and uncertain events", () => {
+  const accepted = applyAssistantStreamEvent({ state: "idle" }, { type: "accepted", messageId: "task-1" });
+  assert.deepEqual(accepted, { state: "accepted", taskId: "task-1" });
+  assert.equal(applyAssistantStreamEvent(accepted, { type: "status", state: "working" }).state, "streaming");
+  const completed = applyAssistantStreamEvent(accepted, { type: "completed", message: { id: "message-1", role: "assistant", text: "Done", sources: [{ id: "source", title: "Brief" }] } });
+  assert.equal(completed.state, "completed"); assert.equal(completed.message.text, "Done"); assert.equal(completed.sources[0].title, "Brief");
+  assert.equal(applyAssistantStreamEvent(accepted, { type: "failed", message: "Unavailable" }).state, "failed");
+  assert.equal(applyAssistantStreamEvent(accepted, { type: "uncertain", message: "Unknown" }).state, "uncertain");
+});
+
 test("shared settings and channels own the section layout", () => {
   const settings = renderToStaticMarkup(createElement(AssistantSettingsView, {
     title: "Ask AI settings", onBack: noop, identity: { name: "Ask AI", subtitle: "Workspace AI · Ready" },
@@ -86,7 +109,7 @@ test("shared library owns search, recents and archive controls", () => {
 
 test("the shared assistant source has no product imports", async () => {
   const source = path => readFile(new URL(`../src/assistant/${path}`, import.meta.url), "utf8");
-  for (const file of ["assistant-types.ts", "assistant-navigation.tsx", "assistant-panel.tsx", "assistant-launcher.tsx", "assistant-chat.tsx", "assistant-settings.tsx", "assistant-channels.tsx", "assistant-library.tsx", "index.ts"]) {
+  for (const file of ["assistant-types.ts", "assistant-navigation.tsx", "assistant-panel.tsx", "assistant-launcher.tsx", "assistant-chat.tsx", "assistant-stream.ts", "assistant-settings.tsx", "assistant-channels.tsx", "assistant-library.tsx", "index.ts"]) {
     const text = await source(file);
     assert.doesNotMatch(text, /from ["'][^"']*(products\/|@\/|\.\.\/\.\.\/\.\.\/)/, file);
   }

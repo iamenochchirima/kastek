@@ -86,6 +86,28 @@ export type AssistantChatTurn = {
   details?: ReactNode;
 };
 
+export type AssistantStreamState = {
+  state: "idle" | "accepted" | "streaming" | "completed" | "failed" | "uncertain";
+  taskId?: string;
+  label?: string;
+  error?: string;
+  sources?: AssistantSource[];
+  message?: AssistantMessage;
+};
+
+export type AssistantChatStream = {
+  state?: AssistantStreamState["state"];
+  label?: string;
+  error?: string;
+  retryLabel?: string;
+  retryDisabled?: boolean;
+  onRetry?: () => void;
+  stopLabel?: string;
+  stopDisabled?: boolean;
+  onStop?: () => void;
+  actions?: ReactNode;
+};
+
 export type AssistantChatProps = {
   className?: string;
   messagesClassName?: string;
@@ -101,6 +123,8 @@ export type AssistantChatProps = {
   turns: AssistantChatTurn[];
   extra?: ReactNode;
   renderAssistant: (message: AssistantMessage) => ReactNode;
+  renderSources?: (sources: AssistantSource[]) => ReactNode;
+  stream?: AssistantChatStream;
   status?: ReactNode;
   error?: ReactNode;
   composer?: ReactNode;

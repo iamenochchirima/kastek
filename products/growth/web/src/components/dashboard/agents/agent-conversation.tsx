@@ -1,9 +1,9 @@
 import { Link } from "react-router";
 import { useNavigate } from "react-router";
 import { AgentContextUsage, AgentMessage } from "@kasitek-labs/ui/agent";
-import { AssistantChat, AssistantChatComposer, type AssistantChatTurn, type AssistantMessage } from "@kasitek-labs/ui/assistant";
-import { useRef } from "react";
-import { ArrowUpRight, LoaderCircle, Plus, Square, MessageCircle as Bot, Send as ArrowUp, X } from "@/components/ui/interface-icons";
+import { AssistantChat, AssistantChatComposer, applyAssistantStreamEvent, type AssistantChatStream, type AssistantChatTurn, type AssistantMessage, type AssistantStreamEvent, type AssistantStreamState } from "@kasitek-labs/ui/assistant";
+import { useEffect, useRef, useState } from "react";
+import { ArrowUpRight, LoaderCircle, Plus, MessageCircle as Bot, Send as ArrowUp, X } from "@/components/ui/interface-icons";
 import "./agents-workspace.css";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,6 +21,17 @@ import { GrowthExecution } from "./agent-execution";
 import { TaskResults } from "./agent-results";
 import { GrowthAgentModelPicker } from "./agent-model-picker";
 
+function growthStreamEvent(input: { reconnecting: boolean; liveStatus: string | null; error: string | null; task?: GrowthAgentTask }): AssistantStreamEvent | null {
+  if (input.reconnecting) return { type: "status", state: "reconnecting" };
+  if (input.liveStatus === "polling" && input.task) return { type: "status", state: "polling" };
+  if (input.error) return { type: "failed", message: input.error };
+  if (!input.task) return null;
+  if (input.task.state === "completed") return { type: "completed", message: { id: input.task.id, role: "assistant", text: input.task.output ?? "" } };
+  if (input.task.state === "uncertain") return { type: "uncertain", message: "Task outcome is unknown." };
+  if (["failed", "refused", "incomplete", "cancelled"].includes(input.task.state)) return { type: "failed", message: input.task.errorCode ?? "Task did not complete." };
+  return { type: "status", state: input.task.state };
+}
+
 
 export function AgentConversation({ expanded = false, onClose }: { expanded?: boolean; onClose?: () => void }) {
   const agents = useGrowthAgents();
@@ -34,6 +45,11 @@ export function AgentConversation({ expanded = false, onClose }: { expanded?: bo
   const latest = [...agents.tasks].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   const canSteer = Boolean(task?.canSteer && task.state !== "cancel_requested");
   const blocked = agents.loading || agents.sending || agents.unconfirmed || Boolean(task && !canSteer) || !agents.conversation;
+  const [streamState, setStreamState] = useState<AssistantStreamState>({ state: "idle" });
+  useEffect(() => {
+    const event = growthStreamEvent({ reconnecting: agents.reconnecting, liveStatus: agents.liveStatus, error: agents.error, task });
+    if (event) setStreamState(current => applyAssistantStreamEvent(current, event));
+  }, [agents.reconnecting, agents.liveStatus, agents.error, task, task?.id, task?.state, task?.output]);
   const stop = async () => {
     if (task && await confirm({ title: "Stop this task?", description: "Changes already saved will remain.", confirmLabel: "Stop task" })) await agents.cancel(task.id);
   };
@@ -56,6 +72,17 @@ export function AgentConversation({ expanded = false, onClose }: { expanded?: bo
     details: taskDetails(turn.task),
   }));
   const earlierTurns = agents.tasks.filter(item => !agents.messages.some(message => message.taskId === item.id)).map(item => <section key={item.id} aria-label="Earlier task" className="space-y-3"><p className="text-xs text-muted-foreground">{item.priorTaskId ? "Continued work" : "Earlier task"} · {new Intl.DateTimeFormat(undefined, { dateStyle: "short", timeStyle: "short" }).format(new Date(item.createdAt))}</p>{taskDetails(item)}</section>);
+  const chatStream: AssistantChatStream = {
+    state: streamState.state,
+    label: agents.reconnecting ? "Reconnecting. Your task continues in the background." : agents.liveStatus === "polling" && running.length && !agents.reconnecting ? "Live stream unavailable. Checking updates." : undefined,
+    error: agents.error || undefined,
+    retryLabel: agents.error ? (agents.unconfirmed ? "Retry message" : agents.conversation ? "Reconnect" : "Retry") : undefined,
+    onRetry: agents.error ? (agents.unconfirmed ? () => void agents.send() : agents.conversation ? () => { agents.setError(null); void agents.refresh().catch((cause: unknown) => agents.setError(cause instanceof Error ? cause.message : "Unable to reconnect.")); } : () => void agents.openGeneral()) : undefined,
+    stopLabel: task ? "Stop" : undefined,
+    onStop: task ? () => void stop() : undefined,
+    stopDisabled: agents.sending || task?.state === "cancel_requested",
+    actions: task?.canContinue ? <Button type="button" variant="outline" size="sm" disabled={agents.sending} onClick={() => void agents.continueTask(task.id)}>{agents.continuingTaskId === task.id ? <LoaderCircle className="mr-1.5 size-3 animate-spin" /> : null}Continue</Button> : undefined,
+  };
   return <section className="growth-agent-chat flex h-full min-h-0 min-w-0 flex-col bg-background" aria-label="Agent conversation">
     <header className="growth-agent-chat-header flex shrink-0 items-center gap-2 border-b border-border px-4">
       <span className="grid size-8 shrink-0 place-items-center text-foreground"><Bot className="size-4" /></span>
@@ -75,15 +102,12 @@ export function AgentConversation({ expanded = false, onClose }: { expanded?: bo
       emptyIcon={<Bot className="size-6" />}
       turns={turns}
       extra={earlierTurns.length ? <div className="space-y-3">{earlierTurns}</div> : null}
-      renderAssistant={message => <><GrowthAgentMarkdown text={message.text} sources={message.sources as unknown as GrowthAgentSource[]} />{message.sources ? <AgentSources sources={message.sources as unknown as GrowthAgentSource[]} /> : null}</>}
-      status={<>
-        {agents.liveStatus === "polling" && running.length && !agents.reconnecting ? <p className="px-4 py-2 text-xs text-muted-foreground" role="status">Live stream unavailable. Checking updates.</p> : null}
-        {agents.reconnecting ? <p className="px-4 py-2 text-xs text-muted-foreground" role="status">Reconnecting. Your task continues in the background.</p> : null}
-      </>}
-      error={agents.error ? <div className="flex flex-wrap items-center gap-2 border-t border-destructive/20 bg-destructive/5 px-4 py-3 text-sm" role="alert"><span className="min-w-0 flex-1 text-destructive">{agents.error}</span>{agents.unconfirmed ? <Button type="button" variant="outline" size="sm" disabled={agents.sending} onClick={() => void agents.send()}>Retry message</Button> : agents.conversation ? <Button type="button" variant="outline" size="sm" onClick={() => { agents.setError(null); void agents.refresh().catch((cause: unknown) => agents.setError(cause instanceof Error ? cause.message : "Unable to reconnect.")); }}>Reconnect</Button> : <Button type="button" variant="outline" size="sm" onClick={() => void agents.openGeneral()}>Retry</Button>}</div> : null}
+      renderAssistant={message => <GrowthAgentMarkdown text={message.text} sources={message.sources as unknown as GrowthAgentSource[]} />}
+      renderSources={sources => <AgentSources sources={sources as unknown as GrowthAgentSource[]} />}
+      stream={chatStream}
       composer={<AssistantChatComposer textareaRef={composer} value={agents.draft} onChange={agents.setDraft} onSubmit={() => void agents.send()} disabled={blocked} maxLength={canSteer ? 4000 : 131072} placeholder={canSteer ? "Add instructions…" : "Message your agent…"} label="Message agent" sendButton={null}
         context={<div className="flex min-w-0 flex-wrap items-center gap-x-2">{latest ? <AgentContextUsage context={growthExecution(latest).context} diagnostics={growthExecution(latest).diagnostics} /> : null}<ContextControl compact /></div>}
-        actions={<div className="flex min-w-0 flex-wrap items-center justify-end gap-2"><GrowthAgentModelPicker key={`${agents.scopeKey}:${agents.conversation?.featureId ?? "assistant"}`} scopeKey={agents.scopeKey} featureId={agents.conversation?.featureId ?? "assistant"} label={feature?.model?.label || agents.bootstrap?.model?.label || "Default"} canConfigure={agents.bootstrap?.scope.canConfigureAgents === true} disabled={agents.loading || agents.sending || !agents.conversation} onSaved={() => agents.ensureBootstrap(true)} />{task?.canContinue ? <Button type="button" variant="outline" size="sm" disabled={agents.sending} onClick={() => void agents.continueTask(task.id)}>{agents.continuingTaskId === task.id ? <LoaderCircle className="mr-1.5 size-3 animate-spin" /> : null}Continue</Button> : null}{task ? <Button type="button" variant="outline" size="sm" disabled={agents.sending || task.state === "cancel_requested"} onClick={() => void stop()}><Square className="mr-1.5 size-3" />Stop</Button> : null}{!task || canSteer ? <Button type="submit" size="icon" className="size-8 rounded-lg" disabled={blocked || !agents.draft.trim()} aria-label={canSteer ? "Send instructions" : "Send message"}>{agents.sending ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}</Button> : null}</div>} />}
+        actions={<div className="flex min-w-0 flex-wrap items-center justify-end gap-2"><GrowthAgentModelPicker key={`${agents.scopeKey}:${agents.conversation?.featureId ?? "assistant"}`} scopeKey={agents.scopeKey} featureId={agents.conversation?.featureId ?? "assistant"} label={feature?.model?.label || agents.bootstrap?.model?.label || "Default"} canConfigure={agents.bootstrap?.scope.canConfigureAgents === true} disabled={agents.loading || agents.sending || !agents.conversation} onSaved={() => agents.ensureBootstrap(true)} />{!task || canSteer ? <Button type="submit" size="icon" className="size-8 rounded-lg" disabled={blocked || !agents.draft.trim()} aria-label={canSteer ? "Send instructions" : "Send message"}>{agents.sending ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}</Button> : null}</div>} />}
     />
     {specialistResult.dialog}
   </section>;

@@ -156,10 +156,15 @@ test("mock transport: standalone shared memory review, correction and Forget red
 
 test("mock transport: draft changes require custom discard confirmation before navigation", async ({ page }) => {
   await fixture(page); await page.goto(`/app/agents/${agentId}?section=configuration`);
-  await page.getByRole("textbox", { name: "Instructions", exact: true }).fill("Unsaved instructions");
+  await page.getByRole("button", { name: "Edit instructions", exact: true }).click();
+  const instructions = page.getByRole("dialog").getByRole("textbox", { name: "Instructions", exact: true });
+  await instructions.fill("Unsaved instructions");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Tasks", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible(); await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "Instructions", exact: true })).toHaveValue("Unsaved instructions");
+  await page.getByRole("button", { name: "Edit instructions", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("textbox", { name: "Instructions", exact: true })).toHaveValue("Unsaved instructions");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Tasks", exact: true }).click();
   await page.getByRole("button", { name: "Discard changes" }).click(); await expect(page.getByRole("heading", { name: "Tasks", exact: true })).toBeVisible();
 });
@@ -221,12 +226,22 @@ test("mock transport: running subagent uses shared modal, retains parent and upd
   await assignment.locator("summary").click();
   await expect(assignment.getByText(specialistAssignment, { exact: true })).toBeVisible();
   await expect(modal.getByText("I have read the launch brief and am checking the audience.", { exact: true })).toBeVisible();
-  await modal.getByText("Execution details", { exact: true }).click();
-  await modal.getByText("Read launch brief", { exact: true }).click();
-  await expect(modal.getByText("Status", { exact: true })).toBeVisible();
+  const activity = modal.getByRole("button", { name: /Activity/ });
+  if (await activity.getAttribute("aria-expanded") !== "true") await activity.click();
+  const readOperation = modal.locator("details[data-operation-id]").filter({ hasText: "Read launch brief" }).first();
+  if (!(await readOperation.evaluate(element => (element as HTMLDetailsElement).open))) await readOperation.locator("summary").first().click();
+  const readTechnical = readOperation.locator("details").filter({ hasText: "Technical details" }).first();
+  if (!(await readTechnical.evaluate(element => (element as HTMLDetailsElement).open))) await readTechnical.locator("summary").first().click();
+  await expect(readOperation.getByText("Read launch brief", { exact: true })).toBeVisible();
+  await expect(readOperation.getByText("Status", { exact: true })).toBeVisible();
   await expect(modal.getByRole("textbox")).toHaveCount(0);
   await modal.getByRole("button", { name: "Earlier activity", exact: true }).click();
-  await expect(modal.getByText("Discover audience sources", { exact: true })).toBeVisible();
+  const olderOperation = modal.locator("details[data-operation-id]").filter({ hasText: "Discover audience sources" }).first();
+  await expect(olderOperation).toHaveCount(1);
+  if (!(await olderOperation.evaluate(element => (element as HTMLDetailsElement).open))) await olderOperation.locator("summary").first().click();
+  const olderTechnical = olderOperation.locator("details").filter({ hasText: "Technical details" }).first();
+  if (!(await olderTechnical.evaluate(element => (element as HTMLDetailsElement).open))) await olderTechnical.locator("summary").first().click();
+  await expect(olderOperation.getByText("Discover audience sources", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(modal).toHaveCount(0);
   await expect(open).toBeFocused();
