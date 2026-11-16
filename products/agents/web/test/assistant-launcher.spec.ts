@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const account = { id: "member", email: "member@example.test", displayName: "Member" };
-const assistant = { state: "configured", agent: { id: "assistant-1", name: "Business assistant" }, version: { id: "version-1", number: 1 } };
+const assistant = { state: "configured", modelReady: true, agent: { id: "assistant-1", name: "Business assistant" }, version: { id: "version-1", number: 1 } };
 const configuration = { executionKind: "business", program: { id: "tool-directed", version: "1" }, productBindings: [], instructions: "Help this member.", context: { maxInputTokens: 8192, compactAtTokens: 6144 }, model: { selection: { kind: "organization_default" }, maxInputBytes: 16384, maxOutputTokens: 4096, maxDurationSeconds: 120 }, sourceRevisionIds: [], connectedToolBindingIds: [], tools: ["tasks.inspect", "tasks.cancel"], memory: { enabled: false }, capabilities: { delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } };
 const agent = { id: "assistant-1", name: "Business assistant", offering: null, draft: configuration, draftRevision: 1 };
 const connection = { id: "conn-1", providerId: "office", name: "Office", endpoint: "https://models.example.test", revision: 1, credentialRevision: 1, state: "active", verification: "tools_verified" };
@@ -11,7 +11,8 @@ const model = { id: "nova", name: "Nova", inputModalities: ["text"], outputModal
 
 type Conversation = { id: string; title: string };
 type ChannelLink = { id: string; connectionId: string; kind: string; state: string; senderLabel: string; expiresAt: string | null; conversationId: string | null };
-async function launcher(page: Page, options: { role?: string; state?: string; channelsEnabled?: boolean; deliveryState?: string } = {}) {
+async function launcher(page: Page, options: { role?: string; state?: string; channelsEnabled?: boolean; deliveryState?: string; modelReady?: boolean } = {}) {
+  const assistantState = { ...assistant, modelReady: options.modelReady ?? true };
   const conversations: Conversation[] = [{ id: "conv-1", title: "Launch plan" }, { id: "conv-2", title: "Hiring draft" }];
   const archived: Conversation[] = [];
   const saved: unknown[] = [];
@@ -26,8 +27,8 @@ async function launcher(page: Page, options: { role?: string; state?: string; ch
     let data: unknown;
     if (path === "/api/session") data = { account, organizations: [{ id: org, name: "Office", role: options.role ?? "member" }] };
     else if (path.endsWith("/inbox-alerts")) data = { unread: 0, alerts: [] };
-    else if (path.endsWith("/assistant/repair")) { calls.push("repair"); data = { ...assistant, state: "draft" }; }
-    else if (path.endsWith("/assistant")) data = options.state === "absent" || options.state === "deleted" ? { state: options.state, agent: null, version: null } : assistant;
+    else if (path.endsWith("/assistant/repair")) { calls.push("repair"); data = assistantState; }
+    else if (path.endsWith("/assistant")) data = options.state === "absent" || options.state === "deleted" ? { state: options.state, modelReady: false, agent: null, version: null } : assistantState;
     else if (path.endsWith("/member-channels/challenges")) { calls.push("challenge"); links.push({ id: "challenge-1", connectionId: channel.id, kind: channel.kind, state: "challenge", senderLabel: "", expiresAt: new Date(Date.now() + 300_000).toISOString(), conversationId: null }); data = { id: "challenge-1", token: "private-code", expiresAt: new Date(Date.now() + 300_000).toISOString() }; }
     else if (path.endsWith("/member-channels/link-1/confirm")) { calls.push("confirm"); links[0].state = "active"; links[0].conversationId = "conversation-1"; data = {}; }
     else if (path.endsWith("/member-channels/link-1") && method === "DELETE") { calls.push("revoke"); links[0].state = "revoked"; data = {}; }
@@ -70,6 +71,7 @@ test("sidebar assistant opens a resizable panel with navigation rail", async ({ 
   await openPanel(page);
   const dialog = page.getByRole("dialog", { name: "Ask AI" });
   const nav = dialog.getByRole("navigation", { name: "Ask AI navigation" });
+  await expect(dialog).toHaveCSS("width", "480px");
   await expect(nav.getByRole("button", { name: "New chat" })).toBeVisible();
   await expect(dialog.getByRole("textbox", { name: "Message", exact: true })).toBeVisible();
   await nav.getByRole("button", { name: "Chats" }).click();
@@ -125,8 +127,18 @@ test("owner restores a removed assistant from the panel setup", async ({ page })
   const dialog = page.getByRole("dialog", { name: "Ask AI" });
   await expect(dialog.getByText("Ask AI removed", { exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Restore Ask AI" }).click();
-  await expect(dialog.getByRole("link", { name: "Configure", exact: true })).toHaveAttribute("href", "/app/agents/assistant-1?section=configuration");
+  await expect(dialog.getByRole("textbox", { name: "Message", exact: true })).toBeVisible();
   expect(calls).toEqual(["repair"]);
+});
+
+test("configured assistant without a model asks for a model instead of configuration", async ({ page }) => {
+  await launcher(page, { modelReady: false, role: "owner" });
+  await openPanel(page);
+  const dialog = page.getByRole("dialog", { name: "Ask AI" });
+  await expect(dialog.getByText("Choose a model", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("link", { name: "Choose model" })).toHaveAttribute("href", "/app/agents/assistant-1?section=configuration");
+  await expect(dialog.getByRole("link", { name: "Configure", exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole("textbox", { name: "Message", exact: true })).toHaveCount(0);
 });
 
 test("member sees unavailable setup without an owner repair action", async ({ page }) => {

@@ -10,6 +10,7 @@ import { connectFixtureModel } from "./model-fixture";
 import { specialistCatalogue } from "../src/product/assistant/specialists";
 import { agentConfigurationSchema, defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { publishFixtureSource } from "./knowledge-fixture";
+import { contextGrantCeiling } from "../src/execution/models/settings";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 const suite = databaseUrl ? describe : describe.skip;
@@ -37,19 +38,55 @@ suite("organization assistant provisioning", () => {
     return { owner, organization };
   }
 
-  it("creates an ordinary draft atomically for explicit and initial organizations", async () => {
+  it("creates a configured default version atomically for explicit and initial organizations", async () => {
     const { owner, organization } = await fixture();
     const assistant = await assistants.getOrganizationAssistant(owner.id, organization.id);
-    expect(assistant).toMatchObject({ state: "draft", version: null, agent: { name: "Assistant", created_by: owner.id,
+    expect(assistant).toMatchObject({ state: "configured", modelReady: false, agent: { name: "Assistant", created_by: owner.id,
       offering: null, draft: { executionKind: "business", model: { selection: { kind: "organization_default" } }, tools: ["tasks.inspect", "tasks.cancel"],
         sourceRevisionIds: [], connectedToolBindingIds: [], memory: { enabled: false }, capabilities: { delegation: { enabled: false } } } } });
+    expect(assistant.version).toMatchObject({ number: 1 });
+    // Publishing records the resolved knowledge mode while the draft keeps the requested (auto) mode.
+    expect(assistant.version?.configuration).toEqual(agentConfigurationSchema.parse({ ...assistant.agent!.draft, knowledge: { mode: "retrieved" } }));
     expect(await store.listAgents(owner.id, organization.id)).toHaveLength(1);
+    await connectFixtureModel(pool, owner.id, organization.id);
+    expect((await assistants.getOrganizationAssistant(owner.id, organization.id)).modelReady).toBe(true);
     const initial = await account();
     await Promise.all(Array.from({ length: 6 }, () => store.ensureInitialWorkspace(initial.id)));
     const organizations = await store.listOrganizations(initial.id);
     expect(organizations).toHaveLength(1);
-    expect((await assistants.getOrganizationAssistant(initial.id, organizations[0]!.id)).state).toBe("draft");
+    const initialAssistant = await assistants.getOrganizationAssistant(initial.id, organizations[0]!.id);
+    expect(initialAssistant.state).toBe("configured");
+    expect(initialAssistant.version?.number).toBe(1);
     expect(await store.listAgents(initial.id, organizations[0]!.id)).toHaveLength(1);
+  });
+
+  it("repairs a legacy draft on first read and serializes concurrent reads", async () => {
+    const owner = await account();
+    const organizationId = randomUUID();
+    await pool.query("INSERT INTO agents_platform.organizations(id,name) VALUES($1,'Legacy fixture')", [organizationId]);
+    await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'owner')", [organizationId, owner.id]);
+    const agent = await store.createAgent({ accountId: owner.id, organizationId, name: "Assistant" });
+    await pool.query("INSERT INTO agents_platform.organization_assistants(organization_id,agent_id) VALUES($1,$2)", [organizationId, agent.id]);
+    const results = await Promise.all(Array.from({ length: 6 }, () => assistants.getOrganizationAssistant(owner.id, organizationId)));
+    for (const result of results) expect(result).toMatchObject({ state: "configured", agent: { id: agent.id }, version: { number: 1 } });
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.agent_versions WHERE organization_id=$1", [organizationId])).rows[0].count).toBe(1);
+  });
+
+  it("keeps an unversionable legacy draft configurable instead of failing the read", async () => {
+    const owner = await account();
+    const organizationId = randomUUID();
+    await pool.query("INSERT INTO agents_platform.organizations(id,name) VALUES($1,'Invalid legacy fixture')", [organizationId]);
+    await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'owner')", [organizationId, owner.id]);
+    const configuration = defaultBusinessConfiguration();
+    configuration.program = { id: "tool-directed", version: "4" };
+    configuration.tools = ["agents.delegate"];
+    configuration.capabilities = { ...configuration.capabilities, delegation: { enabled: true, maxChildren: 1, maxDepth: 1,
+      bindings: [{ id: "missing", versionId: randomUUID(), sourceRevisionIds: [], connectedToolBindingIds: [], tools: [], maxTokens: 8000, maxActiveMs: 120_000 }] } };
+    const agent = await store.createAgent({ accountId: owner.id, organizationId, name: "Assistant", configuration });
+    await pool.query("INSERT INTO agents_platform.organization_assistants(organization_id,agent_id) VALUES($1,$2)", [organizationId, agent.id]);
+    const assistant = await assistants.getOrganizationAssistant(owner.id, organizationId);
+    expect(assistant).toMatchObject({ state: "draft", agent: { id: agent.id }, version: null, modelReady: false });
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.agent_versions WHERE organization_id=$1", [organizationId])).rows[0].count).toBe(0);
   });
 
   it("serializes concurrent repair and preserves customized instructions and names", async () => {
@@ -71,18 +108,19 @@ suite("organization assistant provisioning", () => {
     const original = (await assistants.getOrganizationAssistant(owner.id, organization.id)).agent!;
     await store.deleteAgent(owner.id, organization.id, original.id);
     await store.ensureInitialWorkspace(owner.id);
-    const result = await transaction(pool, db => ensureOrganizationAssistantInTransaction(db, { accountId: owner.id, organizationId: organization.id }));
-    expect(result).toEqual({ state: "deleted", agentId: original.id, agent: null, version: null });
+    const result = await transaction(pool, db => ensureOrganizationAssistantInTransaction(db, { accountId: owner.id, organizationId: organization.id, pool }));
+    expect(result).toEqual({ state: "deleted", agentId: original.id, agent: null, version: null, modelReady: false });
     expect(await store.listAgents(owner.id, organization.id)).toEqual([]);
     const restored = await assistants.repairOrganizationAssistant(owner.id, organization.id);
-    expect(restored).toMatchObject({ state: "draft", agent: { id: original.id, draft_revision: original.draft_revision, draft: original.draft } });
+    expect(restored).toMatchObject({ state: "configured", agent: { id: original.id, draft_revision: original.draft_revision, draft: original.draft } });
+    expect(restored.version).not.toBeNull();
   });
 
   it("requires current membership to inspect and current owner access to repair", async () => {
     const { owner, organization } = await fixture();
     const member = await account(), outsider = await account();
     await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'member')", [organization.id, member.id]);
-    expect((await assistants.getOrganizationAssistant(member.id, organization.id)).state).toBe("draft");
+    expect((await assistants.getOrganizationAssistant(member.id, organization.id)).state).toBe("configured");
     await expect(assistants.repairOrganizationAssistant(member.id, organization.id)).rejects.toMatchObject({ code: "ACCESS_DENIED" });
     await expect(assistants.getOrganizationAssistant(outsider.id, organization.id)).rejects.toMatchObject({ code: "ACCESS_DENIED" });
     await expect(assistants.repairOrganizationAssistant(outsider.id, organization.id)).rejects.toMatchObject({ code: "ACCESS_DENIED" });
@@ -99,6 +137,7 @@ suite("organization assistant provisioning", () => {
       id: randomUUID(), product: "agents", organizationId: organization.id, resourceId: assistant.id, callerClientId: "agents-execution",
       principal: { kind: "human", issuer: owner.issuer, subject: owner.subject }, versionId: version.id, operations: ["model.reply", "tasks.read", "tasks.cancel"],
       maxInputBytes: assistant.draft.model.maxInputBytes, maxOutputTokens: assistant.draft.model.maxOutputTokens,
+      maxContextTokens: contextGrantCeiling(assistant.draft), rootTokenLimit: 32000,
       expiresAt: new Date(Date.now() + 60_000).toISOString(), revokedAt: null,
     } });
     await store.deleteAgent(owner.id, organization.id, assistant.id);

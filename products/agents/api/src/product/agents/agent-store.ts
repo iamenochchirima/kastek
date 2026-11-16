@@ -253,7 +253,7 @@ export class AgentStore extends AuthorityStore {
 
     });
   }
-  private async createVersionInTransaction(db:PoolClient,input:{accountId:string;organizationId:string;agentId:string},agent:AgentRecord):Promise<VersionRecord> {
+  async createVersionInTransaction(db:PoolClient,input:{accountId:string;organizationId:string;agentId:string},agent:AgentRecord):Promise<VersionRecord> {
       const config = agentConfigurationSchema.parse(agent.draft);
       if (config.tools.includes("channel.request_handoff"))
         await assertAgentsBillingFeature(this.pool, input.organizationId, "agents.feature.handoff");

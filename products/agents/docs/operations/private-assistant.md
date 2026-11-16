@@ -1,14 +1,17 @@
 # Private organization assistant
 
-Owner: Agents engineering. Reviewed: 2026-10-30.
+Owner: Agents engineering. Reviewed: 2026-11-16.
 
 The organization assistant is an ordinary business agent. Schema094 records its lifecycle identity;
-it adds no authorization. New workspaces create one Assistant draft in the same transaction as
-organization membership. Repeated setup preserves customizations. Deletion leaves the marker;
-an owner explicitly restores the same definition from the assistant panel setup. Restoration does not revive
-revoked grants, channels or automations. Existing organizations use **Set up assistant** explicitly.
+it adds no authorization. New workspaces create the Assistant and its first immutable version in the
+same transaction as organization membership, so the default assistant is ready to chat as soon as the
+workspace has a model. Repeated setup preserves customizations. Deletion leaves the marker; an owner
+explicitly restores the same definition from the assistant panel setup. Restoration does not revive
+revoked grants, channels or automations. Existing organizations without an assistant use
+**Set up assistant** explicitly. A legacy Assistant draft with no version is repaired once on the
+first authenticated read; a draft that cannot publish stays configurable.
 
-Configure a model, instructions, approved knowledge and permitted tools through the normal editor.
+Change the model, instructions, approved knowledge and permitted tools through the normal editor.
 **Create specialist** creates an ordinary business definition, initially named Content. Save its
 configuration, then select its published version under the assistant's Specialists. Explicit
 `tool-directed` version 4 configurations support up to 32 pinned bindings, configurable concurrent
@@ -77,8 +80,8 @@ All routes require the existing authenticated session, origin checks and current
 
 | Route | Behavior |
 | --- | --- |
-| GET `/assistant` | Lifecycle state, ordinary agent and latest saved version. `configured` means a snapshot exists; it is not a live provider health claim. |
-| POST `/assistant/repair` with `{}` | Owner-only explicit creation/restore. |
+| GET `/assistant` | Lifecycle state, ordinary agent, latest saved version and model readiness. `configured` means a snapshot exists; `modelReady` means the selected route has an active connection. It is not a live provider health claim. A legacy draft is repaired on first read. |
+| POST `/assistant/repair` with `{}` | Owner-only explicit creation/restore. Creates the initial version when it is missing. |
 | GET `/agents/:agentId/specialists` | Same-organization latest and currently pinned versions, bounded allowed capabilities and current readiness reasons. |
 | POST `/agents` with `name`, `configuration`, optional `operationId` | Explicit ordinary business definition. Guided customer-service creation retains its existing contract. |
 | POST `/tasks/:taskId/instructions` with `instruction`, `requestKey` | Queue an authorized active v4 root update; request keys are idempotent. Finishing, cancelled, stale or foreign work is denied. |
@@ -136,7 +139,7 @@ source fences, current tool permissions and one-level delegation are enforced by
 
 ## Release record
 
-- Change/owner/risk: organization assistant and verified private phone access; iamenochchirima; high.
+- Change/owner/risk: organization assistant, default workspace provisioning and verified private phone access; iamenochchirima; high.
 - Services/surfaces: Agents API, worker, web; ordinary editor/chat, private linking, Telegram/WhatsApp.
 - Release identity: platform VERSION remains 0.1.0 for this local change. Use the implementation commit
   as `KASITEK_RELEASE_ID` when preparing a separately approved pilot artifact. No tag or deployment
@@ -176,8 +179,11 @@ PostgreSQL/Restate runtime cases including actual browser operation, and 19 resp
 scenarios. Terminal-result and stale-review fencing additionally passed 38 member-channel checks. These runs
 overlap; the counts are not an additive total. API/web production builds,
 focused web lint, Analytics registry validation, product import boundaries and platform version
-validation passed. Screenshots and command output remain ignored under `.audit/` and web
-`.artifacts/`, including `private-assistant-final-runtime.log`, `private-assistant-final-ui.log` and
+validation passed. The default-provisioning change passed focused PostgreSQL assertions for new
+workspaces, legacy repair, concurrent reads and an unversionable draft, the assistant browser suite,
+both production builds, and an authenticated local app/Restate/model chat. Screenshots and command
+output remain ignored under `.audit/` and web `.artifacts/`, including
+`private-assistant-final-runtime.log`, `private-assistant-final-ui.log` and
 `organization-assistant-browser/`.
 
 Standards review found no documented-rule breaches; its duplicated rollout-policy concern was

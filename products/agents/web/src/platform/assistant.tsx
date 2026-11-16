@@ -6,7 +6,7 @@ import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { api, message, organizationPath } from "./api";
 import { ErrorMessage, Loading, useWorkspace } from "./shell";
 
-export type Assistant = { state: "absent" | "draft" | "configured" | "deleted"; agent: { id: string; name: string } | null };
+export type Assistant = { state: "absent" | "draft" | "configured" | "deleted"; modelReady: boolean; agent: { id: string; name: string } | null };
 type MemberLink = { id: string; connectionId: string; kind: "telegram" | "whatsapp"; state: "challenge" | "pending" | "active" | "revoked" | "expired"; senderLabel: string | null; expiresAt: string | null; conversationId: string | null };
 type MemberDelivery = { id: string; linkId: string; taskId: string | null; state: string; reason: string | null; segment: number; updatedAt: string };
 type MemberChannels = { enabled?: boolean; links: MemberLink[]; deliveries?: MemberDelivery[]; connections: { id: string; kind: "telegram" | "whatsapp"; label: string }[] };
@@ -76,7 +76,7 @@ export function MemberChannelsPanel({ agentPath, ready }: { agentPath: string | 
     <p className="text-sm text-muted-foreground">Private access to {organizationName}</p>
     <ErrorMessage value={error} />
     {error ? <Button variant="outline" onClick={() => setGeneration(value => value + 1)}>Retry accounts</Button> : !data ? <Loading /> : <>
-      {data.enabled === false ? <p className="text-sm text-muted-foreground">Private messaging unavailable</p> : !ready ? <p className="text-sm text-muted-foreground">Configure Ask AI before linking an account.</p> : null}
+      {data.enabled === false ? <p className="text-sm text-muted-foreground">Private messaging unavailable</p> : !ready ? <p className="text-sm text-muted-foreground">Finish Ask AI setup before linking an account.</p> : null}
       {data.connections.length === 0 ? <p className="text-sm text-muted-foreground">No messaging connections available</p> : <div className="flex flex-wrap gap-2">{data.connections.map(connection => <Button key={connection.id} variant="outline" disabled={!ready || data.enabled === false || busy !== null || data.links.some(link => link.connectionId === connection.id && ["pending", "active"].includes(link.state))} onClick={() => void pair(connection.id)}>{busy === connection.id ? "Preparing…" : `Link ${connection.label || channelName(connection.kind)}`}</Button>)}</div>}
       {challenge && !challengeConsumed ? <div className="space-y-2 rounded-md border border-border p-4" role="status">
         {challengeExpired ? <p className="text-sm">Pairing code expired. Link the account again.</p> : <>

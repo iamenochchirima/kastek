@@ -37,7 +37,9 @@ function AskMark({ size = 24, className = "" }: { size?: number; className?: str
 
 function readWidth(storageKey: string): number {
   try {
-    const value = Number(window.localStorage.getItem(storageKey));
+    const stored = window.localStorage.getItem(storageKey);
+    if (stored === null) return DEFAULT_PANEL_WIDTH;
+    const value = Number(stored);
     if (Number.isFinite(value)) return Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, value));
   } catch { /* The panel remains usable when storage is unavailable. */ }
   return DEFAULT_PANEL_WIDTH;
@@ -160,7 +162,7 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
   }, [open, close]);
 
   const agentId = assistant?.agent?.id ?? null;
-  const ready = assistant?.state === "configured" && Boolean(agentId);
+  const ready = assistant?.state === "configured" && Boolean(agentId) && assistant.modelReady;
   const agentPath = agentId ? `/app/agents/${encodeURIComponent(agentId)}` : null;
 
   // Another shell dialog takes over the viewport; close instead of leaving an orphaned panel.
@@ -449,19 +451,21 @@ function AssistantSetupSection({ organizationId, assistant, isOwner, onUpdate, o
     try {
       const result = await api<Assistant>(`${organizationPath(organizationId)}/assistant/repair`, {});
       onUpdate(result);
-      toast.success("Ask AI ready to configure");
+      toast.success(assistant?.state === "deleted" ? "Ask AI restored" : result.modelReady ? "Ask AI ready" : "Ask AI added");
     } catch (cause) { setError(message(cause)); }
     finally { setBusy(false); }
   }
   const agentPath = assistant?.agent ? `/app/agents/${encodeURIComponent(assistant.agent.id)}` : null;
   if (!assistant) return <p className="p-6 text-sm text-muted-foreground" role="status">Loading Ask AI…</p>;
+  const configured = assistant.state === "configured";
+  const needsModel = configured && !assistant.modelReady;
   return <div className="space-y-3 p-6 text-sm">
-    <p className="font-medium">{assistant.state === "deleted" ? "Ask AI removed" : assistant.state === "draft" ? "Configuration required" : "Ask AI needs setup"}</p>
-    {assistant.state === "draft" ? <p className="text-muted-foreground">Configure Ask AI before chatting.</p> : null}
+    <p className="font-medium">{assistant.state === "deleted" ? "Ask AI removed" : needsModel ? "Choose a model" : assistant.state === "draft" ? "Configuration required" : "Ask AI needs setup"}</p>
+    {needsModel ? <p className="text-muted-foreground">Add a model before chatting.</p> : assistant.state === "draft" ? <p className="text-muted-foreground">Finish setting up Ask AI before chatting.</p> : null}
     {error ? <p role="alert" className="text-destructive">{error}</p> : null}
     <div className="flex flex-wrap gap-2">
       {agentPath ? <>
-        {assistant.state === "configured" ? null : isOwner ? <Button asChild size="sm"><Link to={`${agentPath}?section=configuration`} onClick={onNavigate}>Configure</Link></Button> : <p className="text-muted-foreground">Ask an owner to configure Ask AI.</p>}
+        {configured && assistant.modelReady ? null : isOwner ? <Button asChild size="sm"><Link to={`${agentPath}?section=configuration`} onClick={onNavigate}>{needsModel ? "Choose model" : "Configure"}</Link></Button> : <p className="text-muted-foreground">{needsModel ? "Ask an owner to choose a model." : "Ask an owner to configure Ask AI."}</p>}
       </> : isOwner ? <Button size="sm" disabled={busy} onClick={() => void repair()}>{busy ? "Preparing…" : assistant.state === "deleted" ? "Restore Ask AI" : "Set up Ask AI"}</Button> : <p className="text-muted-foreground">Ask an owner to set up Ask AI.</p>}
     </div>
   </div>;
@@ -673,7 +677,7 @@ function AssistantSettings({ organizationId, assistant, loaded, isOwner, onUpdat
         <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">A</span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">Ask AI</p>
-          <p className="text-xs text-muted-foreground">Workspace AI · {assistant.state === "configured" ? "Ready" : "Needs setup"}</p>
+          <p className="text-xs text-muted-foreground">Workspace AI · {assistant.state === "configured" && assistant.modelReady ? "Ready" : "Needs setup"}</p>
         </div>
       </section>
       <section aria-label="Model" className="space-y-2">
