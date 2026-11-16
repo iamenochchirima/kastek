@@ -4,6 +4,29 @@ test.beforeEach(async ({ context }) => {
   await context.addCookies([{ name: "kasitek_active_org", value: "growth-fixture-one", domain: "127.0.0.1", path: "/" }]);
 });
 
+test("resizes and remembers the Growth assistant panel width", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/agents");
+  await page.evaluate(() => { for (const key of Object.keys(localStorage)) if (key.startsWith("kasitek:growth-assistant-width.")) localStorage.removeItem(key); });
+  await page.getByRole("button", { name: "Open Growth assistant", exact: true }).click();
+  const panel = page.locator('aside[aria-label="Growth assistant"]');
+  await expect(panel).toBeVisible();
+  const initial = await panel.boundingBox();
+  expect(initial?.width).toBeGreaterThanOrEqual(360);
+  const handle = page.getByRole("separator", { name: "Resize Growth assistant panel", exact: true });
+  const box = await handle.boundingBox();
+  expect(box).toBeTruthy();
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + 120);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + box!.width / 2 - 120, box!.y + 120, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(async () => (await panel.boundingBox())?.width ?? 0).toBeGreaterThan((initial?.width ?? 0) + 80);
+  await page.screenshot({ path: "../../../.audit/growth-assistant-resized.png", animations: "disabled" });
+  await page.getByRole("button", { name: "Close assistant", exact: true }).click();
+  await page.getByRole("button", { name: "Open Growth assistant", exact: true }).click();
+  await expect.poll(async () => (await panel.boundingBox())?.width ?? 0).toBeGreaterThan((initial?.width ?? 0) + 80);
+});
+
 test("opens a dedicated agent page with settings and channels", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/agents");
