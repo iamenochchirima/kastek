@@ -13,6 +13,7 @@ type Conversation = { id: string; title: string };
 type ChannelLink = { id: string; connectionId: string; kind: string; state: string; senderLabel: string; expiresAt: string | null; conversationId: string | null };
 async function launcher(page: Page, options: { role?: string; state?: string; channelsEnabled?: boolean; deliveryState?: string; modelReady?: boolean } = {}) {
   const assistantState = { ...assistant, modelReady: options.modelReady ?? true };
+  const currentAgent = { ...agent, draft: structuredClone(configuration), draftRevision: 1 };
   const conversations: Conversation[] = [{ id: "conv-1", title: "Launch plan" }, { id: "conv-2", title: "Hiring draft" }];
   const archived: Conversation[] = [];
   const saved: unknown[] = [];
@@ -38,7 +39,7 @@ async function launcher(page: Page, options: { role?: string; state?: string; ch
     }
     else if (path.endsWith("/conversations") && method === "GET") {
       const items = url.searchParams.get("state") === "archived" ? archived : conversations;
-      data = { conversations: items.map(item => ({ ...item, agentId: agent.id, agentName: agent.name, versionId: "version-1", versionNumber: 1, updatedAt: new Date().toISOString(), state: "completed", canContinue: true })), nextCursor: null };
+      data = { conversations: items.map(item => ({ ...item, agentId: currentAgent.id, agentName: currentAgent.name, versionId: "version-1", versionNumber: 1, updatedAt: new Date().toISOString(), state: "completed", canContinue: true })), nextCursor: null };
     } else if (/\/conversations\/[^/]+\/(archive|restore)$/.test(path) && method === "POST") {
       const id = path.split("/").at(-2)!, restore = path.endsWith("/restore");
       const from = restore ? archived : conversations, to = restore ? conversations : archived;
@@ -47,9 +48,9 @@ async function launcher(page: Page, options: { role?: string; state?: string; ch
       to.push(...from.splice(index, 1));
       data = { id, archived: !restore };
     } else if (/\/conversations\/[^/]+$/.test(path) && method === "GET") {
-      data = { tasks: [], nextCursor: null, conversation: { agentId: agent.id, versionId: "version-1", versionNumber: 1 } };
-    } else if (path.endsWith("/agents/assistant-1/configuration") && method === "POST") { saved.push(request.postDataJSON()); agent.draft = request.postDataJSON().configuration; agent.draftRevision++; data = { agent, snapshot: { id: "version-2", number: 2, configuration: agent.draft } }; }
-    else if (path.endsWith("/agents/assistant-1")) data = { agent, versions: [{ id: "version-1", number: 1, configuration }], deployments: [] };
+      data = { tasks: [], nextCursor: null, conversation: { agentId: currentAgent.id, versionId: "version-1", versionNumber: 1 } };
+    } else if (path.endsWith("/agents/assistant-1/configuration") && method === "POST") { saved.push(request.postDataJSON()); currentAgent.draft = request.postDataJSON().configuration; currentAgent.draftRevision++; data = { agent: currentAgent, snapshot: { id: "version-2", number: 2, configuration: currentAgent.draft } }; }
+    else if (path.endsWith("/agents/assistant-1")) data = { agent: currentAgent, versions: [{ id: "version-1", number: 1, configuration }], deployments: [] };
     else if (path.endsWith("/model-providers")) data = { connections: [connection] };
     else if (path.endsWith("/model-providers/default")) data = { selection: null, revision: 1 };
     else if (path.includes("/model-providers/conn-1/models")) data = { result: { kind: "discovered", models: [model], observedAt: new Date().toISOString(), visibility: "credential_scoped", complete: true }, toolSupport: { nova: "supported" }, stale: false, fetchedAt: new Date().toISOString(), connectionRevision: 1, credentialRevision: 1 };
@@ -74,6 +75,7 @@ test("sidebar assistant opens a resizable panel with navigation rail", async ({ 
   await expect(dialog).toHaveCSS("width", "480px");
   await expect(nav.getByRole("button", { name: "New chat" })).toBeVisible();
   await expect(dialog.getByRole("textbox", { name: "Message", exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /Chat model:/ })).toBeVisible();
   await nav.getByRole("button", { name: "Chats" }).click();
   const library = dialog.getByRole("region", { name: "Conversation library" });
   await expect(dialog.getByRole("heading", { name: "Conversations" })).toBeVisible();
@@ -119,6 +121,19 @@ test("settings saves a model selection for the assistant", async ({ page }) => {
   await picker.getByRole("button", { name: "Save model", exact: true }).click();
   await expect.poll(() => saved.length).toBe(1);
   expect(saved[0]).toMatchObject({ name: "Business assistant", configuration: { model: { selection: { kind: "connection", connectionId: "conn-1", modelId: "nova" } } }, expectedRevision: 1 });
+});
+
+test("chat composer changes the assistant model", async ({ page }) => {
+  const { saved } = await launcher(page);
+  await openPanel(page);
+  const dialog = page.getByRole("dialog", { name: "Ask AI" });
+  await dialog.getByRole("button", { name: /Chat model:/ }).click();
+  const picker = page.getByRole("dialog", { name: "Choose model" });
+  await picker.getByRole("radio", { name: "Nova" }).check();
+  await picker.getByRole("button", { name: "Save model", exact: true }).click();
+  await expect.poll(() => saved.length).toBe(1);
+  expect(saved[0]).toMatchObject({ name: "Business assistant", configuration: { model: { selection: { kind: "connection", connectionId: "conn-1", modelId: "nova" } } }, expectedRevision: 1 });
+  await expect(dialog.getByRole("button", { name: "Chat model: Office · Nova" })).toBeVisible();
 });
 
 test("owner restores a removed assistant from the panel setup", async ({ page }) => {

@@ -53,6 +53,19 @@ function readPins(storageKey: string): string[] {
   return [];
 }
 
+function useAssistantAgent(organizationId: string, agentId: string | null) {
+  const [agent, setAgent] = useState<Agent | null>(null);
+  useEffect(() => {
+    if (!agentId) { setAgent(null); return; }
+    let live = true;
+    api<{ agent: Agent }>(`${organizationPath(organizationId)}/agents/${encodeURIComponent(agentId)}`)
+      .then(result => { if (live) setAgent(result.agent); })
+      .catch(() => { if (live) setAgent(null); });
+    return () => { live = false; };
+  }, [organizationId, agentId]);
+  return { agent, setAgent };
+}
+
 function dateGroup(iso: string) {
   const date = new Date(iso);
   const today = new Date();
@@ -89,6 +102,7 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
   const [nonce, setNonce] = useState(0);
   const [navigationExpanded, setNavigationExpanded] = useState(true);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const [modelSaving, setModelSaving] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLElement>(null);
   const widthKey = `${WIDTH_KEY_PREFIX}.${accountId}.${organizationId}`;
@@ -164,6 +178,24 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
   const agentId = assistant?.agent?.id ?? null;
   const ready = assistant?.state === "configured" && Boolean(agentId) && assistant.modelReady;
   const agentPath = agentId ? `/app/agents/${encodeURIComponent(agentId)}` : null;
+  const { agent: chatAgent, setAgent: setChatAgent } = useAssistantAgent(organizationId, agentId);
+
+  async function saveChatModel(selection: NonNullable<Configuration["model"]["selection"]>): Promise<boolean> {
+    if (!agentId || modelSaving) return false;
+    setModelSaving(true);
+    try {
+      const path = `${organizationPath(organizationId)}/agents/${encodeURIComponent(agentId)}`;
+      const current = await api<{ agent: Agent }>(path);
+      const configuration = { ...current.agent.draft, model: { ...current.agent.draft.model, selection } };
+      const saved = await api<{ agent: Agent }>(`${path}/configuration`, { name: current.agent.name, configuration, expectedRevision: current.agent.draftRevision });
+      setChatAgent(saved.agent);
+      toast.success("Model updated");
+      return true;
+    } catch (cause) {
+      toast.error(message(cause));
+      return false;
+    } finally { setModelSaving(false); }
+  }
 
   // Another shell dialog takes over the viewport; close instead of leaving an orphaned panel.
   useEffect(() => {
@@ -368,6 +400,7 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
                   expectedAgentId={agentId!}
                   initialConversationId={activeConversationId ?? undefined}
                   onConversationReady={id => setActiveConversationId(id)}
+                  composerAccessory={chatAgent ? <ChatModelPicker organizationId={organizationId} agentId={chatAgent.id} configuration={chatAgent.draft} dirty={false} saving={modelSaving} onSelect={saveChatModel} /> : null}
                   cancellable
                 /> : loaded ? <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} /> : <div className="flex flex-1 items-center justify-center gap-2 p-6 text-sm text-muted-foreground" role="status">Loading Ask AI…</div>
               ) : null}

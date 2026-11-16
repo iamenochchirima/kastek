@@ -12,6 +12,8 @@ revoked grants, channels or automations. Existing organizations without an assis
 first authenticated read; a draft that cannot publish stays configurable.
 
 Change the model, instructions, approved knowledge and permitted tools through the normal editor.
+The chat composer also exposes the current model; selecting another model saves the Assistant
+configuration for future messages. Settings shows the same selection.
 **Create specialist** creates an ordinary business definition, initially named Content. Save its
 configuration, then select its published version under the assistant's Specialists. Explicit
 `tool-directed` version 4 configurations support up to 32 pinned bindings, configurable concurrent
