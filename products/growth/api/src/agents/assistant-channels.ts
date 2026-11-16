@@ -278,9 +278,9 @@ export async function linkAssistantChannel(
     await core.pool.query(
       `INSERT INTO "GrowthAgentChannelGrant"(
          id,"orgId","connectionId",provider,"providerAssetId","agentsWorkspaceId","agentsAgentId",
-         "agentsConnectionId","intentId","actorId",capabilities,"permissionRevision",state,"routeOwner",
+         "agentsConnectionId","intentId","actorId",capabilities,"permissionRevision","assistantTarget",state,"routeOwner",
          "requestId","requestDigest","expiresAt"
-       ) VALUES($1,$2,$3,'whatsapp',$4,$5,$6,$7,$8,$9,$10::jsonb,$11,'active','agents',$12,$13,NULL)`,
+       ) VALUES($1,$2,$3,'whatsapp',$4,$5,$6,$7,$8,$9,$10::jsonb,$11,true,'active','agents',$12,$13,NULL)`,
       [
         grantId,
         input.orgId,

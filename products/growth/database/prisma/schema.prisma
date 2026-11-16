@@ -248,6 +248,7 @@ model GrowthAgentChannelGrant {
   actorId            String
   capabilities       Json
   permissionRevision String
+  assistantTarget    Boolean   @default(false)
   expiresAt          DateTime? @default(dbgenerated("now() + interval '15 minutes'")) @db.Timestamptz
   state              String
   routeOwner         String
@@ -257,8 +258,9 @@ model GrowthAgentChannelGrant {
   updatedAt          DateTime  @default(now()) @db.Timestamptz
   revokedAt          DateTime? @db.Timestamptz
 
-  org        Organization              @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  connection ExternalConnection        @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  org           Organization                      @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  connection    ExternalConnection                @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  conversations GrowthAgentChannelConversation[]
   actor      User                      @relation("GrowthAgentChannelGrantActor", fields: [actorId], references: [id], onDelete: Restrict)
   sends      GrowthAgentChannelSend[]
   events     GrowthAgentChannelEvent[]
@@ -267,6 +269,20 @@ model GrowthAgentChannelGrant {
   @@unique([agentsWorkspaceId, requestId])
   @@unique([agentsWorkspaceId, intentId])
   @@index([agentsWorkspaceId, agentsAgentId, state])
+}
+
+model GrowthAgentChannelConversation {
+  id                      String   @id
+  orgId                   String
+  grantId                 String   @db.Uuid
+  externalConversationId  String
+  conversationId          String   @db.Uuid
+  createdAt               DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime @default(now()) @db.Timestamptz(3)
+
+  grant GrowthAgentChannelGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+
+  @@unique([grantId, externalConversationId])
 }
 
 model GrowthAgentChannelLinkIntent {

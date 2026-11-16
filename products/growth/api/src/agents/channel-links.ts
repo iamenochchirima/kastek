@@ -222,7 +222,7 @@ async function completeWhatsAppSignup(core: CoreContext, request: Extract<Return
   }).then(result => ({ ...result, requestId: request.requestId })));
 }
 
-async function sendAgentChannelMessage(
+export async function sendGrowthAgentChannelMessage(
   core: CoreContext,
   request: Extract<ReturnType<typeof parseGrowthAgentChannelRequest>, { operation: "message.send" }>,
   actorId: string,
@@ -656,7 +656,7 @@ export function registerGrowthAgentChannelRoutes(app: FastifyInstance, core: Cor
         case "grant.exchange": result = await exchangeGrantCode(core, command, actorId); break;
         case "grant.activate": result = await activateGrant(core, command, actorId); break;
         case "grant.revoke": result = await revokeGrant(core, command, actorId); break;
-        case "message.send": result = await sendAgentChannelMessage(core, command, actorId); break;
+        case "message.send": result = await sendGrowthAgentChannelMessage(core, command, actorId); break;
         case "webhook.deliver": throw invalid();
       }
       const response = result && typeof result === "object" ? result as Record<string, unknown> : {};

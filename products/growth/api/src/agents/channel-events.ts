@@ -8,6 +8,7 @@ import {
 import type { CoreContext } from "../context.js";
 import { ApiError } from "../error.js";
 import { growthAgentActor, growthAgentApiUrl, growthAgentDigest, signGrowthAgentCommand } from "./security.js";
+import { runGrowthAssistantChannelEvent } from "./assistant-channel-execution.js";
 import { metrics } from "@opentelemetry/api";
 
 const channelMeter = metrics.getMeter("kasitek.growth.agent-channels");
@@ -25,6 +26,8 @@ type AgentGrant = {
   agentsAgentId: string;
   agentsConnectionId: string;
   actorId: string;
+  orgId: string;
+  assistantTarget: boolean;
   provider: GrowthAgentChannelProvider;
   providerAssetId: string;
 };
@@ -245,6 +248,8 @@ type ClaimedEvent = {
   agentsAgentId: string;
   agentsConnectionId: string;
   actorId: string;
+  orgId: string;
+  assistantTarget: boolean;
   provider: GrowthAgentChannelProvider;
   providerAssetId: string;
 };
@@ -269,7 +274,7 @@ export async function processGrowthAgentChannelEvents(
     WHERE e.id=c.id AND g.id=e."grantId"
     RETURNING e.id,e."grantId" AS "grantId",e."eventId" AS "eventId",e.payload,e.attempts,
       g."agentsWorkspaceId" AS "agentsWorkspaceId",g."agentsAgentId" AS "agentsAgentId",g."agentsConnectionId" AS "agentsConnectionId",
-      g."actorId" AS "actorId",g.provider,g."providerAssetId" AS "providerAssetId",$2::uuid AS "claimId"`,
+      g."actorId" AS "actorId",g."orgId" AS "orgId",g."assistantTarget" AS "assistantTarget",g.provider,g."providerAssetId" AS "providerAssetId",$2::uuid AS "claimId"`,
   [Math.max(1, Math.min(100, Math.floor(limit))), claimId])).rows;
   let processed = 0;
   for (const row of claimed) {
@@ -281,6 +286,41 @@ export async function processGrowthAgentChannelEvents(
       recordChannelEvent(row.provider, "quarantined");
       logger.warn({ event: "growth.agent_channel.webhook.quarantined", provider: row.provider,
         grant_id: row.grantId, event_id: row.eventId, error_code: "grant_inactive" });
+      processed++;
+      continue;
+    }
+    if (row.assistantTarget) {
+      try {
+        await runGrowthAssistantChannelEvent(core, {
+          grantId: row.grantId,
+          orgId: row.orgId,
+          agentsWorkspaceId: row.agentsWorkspaceId,
+          agentsAgentId: row.agentsAgentId,
+          agentsConnectionId: row.agentsConnectionId,
+          actorId: row.actorId,
+          provider: row.provider,
+          providerAssetId: row.providerAssetId,
+        }, growthAgentChannelEventSchema.parse(row.payload), logger);
+        await pool.query(`UPDATE "GrowthAgentChannelEvent" SET state='delivered',"deliveredAt"=now(),"leaseUntil"=NULL,"claimId"=NULL,reason=NULL
+          WHERE id=$1 AND "claimId"=$2`, [row.id, claimId]);
+        recordChannelEvent(row.provider, "delivered");
+      } catch (error) {
+        const code = error instanceof ApiError ? error.code : "assistant_unavailable";
+        if (row.attempts >= 5) {
+          await pool.query(`UPDATE "GrowthAgentChannelEvent" SET state='quarantined',reason=$3,"leaseUntil"=NULL,"claimId"=NULL
+            WHERE id=$1 AND "claimId"=$2`, [row.id, claimId, code]);
+          recordChannelEvent(row.provider, "quarantined");
+          logger.warn({ event: "growth.agent_channel.assistant.quarantined", provider: row.provider,
+            grant_id: row.grantId, event_id: row.eventId, error_code: code });
+        } else {
+          const retryMs = Math.min(300_000, 1000 * 2 ** Math.min(row.attempts, 8));
+          await pool.query(`UPDATE "GrowthAgentChannelEvent" SET state='pending',"availableAt"=now()+($3::int * interval '1 millisecond'),
+            "leaseUntil"=NULL,"claimId"=NULL,reason=$4 WHERE id=$1 AND "claimId"=$2`, [row.id, claimId, retryMs, code]);
+          recordChannelEvent(row.provider, "retry_scheduled");
+          logger.warn({ event: "growth.agent_channel.assistant.retry", provider: row.provider,
+            grant_id: row.grantId, event_id: row.eventId, attempt: row.attempts, retry_delay_ms: retryMs, error_code: code });
+        }
+      }
       processed++;
       continue;
     }
