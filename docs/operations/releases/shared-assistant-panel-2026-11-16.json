@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "platformVersion": "0.9.10",
+  "releaseId": "platform-v0.9.10+571a95b4d",
+  "releaseCommit": "571a95b4df425faa332345cf799651501e13e85b",
+  "featureCommits": [
+    "74383fa8a",
+    "fc0f75a1e",
+    "dafdfc22f",
+    "4ded999c7",
+    "a638e8d82",
+    "4cf71bda6",
+    "571a95b4d"
+  ],
+  "tagged": false,
+  "capturedAt": "2026-11-16T21:19:00Z",
+  "change": "Shared assistant panel and stream surface for Agents Ask AI and the Growth assistant, including the chat composer, stream status/retry/stop controls, settings, channels and conversation library.",
+  "owner": "iamenochchirima",
+  "risk": "standard",
+  "railway": {
+    "projectId": "83fe5737-0fcd-4b07-b077-04e336a1c7c4",
+    "environmentId": "9380a1a6-6791-4321-9d81-e88c9b3b73ce",
+    "services": [
+      {
+        "service": "agents-api",
+        "deploymentId": "7af28e25-6e79-4503-bf55-eb2e277c377c",
+        "status": "SUCCESS",
+        "commit": "312b19f7a1276bdcfe6ed66ef11823888620ffa6",
+        "changedByThisRelease": false
+      },
+      {
+        "service": "agents-worker",
+        "deploymentId": "bc8efe5d-aad0-4071-82fc-37ff03a7a760",
+        "status": "SUCCESS",
+        "commit": "312b19f7a1276bdcfe6ed66ef11823888620ffa6",
+        "changedByThisRelease": false
+      }
+    ],
+    "note": "This release changes web/shared source only. The Agents API and worker services remain on the verified 312b19f7a deployment."
+  },
+  "vercel": {
+    "agents": {
+      "project": "kasitek-agents",
+      "projectId": "prj_zfO3gTNkfLHWXJehRbnvVRNUuw49",
+      "deploymentId": "dpl_DHpiYwBSzGSRXRNq9o6Cq2sg455C",
+      "deploymentUrl": "https://kasitek-agents-gof3ayk95-iamenochchirimas-projects.vercel.app",
+      "productionUrl": "https://agents.kasitek.co.za",
+      "previousProductionUrl": "https://kasitek-agents-p272fph6b-iamenochchirimas-projects.vercel.app",
+      "state": "READY",
+      "sourceCommit": "571a95b4df425faa332345cf799651501e13e85b",
+      "gitIntegration": false
+    },
+    "growth": {
+      "project": "kasitek",
+      "projectId": "prj_dPu8OmVJUcmVf8kgdAA7Q3Yh7alt",
+      "deploymentId": "dpl_72cCQxdodShCBB6RQxomUei46wH8",
+      "deploymentUrl": "https://kasitek-7v7u5v0z8-iamenochchirimas-projects.vercel.app",
+      "productionUrl": "https://app.kasitek.co.za",
+      "previousProductionUrl": "https://kasitek-k1lzv5y8p-iamenochchirimas-projects.vercel.app",
+      "state": "READY",
+      "sourceCommit": "571a95b4df425faa332345cf799651501e13e85b",
+      "gitIntegration": false
+    }
+  },
+  "migrations": [],
+  "validation": {
+    "sharedUiTests": "35 passed",
+    "agentsAskAi": "16 passed across 1440, 768 and 390",
+    "agentsChatWorkspace": "18 passed",
+    "agentsHarness": "2 passed, 1 live test skipped",
+    "agentsExecution": "4 passed, 1 live test skipped",
+    "agentsAgentUx": "3 passed",
+    "growthAgents": "58 passed across desktop, tablet, mobile, light and dark",
+    "builds": "Agents and Growth typechecks and production builds passed",
+    "boundaries": "Product import boundaries passed",
+    "productionHealth": "Agents API /ready returned 200; Growth API /health returned 200",
+    "productionApiProxy": "Agents /api/session returned 401; Growth /api/agents/bootstrap returned 401",
+    "productionAssets": "Agents live bundle contains assistant-chat-stream, Open Ask AI, New chat and Choose model; Growth live agent-conversation bundle contains assistant-chat-stream and the shared reconnecting/live-stream copy",
+    "candidateChecks": "Both Vercel candidates returned READY, served the new asset hashes and proxied their production APIs before promotion"
+  },
+  "rollback": {
+    "agentsWeb": "Promote https://kasitek-agents-p272fph6b-iamenochchirimas-projects.vercel.app.",
+    "growthWeb": "Promote https://kasitek-k1lzv5y8p-iamenochchirimas-projects.vercel.app.",
+    "apiWorker": "Not changed by this release; keep 312b19f7a deployments.",
+    "database": "No migration or schema change."
+  },
+  "postReleaseReviewDate": "2026-11-30"
+}
