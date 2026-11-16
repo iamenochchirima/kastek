@@ -29,13 +29,6 @@ function FeatureIcon({ id, className }: { id: string; className?: string }) {
   const Icon = id === "research" ? Search : id === "content" ? FileText : id === "campaigns" ? Grid2x2 : MessageSquare;
   return <Icon className={className} />;
 }
-function specialistMemoryLabel(feature:GrowthAgentFeature,specialist:NonNullable<GrowthAgentFeature["specialists"]>[number]) {
-  if(!specialist.memory)return "Status unavailable";
-  if(!specialist.memory.enabled)return "Off";
-  if(specialist.memory.availableToAssistant)return "Available to Assistant";
-  if(!feature.memory?.enabled)return "Assistant memory off";
-  return "Unavailable to Assistant";
-}
 function ConversationRows({ conversations }: { conversations: GrowthAgentConversation[] }) {
   return <div className="growth-agents-table-wrap"><table className="growth-agents-table"><thead><tr><th>Conversation</th><th>Agent</th><th>Updated</th></tr></thead><tbody>{conversations.map((conversation) => <tr key={conversation.id}><td><Link to={`/agents/conversations/${encodeURIComponent(conversation.id)}`} className="growth-agents-record-link">{conversation.title || "New conversation"}</Link><span className="growth-agents-mobile-meta">{featureLabel(conversation.featureId)}</span></td><td><span className="inline-flex items-center gap-2"><FeatureIcon id={conversation.featureId} className="size-4 shrink-0 text-muted-foreground" />{featureLabel(conversation.featureId)}</span></td><td><time dateTime={conversation.updatedAt}>{dateLabel(conversation.updatedAt)}</time></td></tr>)}</tbody></table></div>;
 }
@@ -60,7 +53,6 @@ function FeatureCard({ feature, onStart, onMemory, onResources, onUpgrade, onEdi
         {onUpgrade ? <DropdownMenuItem onSelect={onUpgrade}>Review update</DropdownMenuItem> : null}
       </DropdownMenuContent></DropdownMenu>
     </div>
-    {onResources&&feature.specialists?.length ? <details className="mt-3 text-xs text-muted-foreground"><summary className="min-h-9 cursor-pointer py-2">Specialists · {feature.specialists.length}</summary><ul className="space-y-2 pb-2">{feature.specialists.map(specialist=><li key={specialist.id} className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1"><span className="min-w-0 break-words text-foreground">{specialist.name}</span><span>{specialist.state==="configured"?"Configured":specialist.state==="disabled"?"Disabled":"Unavailable"}</span><span className="w-full text-muted-foreground">Memory · {specialistMemoryLabel(feature,specialist)}</span></li>)}</ul></details> : null}
     <div className="growth-agent-card-footer"><span className="growth-agent-card-status"><span className={cn("growth-agent-status-dot", feature.ready && "growth-agent-status-dot-ready")} />{feature.ready ? "Ready" : reason?.message || "Unavailable"}</span>{feature.ready ? <Button type="button" variant="ghost" size="sm" className="text-primary" onClick={onStart}>Chat<ChevronRight className="ml-1 size-4" /></Button> : route ? <Link to={route} className="growth-agent-card-action">Set up<ChevronRight className="size-4" /></Link> : null}</div>
   </article>;
 }
