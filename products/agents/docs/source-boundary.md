@@ -48,6 +48,11 @@ phone links. New workspaces provision one customizable Assistant and its first p
 version in the organization transaction, so the panel opens chat directly when a model route is
 available. Schema094 preserves deletion tombstones and offers explicit owner restore. Existing
 organizations without an assistant opt in through setup; legacy drafts repair on first read.
+
+Agents Ask AI and the Growth assistant share the launcher, modal panel, navigation, chat layout,
+composer, settings, channels and conversation-library surfaces in `packages/ui/src/assistant`.
+Product adapters supply transport, model selection, memory, task details and channel data. The
+shared surfaces do not own product execution or authorization.
 The normal editor can create a Content specialist and bind up to two permitted pinned business
 versions. The existing Restate harness chooses delegation through its model tool, maintains root
 budgets and returns a text draft without publishing into another product.

@@ -23,7 +23,7 @@ membership, database access or permission to call internal operations.
 | `apps/labs-site/` | Public Labs website |
 | `packages/contracts/` | Shared transport and event contracts |
 | `packages/server-support/` | Shared server implementation behind explicit exports |
-| `packages/ui/` | Shared workspace theme, appearance definitions and generic React controls |
+| `packages/ui/` | Shared workspace theme, appearance definitions, generic React controls and the shared assistant launcher, panel, navigation, chat, settings, channels and conversation-library surfaces |
 | `services/analytics/` | Analytics ingestion, publishing, registry and query service |
 | `services/billing/` | Billing accounts, plan catalog, Paystack, subscriptions, invoices, credits, usage and entitlement snapshots |
 | `services/evals/` | Evaluation control plane: sandbox, workspace, agent, outcome and session references; paired Growth/Agents local provisioner; operator API; terminal and browser clients |
