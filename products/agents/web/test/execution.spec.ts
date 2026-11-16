@@ -51,7 +51,7 @@ async function executionFixture(page: Page) {
 
 test("mock execution: pinned specialist scope, no-network analysis, related progress, cleanup and downloads", async ({ page }) => {
   const fixture = await executionFixture(page);
-  await page.goto(`/app/agents/${rootAgent}`);
+  await page.goto(`/app/agents/${rootAgent}?section=chat`);
   expect(fixture.configuration().capabilities.delegation.bindings.map(binding => binding.versionId)).toEqual([specialistVersion, secondVersion]);
   expect(fixture.configuration().capabilities.delegation.bindings[0].sourceRevisionIds).toEqual([sourceId]);
   expect(fixture.configuration().capabilities.delegation.bindings[1].sourceRevisionIds).toEqual([]);
@@ -88,7 +88,7 @@ test("mock execution: pinned specialist scope, no-network analysis, related prog
 test("mock execution: cancellation addresses the accepted root and follows child and resource cleanup", async ({ page }) => {
   const fixture = await executionFixture(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`/app/agents/${rootAgent}?section=test`);
+  await page.goto(`/app/agents/${rootAgent}?section=chat`);
   await page.getByRole("textbox", { name: "Message" }).fill("Research with specialists.");
   await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByRole("button", { name: "Open Source researcher activity", exact: true })).toBeVisible();
@@ -109,7 +109,7 @@ test("mock execution: cancellation addresses the accepted root and follows child
 
 test("mock execution: uncertain cleanup remains visible and refresh follows the original task", async ({ page }) => {
   const fixture = await executionFixture(page);
-  await page.goto(`/app/agents/${rootAgent}?section=test`);
+  await page.goto(`/app/agents/${rootAgent}?section=chat`);
   await page.getByRole("textbox", { name: "Message" }).fill("Analyze the approved data.");
   await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByRole("region", { name: "Analysis resources" })).toBeVisible();
@@ -205,7 +205,7 @@ test("live execution: accepted root reconnects to specialists, isolated analysis
 test("mock execution: parent continues a specialist awaiting current access without new admissions", async ({ page }) => {
   const fixture = await executionFixture(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`/app/agents/${rootAgent}?section=test`);
+  await page.goto(`/app/agents/${rootAgent}?section=chat`);
   await page.getByRole("textbox", { name: "Message" }).fill("Research with the approved specialists.");
   await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByRole("button", { name: "Open Source researcher activity", exact: true })).toBeVisible();

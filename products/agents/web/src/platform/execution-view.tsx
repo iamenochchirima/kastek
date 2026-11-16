@@ -21,7 +21,7 @@ export function taskExecution(task: Task): AgentExecution {
     updates: task.publicUpdates?.map(update => ({ id: update.id, text: update.text, createdAt: update.createdAt })),
     operations: task.operations?.map((operation, index) => ({
       id: operation.operationId ?? operation.id ?? `${task.id}:operation:${index}`,
-      label: operation.label ?? "Using a tool", category: operation.category, source: operation.source, activityKind: operation.activityKind, technicalName: operation.technicalName, durationMs: operation.durationMs,
+      label: operation.label ?? "Using a tool", category: operation.category, source: operation.source, activityKind: operation.activityKind, technicalName: operation.technicalName ?? operation.name, durationMs: operation.durationMs,
       state: operation.state, kind: operation.kind, startedAt: operation.startedAt,
       details: <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1"><dt>Status</dt><dd>{operation.state.replaceAll("_", " ")}</dd>{operation.transport ? <><dt>Transport</dt><dd>{operation.transport === "native_http" ? "API" : "MCP"}</dd></> : null}{operation.errorCode ? <><dt>Outcome</dt><dd>Operation could not finish.</dd></> : null}</dl>,
       detailAvailability: "available" as const,

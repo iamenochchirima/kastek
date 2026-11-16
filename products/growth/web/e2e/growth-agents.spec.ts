@@ -103,15 +103,17 @@ test("shows configured specialist status without blocking assistant chat", async
     await route.fulfill({response,json:bootstrap});
   });
   for(const width of [1440,768,390]){
-    await page.setViewportSize({width,height:900});await page.goto("/agents");
-    const card=page.getByRole("article").filter({has:page.getByRole("heading",{name:"Growth assistant",exact:true})});
-    await card.getByText("Specialists · 2").click();
-    await expect(card.getByText("Research",{exact:true})).toBeVisible();await expect(card.getByText("Configured",{exact:true})).toBeVisible();
-    await expect(card.getByText("Memory · Assistant memory off",{exact:true})).toBeVisible();
-    await expect(card.getByText("Campaigns",{exact:true})).toBeVisible();await expect(card.getByText("Disabled",{exact:true})).toBeVisible();
-    await expect(card.getByText("Memory · Off",{exact:true})).toBeVisible();
-    await expect(card.getByRole("button",{name:"Chat",exact:true})).toBeEnabled();
+    await page.setViewportSize({width,height:900});await page.goto("/agents/assistant");
+    const specialists=page.locator("section").filter({has:page.getByRole("heading",{name:"Specialists",exact:true})});
+    await expect(specialists.getByText("Research",{exact:true})).toBeVisible();
+    await expect(specialists.getByText("Configured",{exact:true})).toBeVisible();
+    await expect(specialists.getByText("Campaigns",{exact:true})).toBeVisible();
+    await expect(specialists.getByText("Disabled",{exact:true})).toBeVisible();
+    await expect(page.getByRole("button",{name:"Chat",exact:true})).toBeEnabled();
   }
+  await page.setViewportSize({width:1440,height:900});await page.goto("/agents");
+  await page.getByRole("button",{name:"Open Growth assistant",exact:true}).click();
+  await expect(page.getByRole("region",{name:"Agent conversation",exact:true})).toBeVisible();
 });
 
 test("uses one conversation from quick access, full page and history", async ({ page }) => {
@@ -260,7 +262,7 @@ test("cancels accepted work explicitly and keeps the task visible", async ({ pag
   await page.getByRole("button", { name: "Send message" }).click();
   await page.getByRole("button", { name: "Stop", exact: true }).click();
   await page.getByRole("button", { name: "Stop task", exact: true }).click();
-  await expect(page.getByRole("region", { name: "Agent conversation" }).getByText("Cancelled", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Agent conversation" }).getByText("Stopped", { exact: true }).first()).toBeVisible();
 });
 
 test("shows unavailable separately from an empty list and recovers", async ({ page }) => {
@@ -440,10 +442,10 @@ for (const width of [1440, 768, 390]) test(`coordinates visible specialist work 
   await expect(chat.getByRole("textbox", { name: "Message agent" })).toBeEnabled();
   await chat.getByRole("button", { name: "Stop", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Stop task", exact: true }).click();
-  await expect(chat.getByText("Cancelled", { exact: true })).toBeVisible();
+  await expect(chat.getByText("Stopped", { exact: true }).first()).toBeVisible();
   await page.getByRole("button", { name: "Close assistant", exact: true }).click();
   await page.getByRole("button", { name: "Open Growth assistant", exact: true }).click();
-  await expect(chat.getByText("Cancelled", { exact: true })).toBeVisible();
+  await expect(chat.getByText("Stopped", { exact: true }).first()).toBeVisible();
 });
 
 

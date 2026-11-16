@@ -37,7 +37,9 @@ test("mock transport: shared harness tool observations and contextual conversati
   await page.getByRole("textbox", { name: "Message" }).fill("My name is Ada.");
   await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByText("Hello Ada.", { exact: true })).toBeVisible();
-  await page.getByText("Execution details", { exact: true }).click();
+  await page.getByRole("button", { name: /Activity/ }).click();
+  await page.getByText("Using a tool", { exact: true }).first().click();
+  await page.getByText("Technical details", { exact: true }).first().click();
   await expect(page.getByText("memory.search", { exact: true })).toBeVisible();
   await page.getByRole("textbox", { name: "Message" }).fill("What is my name?");
   await page.getByRole("button", { name: "Send message", exact: true }).click();
@@ -174,7 +176,7 @@ test("mock transport: waiting task continues with current access and preserves i
     else { await route.fulfill({ status: 404, json: { error: { message: "Not found" } } }); return; }
     await route.fulfill({ json: data });
   });
-  await page.goto(`/app/agents/${agentId}?section=test`);
+  await page.goto(`/app/agents/${agentId}?section=chat`);
   await page.getByRole("textbox", { name: "Message" }).fill("Continue my research.");
   await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByRole("button", { name: "Continue task", exact: true })).toBeVisible();
@@ -191,5 +193,6 @@ test("mock transport: waiting task continues with current access and preserves i
   expect(continuations).toBe(1);
   expect(admissions).toBe(1);
   await page.getByText("Execution details", { exact: true }).click();
+  await page.getByText("Measurements", { exact: true }).click();
   await expect(page.getByText("waiting-task", { exact: true })).toBeVisible();
 });

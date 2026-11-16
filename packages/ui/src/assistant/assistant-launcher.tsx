@@ -101,7 +101,7 @@ export function AssistantLauncher({ open, onOpenChange, label, icon, storageKey,
     ? { left: position.left, top: bottomInset ? `min(${position.top}px, calc(100dvh - ${LAUNCHER_SIZE + 24 + bottomInset}px))` : position.top }
     : bottomInset ? { bottom: bottomInset + 24 } : undefined;
 
-  return <div className={cn("fixed z-[calc(var(--z-overlay)-1)] h-14 w-14", !position && "bottom-5 right-5 sm:bottom-6 sm:right-6", className)} style={style}>
+  return <div className={cn("fixed z-30 h-14 w-14", !position && "bottom-5 right-5 sm:bottom-6 sm:right-6", className)} style={style}>
     <span aria-hidden="true" className="pointer-events-none absolute -inset-2 rounded-full bg-primary/25 blur-md" />
     <button
       ref={triggerRef as RefObject<HTMLButtonElement | null> | undefined}
