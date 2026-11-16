@@ -123,6 +123,7 @@ import { registerChannelRoutes } from "../product/channels/channel-routes";
 import { registerChannelWebhooks } from "../product/channels/channel-webhooks";
 import { registerChannelSupportRoutes } from "../product/channels/channel-support-routes";
 import { registerInboxRoutes } from "../product/inbox/inbox-routes";
+import { publicAnswerText } from "../product/inbox/public-text";
 import { ConnectedReconciliation } from "../product/inbox/connected-reconciliation";
 import { customerFollowupConfig } from "../product/customer-followup/config";
 import { CustomerFollowupChallenges } from "../product/customer-followup/challenges";
@@ -321,7 +322,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     }
     try{await (await import("../execution/context/evidence")).assertDelegationInputEvidence(pool,taskId);}catch(error){if(error instanceof PlatformError)return {output:null,outputAvailability:"unavailable"};throw error;}
     if(!output)return {output};
-    const visible=async()=>projectRecipientText(output,await taskRecipientTextScope(pool,taskId,[output]));
+    const visible=async()=>publicAnswerText(projectRecipientText(output,await taskRecipientTextScope(pool,taskId,[output])));
     const influenced=(await pool.query("SELECT 1 FROM agents_platform.evidence_nodes WHERE task_id=$1 LIMIT 1",[taskId])).rowCount;
     if(!influenced)return {output:await visible()};
     if(!evidence)return {output:null,outputAvailability:"unavailable"};
@@ -864,10 +865,12 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   async function taskPassages(task: TaskRecord) {
     if(task.channel_binding && !(await pool.query("SELECT 1 FROM agents_platform.customer_deliveries WHERE task_id=$1 AND state='published'",[task.id])).rowCount)
       return {passages:[],availability:"unavailable"};
-    if (!task.output || !citationLabels(task.output).length) return { state: "available", passages: [] };
     if (!evidence) return { state: "unavailable", code: "EVIDENCE_BACKEND_UNAVAILABLE", passages: [] };
     try {
-      const passages = await evidence.validateCitations(task.id, task.output);
+      // Cited passages when the answer carries evidence handles; otherwise the supplied manifest.
+      const passages = task.output && citationLabels(task.output).length
+        ? await evidence.validateCitations(task.id, task.output)
+        : await evidence.suppliedPassages(task.id);
       return { state: "available", passages: passages.map(passage => ({ id: passage.reference.id, label: passage.label,
         title: passage.title, text: passage.text, page: passage.page, section: passage.section,
         contentDigest: passage.reference.contentDigest, acquiredAt: passage.reference.acquiredAt })) };

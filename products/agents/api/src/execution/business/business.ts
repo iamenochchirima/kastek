@@ -78,7 +78,7 @@ import { historyResultBytes, readHistory, searchHistory, toolReceiptPreview, typ
 import { historyToolDefinitions } from "../../capabilities/history-tools";
 import { protocolToolVersions } from "../../capabilities/protocol-tools";
 import { loadContinuityCheckpoint, prepareCompactionJob, adoptCompactionCheckpoint, readCompactionJobOutcome, failCompactionJob, retireQueuedBackgroundCompaction, type CompactionJobOutcome, type ContinuityCheckpoint } from "../context/checkpoints";
-import { customerChannelInstructions, customerSafeInstructions, sharedProtocolInstructions } from "../context/protocol-instructions";
+import { customerChannelInstructions, customerSafeInstructions, retrievalOnlyChannelInstructions, sharedProtocolInstructions } from "../context/protocol-instructions";
 import { planBackgroundCompaction } from "../context/background-planning";
 import { CONTEXT_COMPACTION_WORKFLOW,type ContextCompactionWorkflow } from "../context/compaction-workflow";
 import { createToolCatalog, progressiveModelTools, assertLoadedTool, discoverToolCatalog, loadToolSchemas, toolSchemaFailureFeedback, type ToolCatalog, type ToolCatalogMetadata } from "../../capabilities/tool-discovery";
@@ -127,7 +127,8 @@ export interface BusinessOptions {
 import { operation, uncertainOperation, type Result } from "../lifecycle/durable-operation";
 export { operation } from "../lifecycle/durable-operation";
 interface Snapshot { primaryInstructionIds?:string[]; id: string; messages: HarnessMessage[]; digest: string; estimatedTokens: number;
-  memoryFence?: MemoryFence; historyCutoff: string; tools: ToolDefinition[]; evidenceManifest?: DependencyManifest; catalog?: ToolCatalog;instructionHead?:string }
+  memoryFence?: MemoryFence; historyCutoff: string; tools: ToolDefinition[]; evidenceManifest?: DependencyManifest; catalog?: ToolCatalog;instructionHead?:string;
+  contextPlan?: { budgets: { maxInputTokens: number } } }
 const terminalSql = "('completed','incomplete','refused','failed','cancelled','uncertain')";
 
 
@@ -288,6 +289,13 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     content: `[${passage.label}] ${passage.title} (${passage.acquiredAt})\n${passage.text}` })) ?? [])];
   if(config.productBindings.length&&!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
   const availableProductBindings=config.productBindings.length?await options.product!.availableBindings(taskId):[];
+  // Product aliases are generated (t_<uuid>), so the route namespace comes from the binding authority, not the name.
+  const productAliases = new Set(availableProductBindings.map(binding => binding.alias));
+  const productSchemaTokens = availableProductBindings.length
+    ? Math.ceil(Buffer.byteLength(JSON.stringify(productModelTools(availableProductBindings)), "utf8") / 3) : 0;
+  const productSchemaCap = turnPlan?.definition.policy.maxProductSchemaTokens;
+  // A large owning-product surface is discovered and loaded on demand instead of entering every prompt.
+  const deferProductSchemas = productSchemaCap !== undefined && productSchemaTokens > productSchemaCap;
   phase.mark("bindings");
   const memoryGrant = config.memory.enabled && task.principal.kind === "human"
     ? (await pool.query("SELECT operations FROM agents_platform.execution_grants WHERE id=$1", [task.grant_id])).rows[0] : undefined;
@@ -310,17 +318,24 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const recoveryTools=sharedProtocol&&toolCalling&&!task.channel_binding&&options.evidence&&hasRetainedRecords?historyToolDefinitions(protocolVersions):[];
   const directoryProtocol=sharedProtocol && protocolVersions.get("tools.discover")==="3";
   // Deferral keeps owning-product schemas out of every prompt; the capability directory still names them.
-  // Default off: flipping this changes model-visible input and must follow the documented evaluation.
+  // External deferral stays opt-in; large product surfaces defer per route.
   const deferredExternalSchemas = process.env.AGENTS_TOOL_SCHEMA_DEFERRAL === "deferred";
-  const catalog=sharedProtocol&&toolCalling?createToolCatalog([...directTools,...recoveryTools],new Map<string,ToolCatalogMetadata>([
-    ...(directoryProtocol?[...directTools,...recoveryTools].map(tool=>[tool.function.name,{qualifiedName:`runtime:${tool.function.name}`,revision:requestDigest(tool),
+  const routeNamespaces = turnPlan?.definition.policy.toolNamespaces;
+  const catalogTools = routeNamespaces
+    ? [...directTools, ...recoveryTools].filter(tool => toolAllowed(tool.function.name, routeNamespaces, productAliases))
+    : [...directTools, ...recoveryTools];
+  const catalog=sharedProtocol&&toolCalling?createToolCatalog(catalogTools,new Map<string,ToolCatalogMetadata>([
+    ...(directoryProtocol?catalogTools.map(tool=>[tool.function.name,{qualifiedName:`runtime:${tool.function.name}`,revision:requestDigest(tool),
       ...toolDescriptorPresentation(builtinToolName(tool.function.name)??tool.function.name),purpose:tool.function.description.slice(0,512)}] as const):[]),
-    ...availableProductBindings.map(binding=>[binding.alias,{qualifiedName:`product:${binding.authority!.destinationProduct}:${binding.authority!.tenantId}:${binding.definition.providerOperation}`,revision:binding.digest,bindingDigest:binding.digest,...(directoryProtocol?capabilityBindingPresentation(binding):{}),...(deferredExternalSchemas?{schemaLoading:"deferred" as const}:{})}] as const),
+    ...availableProductBindings.map(binding=>[binding.alias,{qualifiedName:`product:${binding.authority!.destinationProduct}:${binding.authority!.tenantId}:${binding.definition.providerOperation}`,revision:binding.digest,bindingDigest:binding.digest,...(directoryProtocol?capabilityBindingPresentation(binding):{}),...(deferProductSchemas||deferredExternalSchemas?{schemaLoading:"deferred" as const}:{})}] as const),
     ...execution.connectedBindings.map(binding=>[binding.alias,{qualifiedName:`connection:${binding.connection?.id}:${binding.definition.providerOperation}`,revision:binding.digest,bindingDigest:binding.digest,...(directoryProtocol?capabilityBindingPresentation(binding):{}),...(deferredExternalSchemas?{schemaLoading:"deferred" as const}:{})}] as const),
   ]),protocolVersions.get("tools.discover")??"1"):undefined;
   const loadedSchemas=catalog?(await pool.query("SELECT output FROM agents_platform.operations WHERE task_id=$1 AND name='tools.load' AND state='completed' ORDER BY started_at,id",[taskId])).rows.map(row=>row.output):[];
   const alwaysAliases=[...recoveryTools.map(tool=>tool.function.name),...directTools.filter(tool=>/^(knowledge_|skills_|agents_|work_|support_|channel_)/.test(tool.function.name)).map(tool=>tool.function.name)];
-  const exposure=catalog&&directoryProtocol?capabilityExposure(catalog,loadedSchemas,protocolVersions,contextModelPolicy(execution,"primary",new Map(),packingOverhead)):undefined;
+  // Schema selection must respect the route budget, not the agent's wider model window.
+  const baseExposurePolicy=contextModelPolicy(execution,"primary",new Map(),packingOverhead);
+  const exposurePolicy=routeNamespaces?{...baseExposurePolicy,maxInputTokens:Math.min(baseExposurePolicy.maxInputTokens,turnPlan!.definition.policy.maxInputTokens)}:baseExposurePolicy;
+  const exposure=catalog&&directoryProtocol?capabilityExposure(catalog,loadedSchemas,protocolVersions,exposurePolicy):undefined;
   const exposedTools=exposure?.tools??(catalog?progressiveModelTools(catalog,loadedSchemas,alwaysAliases,protocolVersions):directTools);
   const knowledgeMode = turnPlan?.definition.policy.knowledgeMode ?? config.knowledge?.mode ?? "retrieved";
   const knowledgePinned = knowledgeMode === "pinned";
@@ -336,12 +351,26 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   // Retrieved: one pre-loop search supplies the answer; tools stay only to recover an empty first result.
   // Agentic: tools stay available for multi-hop work, capped. Pinned: the corpus is already present.
   const knowledgeSearchAllowed = knowledgeAgentic ? !knowledgeCapReached
-    : knowledgeMode === "retrieved" ? initialKnowledgeEmpty && knowledgeCalls < 1 : false;
-  const knowledgeReadAllowed = knowledgeAgentic ? !knowledgeCapReached && !knowledgeReadFailed : false;
+    : knowledgeMode === "retrieved";
+  const knowledgeReadAllowed = knowledgeAgentic ? !knowledgeCapReached && !knowledgeReadFailed
+    : knowledgeMode === "retrieved";
   const modelTools=exposedTools.filter(tool=>tool.function.name==="knowledge_search"?knowledgeSearchAllowed
     :tool.function.name==="knowledge_read"?knowledgeReadAllowed:true);
   // Route exposure only narrows the agent's configured tools; it never adds authority.
-  const routedTools=turnPlan?modelTools.filter(tool=>toolAllowed(tool.function.name,turnPlan.definition.policy.toolNamespaces)):modelTools;
+  let routedTools=turnPlan?modelTools.filter(tool=>toolAllowed(tool.function.name,turnPlan.definition.policy.toolNamespaces,productAliases)):modelTools;
+  const routedProductTools=routedTools.filter(tool=>productAliases.has(tool.function.name));
+  const routedProductSchemaTokens=routedProductTools.length
+    ? Math.ceil(Buffer.byteLength(JSON.stringify(routedProductTools),"utf8")/3) : 0;
+  const productSchemasOmitted=Boolean(turnPlan&&routedProductSchemaTokens>turnPlan.definition.policy.maxProductSchemaTokens);
+  // A loaded or eager product schema may still exceed the route cap; omit it rather than overflow the request.
+  if(productSchemasOmitted)routedTools=routedTools.filter(tool=>!productAliases.has(tool.function.name));
+  const finalProductTools=routedTools.filter(tool=>productAliases.has(tool.function.name));
+  const finalProductSchemaBytes=finalProductTools.reduce((total,tool)=>total+Buffer.byteLength(JSON.stringify(tool),"utf8"),0);
+  // A knowledge-only agent has nothing useful to discover. Leaving discovery visible makes a
+  // failed retrieval loop through tools.load/tools.discover instead of answering.
+  if(turnPlan && (turnPlan.decision.route==="knowledge"||turnPlan.decision.route==="catalogue") &&
+     knowledgeMode!=="agentic" && availableProductBindings.length===0 && execution.connectedBindings.length===0)
+    routedTools=routedTools.filter(tool=>tool.function.name!=="tools_discover"&&tool.function.name!=="tools_load");
   let memoryFence: MemoryFence | undefined;
   const memory = new MemoryStore(pool);
   if (memoryReadAllowed) {
@@ -375,7 +404,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     let offset:number|undefined=0;
     while(offset!==undefined){const page=await discoverSpecialists(pool,taskId,{offset});specialists.push(...page.specialists);offset=page.nextOffset??undefined;}
   }
-  const directory=catalog&&directoryProtocol?capabilityDirectory({catalog,tools:modelTools,skills:loadedSkills.catalog,specialists,unavailableTools:config.productBindings.length-availableProductBindings.length,policy:contextModelPolicy(execution,"primary",new Map(),packingOverhead)}):undefined;
+  const directory=catalog&&directoryProtocol?capabilityDirectory({catalog,tools:routedTools,skills:loadedSkills.catalog,specialists,unavailableTools:config.productBindings.length-availableProductBindings.length,policy:exposurePolicy}):undefined;
   phase.mark("capabilities");
   const invalidated = (knownGeneration !== undefined && knownGeneration !== memoryFence?.generation) ||
     (knownExpiry !== undefined && Date.now() >= knownExpiry);
@@ -468,7 +497,12 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const originatingRequest=sharedProtocol&&task.parent_task_id?await originatingRequestContext(pool,task):undefined;
   const memberContext=await memberIdentityContext(pool,task);
   const composedInstructions = composeAgentInstructions(config);
-  const channelSafeInstructions = customerSafeInstructions(composedInstructions);
+  const safeInstructions = customerSafeInstructions(composedInstructions, config.program.id === "grounded-conversation");
+  const handoffAvailable = config.tools.some(tool => tool === "support.request_handoff" || tool === "support.request_handoff_v2") ||
+    directTools.some(tool => ["channel_request_handoff", "support_request_handoff", "support_request_handoff_v2"].includes(tool.function.name));
+  const customerInstructions = handoffAvailable ? safeInstructions
+    : safeInstructions.replace(/Offer human support when needed\.?/gi,
+      "When the information is unavailable, point to the public contact route instead of offering a transfer or callback.");
   const knowledgeNotice = knowledgePinned
     ? "\nKnowledge sources are already supplied in full. Answer from them; do not claim a lookup was performed. Say plainly when they do not contain the answer."
     : knowledgeMode === "retrieved"
@@ -478,7 +512,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       : knowledgeCapReached
         ? "\nKnowledge lookups are closed for this request. Answer from the knowledge already supplied and say plainly when it does not contain the answer."
         : knowledgeReadFailed ? "\nKnowledge passage paging is closed for this request. Answer from the passages already supplied." : "";
-  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: channelSafeInstructions+memberContext+outcomeGuidance+recoveryInstructions+procedureInstructions+(directory?"\n"+directory.text:"")+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":"")+(task.channel_binding?customerChannelInstructions:"")+knowledgeNotice+omittedInstructionNotice+(turnPlan?`\n${turnPlan.definition.instructions}`:""), compactContinuation: (task.execution_policy_version??1)>=2, ...(originatingRequest?{originatingRequest,currentInputOrigin:"coordinator" as const}:{}), currentInput: [task.input,...(selectedProductContext?[selectedProductContextText(selectedProductContext.reference)]:[]),...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
+  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: customerInstructions+memberContext+outcomeGuidance+recoveryInstructions+procedureInstructions+(directory?"\n"+directory.text:"")+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":"")+(task.channel_binding?(handoffAvailable?customerChannelInstructions:retrievalOnlyChannelInstructions):"")+knowledgeNotice+omittedInstructionNotice+(turnPlan?`\n${turnPlan.definition.instructions}`:""), compactContinuation: (task.execution_policy_version??1)>=2, ...(originatingRequest?{originatingRequest,currentInputOrigin:"coordinator" as const}:{}), currentInput: [task.input,...(selectedProductContext?[selectedProductContextText(selectedProductContext.reference)]:[]),...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
     summary: invalidated ? undefined : summary, sources,
     skills: loadedSkills.sources, skillCatalog: loadedSkills.catalog,
     tools: routedTools, model: execution.models.primary.binding.modelId, modelPolicy: contextModelPolicy(execution, "primary", await nativeContextCosts(pool, execution), packingOverhead),
@@ -533,9 +567,11 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     route: turnPlan.decision.route, confidence: turnPlan.decision.confidence, reason: turnPlan.decision.reason,
     pendingAction: turnPlan.decision.pendingAction, knowledgeMode,
     budgets: turnPlan.definition.policy,
-    counts: { sources: knowledgeReferences.length, sections: knowledgeReferences.length, tools: routedTools.length },
+    counts: { sources: knowledgeReferences.length, sections: knowledgeReferences.length, tools: routedTools.length,
+      productTools: finalProductTools.length, productSchemasOmitted: productSchemasOmitted ? 1 : 0 },
     breakdown: { systemBytes: messageBytes("system"), userBytes: messageBytes("user"), assistantBytes: messageBytes("assistant"),
       toolBytes: messageBytes("tool"), toolSchemaBytes: Buffer.byteLength(JSON.stringify(routedTools), "utf8"),
+      productSchemaBytes: finalProductSchemaBytes,
       knowledgeBytes: sources.filter(source => source.kind === "knowledge").reduce((total, source) => total + Buffer.byteLength(source.content, "utf8"), 0) },
     toolNamespaces: turnPlan.definition.policy.toolNamespaces,
   } : undefined;
@@ -1171,7 +1207,9 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                       const value=loadToolSchemas(snapshot.catalog,args,acceptedToolVersion??"1");
                       if(acceptedToolVersion==="3"){
                         const previous=(await pool.query("SELECT output FROM agents_platform.operations WHERE task_id=$1 AND name='tools.load' AND state='completed' ORDER BY started_at,id",[taskId])).rows.map(row=>row.output);
-                        capabilityExposure(snapshot.catalog,[...previous,value],protocolVersions,contextModelPolicy(execution));
+                        const base=contextModelPolicy(execution),cap=snapshot.contextPlan?.budgets?.maxInputTokens;
+                        capabilityExposure(snapshot.catalog,[...previous,value],protocolVersions,
+                          cap?{...base,maxInputTokens:Math.min(base.maxInputTokens,cap)}:base);
                       }
                       return {value,tokens:0};
                     }

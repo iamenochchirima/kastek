@@ -315,3 +315,26 @@ focused artifact fixture verifies 101 discovered records across exact cursors, m
 custody, revoked/foreign omission and byte recovery through a discovered handle; this is controlled
 storage/authorization proof, not evidence of autonomous model retrieval quality. Disabling new
 version2 publications does not remove retained artifacts or rewrite accepted schema pins.
+
+## Turn routing and product tool exposure
+
+New turns are routed deterministically as conversation, knowledge, catalogue, action,
+confirmation, complex or workspace. Each route carries its own input, knowledge, history,
+tool-result and product-schema budget. The route only narrows the agent's configured tools; it
+never adds authority.
+
+Product tool namespaces come from the binding authority, not the generated alias. Conversation
+exposes no product tools. When the product schema surface exceeds the route cap, the schemas are
+deferred and selected through `tools_discover` / `tools_load`; `tools.load` validates against the
+route's input budget. Knowledge-only agents on knowledge and catalogue routes do not receive
+discovery tools.
+
+Conversation answers are projected through `publicAnswerText` at every task read, so evidence
+handles never reach Evals, the website or a connected channel. The stored task output retains the
+handles for evidence mapping. The evidence endpoint returns cited passages when the answer carries
+handles; otherwise it returns the retained evidence supplied to that task. Reports keep their
+citation contract.
+
+Evidence transactions serialize per organization with a transaction-scoped advisory lock instead
+of locking the organization row. This keeps context assembly from blocking unrelated reads and
+writes. No database migration is required.

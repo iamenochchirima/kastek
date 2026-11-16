@@ -42,7 +42,8 @@ export class EvidenceStore {
   private async scoped<T>(taskId: string, work: (db: PoolClient, execution: Execution) => Promise<T>): Promise<T> {
     return transaction(this.pool, async db => {
       const initial = await loadExecution(db, taskId);
-      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [initial.task.organization_id]);
+      // Serialize evidence mutations per organization without holding the organization row lock.
+      await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [initial.task.organization_id]);
       const execution = await loadExecution(db, taskId);
       await assertCurrentAuthority(db, execution);
       return work(db, execution);
@@ -151,14 +152,16 @@ export class EvidenceStore {
         manifest:origin.manifest});
     });
   }
-  private async passage(db: Db, taskId: string, evidenceId: string, retainedCitationIds:ReadonlySet<string>=new Set()): Promise<EvidencePassage> {
-    const execution = await loadExecution(db, taskId);
+  private async passage(db: Db, taskId: string, evidenceId: string, retainedCitationIds:ReadonlySet<string>=new Set(),
+    options: { execution?: Execution; verify?: boolean } = {}): Promise<EvidencePassage> {
+    const execution = options.execution ?? await loadExecution(db, taskId);
     const row = (await db.query(`SELECT e.*,c.object_key,c.inline_content,c.title,c.page,c.section FROM agents_platform.evidence_references e
       JOIN agents_platform.evidence_contents c ON c.reference_id=e.id WHERE e.id=$1 AND e.organization_id=$2 AND (e.root_task_id=$3 OR EXISTS(
         SELECT 1 FROM agents_platform.evidence_nodes n WHERE n.task_id=$4 AND e.id=ANY(n.evidence_ids)) OR e.id=ANY($5::uuid[]))`, [evidenceId,execution.task.organization_id,execution.task.root_task_id,taskId,[...retainedCitationIds]])).rows[0];
     if (!row) throw denied();
     if(row.task_id!==taskId&&!retainedCitationIds.has(evidenceId)&&!(await suppliedNodes(db,execution)).some(node=>node.evidenceIds.includes(evidenceId)))throw denied();
-    const reference = dto(row); await assertCurrentEvidence(db, taskId, reference.manifest, {requireActiveTask:false});
+    const reference = dto(row);
+    if (options.verify !== false) await assertCurrentEvidence(db, taskId, reference.manifest, {requireActiveTask:false});
     let text: string;
     if (row.inline_content !== null) text = row.inline_content;
     else if (row.object_key) text = Buffer.from(await this.objectStore().get(row.object_key)).toString("utf8");
@@ -170,7 +173,7 @@ export class EvidenceStore {
     if (textDigest(text) !== row.content_digest) throw integrity();
     return {reference,label:row.citation_label,text,title:row.title,page:row.page,section:row.section};
   }
-  private async node(db: PoolClient, execution: Execution, kind: EvidenceKind, ownerId: string, evidenceIds: string[], parents: EvidenceNode[], inherited?:{evidenceIds:string[];manifest:DependencyManifest}, replayParents:"fixed"|"recorded"="fixed", historyOriginTaskIds:string[]=[]): Promise<EvidenceNode> {
+  private async node(db: PoolClient, execution: Execution, kind: EvidenceKind, ownerId: string, evidenceIds: string[], parents: EvidenceNode[], inherited?:{evidenceIds:string[];manifest:DependencyManifest}, replayParents:"fixed"|"recorded"="fixed", historyOriginTaskIds:string[]=[], passageManifests?:ReadonlyMap<string,DependencyManifest>): Promise<EvidenceNode> {
     const ids = [...new Set([...evidenceIds,...(inherited?.evidenceIds??[])])].sort(), parentIds = [...new Set(parents.map(parent=>parent.id))].sort();
     const existing = (await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[execution.task.root_task_id])).rows.map(row=>({row,node:nodeDto(row)}));
     const graph = new Map(existing.map(({node})=>[node.id,node]));
@@ -186,7 +189,10 @@ export class EvidenceStore {
       return recorded;
     }
     const dependencies: EvidenceDependency[] = [...await delegationDependency(db,execution.task.id),...parents.flatMap(parent=>parent.manifest.dependencies),...(inherited?.manifest.dependencies??[])];
-    for (const id of evidenceIds) dependencies.push(...(await this.passage(db,execution.task.id,id)).reference.manifest.dependencies);
+    for (const id of evidenceIds) {
+      const supplied = passageManifests?.get(id);
+      dependencies.push(...(supplied ? supplied.dependencies : (await this.passage(db,execution.task.id,id)).reference.manifest.dependencies));
+    }
     const manifest = createDependencyManifest(dependencies);
     collectDependencyGraph(parentIds,graph);
     const digest = requestDigest({ids,parentIds,manifest});
@@ -305,7 +311,16 @@ export class EvidenceStore {
     return this.scoped(taskId, async (db, execution) => {
       const snapshot = (await db.query("SELECT * FROM agents_platform.context_snapshots WHERE id=$1 AND task_id=$2",[snapshotId,taskId])).rows[0];
       if (!snapshot) throw denied();
-      for (const id of evidenceIds) { const passage = await this.passage(db,taskId,id); if (!payloadHas(snapshot.payload,passage.text,passage.label)) throw integrity(); }
+      const passages:EvidencePassage[]=[];
+      for (const id of evidenceIds) {
+        const passage = await this.passage(db,taskId,id,undefined,{execution,verify:false});
+        if (!payloadHas(snapshot.payload,passage.text,passage.label)) throw integrity();
+        passages.push(passage);
+      }
+      // Passages from the same source share one manifest; verify each distinct manifest once.
+      const manifests=new Map<string,DependencyManifest>();
+      for(const passage of passages)manifests.set(requestDigest(passage.reference.manifest),passage.reference.manifest);
+      for(const manifest of manifests.values())await assertCurrentEvidence(db,taskId,manifest,{requireActiveTask:false});
       const parents = await this.currentParents(db,execution);
       const selectedMemories=(snapshot.source_references??[]).filter((reference:{kind?:string})=>reference.kind==="memory");
       const memoryDependencies:EvidenceDependency[]=[],inheritedIds:string[]=[];
@@ -330,7 +345,8 @@ export class EvidenceStore {
         if(!memoryVisible(snapshot.payload,selected.id,origin.row.content))throw integrity();
         if(origin.row.revision!==selected.revision||origin.row.scope_id!==snapshot.memory_scope_id||Number(origin.row.generation)!==Number(snapshot.memory_generation))throw integrity();
         memoryDependencies.push(...origin.manifest.dependencies);inheritedIds.push(...origin.evidenceIds);}
-      return this.node(db,execution,"context",snapshotId,evidenceIds,parents,{manifest:createDependencyManifest(memoryDependencies),evidenceIds:inheritedIds},"recorded");
+      return this.node(db,execution,"context",snapshotId,evidenceIds,parents,{manifest:createDependencyManifest(memoryDependencies),evidenceIds:inheritedIds},"recorded",[],
+        new Map(passages.map(passage=>[passage.reference.id,passage.reference.manifest])));
     });
   }
   async inheritArtifactWithin(db:PoolClient,targetTaskId:string,artifactId:string):Promise<EvidenceNode>{
@@ -579,6 +595,21 @@ export class EvidenceStore {
   }
   async taskManifest(taskId:string):Promise<DependencyManifest>{
     return taskEvidenceManifest(this.pool,taskId);
+  }
+  /** Sources for answers that carry no inline handles: the retained evidence supplied to this task. */
+  async suppliedPassages(taskId:string,limit=20):Promise<EvidencePassage[]>{
+    const execution=await loadExecution(this.pool,taskId);
+    const rows=(await this.pool.query("SELECT * FROM agents_platform.evidence_nodes WHERE task_id=$1 ORDER BY created_at,id",[taskId])).rows.map(nodeDto);
+    const all=(await this.pool.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[execution.task.root_task_id])).rows.map(nodeDto);
+    const graph=new Map(all.map(node=>[node.id,node]));collectDependencyGraph(rows.map(node=>node.id),graph);
+    const reachable=new Set<string>();evidenceGraphIds(rows.map(node=>node.id),graph,reachable);
+    const retained=await this.retainedCitationIds(this.pool,execution,[...reachable]);
+    const references=(await this.pool.query(`SELECT id FROM agents_platform.evidence_references
+      WHERE task_id=$1 AND organization_id=$2 ORDER BY citation_label LIMIT $3`,
+      [taskId,execution.task.organization_id,Math.min(Math.max(limit,1),50)])).rows as {id:string}[];
+    const passages:EvidencePassage[]=[];
+    for(const reference of references)passages.push(await this.passage(this.pool,taskId,reference.id,retained));
+    return passages;
   }
   /** Designated reviewers can inspect cited passages only, never arbitrary root evidence or private inputs. */
   async reviewerPassages(scope:{organizationId:string;accountId:string},taskId:string,artifactId:string):Promise<EvidencePassage[]>{

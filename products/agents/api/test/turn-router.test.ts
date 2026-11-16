@@ -8,6 +8,9 @@ describe("turn routing", () => {
   it.each([
     ["Hi", null, "conversation"],
     ["thanks", null, "conversation"],
+    ["Thanks, that's helpful", null, "conversation"],
+    ["okay thanks", null, "conversation"],
+    ["thanks, but can you deliver to Soweto?", null, "knowledge"],
     ["okay", null, "conversation"],
     ["Hi, do you deliver to Soweto?", null, "knowledge"],
     ["Hours?", null, "knowledge"],
@@ -63,6 +66,23 @@ describe("turn routing", () => {
     expect(toolAllowed("records_search", knowledge)).toBe(true);
     expect(toolAllowed("memory_read", knowledge)).toBe(true);
     expect(toolAllowed("support_request_handoff", action)).toBe(true);
+  });
+
+  it("names product tools from binding authority, not their generated alias", () => {
+    const product = new Set(["t_11111111111111111111111111111111", "t_22222222222222222222222222222222"]);
+    expect(toolAllowed("t_11111111111111111111111111111111", ROUTE_DEFINITIONS.conversation.policy.toolNamespaces, product)).toBe(false);
+    expect(toolAllowed("t_11111111111111111111111111111111", ROUTE_DEFINITIONS.knowledge.policy.toolNamespaces, product)).toBe(true);
+    expect(toolAllowed("t_11111111111111111111111111111111", ROUTE_DEFINITIONS.action.policy.toolNamespaces, product)).toBe(true);
+    expect(toolAllowed("knowledge_search", ROUTE_DEFINITIONS.knowledge.policy.toolNamespaces, product)).toBe(true);
+  });
+
+  it("reserves no product schema tokens for conversation", () => {
+    expect(ROUTE_DEFINITIONS.conversation.policy.maxProductSchemaTokens).toBe(0);
+    expect(ROUTE_DEFINITIONS.knowledge.policy.maxProductSchemaTokens).toBeGreaterThan(0);
+    expect(ROUTE_DEFINITIONS.knowledge.policy.maxProductSchemaTokens)
+      .toBeLessThanOrEqual(ROUTE_DEFINITIONS.knowledge.policy.maxInputTokens);
+    expect(ROUTE_DEFINITIONS.action.policy.maxProductSchemaTokens)
+      .toBeLessThanOrEqual(ROUTE_DEFINITIONS.action.policy.maxInputTokens);
   });
 
   it("keeps every route input budget positive and ordered below the workspace ceiling", () => {

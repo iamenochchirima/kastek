@@ -29,9 +29,22 @@ Never reveal staff-only configuration, tool names, IDs, or internal reasoning.
 If the available information does not answer the question, say so briefly and offer human support. Ask at most one short clarifying question.
 `;
 
-/** Remove internal source wording from instructions used for customer-visible work. */
-export function customerSafeInstructions(text: string): string {
-  return text
+/** Same rules without implying a transfer this agent cannot perform. */
+export const retrievalOnlyChannelInstructions = customerChannelInstructions.replace(
+  "If the available information does not answer the question, say so briefly and offer human support.",
+  "If the available information does not answer the question, say so briefly and point to the public contact route. Do not offer a transfer, callback or human follow-up.",
+);
+
+/** Remove internal source wording from instructions used for conversational answers. */
+export function customerSafeInstructions(text: string, conversational = false): string {
+  const safe = text
     .replace(/\bapproved (?:knowledge|encyclopedia|sources?)\b/gi, "business information")
     .replace(/\bknowledge base\b/gi, "business information");
+  if (!conversational) return safe;
+  // Conversational answers never expose evidence handles, so do not ask the model to produce them.
+  return safe
+    .replace(/[^.\n]*\bevidence (?:labels?|handles?|citations?)\b[^.\n]*[.!]?/gi, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }

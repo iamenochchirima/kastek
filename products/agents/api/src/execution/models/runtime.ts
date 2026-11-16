@@ -18,6 +18,7 @@ import { loadExecution } from "../lifecycle/state";
 import { ModelOperationError, validateMessageGroups } from "../business/model";
 import type { PreparedInputCount } from "../../adapters/models/input-count";
 import { BoundModelDispatchError, dispatchBoundModel, type BoundModelDispatchInput } from "./dispatch";
+import { recordEvent } from "../../observability/event-store";
 
 type Db = Pool | PoolClient;
 /** Private protocol bytes contribute to packing without returning native reasoning to a durable journal. */
@@ -139,9 +140,11 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
     if (!Number.isSafeInteger(prepared.deadlineAt) || prepared.deadlineAt <= Date.now()) {
       throw new ModelOperationError("MODEL_NETWORK_DEADLINE", "rejected", 408);
     }
-    const response = await (dependencies.dispatch ?? dispatchBoundModel)({ pool: input.pool, providerStore: input.providerStore,
+    let emitted = false;
+    const dispatchInput: BoundModelDispatchInput = { pool: input.pool, providerStore: input.providerStore,
       accepted: prepared.route, messages, tools, nativeHistory: prepared.restored, signal: input.signal,
-      maxRequestBytes: Math.min(input.maxRequestBytes, prepared.route.policy.maxRequestBytes), deadlineAt: prepared.deadlineAt, onText: sharedProtocol?delta=>{textChunks.push(delta);}:input.onText,
+      maxRequestBytes: Math.min(input.maxRequestBytes, prepared.route.policy.maxRequestBytes), deadlineAt: prepared.deadlineAt,
+      onText: delta => { if (delta.length) emitted = true; if (sharedProtocol) textChunks.push(delta); else input.onText?.(delta); },
       beforeDispatch: async () => {
         try { await transaction(input.pool, async db => {
           await (dependencies.assertAuthority ?? currentAuthority)(db, input.execution);
@@ -168,7 +171,26 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
           }
         } catch (error) { retainGuardFailure(error); }
       },
-    });
+    };
+    // Retry a definitively rejected provider limit or outage before any output exists. The native
+    // continuation is claimed once, so retrying the physical dispatch cannot record it twice.
+    const retryableDispatch = new Set(["MODEL_RATE_LIMITED", "MODEL_PROVIDER_UNAVAILABLE"]);
+    let response: ProviderTransportResponse | undefined;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        response = await (dependencies.dispatch ?? dispatchBoundModel)(dispatchInput);
+        break;
+      } catch (error) {
+        const value = error as { code?: unknown; outcome?: unknown; diagnostics?: { dispatched?: boolean } };
+        const code = typeof value.code === "string" ? value.code : "";
+        if (attempt >= 3 || emitted || value.outcome !== "rejected" || !retryableDispatch.has(code) ||
+            value.diagnostics?.dispatched === true) throw error;
+        void recordEvent(input.pool, taskId, `model-retry:${input.operationId}:${attempt}`, "model.retry", {
+          operationId: input.operationId, attempt, code,
+        }).catch(() => { /* Retry reporting cannot change the physical outcome. */ });
+        await new Promise(resolve => setTimeout(resolve, 750 * attempt));
+      }
+    }
     dispatched = true;
     const identity = modelIdentitySchema.safeParse(response.modelIdentity ?? { requestedModelId: prepared.route.binding.modelId, returnedModelId: null, relation: "unreported" });
     if (!identity.success || identity.data.requestedModelId !== prepared.route.binding.modelId) throw new ModelOperationError("MODEL_RESPONSE_IDENTITY_INVALID", "uncertain");
