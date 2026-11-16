@@ -21,15 +21,15 @@ const policy = (maxInputTokens: number, maxKnowledgeTokens: number, maxHistoryTo
 export const ROUTE_DEFINITIONS: Readonly<Record<RouteKey, RouteDefinition>> = Object.freeze({
   conversation: { key: "conversation", policy: policy(4_000, 0, 1_500, 1_200, 0, "none", ["core"]),
     instructions: "This is a short conversational turn. Reply directly and do not claim to search or look anything up." },
-  knowledge: { key: "knowledge", policy: policy(10_000, 6_000, 2_500, 2_000, 1_000, "retrieved", ["knowledge", "core"]),
+  knowledge: { key: "knowledge", policy: policy(10_000, 6_000, 2_500, 2_000, 1_000, "retrieved", ["knowledge", "workspace", "core"]),
     instructions: "Answer from the supplied knowledge. Do not claim to search unless a knowledge tool was actually called." },
-  catalogue: { key: "catalogue", policy: policy(16_000, 10_000, 2_500, 2_000, 1_000, "retrieved", ["knowledge", "core"]),
+  catalogue: { key: "catalogue", policy: policy(16_000, 10_000, 2_500, 2_000, 1_000, "retrieved", ["knowledge", "workspace", "core"]),
     instructions: "Answer from the supplied knowledge. Include the complete requested list when it fits the reply budget." },
-  action: { key: "action", policy: policy(8_000, 2_000, 2_000, 2_000, 1_000, "retrieved", ["action", "core"]),
+  action: { key: "action", policy: policy(8_000, 2_000, 2_000, 2_000, 1_000, "retrieved", ["action", "workspace", "core"]),
     instructions: "Continue the requested action. Do not claim an effect without a tool result." },
   confirmation: { key: "confirmation", policy: policy(5_000, 0, 2_000, 1_200, 0, "none", ["action", "core"]),
     instructions: "This is a short confirmation. Answer the pending question or continue the pending action directly. Do not claim to search or look anything up unless a tool was actually called." },
-  complex: { key: "complex", policy: policy(24_000, 12_000, 4_000, 3_000, 2_000, "retrieved", ["knowledge", "action", "core"]),
+  complex: { key: "complex", policy: policy(24_000, 12_000, 4_000, 3_000, 2_000, "retrieved", ["knowledge", "action", "workspace", "core"]),
     instructions: "Address each part of the request. Use the supplied knowledge and do not invent details." },
   workspace: { key: "workspace", policy: policy(24_000, 8_000, 4_000, 4_000, 4_000, "retrieved", ["workspace", "knowledge", "action", "core"]),
     instructions: "Continue the workspace task using the available tools and context." },
@@ -62,23 +62,28 @@ export function routePlan(decision: RouteDecision): RoutePlan {
   if (decision.route !== "confirmation") return { decision, definition };
   const actionPending = decision.pendingAction === "booking" || decision.pendingAction === "enquiry" ||
     decision.pendingAction === "tool_review" || decision.pendingAction === "handoff";
-  return { decision, definition: { ...definition,
-    policy: { ...definition.policy, toolNamespaces: actionPending ? ["action", "core"] : [] } } };
+  if (actionPending) return { decision, definition: { ...definition,
+    policy: { ...definition.policy, toolNamespaces: ["action", "core"] } } };
+  // A pending question may be a knowledge offer ("would you like the menu?"), not just a yes/no.
+  if (decision.pendingAction === "question") return { decision, definition: { ...definition,
+    policy: { ...definition.policy, maxInputTokens: 6_000, maxKnowledgeTokens: 2_000,
+      knowledgeMode: "retrieved", toolNamespaces: ["knowledge", "core"] } } };
+  return { decision, definition: { ...definition, policy: { ...definition.policy, toolNamespaces: [] } } };
 }
 
 /** Resolve the per-agent setting against the route. Pinned is reduced to pinned-core at assembly. */
 export function knowledgeModeForRoute(plan: RoutePlan, configured: "auto" | "retrieved" | "agentic" | "pinned"): KnowledgeRouteMode {
   if (plan.definition.policy.knowledgeMode === "none") return "none";
   if (configured === "pinned") return plan.decision.route === "knowledge" || plan.decision.route === "catalogue" ? "pinned" : plan.definition.policy.knowledgeMode;
-  // Phase 1 and 2 use retrieved retrieval for complex and workspace turns. Agentic remains a later phase.
-  if (configured === "agentic") return "retrieved";
+  // The none check above already turned agentic off for conversation and plain confirmation.
+  if (configured === "agentic") return "agentic";
   return plan.definition.policy.knowledgeMode;
 }
 
 export function toolNamespace(name: string): ToolNamespace {
   if (name.startsWith("knowledge_")) return "knowledge";
-  if (name.startsWith("support_") || name === "channel_request_handoff" || name.startsWith("enquiry_") || name.startsWith("booking_") || name.startsWith("records_")) return "action";
-  if (name.startsWith("artifact_") || name.startsWith("sandbox_")) return "workspace";
+  if (name.startsWith("support_") || name === "channel_request_handoff" || name.startsWith("enquiry_") || name.startsWith("booking_")) return "action";
+  if (name.startsWith("history_") || name.startsWith("tools_") || name.startsWith("artifact_") || name.startsWith("sandbox_")) return "workspace";
   return "core";
 }
 

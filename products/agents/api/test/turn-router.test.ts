@@ -33,18 +33,21 @@ describe("turn routing", () => {
     expect(routed("okay, but can you deliver?", null, true).route).toBe("knowledge");
   });
 
-  it("confirmation exposes action tools only when a real action is pending", () => {
-    expect(routePlan(routed("okay", "question")).definition.policy.toolNamespaces).toEqual([]);
+  it("confirmation keeps knowledge tools for a pending question and action tools for a pending action", () => {
+    expect(routePlan(routed("okay", "question")).definition.policy).toMatchObject({ knowledgeMode: "retrieved", toolNamespaces: ["knowledge", "core"] });
+    expect(routePlan(routed("okay", "question")).definition.policy.maxInputTokens).toBe(6_000);
     expect(routePlan(routed("okay", "booking")).definition.policy.toolNamespaces).toEqual(["action", "core"]);
   });
 
-  it("resolves route knowledge modes without widening a pinned choice", () => {
+  it("resolves route knowledge modes without widening a pinned or agentic choice", () => {
     const conversation = routePlan(routed("Hi"));
     const knowledge = routePlan(routed("What are your opening hours?"));
     expect(knowledgeModeForRoute(conversation, "pinned")).toBe("none");
     expect(knowledgeModeForRoute(knowledge, "pinned")).toBe("pinned");
     expect(knowledgeModeForRoute(knowledge, "auto")).toBe("retrieved");
     expect(knowledgeModeForRoute(routePlan(routed("I want to book a table")), "pinned")).toBe("retrieved");
+    expect(knowledgeModeForRoute(conversation, "agentic")).toBe("none");
+    expect(knowledgeModeForRoute(routePlan(routed("Compare the platters and lunch boxes.")), "agentic")).toBe("agentic");
   });
 
   it("keeps route tools inside the configured route namespaces", () => {
@@ -54,7 +57,11 @@ describe("turn routing", () => {
     expect(toolAllowed("knowledge_search", knowledge)).toBe(true);
     expect(toolAllowed("support_request_handoff", knowledge)).toBe(false);
     expect(toolAllowed("knowledge_search", conversation)).toBe(false);
+    expect(toolAllowed("history_search", conversation)).toBe(false);
+    expect(toolAllowed("history_search", knowledge)).toBe(true);
     expect(toolAllowed("tasks_inspect", conversation)).toBe(true);
+    expect(toolAllowed("records_search", knowledge)).toBe(true);
+    expect(toolAllowed("memory_read", knowledge)).toBe(true);
     expect(toolAllowed("support_request_handoff", action)).toBe(true);
   });
 
