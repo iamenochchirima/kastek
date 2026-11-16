@@ -5,7 +5,7 @@ import { api, ApiError, loadTaskDetail, message, readStored, terminal, writeStor
 import { PiRobot as Bot } from "react-icons/pi";
 import { ErrorMessage } from "./shell";
 import { cleanupPending } from "./task-activity";
-import { AgentComposer, AgentConversationScroll, AgentMessage } from "@kasitek-labs/ui/agent";
+import { AssistantChat, AssistantChatComposer, type AssistantChatTurn } from "@kasitek-labs/ui/assistant";
 import { TaskExecutionBody } from "./execution-view";
 
 type SavedChat = { id: string; label: string; entries: Entry[] };
@@ -158,27 +158,37 @@ export function Chat({ endpoint, storageKey, token, agentId, versionId, versionN
     try { const { task } = await api<{ task: Task }>(`${endpoint}/${encodeURIComponent(activeId)}/cancel`, {}, "POST", token); record(entries.map(entry => entry.task?.id === task.id ? { ...entry, task } : entry)); }
     catch (e) { setError(message(e)); } finally { setSending(false); }
   }
+  const turns: AssistantChatTurn[] = entries.map((entry, index) => ({
+    id: entry.requestKey,
+    label: `Turn ${entry.task?.turnSequence ?? index + 1}`,
+    user: entry.input ? [{ id: `${entry.requestKey}-user`, role: "user", text: entry.input }] : [],
+    assistant: [],
+    details: entry.task ? <TaskExecutionBody task={entry.task} endpoint={`${endpoint}/${encodeURIComponent(entry.task.id)}`} token={token}
+      onRefresh={() => { setHistoryGeneration(value => value + 1); setRefreshGeneration(value => value + 1); }}
+      onUnavailable={cause => { setHistoryGeneration(value => value + 1); setRefreshGeneration(value => value + 1); if (cause instanceof ApiError && [401,403,404].includes(cause.status)) { setEntries([]); setAccessDenied(true); setError(message(cause)); }
+        else setEntries(current => current.map(item => item.task?.id === entry.task?.id ? { ...item, task: { ...item.task!, output: null, outputAvailability: "unavailable", orchestration: undefined, canSteer: false, children: [], artifacts: [], actions: [] } } : item)); }} />
+      : <p className="text-xs text-muted-foreground" role="status">{sending ? "Submitting…" : "Request outcome unknown"}</p>,
+  }));
   return <section className={`chat-workspace ${view === "activity" ? "chat-activity-view" : ""}`} aria-label="Conversation">
-    {!cancellable ? <div className="flex flex-wrap items-center justify-between gap-3">
-      {savedChats.length ? <label className="min-w-0 max-w-full text-sm"><span className="sr-only">Saved conversations</span><select aria-label="Saved conversations" className="max-w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value="" disabled={sending || Boolean(activeId) || unknown || historyLoading || accessDenied} onChange={event => restoreConversation(event.target.value)}><option value="">Saved conversations</option>{savedChats.map(chat => <option key={chat.id} value={chat.id}>{chat.label}</option>)}</select></label> : <span />}
-      <Button type="button" size="sm" variant="outline" onClick={newConversation} disabled={!entries.length || sending || Boolean(activeId) || unknown}>New conversation</Button>
-    </div> : null}
-    <AgentConversationScroll className="chat-messages" resetKey={`${endpoint}:${conversationId ?? storageKey}`}>
-      {!entries.length ? <div className="chat-empty"><span className="agent-welcome-icon"><Bot size={28} /></span><h2>{historyLoading ? "Loading conversation…" : "How can I help?"}</h2></div> : entries.map((entry, index) => <article key={entry.requestKey} aria-label={`Turn ${entry.task?.turnSequence ?? index + 1}`} className="chat-turn space-y-4">
-        <AgentMessage role="user" text={entry.input} />
-        {entry.task ? <TaskExecutionBody task={entry.task} endpoint={`${endpoint}/${encodeURIComponent(entry.task.id)}`} token={token}
-          onRefresh={() => { setHistoryGeneration(value => value + 1); setRefreshGeneration(value => value + 1); }}
-          onUnavailable={cause => { setHistoryGeneration(value => value + 1); setRefreshGeneration(value => value + 1); if (cause instanceof ApiError && [401,403,404].includes(cause.status)) { setEntries([]); setAccessDenied(true); setError(message(cause)); }
-            else setEntries(current => current.map(item => item.task?.id === entry.task?.id ? { ...item, task: { ...item.task!, output: null, outputAvailability: "unavailable", orchestration: undefined, canSteer: false, children: [], artifacts: [], actions: [] } } : item)); }} />
-          : <p className="text-xs text-muted-foreground" role="status">{sending ? "Submitting…" : "Request outcome unknown"}</p>}
-      </article>)}
-      {historyCursor ? <Button variant="outline" size="sm" onClick={() => void loadMoreHistory()} disabled={historyLoading}>{historyLoading ? "Loading…" : "Older messages"}</Button> : null}
-    </AgentConversationScroll>
-    <div className="chat-feedback">{cancellable && conversationId ? <Button variant="ghost" size="sm" onClick={() => { setHistoryGeneration(value => value + 1); setRefreshGeneration(value => value + 1); }}>Refresh conversation</Button> : null}<ErrorMessage value={error} />
-    {unknown && !sending ? <Button variant="outline" onClick={() => void submit(last!, entries.slice(0, -1))}>Retry request</Button> : null}
-    </div>
-    {view === "chat" ? <AgentComposer className="chat-composer" label={canSteer ? "Update instructions" : "Message"} sendLabel={canSteer ? "Queue instructions" : "Send message"} maxLength={canSteer ? 4000 : undefined} placeholder={canSteer ? "Add instructions…" : "Message your agent…"} value={input} onChange={value => { setInput(value); writeStored(`${storageKey}.draft`, value); }}
-      onSubmit={() => void send()} disabled={sending || Boolean(activeId) && !canSteer || unknown || historyLoading || accessDenied} sending={sending}
-      context={composerAccessory} actions={<>{cancellable && needsContinuation ? <Button type="button" onClick={() => void continueTask()} disabled={sending || continuing}>{continuing ? "Continuing…" : "Continue task"}</Button> : null}{cancellable && activeId ? <Button type="button" variant="outline" disabled={sending || continuing || last?.task?.state === "cancel_requested"} onClick={() => void cancel()}>Cancel task</Button> : null}</>} /> : null}
+    <AssistantChat
+      className="h-full"
+      messagesClassName="chat-messages"
+      scrollKey={`${endpoint}:${conversationId ?? storageKey}`}
+      turns={turns}
+      emptyTitle={historyLoading ? "Loading conversation…" : "How can I help?"}
+      emptyIcon={<Bot size={28} />}
+      leading={!cancellable ? <div className="flex flex-wrap items-center justify-between gap-3">
+        {savedChats.length ? <label className="min-w-0 max-w-full text-sm"><span className="sr-only">Saved conversations</span><select aria-label="Saved conversations" className="max-w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value="" disabled={sending || Boolean(activeId) || unknown || historyLoading || accessDenied} onChange={event => restoreConversation(event.target.value)}><option value="">Saved conversations</option>{savedChats.map(chat => <option key={chat.id} value={chat.id}>{chat.label}</option>)}</select></label> : <span />}
+        <Button type="button" size="sm" variant="outline" onClick={newConversation} disabled={!entries.length || sending || Boolean(activeId) || unknown}>New conversation</Button>
+      </div> : null}
+      historyAction={historyCursor ? <Button variant="outline" size="sm" onClick={() => void loadMoreHistory()} disabled={historyLoading}>{historyLoading ? "Loading…" : "Older messages"}</Button> : null}
+      renderAssistant={() => null}
+      error={<div className="chat-feedback">{cancellable && conversationId ? <Button variant="ghost" size="sm" onClick={() => { setHistoryGeneration(value => value + 1); setRefreshGeneration(value => value + 1); }}>Refresh conversation</Button> : null}<ErrorMessage value={error} />
+        {unknown && !sending ? <Button variant="outline" onClick={() => void submit(last!, entries.slice(0, -1))}>Retry request</Button> : null}
+      </div>}
+      composer={view === "chat" ? <AssistantChatComposer label={canSteer ? "Update instructions" : "Message"} sendLabel={canSteer ? "Queue instructions" : "Send message"} maxLength={canSteer ? 4000 : undefined} placeholder={canSteer ? "Add instructions…" : "Message your agent…"} value={input} onChange={value => { setInput(value); writeStored(`${storageKey}.draft`, value); }}
+        onSubmit={() => void send()} disabled={sending || Boolean(activeId) && !canSteer || unknown || historyLoading || accessDenied} sending={sending}
+        context={composerAccessory} actions={<>{cancellable && needsContinuation ? <Button type="button" onClick={() => void continueTask()} disabled={sending || continuing}>{continuing ? "Continuing…" : "Continue task"}</Button> : null}{cancellable && activeId ? <Button type="button" variant="outline" disabled={sending || continuing || last?.task?.state === "cancel_requested"} onClick={() => void cancel()}>Cancel task</Button> : null}</>} /> : null}
+    />
   </section>;
 }

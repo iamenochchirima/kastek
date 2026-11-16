@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AssistantLauncher, AssistantNavigation } from "../dist/assistant/index.js";
+import { AssistantChannelsView, AssistantChat, AssistantLauncher, AssistantLibrary, AssistantNavigation, AssistantSettingsView } from "../dist/assistant/index.js";
 
 const noop = () => {};
 
@@ -48,9 +48,45 @@ test("shared launcher owns the accessible label and drag surface", () => {
   })), "");
 });
 
+test("shared chat renders turns, details, composer and empty state", () => {
+  const html = renderToStaticMarkup(createElement(AssistantChat, {
+    scrollKey: "test", turns: [{ id: "turn-1", label: "Turn 1", user: [{ id: "u", role: "user", text: "Hello" }], assistant: [{ id: "a", role: "assistant", text: "Hi" }], details: createElement("p", null, "Task details") }],
+    renderAssistant: message => message.text,
+    composer: createElement("textarea", { "aria-label": "Message", placeholder: "Message your agent…" }),
+  }));
+  assert.match(html, /aria-label="Turn 1"/);
+  assert.match(html, /Hello/); assert.match(html, /Hi/); assert.match(html, /Task details/); assert.match(html, /Message your agent/);
+  const empty = renderToStaticMarkup(createElement(AssistantChat, { scrollKey: "empty", turns: [], renderAssistant: () => null, emptyTitle: "How can I help?" }));
+  assert.match(empty, /How can I help\?/);
+});
+
+test("shared settings and channels own the section layout", () => {
+  const settings = renderToStaticMarkup(createElement(AssistantSettingsView, {
+    title: "Ask AI settings", onBack: noop, identity: { name: "Ask AI", subtitle: "Workspace AI · Ready" },
+    sections: [{ id: "model", title: "Model", content: createElement("p", null, "Model content") }],
+  }));
+  assert.match(settings, /Ask AI settings/);
+  assert.match(settings, /Model/); assert.match(settings, /Model content/);
+  const channels = renderToStaticMarkup(createElement(AssistantChannelsView, { onBack: noop }, createElement("p", null, "Member channels")));
+  assert.match(channels, /Channels/); assert.match(channels, /Member channels/);
+});
+
+test("shared library owns search, recents and archive controls", () => {
+  const html = renderToStaticMarkup(createElement(AssistantLibrary, {
+    onBack: noop, search: "", onSearch: noop, items: [{ id: "one", title: "Launch plan", updatedAt: new Date().toISOString() }],
+    onOpen: noop, pinnedIds: [], onTogglePin: noop, onArchive: noop, showArchived: false, onToggleArchived: noop, archivedItems: [],
+  }));
+  assert.match(html, /Conversation library/);
+  assert.match(html, /Search conversations/);
+  assert.match(html, /Launch plan/);
+  assert.match(html, /Archived/);
+  assert.match(html, /Archive Launch plan/);
+  assert.match(html, /Pin Launch plan/);
+});
+
 test("the shared assistant source has no product imports", async () => {
   const source = path => readFile(new URL(`../src/assistant/${path}`, import.meta.url), "utf8");
-  for (const file of ["assistant-types.ts", "assistant-navigation.tsx", "assistant-panel.tsx", "assistant-launcher.tsx", "index.ts"]) {
+  for (const file of ["assistant-types.ts", "assistant-navigation.tsx", "assistant-panel.tsx", "assistant-launcher.tsx", "assistant-chat.tsx", "assistant-settings.tsx", "assistant-channels.tsx", "assistant-library.tsx", "index.ts"]) {
     const text = await source(file);
     assert.doesNotMatch(text, /from ["'][^"']*(products\/|@\/|\.\.\/\.\.\/\.\.\/)/, file);
   }

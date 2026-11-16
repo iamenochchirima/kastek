@@ -78,6 +78,34 @@ export type AssistantMessage = {
   sources?: AssistantSource[];
 };
 
+export type AssistantChatTurn = {
+  id: string;
+  label?: string;
+  user: AssistantMessage[];
+  assistant: AssistantMessage[];
+  details?: ReactNode;
+};
+
+export type AssistantChatProps = {
+  className?: string;
+  messagesClassName?: string;
+  scrollKey: string;
+  loading?: boolean;
+  loadingContent?: ReactNode;
+  leading?: ReactNode;
+  historyAction?: ReactNode;
+  empty?: boolean;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  emptyIcon?: ReactNode;
+  turns: AssistantChatTurn[];
+  extra?: ReactNode;
+  renderAssistant: (message: AssistantMessage) => ReactNode;
+  status?: ReactNode;
+  error?: ReactNode;
+  composer?: ReactNode;
+};
+
 export type AssistantConversation = {
   id: string;
   title: string;

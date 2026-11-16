@@ -2,11 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { SparklesIcon } from "@hugeicons/core-free-icons";
 import { Link } from "react-router-dom";
-import { PiArchive, PiArrowLeft, PiChatCircle, PiGear, PiLinkSimple, PiMagnifyingGlass, PiPlus, PiPushPin, PiPushPinFill } from "react-icons/pi";
+import { PiChatCircle, PiGear, PiLinkSimple } from "react-icons/pi";
 import { toast } from "sonner";
-import { AssistantLauncher as AssistantLauncherButton, AssistantPanel, type AssistantNavigationItem, type AssistantRecentConversation } from "@kasitek-labs/ui/assistant";
+import { AssistantChannelsView, AssistantLauncher as AssistantLauncherButton, AssistantLibrary, AssistantPanel, AssistantSettingsView, AssistantViewHeader, type AssistantNavigationItem, type AssistantRecentConversation } from "@kasitek-labs/ui/assistant";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { api, message, organizationPath, type Agent, type Configuration, type ConversationSummary } from "./api";
 import { ChatModelPicker } from "./agent-model";
 import { AgentMemory } from "./agent-memory";
@@ -48,15 +47,6 @@ function useAssistantAgent(organizationId: string, agentId: string | null) {
     return () => { live = false; };
   }, [organizationId, agentId]);
   return { agent, setAgent };
-}
-
-function dateGroup(iso: string) {
-  const date = new Date(iso);
-  const today = new Date();
-  const yesterday = new Date(Date.now() - 86_400_000);
-  if (date.toDateString() === today.toDateString()) return "Today";
-  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
-  return date > new Date(Date.now() - 7 * 86_400_000) ? "Previous 7 days" : "Older";
 }
 
 /**
@@ -173,17 +163,9 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
         <AssistantSettings organizationId={organizationId} assistant={assistant} loaded={loaded} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} onBack={() => setView("chat")} />
       ) : null}
       {view === "channels" ? (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex items-center gap-2 border-b border-border p-4">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setView("chat")} aria-label="Back to chat">
-              <PiArrowLeft size={16} aria-hidden="true" />
-            </Button>
-            <h3 className="flex-1 text-sm font-semibold">Channels</h3>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
-            <MemberChannelsPanel agentPath={agentPath} ready={ready} />
-          </div>
-        </div>
+        <AssistantChannelsView title="Channels" onBack={() => setView("chat")}>
+          <MemberChannelsPanel agentPath={agentPath} ready={ready} />
+        </AssistantChannelsView>
       ) : null}
       {view === "chat" ? (
         ready ? <Chat
@@ -310,72 +292,26 @@ function ConversationLibrary({ organizationId, accountId, agentId, selectedId, o
   }, [archived, conversations, pins, search, showArchived]);
 
   if (!agentId) return <p className="p-6 text-sm text-muted-foreground" role="status">Loading chats…</p>;
-  return <div className="flex min-h-0 flex-1 flex-col" role="region" aria-label="Conversation library">
-    <div className="flex items-center gap-2 border-b border-border p-4">
-      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack} aria-label="Back to chat">
-        <PiArrowLeft size={16} aria-hidden="true" />
-      </Button>
-      <h3 className="flex-1 text-sm font-semibold">Conversations</h3>
-      <Button size="sm" onClick={onNew}><PiPlus size={14} aria-hidden="true" />New chat</Button>
-    </div>
-    <div className="flex shrink-0 items-center gap-2 border-b border-border p-3">
-      <label className="relative min-w-0 flex-1">
-        <PiMagnifyingGlass size={15} aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input aria-label="Search conversations" placeholder="Search chats" value={search} onChange={event => setSearch(event.target.value)} className="pl-8" />
-      </label>
-      <Button type="button" size="sm" variant={showArchived ? "secondary" : "ghost"} onClick={() => setShowArchived(value => !value)} aria-pressed={showArchived}>
-        <PiArchive size={15} aria-hidden="true" />{showArchived ? "Hide archived" : "Archived"}
-      </Button>
-    </div>
-    {error ? <p role="alert" className="shrink-0 px-4 pt-2 text-sm text-destructive">{error}</p> : null}
-    <div className="min-h-0 flex-1 overflow-y-auto p-3">
-      {!showArchived ? (["Today", "Yesterday", "Previous 7 days", "Older"] as const).map(label => {
-        const items = list.filter(item => dateGroup(item.updatedAt) === label);
-        if (!items.length) return null;
-        return <section key={label} className="mb-5">
-          <h4 className="px-2 pb-1 text-[11px] font-medium text-muted-foreground">{label}</h4>
-          {items.map(item => <ConversationRow key={item.id} item={item} selected={item.id === selectedId} pinned={pins.includes(item.id)} busy={busyId === item.id}
-            onOpen={() => onOpen(item.id)} onPin={() => togglePin(item.id)} onArchive={() => void archive(item.id, false)} />)}
-        </section>;
-      }) : null}
-      {!showArchived && !list.length && conversations ? <p className="px-2 py-8 text-center text-sm text-muted-foreground">{search.trim() ? "No conversations found." : "No chats yet."}</p> : null}
-      {showArchived ? <section>
-        <h4 className="px-2 pb-1 text-[11px] font-medium text-muted-foreground">Archived</h4>
-        {!archived ? <p role="status" className="px-2 py-2 text-sm text-muted-foreground">Loading archived chats…</p> :
-          !list.length ? <p className="px-2 py-8 text-center text-sm text-muted-foreground">No archived chats.</p> :
-          list.map(item => <div key={item.id} className="flex items-center gap-1 rounded-lg px-2 py-2 text-sm text-muted-foreground">
-            <span className="min-w-0 flex-1 truncate">{item.title}</span>
-            <Button variant="ghost" size="sm" className="h-7 shrink-0 text-[11px]" disabled={busyId === item.id} onClick={() => void archive(item.id, true)}>Restore</Button>
-          </div>)}
-      </section> : null}
-      {!conversations && !error ? <p role="status" className="px-2 py-8 text-center text-sm text-muted-foreground">Loading chats…</p> : null}
-    </div>
-  </div>;
-}
-
-function ConversationRow({ item, selected, pinned, busy, onOpen, onPin, onArchive }: {
-  item: ConversationSummary;
-  selected: boolean;
-  pinned: boolean;
-  busy: boolean;
-  onOpen: () => void;
-  onPin: () => void;
-  onArchive: () => void;
-}) {
-  return <div className={cn("group flex items-center gap-1 rounded-lg px-2 py-1.5", selected ? "bg-muted" : "hover:bg-muted/60")}>
-    <button type="button" onClick={onPin} aria-label={pinned ? `Unpin ${item.title}` : `Pin ${item.title}`} title={pinned ? "Unpin" : "Pin"}
-      className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
-      {pinned ? <PiPushPinFill size={14} aria-hidden="true" /> : <PiPushPin size={14} aria-hidden="true" />}
-    </button>
-    <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left" title={item.title}>
-      <span className="block truncate text-sm font-medium">{pinned ? "• " : ""}{item.title}</span>
-      <span className="block truncate text-[11px] text-muted-foreground">{new Date(item.updatedAt).toLocaleString()}</span>
-    </button>
-    <Button type="button" size="icon" variant="ghost" className="size-7 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100" disabled={busy}
-      onClick={onArchive} aria-label={`Archive ${item.title}`} title="Archive">
-      <PiArchive size={14} aria-hidden="true" />
-    </Button>
-  </div>;
+  return <AssistantLibrary
+    title="Conversations"
+    onBack={onBack}
+    onNew={onNew}
+    search={search}
+    onSearch={setSearch}
+    loading={!conversations && !error}
+    error={error || undefined}
+    items={list}
+    selectedId={selectedId}
+    onOpen={onOpen}
+    pinnedIds={pins}
+    onTogglePin={togglePin}
+    onArchive={id => void archive(id, false)}
+    archivedItems={archived}
+    showArchived={showArchived}
+    onToggleArchived={() => setShowArchived(value => !value)}
+    onRestore={id => void archive(id, true)}
+    busyId={busyId}
+  />;
 }
 
 function AssistantSettings({ organizationId, assistant, loaded, isOwner, onUpdate, onNavigate, onBack }: {
@@ -421,50 +357,24 @@ function AssistantSettings({ organizationId, assistant, loaded, isOwner, onUpdat
 
   if (!loaded || !assistant?.agent) {
     return <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-2 border-b border-border p-4">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack} aria-label="Back to chat">
-          <PiArrowLeft size={16} aria-hidden="true" />
-        </Button>
-        <h3 className="flex-1 text-sm font-semibold">Ask AI settings</h3>
-      </div>
+      <AssistantViewHeader title="Ask AI settings" onBack={onBack} />
       <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={onUpdate} onNavigate={onNavigate} />
     </div>;
   }
   const settingsAgent = agent?.id === assistant.agent.id ? agent : null;
-  return <div className="flex min-h-0 flex-1 flex-col">
-    <div className="flex items-center gap-2 border-b border-border p-4">
-      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack} aria-label="Back to chat">
-        <PiArrowLeft size={16} aria-hidden="true" />
-      </Button>
-      <h3 className="flex-1 text-sm font-semibold">Ask AI settings</h3>
-    </div>
-    <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-      <section aria-label="Ask AI profile" className="flex items-center gap-3">
-        <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">A</span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">Ask AI</p>
-          <p className="text-xs text-muted-foreground">Workspace AI · {assistant.state === "configured" && assistant.modelReady ? "Ready" : "Needs setup"}</p>
-        </div>
-      </section>
-      <section aria-label="Model" className="space-y-2">
-        <h4 className="text-sm font-medium">Model</h4>
-        {!settingsLoaded ? <p role="status" className="text-sm text-muted-foreground">Loading model…</p> :
-          settingsAgent ? <ChatModelPicker organizationId={organizationId} agentId={settingsAgent.id} configuration={settingsAgent.draft} dirty={false} saving={saving} onSelect={saveModel} /> :
-          <p className="text-sm text-muted-foreground">Model settings are unavailable.</p>}
-        {modelError ? <p role="alert" className="text-sm text-destructive">{modelError}</p> : null}
-      </section>
-      <section aria-label="Memory" className="space-y-2">
-        <h4 className="text-sm font-medium">Memory</h4>
-        {settingsAgent ? <div className="flex items-center gap-2">
-          <AgentMemory agentId={settingsAgent.id} enabled={settingsAgent.draft.memory?.enabled ?? false} />
-          <span className="text-xs text-muted-foreground">{settingsAgent.draft.memory?.enabled ? "Memory enabled" : "Memory disabled"}</span>
-        </div> : <p className="text-sm text-muted-foreground">Memory settings are unavailable.</p>}
-      </section>
-      <section aria-label="More setup" className="space-y-2 border-t border-border pt-4">
-        <h4 className="text-sm font-medium">More setup</h4>
-        <p className="text-xs text-muted-foreground">Instructions, knowledge, tools and channels live in the agent editor.</p>
-        {isOwner && settingsAgent ? <Button asChild type="button" size="sm" variant="outline"><Link to={`/app/agents/${encodeURIComponent(settingsAgent.id)}?section=configuration`} onClick={onNavigate}>Configure in editor</Link></Button> : null}
-      </section>
-    </div>
-  </div>;
+  return <AssistantSettingsView
+    title="Ask AI settings"
+    onBack={onBack}
+    identity={{ name: "Ask AI", subtitle: `Workspace AI · ${assistant.state === "configured" && assistant.modelReady ? "Ready" : "Needs setup"}`, icon: <span className="text-sm font-semibold">A</span> }}
+    sections={[
+      { id: "model", title: "Model", content: <>{!settingsLoaded ? <p role="status" className="text-sm text-muted-foreground">Loading model…</p> :
+        settingsAgent ? <ChatModelPicker organizationId={organizationId} agentId={settingsAgent.id} configuration={settingsAgent.draft} dirty={false} saving={saving} onSelect={saveModel} /> :
+        <p className="text-sm text-muted-foreground">Model settings are unavailable.</p>}{modelError ? <p role="alert" className="text-sm text-destructive">{modelError}</p> : null}</> },
+      { id: "memory", title: "Memory", content: settingsAgent ? <div className="flex items-center gap-2">
+        <AgentMemory agentId={settingsAgent.id} enabled={settingsAgent.draft.memory?.enabled ?? false} />
+        <span className="text-xs text-muted-foreground">{settingsAgent.draft.memory?.enabled ? "Memory enabled" : "Memory disabled"}</span>
+      </div> : <p className="text-sm text-muted-foreground">Memory settings are unavailable.</p> },
+      { id: "more", title: "More setup", description: "Instructions, knowledge, tools and channels live in the agent editor.", content: isOwner && settingsAgent ? <Button asChild type="button" size="sm" variant="outline"><Link to={`/app/agents/${encodeURIComponent(settingsAgent.id)}?section=configuration`} onClick={onNavigate}>Configure in editor</Link></Button> : null },
+    ]}
+  />;
 }
