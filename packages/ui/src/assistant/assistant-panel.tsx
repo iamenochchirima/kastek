@@ -9,15 +9,15 @@ const MIN_PANEL_WIDTH = 360;
 const MAX_PANEL_WIDTH = 900;
 const DEFAULT_PANEL_WIDTH = 480;
 
-function readWidth(storageKey: string): number {
-  if (typeof window === "undefined") return DEFAULT_PANEL_WIDTH;
+function readWidth(storageKey: string, fallback = DEFAULT_PANEL_WIDTH): number {
+  if (typeof window === "undefined") return fallback;
   try {
     const stored = window.localStorage.getItem(storageKey);
-    if (stored === null) return DEFAULT_PANEL_WIDTH;
+    if (stored === null) return fallback;
     const value = Number(stored);
     if (Number.isFinite(value)) return Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, value));
   } catch { /* The panel remains usable when storage is unavailable. */ }
-  return DEFAULT_PANEL_WIDTH;
+  return fallback;
 }
 
 function readExpanded(storageKey: string): boolean {
@@ -33,10 +33,10 @@ function saveValue(storageKey: string, value: string) {
   try { window.localStorage.setItem(storageKey, value); } catch { /* The panel remains usable when storage is unavailable. */ }
 }
 
-export function AssistantPanel({ open, onClose, hidden = false, identity, view, navigation, widthKey, navigationStorageKey, ariaLabel, backdropClassName, closeOnOutsideClick = true, headerActions, className, returnFocusRef, children }: AssistantPanelProps) {
+export function AssistantPanel({ open, onClose, hidden = false, identity, view, navigation, widthKey, defaultWidth = DEFAULT_PANEL_WIDTH, navigationStorageKey, ariaLabel, closeLabel, backdropClassName, closeOnOutsideClick = true, headerActions, className, returnFocusRef, children }: AssistantPanelProps) {
   const panel = useRef<HTMLElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
-  const [width, setWidth] = useState(DEFAULT_PANEL_WIDTH);
+  const [width, setWidth] = useState(defaultWidth);
   const widthRef = useRef(width);
   widthRef.current = width;
   const resizeStart = useRef<{ x: number; width: number } | null>(null);
@@ -45,7 +45,7 @@ export function AssistantPanel({ open, onClose, hidden = false, identity, view, 
   const expandedKey = navigationStorageKey ?? `${widthKey}.navigation`;
   const [navigationExpanded, setNavigationExpanded] = useState(true);
 
-  useEffect(() => { setWidth(readWidth(widthKey)); }, [widthKey]);
+  useEffect(() => { setWidth(readWidth(widthKey, defaultWidth)); }, [widthKey, defaultWidth]);
   useEffect(() => { setNavigationExpanded(readExpanded(expandedKey)); }, [expandedKey]);
   useEffect(() => { if (!open) setMobileNavigationOpen(false); }, [open]);
   useEffect(() => { if (hidden && open) onClose(); }, [hidden, open, onClose]);
@@ -58,7 +58,9 @@ export function AssistantPanel({ open, onClose, hidden = false, identity, view, 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const frame = requestAnimationFrame(() => {
-      panel.current?.querySelector<HTMLTextAreaElement>("textarea, input")?.focus();
+      const candidates = panel.current?.querySelectorAll<HTMLElement>("textarea, input, button");
+      const target = [...(candidates ?? [])].find(element => element.getClientRects().length > 0);
+      (target ?? panel.current)?.focus();
     });
     return () => {
       cancelAnimationFrame(frame);
@@ -122,10 +124,10 @@ export function AssistantPanel({ open, onClose, hidden = false, identity, view, 
 
   if (!open || hidden) return null;
 
-  return createPortal(<div className="fixed inset-0 z-40" role="presentation">
-    <div aria-hidden="true" className={cn("absolute inset-0 bg-black/40 sm:hidden", backdropClassName)} onClick={closeOnOutsideClick ? close : undefined} />
+  return createPortal(<div className="pointer-events-none fixed inset-0 z-40" role="presentation">
+    <div aria-hidden="true" className={cn("pointer-events-auto absolute inset-0 bg-black/40 sm:hidden", backdropClassName)} onClick={closeOnOutsideClick ? close : undefined} />
     <aside ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label={ariaLabel ?? identity.name} style={{ width: `min(${width}px, 100vw)` }}
-      className={cn("fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l border-border bg-background shadow-2xl", resizing && "select-none", className)}>
+      className={cn("pointer-events-auto fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l border-border bg-background shadow-2xl", resizing && "select-none", className)}>
       <div role="separator" aria-orientation="vertical" aria-label={`Resize ${identity.name} panel`} aria-valuemin={MIN_PANEL_WIDTH} aria-valuemax={MAX_PANEL_WIDTH} aria-valuenow={Math.round(width)}
         className="absolute inset-y-0 -left-2 z-10 hidden w-4 cursor-ew-resize touch-none sm:block" onPointerDown={beginResize} onPointerMove={moveResize} onPointerUp={finishResize} onPointerCancel={finishResize} />
       <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
@@ -141,7 +143,7 @@ export function AssistantPanel({ open, onClose, hidden = false, identity, view, 
         </div>
         <div className="flex items-center gap-1">
           {headerActions}
-          <button type="button" className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={close} aria-label={`Close ${identity.name}`}>
+          <button type="button" className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={close} aria-label={closeLabel ?? `Close ${identity.name}`}>
             <PiX size={18} aria-hidden="true" />
           </button>
         </div>

@@ -53,9 +53,8 @@ import type { BillingSummary, CapabilityKey } from "@/lib/billing";
 import type { Org } from "@/lib/orgs";
 import type { ProductTourStatus } from "@/lib/product-tour";
 import { ProductTour } from "@/components/dashboard/product-tour";
-import { GrowthAgentProvider, useGrowthAgents } from "@/components/dashboard/agents/agent-provider";
-import { GrowthAssistantLauncher } from "@/components/dashboard/agents/assistant-launcher";
-import { GrowthAssistantDock } from "@/components/dashboard/agents/assistant-dock";
+import { GrowthAgentProvider } from "@/components/dashboard/agents/agent-provider";
+import { GrowthAssistantSurface } from "@/components/dashboard/agents/assistant-surface";
 import { CommandPalette } from "@/components/dashboard/command-palette";
 import { AppSwitcher, buildKasitekAppLinks } from "@kasitek-labs/ui/app-switcher";
 import {
@@ -573,7 +572,6 @@ function WorkspaceShell({
   const [collapsed, setCollapsed] = useState(false);
   const [hasPwaUpdate, setHasPwaUpdate] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
-  const agents = useGrowthAgents();
   const [commandOpen, setCommandOpen] = useState(false);
   const appearance = useAppearance();
   const { pathname } = useLocation();
@@ -654,12 +652,10 @@ function WorkspaceShell({
               </div>
             </SheetContent>
           </Sheet>
-          <GrowthAssistantLauncher
-            open={agents.panelOpen}
-            hidden={mobileSheetOpen || pathname === "/inbox" || pathname.startsWith("/agents/conversations/")}
+          <GrowthAssistantSurface
+            launcherHidden={mobileSheetOpen || pathname === "/inbox" || pathname.startsWith("/agents/conversations/")}
+            panelHidden={mobileSheetOpen || pathname === "/inbox"}
             bottomInset={pathname === "/inbox" ? 128 : 0}
-            reduceMotion={appearance.interface.reduceMotion}
-            onOpen={() => void agents.openGeneral()}
           />
           <main className={cn("flex min-h-0 min-w-0 flex-1 flex-col pt-16 transition-[padding] duration-[var(--v-motion-shell)] ease-out md:pt-0", collapsed ? "md:pl-[64px]" : "md:pl-[256px]")}>
             <DesktopTopbar
@@ -674,7 +670,6 @@ function WorkspaceShell({
             <div key={pathname} className={cn("v-route-enter min-w-0 flex-1", pathname === "/inbox" && "flex min-h-0 flex-col")}>
               {children}
             </div>
-            <GrowthAssistantDock />
             </div>
           </main>
           <ProductTour status={productTourStatus} />

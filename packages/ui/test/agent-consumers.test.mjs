@@ -23,7 +23,8 @@ test("agent presentation consumers use the shared public module", async () => {
 test("page, dock and task hosts delegate to the established shared adapters", async () => {
   for (const path of [
     "products/growth/web/src/components/dashboard/agents/conversation-page.tsx",
-    "products/growth/web/src/components/dashboard/agents/assistant-dock.tsx",
+    "products/growth/web/src/components/dashboard/agents/assistant-surface.tsx",
   ]) assert.match(await source(path), /from ["']\.\/agent-conversation["']/);
+  assert.match(await source("products/growth/web/src/components/dashboard/agents/assistant-surface.tsx"), /from ["']@kasitek-labs\/ui\/assistant["']/);
   assert.match(await source("products/agents/web/src/platform/task.tsx"), /from ["']\.\/execution-view["']/);
 });

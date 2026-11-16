@@ -39,8 +39,10 @@ export type AssistantPanelProps = {
   view: AssistantView;
   navigation: AssistantNavigationConfig;
   widthKey: string;
+  defaultWidth?: number;
   navigationStorageKey?: string;
   ariaLabel?: string;
+  closeLabel?: string;
   backdropClassName?: string;
   closeOnOutsideClick?: boolean;
   headerActions?: ReactNode;
