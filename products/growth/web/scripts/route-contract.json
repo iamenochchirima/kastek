@@ -30,6 +30,10 @@
       "source": "products/growth/web/src/app/(dashboard)/agents/conversations/[id]/page.tsx"
     },
     {
+      "path": "/agents/:featureId",
+      "source": "products/growth/web/src/app/(dashboard)/agents/[featureId]/page.tsx"
+    },
+    {
       "path": "/agents",
       "source": "products/growth/web/src/app/(dashboard)/agents/page.tsx"
     },

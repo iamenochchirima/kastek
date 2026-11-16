@@ -14,6 +14,7 @@ export default [
   layout("app/(dashboard)/layout.tsx", [
     route("operations/reviews/:id", "app/(dashboard)/operations/reviews/[id]/page.tsx"),
     route("agents/conversations/:id", "app/(dashboard)/agents/conversations/[id]/page.tsx"),
+    route("agents/:featureId", "app/(dashboard)/agents/[featureId]/page.tsx"),
     route("agents", "app/(dashboard)/agents/page.tsx"),
     route("analytics", "app/(dashboard)/analytics/page.tsx"),
     route("analytics/playground", "app/(dashboard)/analytics/playground/page.tsx"),

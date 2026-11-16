@@ -4,6 +4,30 @@ test.beforeEach(async ({ context }) => {
   await context.addCookies([{ name: "kasitek_active_org", value: "growth-fixture-one", domain: "127.0.0.1", path: "/" }]);
 });
 
+test("opens a dedicated agent page with settings and channels", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/agents");
+  const card = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Growth assistant", exact: true }) });
+  await card.locator('a[href="/agents/assistant"]').first().click();
+  await expect(page).toHaveURL(/\/agents\/assistant$/);
+  await expect(page.getByRole("heading", { name: "Growth assistant", level: 1, exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Growth assistant", level: 1, exact: true })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Overview", exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "Settings", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "General", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Model", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Memory", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Knowledge & skills", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Channels", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Capabilities", exact: true })).toBeVisible();
+  await page.screenshot({ path: "../../../.audit/growth-agent-page-settings-desktop.png", fullPage: true, animations: "disabled" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), { timeout: 5_000 }).toBe(true);
+  await page.screenshot({ path: "../../../.audit/growth-agent-page-settings-mobile.png", fullPage: true, animations: "disabled" });
+});
+
 test("reviews capability-only updates with explicit conflicts and stable apply retries", async ({ page }) => {
   await page.setViewportSize({width:390,height:844});
   await page.route("**/api/agents/bootstrap",async route=>{
@@ -23,8 +47,11 @@ test("reviews capability-only updates with explicit conflicts and stable apply r
     await route.fulfill(attempts.length===1?{status:503,json:{error:"Temporary failure"}}:{json:{revisions:{content:8,assistant:10}}});
   });
   await page.goto("/agents");
-  const card=page.getByRole("article").filter({has:page.getByRole("heading",{name:"Content",exact:true})});
-  await card.getByRole("button",{name:"Review update",exact:true}).click();
+  const card = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Content", exact: true }) });
+  await card.locator('a[href="/agents/content"]').first().click();
+  await expect(page).toHaveURL(/\/agents\/content$/);
+  await page.getByRole("tab", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Review update", exact: true }).click();
   const dialog=page.getByRole("dialog",{name:"Review capability update",exact:true});
   await expect(dialog.getByText("Find posts",{exact:true})).toBeVisible();
   await expect(dialog.getByText("private-version-id → replacement-version-id",{exact:true})).not.toBeVisible();
@@ -912,16 +939,16 @@ test("edits an agent name and avatar on desktop and mobile", async ({ page }) =>
     });
     await page.goto("/agents");
     const card = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Content", exact: true }) });
-    await card.getByRole("button", { name: "Actions for Content" }).click();
-    await page.getByRole("menuitem", { name: "Edit agent" }).click();
-    const dialog = page.getByRole("dialog", { name: "Edit agent" });
-    await dialog.getByLabel("Name", { exact: true }).fill("Studio");
-    await dialog.getByRole("button", { name: "scout", exact: true }).click();
-    await expect(dialog.getByRole("button", { name: "scout", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await card.locator('a[href="/agents/content"]').first().click();
+    await expect(page).toHaveURL(/\/agents\/content$/);
+    await page.getByRole("tab", { name: "Settings", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Content", level: 1, exact: true })).toBeVisible();
+    await page.getByRole("textbox", { name: "Name", exact: true }).fill("Studio");
+    await page.getByRole("button", { name: "scout", exact: true }).click();
+    await expect(page.getByRole("button", { name: "scout", exact: true })).toHaveAttribute("aria-pressed", "true");
     await page.screenshot({ path: test.info().outputPath(`agent-profile-${width}.png`), animations: "disabled" });
-    await dialog.getByRole("button", { name: "Save changes" }).click();
-    await expect(dialog).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Studio", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Studio", level: 1, exact: true })).toBeVisible();
     expect(avatar).toBe("scout");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.unrouteAll();

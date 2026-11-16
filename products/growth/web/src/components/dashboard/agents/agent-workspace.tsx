@@ -1,6 +1,5 @@
-import { toast } from "sonner";
-import { AgentAvatar, agentAvatars } from "./agent-avatar";
-import { Link } from "react-router";
+import { AgentAvatar } from "./agent-avatar";
+import { Link, useNavigate } from "react-router";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Plus, Check as CheckCircle2, ChevronRight, Clock as Clock3, MessageCircle as MessageSquare, Search, FileText, Grid2x2, MoreHorizontal } from "@/components/ui/interface-icons";
 import "./agents-workspace.css";
@@ -15,10 +14,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { growthAgents, isActiveTask, safeGrowthRoute, taskStateLabel, type GrowthAgentConversation, type GrowthAgentFeature, type GrowthAgentTask } from "@/lib/growth-agents";
 import { cn } from "@/lib/utils";
 import { useGrowthAgents } from "./agent-provider";
-import { AgentMemoryPanel } from "@kasitek-labs/ui/agent-memory";
-import { AgentResources } from "./agent-resources";
-import { AgentCapabilityUpgrade } from "./agent-capability-upgrade";
-import AssistantChannelsCard from "@/components/dashboard/settings/assistant-channels-card";
 
 function dateLabel(value: string) {
   const date = new Date(value);
@@ -52,9 +47,12 @@ function FeatureCard({ feature, onStart, onMemory, onResources, onUpgrade, onEdi
   const route = safeGrowthRoute(reason?.route);
   return <article className="growth-agents-feature">
     <div className="growth-agent-card-heading">
-      <AgentAvatar avatar={feature.avatar} className="growth-agent-card-avatar" />
-      <div className="min-w-0 flex-1"><h3 className="break-words text-lg font-semibold leading-tight">{feature.name}</h3><p className="mt-1 text-sm text-muted-foreground">{featureLabel(feature.id)}</p></div>
+      <Link to={`/agents/${encodeURIComponent(feature.id)}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+        <AgentAvatar avatar={feature.avatar} className="growth-agent-card-avatar" />
+        <div className="min-w-0 flex-1"><h3 className="break-words text-lg font-semibold leading-tight">{feature.name}</h3><p className="mt-1 text-sm text-muted-foreground">{featureLabel(feature.id)}</p></div>
+      </Link>
       <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon" className="growth-agent-card-menu" aria-label={`Actions for ${feature.name}`}><MoreHorizontal className="size-5" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
+        <DropdownMenuItem asChild><Link to={`/agents/${encodeURIComponent(feature.id)}`}>Open agent</Link></DropdownMenuItem>
         {onEdit ? <DropdownMenuItem onSelect={onEdit}>Edit agent</DropdownMenuItem> : null}
         {onChannels ? <DropdownMenuItem onSelect={onChannels}>Channels</DropdownMenuItem> : null}
         <DropdownMenuItem onSelect={onMemory}>Memory</DropdownMenuItem>
@@ -70,16 +68,8 @@ function FeatureCard({ feature, onStart, onMemory, onResources, onUpgrade, onEdi
 export function AgentsWorkspace() {
   const agents = useGrowthAgents();
   const { ensureBootstrap, conversation } = agents;
-  const [editFeatureId, setEditFeatureId] = useState<GrowthAgentFeature["id"] | null>(null);
-  const editFeature = agents.bootstrap?.features.find(feature => feature.id === editFeatureId);
+  const navigate = useNavigate();
   const [tab, setTab] = useState("overview");
-  const [memoryFeatureId,setMemoryFeatureId]=useState<GrowthAgentFeature["id"]|null>(null);
-  const memoryFeature=agents.bootstrap?.features.find(feature=>feature.id===memoryFeatureId);
-  const [upgradeFeatureId,setUpgradeFeatureId]=useState<GrowthAgentFeature["id"]|null>(null);
-  const upgradeFeature=agents.bootstrap?.features.find(feature=>feature.id===upgradeFeatureId);
-  const [resourceFeatureId,setResourceFeatureId]=useState<GrowthAgentFeature["id"]|null>(null);
-  const [channelsOpen,setChannelsOpen]=useState(false);
-  const resourceFeature=agents.bootstrap?.features.find(feature=>feature.id===resourceFeatureId);
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState("");
   const [conversations, setConversations] = useState<GrowthAgentConversation[]>([]);
@@ -123,7 +113,7 @@ export function AgentsWorkspace() {
     <Tabs value={tab} onValueChange={(value) => { setTab(value); setSearch(""); setStateFilter(""); setCursor(null); }}><TabsList className="growth-agents-tabs h-auto w-full justify-start gap-5 rounded-none border-b border-border bg-transparent p-0"><TabsTrigger value="overview" className="rounded-none border-x-0 border-t-0 border-b-2 border-transparent px-0 py-3 shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none">Overview</TabsTrigger><TabsTrigger value="conversations" className="rounded-none border-x-0 border-t-0 border-b-2 border-transparent px-0 py-3 shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none">Conversations</TabsTrigger><TabsTrigger value="activity" className="rounded-none border-x-0 border-t-0 border-b-2 border-transparent px-0 py-3 shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none">Activity</TabsTrigger></TabsList>
       {error ? <div role="alert" className="mt-6 flex flex-wrap items-center gap-3 rounded-lg border border-border p-4"><p className="min-w-0 flex-1 text-sm text-muted-foreground">{error}</p><Button type="button" variant="outline" size="sm" onClick={() => setRetry((value) => value + 1)}>Retry</Button></div> : null}
       <TabsContent value="overview" className="mt-7 space-y-9">{loading ? <WorkspaceSkeleton /> : !error ? <>
-        <section aria-labelledby="your-agents"><div className="mb-4"><h2 id="your-agents" className="text-lg font-semibold">Your agents</h2><p className="mt-1 text-sm text-muted-foreground">{agents.bootstrap?.features.length ?? 0} agents</p></div><div className="grid gap-4 sm:grid-cols-2">{agents.bootstrap?.features.slice().sort((a, b) => ["assistant", "research", "content", "campaigns"].indexOf(a.id) - ["assistant", "research", "content", "campaigns"].indexOf(b.id)).map((feature) => <FeatureCard key={feature.id} feature={feature} onStart={() => void agents.start(feature.id)} onMemory={()=>setMemoryFeatureId(feature.id)} onEdit={agents.bootstrap?.scope.canConfigureAgents ? () => setEditFeatureId(feature.id) : undefined} onResources={agents.bootstrap?.scope.canConfigureAgents?()=>setResourceFeatureId(feature.id):undefined} onUpgrade={agents.bootstrap?.scope.canConfigureAgents?()=>setUpgradeFeatureId(feature.id):undefined} onChannels={feature.id==="assistant"?()=>setChannelsOpen(true):undefined} />)}</div>{!agents.bootstrap?.features.length ? <p className="py-5 text-sm text-muted-foreground">No agents available</p> : null}</section>
+        <section aria-labelledby="your-agents"><div className="mb-4"><h2 id="your-agents" className="text-lg font-semibold">Your agents</h2><p className="mt-1 text-sm text-muted-foreground">{agents.bootstrap?.features.length ?? 0} agents</p></div><div className="grid gap-4 sm:grid-cols-2">{agents.bootstrap?.features.slice().sort((a, b) => ["assistant", "research", "content", "campaigns"].indexOf(a.id) - ["assistant", "research", "content", "campaigns"].indexOf(b.id)).map((feature) => <FeatureCard key={feature.id} feature={feature} onStart={() => void agents.start(feature.id)} onMemory={()=>navigate(`/agents/${encodeURIComponent(feature.id)}?tab=settings#memory`)} onEdit={agents.bootstrap?.scope.canConfigureAgents ? () => navigate(`/agents/${encodeURIComponent(feature.id)}?tab=settings`) : undefined} onResources={agents.bootstrap?.scope.canConfigureAgents?()=>navigate(`/agents/${encodeURIComponent(feature.id)}?tab=settings#knowledge`):undefined} onUpgrade={agents.bootstrap?.scope.canConfigureAgents?()=>navigate(`/agents/${encodeURIComponent(feature.id)}?tab=settings#capabilities`):undefined} onChannels={feature.id==="assistant"?()=>navigate(`/agents/${encodeURIComponent(feature.id)}?tab=settings#channels`):undefined} />)}</div>{!agents.bootstrap?.features.length ? <p className="py-5 text-sm text-muted-foreground">No agents available</p> : null}</section>
         <section aria-labelledby="recent-conversations"><div className="mb-2 flex items-center justify-between gap-3"><h2 id="recent-conversations" className="text-sm font-semibold">Recent conversations</h2><Button type="button" variant="ghost" size="sm" onClick={() => setTab("conversations")}>View all<ArrowUpRight className="ml-1.5 size-3.5" /></Button></div>{conversations.length ? <ConversationRows conversations={conversations} /> : <p className="py-5 text-sm text-muted-foreground">No conversations yet</p>}</section>
         <section aria-labelledby="ongoing-work"><div className="mb-2 flex items-center justify-between gap-3"><h2 id="ongoing-work" className="text-sm font-semibold">Ongoing work</h2><Button type="button" variant="ghost" size="sm" onClick={() => setTab("activity")}>View activity<ArrowUpRight className="ml-1.5 size-3.5" /></Button></div>{ongoing.length ? <TaskRows tasks={[...ongoing.filter((item) => item.state === "waiting_review"), ...ongoing.filter((item) => item.state !== "waiting_review")]} /> : <p className="border-b border-border py-5 text-sm text-muted-foreground">No ongoing work</p>}</section>
       </> : null}</TabsContent>
@@ -131,34 +121,9 @@ export function AgentsWorkspace() {
       <TabsContent value="activity" className="mt-6"><div className="mb-3 flex flex-wrap gap-3"><SearchBar value={search} onChange={setSearch} placeholder="Search work" /><label className="sr-only" htmlFor="task-state">Task state</label><select id="task-state" className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}><option value="">All activity</option><option value="waiting_review">Needs review</option><option value="working">Working</option><option value="completed">Completed</option><option value="failed">Failed</option><option value="uncertain">Outcome unknown</option></select></div>{loading ? <ListSkeleton /> : !error ? tasks.length ? <TaskRows tasks={tasks} /> : <p className="py-10 text-center text-sm text-muted-foreground">No matching activity</p> : null}</TabsContent>
       {cursor && !loading ? <div className="mt-4 text-center"><Button type="button" variant="outline" size="sm" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? "Loading…" : "Load more"}</Button></div> : null}
     </Tabs>
-    {editFeature ? <EditAgentDialog key={`${agents.scopeKey}:${editFeature.id}`} feature={editFeature} onClose={() => setEditFeatureId(null)} onSaved={() => agents.ensureBootstrap(true)} /> : null}
-    {upgradeFeature && agents.bootstrap?.scope.canConfigureAgents ? <AgentCapabilityUpgrade key={`${agents.scopeKey}:${upgradeFeature.id}`} featureId={upgradeFeature.id} name={upgradeFeature.name} open={upgradeFeatureId!==null} onOpenChange={open=>{if(!open)setUpgradeFeatureId(null);}} onSaved={()=>agents.ensureBootstrap(true)} /> : null}
-    {resourceFeature ? <AgentResources key={`${agents.scopeKey}:${resourceFeature.id}`} featureId={resourceFeature.id} name={resourceFeature.name} open={resourceFeatureId!==null} onOpenChange={open=>{if(!open)setResourceFeatureId(null);}} onSaved={()=>agents.ensureBootstrap(true)} /> : null}
-    <Dialog open={channelsOpen} onOpenChange={setChannelsOpen}><DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Growth assistant channels</DialogTitle><DialogDescription>Link connected accounts to the Growth assistant.</DialogDescription></DialogHeader><AssistantChannelsCard /></DialogContent></Dialog>
-    {memoryFeature ? <AgentMemoryPanel open={memoryFeatureId!==null} onOpenChange={open=>{if(!open)setMemoryFeatureId(null);}} scopeKey={`${agents.scopeKey}:${memoryFeature.id}`}
-      load={page=>growthAgents.memories(memoryFeature.id,page)} mutate={(memoryId,input)=>growthAgents.mutateMemory(memoryFeature.id,memoryId,input)}
-      enabled={memoryFeature.memory?.enabled??false} onEnabledChange={agents.bootstrap?.scope.canConfigureAgents&&memoryFeature.revision!==undefined?async(enabled,requestId)=>{
-        await growthAgents.configureMemory(memoryFeature.id,enabled,memoryFeature.revision!,requestId);await agents.ensureBootstrap(true);
-      }:undefined} /> : null}
     <Dialog open={newOpen} onOpenChange={setNewOpen}><DialogContent><DialogHeader><DialogTitle>New conversation</DialogTitle><DialogDescription className="sr-only">Choose an agent and optional business context</DialogDescription></DialogHeader><div className="space-y-2"><label htmlFor="new-conversation-context" className="text-xs font-medium">Context</label><Select value={newContext} onValueChange={setNewContext}><SelectTrigger id="new-conversation-context"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">No attached context</SelectItem><SelectItem value="workspace">{agents.businessName}</SelectItem></SelectContent></Select></div><div className="space-y-2">{agents.bootstrap?.features.filter((feature) => feature.ready).map((feature) => <button key={feature.id} type="button" className="flex w-full items-center gap-3 rounded-lg border border-border px-3 py-3 text-left hover:bg-secondary" onClick={() => { setNewOpen(false); void agents.start(feature.id, newContext === "workspace" ? { kind: "workspace" } : null); }}><FeatureIcon id={feature.id} className="size-4 shrink-0 text-muted-foreground" /><span className="min-w-0 flex-1"><span className="block text-sm font-medium">{feature.name}</span><span className="mt-1 block text-xs text-muted-foreground">{feature.description}</span></span><ChevronRight className="size-4" /></button>)}</div></DialogContent></Dialog>
   </div></div>;
 }
 function SearchBar({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) { return <label className="relative mb-3 block w-full max-w-sm"><Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" /><Input aria-label={placeholder} placeholder={placeholder} value={value} onChange={(event) => onChange(event.target.value)} className="pl-9" /></label>; }
 function ListSkeleton() { return <div role="status" aria-label="Loading work" className="space-y-5 py-5">{[1, 2, 3].map((value) => <Skeleton key={value} className="h-12 w-full" />)}</div>; }
 function WorkspaceSkeleton() { return <div role="status" aria-label="Loading agents" className="space-y-8"><div className="grid gap-3 sm:grid-cols-2">{[1, 2, 3, 4].map((value) => <Skeleton key={value} className="h-40" />)}</div><ListSkeleton /></div>; }
-
-function EditAgentDialog({ feature, onClose, onSaved }: { feature: GrowthAgentFeature; onClose: () => void; onSaved: () => Promise<unknown> }) {
-  const [name, setName] = useState(feature.name);
-  const [avatar, setAvatar] = useState(feature.avatar || agentAvatars[0].id);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  async function save(event: React.FormEvent) {
-    event.preventDefault();
-    if (!name.trim() || busy) return;
-    setBusy(true); setError("");
-    try { await growthAgents.updateProfile(feature.id, { name: name.trim(), avatar }); await onSaved(); onClose(); toast.success("Agent updated"); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to update agent."); }
-    finally { setBusy(false); }
-  }
-  return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }}><DialogContent><DialogHeader><DialogTitle>Edit agent</DialogTitle><DialogDescription className="sr-only">Change the agent name and avatar.</DialogDescription></DialogHeader><form onSubmit={save} className="space-y-5"><div className="growth-agent-edit-preview"><AgentAvatar avatar={avatar} className="growth-agent-edit-avatar"/><Button type="button" variant="outline" onClick={() => { const options = agentAvatars.filter(item => item.id !== avatar); setAvatar(options[Math.floor(Math.random() * options.length)]!.id); }}>Shuffle</Button></div><div className="space-y-2"><label htmlFor="agent-name" className="text-sm font-medium">Name</label><Input id="agent-name" value={name} maxLength={100} onChange={event => setName(event.target.value)} required /></div><div className="space-y-2"><span className="text-sm font-medium">Role</span><p className="rounded-md border border-input bg-muted/30 px-3 py-2 text-sm text-muted-foreground">{featureLabel(feature.id)}</p></div><div className="space-y-2"><span className="text-sm font-medium">Avatar</span><div className="grid grid-cols-5 gap-2" role="group" aria-label="Avatar">{agentAvatars.map(item => <button type="button" key={item.id} aria-label={item.id} aria-pressed={avatar === item.id} onClick={() => setAvatar(item.id)} className={cn("rounded-xl p-1 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary", avatar === item.id && "ring-2 ring-primary")}><AgentAvatar avatar={item.id} className="aspect-square w-full" /></button>)}</div></div>{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}<div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={busy} onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !name.trim()}>{busy ? "Saving…" : "Save changes"}</Button></div></form></DialogContent></Dialog>;
-}
