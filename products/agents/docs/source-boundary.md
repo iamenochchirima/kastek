@@ -44,8 +44,10 @@ focused local checks establish production rollout or live-model acceptance.
 ## Private organization assistant
 
 The assistant panel opens an ordinary organization business agent and its current member's private
-phone links. Schema094 provisions one customizable draft for new workspaces, preserves deletion
-tombstones and offers explicit owner restore. Existing organizations opt in through setup.
+phone links. New workspaces provision one customizable Assistant and its first published default
+version in the organization transaction, so the panel opens chat directly when a model route is
+available. Schema094 preserves deletion tombstones and offers explicit owner restore. Existing
+organizations without an assistant opt in through setup; legacy drafts repair on first read.
 The normal editor can create a Content specialist and bind up to two permitted pinned business
 versions. The existing Restate harness chooses delegation through its model tool, maintains root
 budgets and returns a text draft without publishing into another product.

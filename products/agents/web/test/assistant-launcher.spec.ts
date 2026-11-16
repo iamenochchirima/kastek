@@ -67,6 +67,12 @@ async function openPanel(page: Page) {
   await expect(page.getByRole("dialog", { name: "Ask AI" })).toBeVisible();
 }
 
+async function openPanelFromLauncher(page: Page) {
+  await page.goto("/app/overview");
+  await page.getByRole("button", { name: "Open Ask AI", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Ask AI" })).toBeVisible();
+}
+
 test("sidebar assistant opens a resizable panel with navigation rail", async ({ page }) => {
   await launcher(page);
   await openPanel(page);
@@ -86,6 +92,72 @@ test("sidebar assistant opens a resizable panel with navigation rail", async ({ 
   await expect(dialog.getByRole("button", { name: /Memory/ })).toBeVisible();
   await nav.getByRole("button", { name: "Channels" }).click();
   await expect(dialog.getByRole("heading", { name: "Your messaging accounts" })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("assistant-panel-1440.png") });
+});
+
+test("shared panel keeps the navigation rail at tablet width", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await launcher(page);
+  await openPanelFromLauncher(page);
+  const dialog = page.getByRole("dialog", { name: "Ask AI" });
+  await expect(dialog).toHaveCSS("width", "480px");
+  await expect(dialog.getByRole("navigation", { name: "Ask AI navigation" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Open Ask AI navigation" })).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("assistant-panel-768.png") });
+});
+
+test("collapsed shared navigation persists across reloads", async ({ page }) => {
+  await launcher(page);
+  await openPanel(page);
+  const dialog = page.getByRole("dialog", { name: "Ask AI" });
+  await dialog.getByRole("button", { name: "Collapse Ask AI navigation" }).click();
+  await expect(dialog.getByRole("button", { name: "Expand Ask AI navigation" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Close Ask AI" }).click();
+  await page.reload();
+  await openPanelFromLauncher(page);
+  await expect(page.getByRole("dialog", { name: "Ask AI" }).getByRole("button", { name: "Expand Ask AI navigation" })).toBeVisible();
+});
+
+test("shared panel fills the viewport and exposes navigation on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await launcher(page);
+  await openPanelFromLauncher(page);
+  const dialog = page.getByRole("dialog", { name: "Ask AI" });
+  await expect(dialog).toHaveCSS("width", "390px");
+  await dialog.getByRole("button", { name: "Open Ask AI navigation" }).click();
+  const nav = dialog.getByRole("navigation", { name: "Ask AI navigation" });
+  await expect(nav.getByRole("button", { name: "Settings" })).toBeVisible();
+  await nav.getByRole("button", { name: "Settings" }).click();
+  await expect(dialog.getByRole("heading", { name: "Ask AI settings" })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("assistant-panel-390.png") });
+});
+
+test("shared panel resizes from the left edge and persists the width", async ({ page }) => {
+  await launcher(page);
+  await openPanel(page);
+  const dialog = page.getByRole("dialog", { name: "Ask AI" });
+  const separator = dialog.getByRole("separator", { name: "Resize Ask AI panel" });
+  const box = await separator.boundingBox();
+  if (!box) throw new Error("Resize handle is unavailable");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 120, box.y + box.height / 2, { steps: 4 });
+  await page.mouse.up();
+  await expect(dialog).toHaveCSS("width", "600px");
+  await dialog.getByRole("button", { name: "Close Ask AI" }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.reload();
+  await openPanelFromLauncher(page);
+  await expect(page.getByRole("dialog", { name: "Ask AI" })).toHaveCSS("width", "600px");
+});
+
+test("Escape closes the shared panel and returns focus to the launcher", async ({ page }) => {
+  await launcher(page);
+  await openPanelFromLauncher(page);
+  await expect(page.getByRole("dialog", { name: "Ask AI" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Ask AI" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Open Ask AI", exact: true })).toBeFocused();
 });
 
 test("history searches, pins, archives and restores conversations", async ({ page }) => {

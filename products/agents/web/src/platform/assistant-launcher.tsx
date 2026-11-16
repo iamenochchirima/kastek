@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { SparklesIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { SparklesIcon } from "@hugeicons/core-free-icons";
 import { Link } from "react-router-dom";
-import { PiArchive, PiArrowLeft, PiChatCircle, PiGear, PiLinkSimple, PiMagnifyingGlass, PiPlus, PiPushPin, PiPushPinFill, PiSidebarSimple } from "react-icons/pi";
+import { PiArchive, PiArrowLeft, PiChatCircle, PiGear, PiLinkSimple, PiMagnifyingGlass, PiPlus, PiPushPin, PiPushPinFill } from "react-icons/pi";
 import { toast } from "sonner";
+import { AssistantLauncher as AssistantLauncherButton, AssistantPanel, type AssistantNavigationItem, type AssistantRecentConversation } from "@kasitek-labs/ui/assistant";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, message, organizationPath, type Agent, type Configuration, type ConversationSummary } from "./api";
@@ -13,17 +13,11 @@ import { AgentMemory } from "./agent-memory";
 import { MemberChannelsPanel, type Assistant } from "./assistant";
 import { Chat } from "./chat";
 import { cn } from "@/lib/utils";
-import "./assistant-launcher.css";
 
 type View = "chat" | "library" | "settings" | "channels";
 
-const MIN_PANEL_WIDTH = 360;
-const MAX_PANEL_WIDTH = 900;
-const DEFAULT_PANEL_WIDTH = 480;
 const WIDTH_KEY_PREFIX = "agents.assistant.panelWidth";
 const PINS_KEY_PREFIX = "agents.assistant.pins";
-const LAUNCHER_SIZE = 56;
-const DRAG_THRESHOLD = 4;
 
 function AskMark({ size = 24, className = "" }: { size?: number; className?: string }) {
   const fontSize = Math.max(6.5, size * 0.36);
@@ -33,16 +27,6 @@ function AskMark({ size = 24, className = "" }: { size?: number; className?: str
     </svg>
     <span style={{ fontSize, fontWeight: 700, lineHeight: 1, marginTop: -size * 0.06, letterSpacing: "-.02em" }}>ask</span>
   </span>;
-}
-
-function readWidth(storageKey: string): number {
-  try {
-    const stored = window.localStorage.getItem(storageKey);
-    if (stored === null) return DEFAULT_PANEL_WIDTH;
-    const value = Number(stored);
-    if (Number.isFinite(value)) return Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, value));
-  } catch { /* The panel remains usable when storage is unavailable. */ }
-  return DEFAULT_PANEL_WIDTH;
 }
 
 function readPins(storageKey: string): string[] {
@@ -75,14 +59,6 @@ function dateGroup(iso: string) {
   return date > new Date(Date.now() - 7 * 86_400_000) ? "Previous 7 days" : "Older";
 }
 
-type LauncherPosition = { left: number; top: number };
-function clampLauncher(position: LauncherPosition): LauncherPosition {
-  const gutter = window.innerWidth < 640 ? 16 : 24;
-  const maxLeft = Math.max(gutter, window.innerWidth - LAUNCHER_SIZE - gutter);
-  const maxTop = Math.max(gutter, window.innerHeight - LAUNCHER_SIZE - gutter);
-  return { left: Math.min(Math.max(gutter, position.left), maxLeft), top: Math.min(Math.max(gutter, position.top), maxTop) };
-}
-
 /**
  * Workspace assistant panel: chat, conversation library, settings and channels.
  * The assistant is a system helper, so it lives outside the agent catalogue and gets its own surface.
@@ -100,22 +76,10 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
   const [view, setView] = useState<View>("chat");
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
-  const [navigationExpanded, setNavigationExpanded] = useState(true);
-  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [modelSaving, setModelSaving] = useState(false);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const panel = useRef<HTMLElement>(null);
+  const [recents, setRecents] = useState<AssistantRecentConversation[] | null>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
   const widthKey = `${WIDTH_KEY_PREFIX}.${accountId}.${organizationId}`;
-  const [width, setWidth] = useState(DEFAULT_PANEL_WIDTH);
-  const widthRef = useRef(width);
-  widthRef.current = width;
-  const resizeStart = useRef<{ x: number; width: number } | null>(null);
-  const [resizing, setResizing] = useState(false);
-  const [launcherPosition, setLauncherPosition] = useState<LauncherPosition | null>(null);
-  const launcherPositionRef = useRef<LauncherPosition | null>(null);
-  const dragRef = useRef<{ pointerId: number; startLeft: number; startTop: number; offsetX: number; offsetY: number; moved: boolean } | null>(null);
-  const [dragging, setDragging] = useState(false);
-  const suppressClickRef = useRef(false);
 
   useEffect(() => {
     let live = true;
@@ -126,59 +90,21 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
     return () => { live = false; };
   }, [organizationId]);
 
-  useEffect(() => { setWidth(readWidth(widthKey)); }, [widthKey]);
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      try {
-        const value = JSON.parse(window.localStorage.getItem(`${widthKey}.launcher`) ?? "null") as Partial<LauncherPosition> | null;
-        if (typeof value?.left === "number" && typeof value.top === "number") {
-          const next = clampLauncher({ left: value.left, top: value.top });
-          launcherPositionRef.current = next;
-          setLauncherPosition(next);
-        }
-      } catch { /* The launcher remains usable when storage is unavailable. */ }
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [widthKey]);
-
-  const close = useCallback(() => {
-    onOpenChange(false);
-    requestAnimationFrame(() => trigger.current?.focus());
-  }, [onOpenChange]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      if (document.querySelector('[data-slot="dialog-content"]')) return;
-      if (mobileNavigationOpen) { setMobileNavigationOpen(false); return; }
-      close();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    const frame = requestAnimationFrame(() => panel.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus());
-    return () => {
-      cancelAnimationFrame(frame);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open, close, mobileNavigationOpen]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target instanceof Element ? event.target : null;
-      if (!target || panel.current?.contains(target)) return;
-      // Portaled selects, menus and application dialogs belong to the open panel flow.
-      if (target.closest('[data-slot="dialog-content"],[role="alertdialog"],[role="menu"],[role="listbox"],[data-radix-popper-content-wrapper]')) return;
-      close();
-    };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    return () => document.removeEventListener("pointerdown", onPointerDown, true);
-  }, [open, close]);
+  const close = useCallback(() => onOpenChange(false), [onOpenChange]);
 
   const agentId = assistant?.agent?.id ?? null;
   const ready = assistant?.state === "configured" && Boolean(agentId) && assistant.modelReady;
   const agentPath = agentId ? `/app/agents/${encodeURIComponent(agentId)}` : null;
   const { agent: chatAgent, setAgent: setChatAgent } = useAssistantAgent(organizationId, agentId);
+
+  useEffect(() => {
+    if (!open || !agentId) { setRecents(null); return; }
+    let live = true;
+    api<{ conversations: ConversationSummary[] }>(`${organizationPath(organizationId)}/conversations?agentId=${encodeURIComponent(agentId)}&limit=20`)
+      .then(result => { if (live) setRecents(result.conversations.map(item => ({ id: item.id, title: item.title, updatedAt: item.updatedAt }))); })
+      .catch(() => { if (live) setRecents([]); });
+    return () => { live = false; };
+  }, [open, organizationId, agentId, activeConversationId]);
 
   async function saveChatModel(selection: NonNullable<Configuration["model"]["selection"]>): Promise<boolean> {
     if (!agentId || modelSaving) return false;
@@ -197,276 +123,83 @@ export function AssistantLauncher({ organizationId, accountId, isOwner, open, on
     } finally { setModelSaving(false); }
   }
 
-  // Another shell dialog takes over the viewport; close instead of leaving an orphaned panel.
-  useEffect(() => {
-    if (hidden && open) onOpenChange(false);
-  }, [hidden, open, onOpenChange]);
-
   const openChat = useCallback((conversationId: string | null) => {
     setActiveConversationId(conversationId);
     if (conversationId === null) setNonce(value => value + 1);
     setView("chat");
   }, []);
 
-  const beginResize = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (window.innerWidth < 640) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    resizeStart.current = { x: event.clientX, width: widthRef.current };
-    setResizing(true);
-  }, []);
-  const moveResize = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (!resizeStart.current) return;
-    const max = Math.min(MAX_PANEL_WIDTH, window.innerWidth);
-    setWidth(Math.min(max, Math.max(Math.min(MIN_PANEL_WIDTH, window.innerWidth), resizeStart.current.width + resizeStart.current.x - event.clientX)));
-  }, []);
-  const finishResize = useCallback(() => {
-    resizeStart.current = null;
-    setResizing(false);
-    try { window.localStorage.setItem(widthKey, String(widthRef.current)); } catch { /* The panel remains usable when storage is unavailable. */ }
-  }, [widthKey]);
-
-  const finishLauncherDrag = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    dragRef.current = null;
-    setDragging(false);
-    if (drag.moved) {
-      suppressClickRef.current = true;
-      if (launcherPositionRef.current) {
-        try { window.localStorage.setItem(`${widthKey}.launcher`, JSON.stringify(launcherPositionRef.current)); } catch { /* The launcher remains usable when storage is unavailable. */ }
-      }
-    }
-  }, [widthKey]);
-
-  if (hidden) return null;
-
+  const navigationItems: AssistantNavigationItem[] = [
+    { id: "library", label: "Chats", icon: <PiChatCircle size={16} aria-hidden="true" /> },
+    { id: "settings", label: "Settings", icon: <PiGear size={16} aria-hidden="true" /> },
+    { id: "channels", label: "Channels", icon: <PiLinkSimple size={16} aria-hidden="true" /> },
+  ];
   const chatKey = `agents.assistant.${accountId}.${organizationId}.${activeConversationId ?? `new-${nonce}`}`;
 
   return <>
-    {!open ? <div
-      className={cn("fixed z-30 h-14 w-14", !launcherPosition && "bottom-5 right-5 sm:bottom-6 sm:right-6")}
-      style={launcherPosition ? { left: launcherPosition.left, top: launcherPosition.top } : undefined}
+    <AssistantLauncherButton open={open} onOpenChange={onOpenChange} label="Open Ask AI" storageKey={`${widthKey}.launcher`} hidden={hidden} triggerRef={launcherRef}
+      icon={<AskMark size={24} className="drop-shadow-[0_1px_3px_rgba(0,0,0,.4)]" />} />
+    <AssistantPanel
+      open={open}
+      onClose={close}
+      hidden={hidden}
+      ariaLabel="Ask AI"
+      widthKey={widthKey}
+      returnFocusRef={launcherRef}
+      view={view}
+      identity={{ name: "Ask AI", subtitle: ready ? "Your workspace AI" : "Setup required", icon: <HugeiconsIcon icon={SparklesIcon} size={16} aria-hidden="true" /> }}
+      navigation={{
+        title: "Ask AI",
+        items: navigationItems,
+        recents,
+        selectedConversationId: activeConversationId,
+        onSelect: id => setView(id as View),
+        onNewChat: () => openChat(null),
+        onOpenConversation: id => openChat(id),
+      }}
     >
-      <span aria-hidden="true" className="pointer-events-none absolute -inset-2 rounded-full bg-primary/25 blur-md" />
-      <button
-        ref={trigger}
-        type="button"
-        aria-label="Open Ask AI"
-        title="Open Ask AI"
-        onClick={() => { if (suppressClickRef.current) { suppressClickRef.current = false; return; } onOpenChange(true); }}
-        onPointerDown={event => {
-          if (event.button !== 0) return;
-          const rect = event.currentTarget.getBoundingClientRect();
-          dragRef.current = { pointerId: event.pointerId, startLeft: rect.left, startTop: rect.top, offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top, moved: false };
-          setDragging(true);
-          event.currentTarget.setPointerCapture(event.pointerId);
-        }}
-        onPointerMove={event => {
-          const drag = dragRef.current;
-          if (!drag || drag.pointerId !== event.pointerId) return;
-          const left = event.clientX - drag.offsetX, top = event.clientY - drag.offsetY;
-          if (!drag.moved && Math.hypot(left - drag.startLeft, top - drag.startTop) >= DRAG_THRESHOLD) drag.moved = true;
-          const next = clampLauncher({ left, top });
-          launcherPositionRef.current = next;
-          setLauncherPosition(next);
-        }}
-        onPointerUp={finishLauncherDrag}
-        onPointerCancel={finishLauncherDrag}
-        className={cn("relative grid size-14 place-items-center overflow-hidden rounded-full border border-white/30 bg-[#161b62] p-0 text-white shadow-[0_12px_30px_-8px_color-mix(in_srgb,var(--brand)_70%,transparent)] transition-transform hover:scale-105 hover:brightness-110 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50", dragging ? "cursor-grabbing scale-105" : "cursor-grab")}
-      >
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute -inset-5 rounded-[45%] blur-[5px] motion-safe:animate-[assistant-wave_5s_ease-in-out_infinite]"
-          style={{ background: "radial-gradient(ellipse at 24% 28%, rgba(196,181,253,.98), transparent 48%), radial-gradient(ellipse at 78% 78%, rgba(37,99,235,.98), transparent 54%), linear-gradient(135deg, #312e81, #11154e 58%, #050817)" }}
-        />
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute -inset-6 rounded-[48%] opacity-75 blur-[4px] motion-safe:animate-[assistant-wave-secondary_7s_ease-in-out_infinite]"
-          style={{ background: "radial-gradient(ellipse at 72% 22%, rgba(129,140,248,.88), transparent 42%), radial-gradient(ellipse at 28% 78%, rgba(14,165,233,.78), transparent 48%)" }}
-        />
-        <AskMark size={24} className="relative z-10 drop-shadow-[0_1px_3px_rgba(0,0,0,.4)]" />
-      </button>
-    </div> : null}
-    {open ? createPortal(
-      <div className="fixed inset-0 z-40" role="presentation">
-        <div className="absolute inset-0 bg-black/40 sm:hidden" onClick={close} aria-hidden="true" />
-        <aside
-          ref={panel}
-          tabIndex={-1}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Ask AI"
-          style={{ width: `min(${width}px, 100vw)` }}
-          className={cn("fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l border-border bg-background shadow-2xl", resizing && "select-none")}
-        >
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize Ask AI panel"
-            className="absolute inset-y-0 -left-2 z-10 hidden w-4 cursor-ew-resize touch-none sm:block"
-            onPointerDown={beginResize}
-            onPointerMove={moveResize}
-            onPointerUp={finishResize}
-            onPointerCancel={finishResize}
-          />
-          <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
-            <div className="flex min-w-0 items-center gap-2">
-              <Button variant="ghost" size="icon" className="h-8 w-8 sm:hidden" onClick={() => setMobileNavigationOpen(true)} aria-label="Open Ask AI navigation" aria-expanded={mobileNavigationOpen}>
-                <PiSidebarSimple size={16} aria-hidden="true" />
-              </Button>
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-                <HugeiconsIcon icon={SparklesIcon} size={16} aria-hidden="true" />
-              </span>
-              <div className="min-w-0">
-                <h2 className="truncate text-sm font-semibold">Ask AI</h2>
-                <p className="truncate text-[11px] text-muted-foreground">{ready ? "Your workspace AI" : "Setup required"}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={close} aria-label="Close Ask AI">
-                <HugeiconsIcon icon={Cancel01Icon} size={18} aria-hidden="true" />
-              </Button>
-            </div>
-          </header>
-          <div className="relative flex min-h-0 flex-1">
-            <div className="hidden min-h-0 shrink-0 sm:flex">
-              <AssistantNavigation
-                expanded={navigationExpanded}
-                view={view}
-                organizationId={organizationId}
-                agentId={agentId}
-                selectedId={activeConversationId}
-                onToggle={() => setNavigationExpanded(current => !current)}
-                onNew={() => openChat(null)}
-                onChats={() => setView("library")}
-                onSettings={() => setView("settings")}
-                onChannels={() => setView("channels")}
-                onOpen={id => openChat(id)}
-              />
-            </div>
-            {mobileNavigationOpen ? <>
-              <div className="absolute inset-0 z-10 bg-black/40 sm:hidden" onClick={() => setMobileNavigationOpen(false)} aria-hidden="true" />
-              <div className="absolute inset-y-0 left-0 z-20 flex w-64 max-w-[calc(100%-3rem)] sm:hidden">
-                <AssistantNavigation
-                  expanded
-                  view={view}
-                  organizationId={organizationId}
-                  agentId={agentId}
-                  selectedId={activeConversationId}
-                  onToggle={() => setMobileNavigationOpen(false)}
-                  onNew={() => { setMobileNavigationOpen(false); openChat(null); }}
-                  onChats={() => { setMobileNavigationOpen(false); setView("library"); }}
-                  onSettings={() => { setMobileNavigationOpen(false); setView("settings"); }}
-                  onChannels={() => { setMobileNavigationOpen(false); setView("channels"); }}
-                  onOpen={id => { setMobileNavigationOpen(false); openChat(id); }}
-                />
-              </div>
-            </> : null}
-            <div className="flex min-w-0 flex-1 flex-col">
-              {view === "library" ? (
-                ready ? <ConversationLibrary
-                  organizationId={organizationId}
-                  accountId={accountId}
-                  agentId={agentId}
-                  selectedId={activeConversationId}
-                  onBack={() => setView("chat")}
-                  onNew={() => openChat(null)}
-                  onOpen={id => openChat(id)}
-                /> : loaded ? <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} /> : <div className="flex flex-1 items-center justify-center gap-2 p-6 text-sm text-muted-foreground" role="status">Loading Ask AI…</div>
-              ) : null}
-              {view === "settings" ? (
-                <AssistantSettings organizationId={organizationId} assistant={assistant} loaded={loaded} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} onBack={() => setView("chat")} />
-              ) : null}
-              {view === "channels" ? (
-                <div className="flex min-h-0 flex-1 flex-col">
-                  <div className="flex items-center gap-2 border-b border-border p-4">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setView("chat")} aria-label="Back to chat">
-                      <PiArrowLeft size={16} aria-hidden="true" />
-                    </Button>
-                    <h3 className="flex-1 text-sm font-semibold">Channels</h3>
-                  </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                    <MemberChannelsPanel agentPath={agentPath} ready={ready} />
-                  </div>
-                </div>
-              ) : null}
-              {view === "chat" ? (
-                ready ? <Chat
-                  key={chatKey}
-                  endpoint={`${organizationPath(organizationId)}/tasks`}
-                  storageKey={chatKey}
-                  agentId={agentId!}
-                  expectedAgentId={agentId!}
-                  initialConversationId={activeConversationId ?? undefined}
-                  onConversationReady={id => setActiveConversationId(id)}
-                  composerAccessory={chatAgent ? <ChatModelPicker organizationId={organizationId} agentId={chatAgent.id} configuration={chatAgent.draft} dirty={false} saving={modelSaving} onSelect={saveChatModel} /> : null}
-                  cancellable
-                /> : loaded ? <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} /> : <div className="flex flex-1 items-center justify-center gap-2 p-6 text-sm text-muted-foreground" role="status">Loading Ask AI…</div>
-              ) : null}
-            </div>
+      {view === "library" ? (
+        ready ? <ConversationLibrary
+          organizationId={organizationId}
+          accountId={accountId}
+          agentId={agentId}
+          selectedId={activeConversationId}
+          onBack={() => setView("chat")}
+          onNew={() => openChat(null)}
+          onOpen={id => openChat(id)}
+        /> : loaded ? <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} /> : <div className="flex flex-1 items-center justify-center gap-2 p-6 text-sm text-muted-foreground" role="status">Loading Ask AI…</div>
+      ) : null}
+      {view === "settings" ? (
+        <AssistantSettings organizationId={organizationId} assistant={assistant} loaded={loaded} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} onBack={() => setView("chat")} />
+      ) : null}
+      {view === "channels" ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex items-center gap-2 border-b border-border p-4">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setView("chat")} aria-label="Back to chat">
+              <PiArrowLeft size={16} aria-hidden="true" />
+            </Button>
+            <h3 className="flex-1 text-sm font-semibold">Channels</h3>
           </div>
-        </aside>
-      </div>,
-      document.body,
-    ) : null}
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <MemberChannelsPanel agentPath={agentPath} ready={ready} />
+          </div>
+        </div>
+      ) : null}
+      {view === "chat" ? (
+        ready ? <Chat
+          key={chatKey}
+          endpoint={`${organizationPath(organizationId)}/tasks`}
+          storageKey={chatKey}
+          agentId={agentId!}
+          expectedAgentId={agentId!}
+          initialConversationId={activeConversationId ?? undefined}
+          onConversationReady={id => setActiveConversationId(id)}
+          composerAccessory={chatAgent ? <ChatModelPicker organizationId={organizationId} agentId={chatAgent.id} configuration={chatAgent.draft} dirty={false} saving={modelSaving} onSelect={saveChatModel} /> : null}
+          cancellable
+        /> : loaded ? <AssistantSetupSection organizationId={organizationId} assistant={assistant} isOwner={isOwner} onUpdate={setAssistant} onNavigate={close} /> : <div className="flex flex-1 items-center justify-center gap-2 p-6 text-sm text-muted-foreground" role="status">Loading Ask AI…</div>
+      ) : null}
+    </AssistantPanel>
   </>;
-}
-
-function AssistantNavigation({ expanded, view, organizationId, agentId, selectedId, onToggle, onNew, onChats, onSettings, onChannels, onOpen }: {
-  expanded: boolean;
-  view: View;
-  organizationId: string;
-  agentId: string | null;
-  selectedId: string | null;
-  onToggle: () => void;
-  onNew: () => void;
-  onChats: () => void;
-  onSettings: () => void;
-  onChannels: () => void;
-  onOpen: (conversationId: string) => void;
-}) {
-  const [recents, setRecents] = useState<ConversationSummary[] | null>(null);
-  useEffect(() => {
-    if (!expanded || !agentId) { setRecents(null); return; }
-    let live = true;
-    api<{ conversations: ConversationSummary[] }>(`${organizationPath(organizationId)}/conversations?agentId=${encodeURIComponent(agentId)}&limit=20`)
-      .then(result => { if (live) setRecents(result.conversations); })
-      .catch(() => { if (live) setRecents([]); });
-    return () => { live = false; };
-  }, [expanded, organizationId, agentId]);
-  const actionClass = (active = false) =>
-    cn("flex h-9 items-center rounded-md text-sm transition-colors hover:bg-muted", expanded ? "w-full gap-2 px-2.5" : "w-9 justify-center", active && "bg-muted text-foreground");
-  return <nav aria-label="Ask AI navigation" className={cn("flex shrink-0 flex-col border-r border-border bg-card/30 p-2 transition-[width]", expanded ? "w-56" : "w-14")}>
-    <div className={cn("mb-2 flex items-center", expanded ? "justify-between px-1" : "justify-center")}>
-      <span className={cn("text-sm font-semibold", !expanded && "sr-only")}>Ask AI</span>
-      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onToggle} aria-label={expanded ? "Collapse Ask AI navigation" : "Expand Ask AI navigation"}>
-        <PiSidebarSimple size={16} aria-hidden="true" className={cn("transition-transform", expanded && "rotate-180")} />
-      </Button>
-    </div>
-    <button type="button" onClick={onNew} className={actionClass(view === "chat" && !selectedId)} title="New chat">
-      <PiPlus size={16} aria-hidden="true" className="shrink-0" />{expanded ? <span>New chat</span> : null}
-    </button>
-    <button type="button" onClick={onChats} className={actionClass(view === "library")} title="Chats">
-      <PiChatCircle size={16} aria-hidden="true" className="shrink-0" />{expanded ? <span>Chats</span> : null}
-    </button>
-    <button type="button" onClick={onSettings} className={actionClass(view === "settings")} title="Settings">
-      <PiGear size={16} aria-hidden="true" className="shrink-0" />{expanded ? <span>Settings</span> : null}
-    </button>
-    <button type="button" onClick={onChannels} className={actionClass(view === "channels")} title="Channels">
-      <PiLinkSimple size={16} aria-hidden="true" className="shrink-0" />{expanded ? <span>Channels</span> : null}
-    </button>
-    {expanded ? <div className="mt-5 min-h-0 flex-1 overflow-y-auto">
-      <p className="px-2 pb-2 text-[11px] font-medium text-muted-foreground">Recents</p>
-      <div className="space-y-0.5">
-        {recents?.map(item => <button type="button" key={item.id} onClick={() => onOpen(item.id)} title={item.title}
-          className={cn("w-full truncate rounded-md px-2 py-2 text-left text-xs hover:bg-muted", item.id === selectedId && "bg-muted font-medium")}>
-          {item.title}
-        </button>)}
-        {recents && !recents.length ? <p className="px-2 py-2 text-xs text-muted-foreground">No chats yet.</p> : null}
-      </div>
-    </div> : null}
-  </nav>;
 }
 
 function AssistantSetupSection({ organizationId, assistant, isOwner, onUpdate, onNavigate }: {
