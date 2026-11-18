@@ -5,6 +5,7 @@ import { PlatformError, terminalTaskStates } from "../../contracts/contracts";
 import { Applications } from "../../platform/access/applications";
 import type { TaskRecord } from "../../contracts/records";
 import { requirePermission } from "../../platform/access/permissions";
+import type { ApplicationRunSnapshot, ApplicationRunStartResponse } from "@kasitek-labs/contracts";
 
 export function registerApplicationRoutes(app: FastifyInstance, options: {
   pool: Pool; resolveScope(request: FastifyRequest): Promise<{ accountId: string; organizationId: string }>;
@@ -76,10 +77,14 @@ export function registerApplicationRoutes(app: FastifyInstance, options: {
     const input = z.strictObject({ agentId: z.uuid(), message: z.string().trim().min(1).max(65536),
       requestId: z.uuid(), conversationId: z.uuid().optional() }).parse(request.body);
     const result = await runs.start({ ...caller, ...input });
-    return reply.code(result.replayed ? 200 : 202).header("cache-control", "no-store").send({
-      taskId: result.task.id, conversationId: result.task.conversation_id, state: result.task.state, replayed: result.replayed });
+    const payload: ApplicationRunStartResponse = {
+      taskId: result.task.id, conversationId: result.task.conversation_id, state: result.task.state, replayed: result.replayed };
+    return reply.code(result.replayed ? 200 : 202).header("cache-control", "no-store").send(payload);
   });
-  app.get("/v1/runs/:taskId", async (request, reply) => reply.header("cache-control", "private, no-store").send(await runs.read(await accessRun(request, "runs:read"))));
+  app.get("/v1/runs/:taskId", async (request, reply) => {
+    const snapshot = await runs.read(await accessRun(request, "runs:read")) as ApplicationRunSnapshot;
+    return reply.header("cache-control", "private, no-store").send(snapshot);
+  });
   app.get("/v1/runs/:taskId/events", async (request, reply) => {
     // Each event is a current, authorized snapshot. Reconnection starts with a new snapshot;
     // no client cursor is needed and no unpublished internal events enter the stream.
