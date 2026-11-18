@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { afterEach, expect, it } from "vitest";
-import { acquirePublicSource } from "../src/capabilities/knowledge/source-acquisition";
+import { acquirePublicSource } from "../src/platform/knowledge/source-acquisition";
 const servers: Server[] = [];
 async function fixture(handler: Parameters<typeof createServer>[0]) { const server = createServer(handler); servers.push(server); await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve)); const address = server.address(); if (!address || typeof address === "string") throw Error(); return `http://127.0.0.1:${address.port}`; }
 afterEach(async () => { for (const server of servers.splice(0)) { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); } });

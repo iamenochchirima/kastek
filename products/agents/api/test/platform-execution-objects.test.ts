@@ -8,7 +8,7 @@ import {PlatformStore} from "../src/product/agents/store";
 import {defaultBusinessConfiguration} from "../src/contracts/contracts";
 import {setupPlatformSchema} from "../src/composition/setup";
 import {beginOperation,finishOperation,settleTask,reconcilePendingRoots} from "../src/execution/lifecycle/execution";
-import {cleanupQueryEmbeddingAllocation} from "../src/capabilities/knowledge/query-embedding";
+import {cleanupQueryEmbeddingAllocation} from "../src/platform/knowledge/query-embedding";
 import {writeExecutionObject,reapExecutionObjects} from "../src/execution/artifacts/execution-objects";
 import {PrivateObjectStore} from "../src/infrastructure/object-store";
 const url=process.env.AGENTS_TEST_DATABASE_URL;

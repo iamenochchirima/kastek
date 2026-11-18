@@ -13,7 +13,7 @@ import {SourceReview} from "../src/product/mcp/source-review";
 import {publishFixtureSource} from "./knowledge-fixture";
 import {assertMcpJobAuthority,assertMcpTaskAuthority} from "../src/infrastructure/mcp-job-authority";
 import {WebsiteCrawlStore} from "../src/product/agents/website-crawls";
-import {IngestionService} from "../src/capabilities/knowledge/ingestion-runtime";
+import {IngestionService} from "../src/platform/knowledge/ingestion-runtime";
 import {connectFixtureModel} from "./model-fixture";
 import {createServer as createHttp2Server, type ServerHttp2Session} from "node:http2";
 import {createServer as reservePort} from "node:net";

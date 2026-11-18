@@ -2,7 +2,7 @@ import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { KnowledgeStore, type KnowledgeScope } from "../src/capabilities/knowledge/knowledge";
+import { KnowledgeStore, type KnowledgeScope } from "../src/platform/knowledge/knowledge";
 import { PlatformStore } from "../src/product/agents/store";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { textDigest, type IngestionJob } from "../src/contracts/source-contracts";

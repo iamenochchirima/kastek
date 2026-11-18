@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { buildPlatformApp } from "../src/composition/app";
 import { loadPlatformConfig } from "../src/infrastructure/config";
 import { PlatformStore } from "../src/product/agents/store";
-import { KnowledgeStore } from "../src/capabilities/knowledge/knowledge";
+import { KnowledgeStore } from "../src/platform/knowledge/knowledge";
 import { EvidenceStore } from "../src/execution/context/evidence";
 import {S3PrivateStore} from "../src/infrastructure/object-store";
 import { defaultBusinessConfiguration, requestDigest } from "../src/contracts/contracts";

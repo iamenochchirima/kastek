@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../capabilities/skills/package";
 import { readTaskTiming } from "../execution/lifecycle/timing";
 import { readTaskRuntime, operationPresentation, productOperationMetadataSql } from "../product/integrations/growth-runtime-reporting";
 import { AGENCY_AGENT_COMMAND_PATH, AGENCY_AGENT_MODEL_PATH } from "@kasitek-labs/contracts";
@@ -462,7 +463,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   registerRunRoutes(app, {
     pool, store, discovery, taskAccess: humanTask, presentTask: readableTask, presentOutput: readableOutput, present: dto,
     resolveScope: async request => ({ account: await account(request), organizationId: organizationId(request) }),
-    deleteConversationSources: (scope, conversationId) => new MemoryStore(pool).deleteConversationSources(scope, conversationId),
+    deleteConversationSources: (scope, conversationId) => new MemoryStore(pool, skillPackageCodec).deleteConversationSources(scope, conversationId),
     admitMember: input => admitMemberRun({ pool, store, assertServices, grantOperations }, input),
     assertServices, grantOperations, evaluationTrials, actions: actionServices?.actions, artifacts: taskArtifacts, evidence,
     readRuntime: task => readTaskRuntime(pool, task, "agents"),

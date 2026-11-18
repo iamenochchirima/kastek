@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../skills/package";
 import type { Pool, PoolClient } from "pg";
 import { PlatformError, sourceAuthorityIds, type AgentConfiguration } from "../../contracts/contracts";
 import { loadSkillRevisions } from "../../execution/memory/memory";
@@ -15,7 +16,7 @@ export async function validateProductNativeSelection(db: Pool | PoolClient, scop
   }
   if (new Set(sources.map(source => source.source_id)).size !== sources.length) throw new PlatformError("SOURCE_SCOPE_DENIED", 409, "Select one revision per knowledge source");
   if (configuration.retrievalProfile.kind !== "lexical-v1") throw new PlatformError("RETRIEVAL_PROFILE_UNAVAILABLE", 409, "The selected product retrieval profile is unavailable");
-  const skills = await loadSkillRevisions(db, scope.organizationId, scope.agentId, configuration.skillIds);
+  const skills = await loadSkillRevisions(db, scope.organizationId, scope.agentId, configuration.skillIds, skillPackageCodec);
   const owners = skills.length ? (await db.query("SELECT id,created_by_service FROM agents_platform.skill_revisions WHERE organization_id=$1 AND agent_id=$2 AND id=ANY($3::uuid[])", [scope.organizationId, scope.agentId, configuration.skillIds])).rows : [];
   if (owners.some(skill => !resourceMatchesScope(skill.created_by_service, scope))) throw new PlatformError("SKILL_SCOPE_DENIED", 403, "Select a reviewed skill belonging to this product agent");
   const permissions = [...configurationSkillAuthority(configuration), "product.read", ...(configuration.productBindings.some(binding => binding.policy.effect === "reviewed_write") ? ["product.write"] : [])];

@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../../capabilities/skills/package";
 import { ConversationReads } from "../../platform/conversations/reads";
 import { planGrowthCapabilityUpgrade, applyGrowthCapabilityUpgrade, growthCapabilityBaseline, growthDefaultCommissions } from "./growth-capability-upgrade";
 import { listGrowthModels, authorizeGrowthModelSelection } from "./growth-model-selection";
@@ -377,7 +378,7 @@ export class GrowthExecutionService {
     }
     if(command.operation==="memory.list"||command.operation==="memory.mutate"||command.operation==="memory.configure"){
       await this.authorizeConversation(command,{feature_id:command.input.featureId,context:null});
-      const feature=await this.feature(this.pool,command,command.input.featureId),memory=new MemoryStore(this.pool);
+      const feature=await this.feature(this.pool,command,command.input.featureId),memory=new MemoryStore(this.pool, skillPackageCodec);
       const scope:ProductMemoryManagementScope={namespace:"product_actor",product:"growth",tenantId:command.tenantId,clientId:null,
         organizationId:feature.organization_id,agentId:feature.agent_id,actor:command.actor};
       if(command.operation==="memory.list"){

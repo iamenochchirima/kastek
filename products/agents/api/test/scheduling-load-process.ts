@@ -11,7 +11,7 @@ import {dispatchPolicyFromEnvironment} from '../src/execution/scheduling/dispatc
 import {databasePoolOptions} from '../src/infrastructure/pool-policy';
 import {privateStoreFromEnvironment} from '../src/infrastructure/object-store';
 import {EvidenceStore} from '../src/execution/context/evidence';
-import {KnowledgeRuntime} from '../src/capabilities/knowledge/knowledge-runtime';
+import {KnowledgeRuntime} from '../src/platform/knowledge/knowledge-runtime';
 import {TaskArtifactStore} from '../src/execution/artifacts/task-artifacts';
 import {actionsFromEnvironment} from '../src/composition/actions';
 import {composeInbox} from '../src/composition/inbox';

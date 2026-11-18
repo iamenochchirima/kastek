@@ -28,7 +28,7 @@ const {createEndpointHandler}=require('@restatedev/restate-sdk');
 const load=name=>require(process.env.HARBOR_COMPILED+'/'+name);
 const {privateStoreFromEnvironment}=load('infrastructure/object-store.js');
 const {EvidenceStore}=load('execution/context/evidence.js');
-const {KnowledgeRuntime}=load('capabilities/knowledge/knowledge-runtime.js');
+const {KnowledgeRuntime}=load('platform/knowledge/knowledge-runtime.js');
 const {createBusinessWorkflow}=load('execution/business/business.js');
 const {ModelProviderStore}=load('product/model-providers/store.js');
 const {ModelCredentialVault}=load('infrastructure/model-credential-vault.js');

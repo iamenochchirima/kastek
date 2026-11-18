@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../../capabilities/skills/package";
 import { delegatedConfiguration } from "../../execution/delegation/scope";
 import { delegatedSkills } from "../../execution/delegation/skills";
 import { isDeepStrictEqual } from "node:util";
@@ -323,7 +324,7 @@ export class AgentStore extends AuthorityStore {
       assertConnectedBindingDependencies(connected.filter(row => config.connectedToolBindingIds.includes(row.id))
         .map(row => capabilityBindingSchema.parse(row.binding)));
       if (config.skillIds.length) {
-        const selectedSkills=await loadSkillRevisions(db, input.organizationId, input.agentId, config.skillIds);
+        const selectedSkills=await loadSkillRevisions(db, input.organizationId, input.agentId, config.skillIds, skillPackageCodec);
         const profiles=connected.map(row=>capabilityBindingSchema.parse(row.binding).connection?.profileId).filter((profile):profile is string=>!!profile);
         for(const skill of selectedSkills)if(skill.package)assertSkillRequirements(skill.package.requirements,config,profiles);
       }

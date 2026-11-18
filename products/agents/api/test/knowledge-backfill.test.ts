@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Pool } from "pg";
 import { textDigest } from "../src/contracts/source-contracts";
-import { backfillLegacyKnowledgeObjects } from "../src/capabilities/knowledge/backfill-legacy-objects";
+import { backfillLegacyKnowledgeObjects } from "../src/platform/knowledge/backfill-legacy-objects";
 import type { PrivateObjectStore } from "../src/infrastructure/object-store";
 
 function fixture(options: { unsafe?: boolean; missing?: boolean; corrupt?: boolean } = {}) {

@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../../capabilities/skills/package";
 import { ConversationReads } from "../../platform/conversations/reads";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
@@ -217,7 +218,7 @@ export class AgencyExecutionService {
     if(command.operation==="tenant.ensure")return this.ensure(command);
     await this.tenant(this.pool,command);await this.feature(this.pool,command);
     if(command.operation.startsWith("memory.")){
-      const feature=await this.feature(this.pool,command),memory=new MemoryStore(this.pool);
+      const feature=await this.feature(this.pool,command),memory=new MemoryStore(this.pool, skillPackageCodec);
       const scope:ProductMemoryManagementScope={namespace:"product_actor",product:"agencies",tenantId:command.tenantId,clientId:command.clientId,
         organizationId:feature.organization_id,agentId:feature.agent_id,actor:command.actor};
       if(command.operation==="memory.list")return memory.list(scope,command.input);

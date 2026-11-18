@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../capabilities/skills/package";
 import {publishCustomerTimeoutBatch} from "../product/inbox/customer-timeout-notice";
 import { assertKnowledgeBackfilled } from "../platform/knowledge/cutover";
 import { runMemoryRetention } from "./memory-retention";
@@ -175,7 +176,7 @@ async function main(): Promise<void> {
     actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output),
     executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews,bookings,
     history: new PlatformConversationHistory(pool),
-    readers: { knowledge: knowledgeRuntime, memory: new MemoryStore(pool), runState: new PlatformRunStateReader(pool) },
+    readers: { knowledge: knowledgeRuntime, memory: new MemoryStore(pool, skillPackageCodec), runState: new PlatformRunStateReader(pool) },
     onSettled: taskId => generateConversationTitle({ pool, providers: modelProvider, taskId })
       .catch(error => console.error(JSON.stringify({ ...diagnosticIdentity, event: "conversation.title.failed", taskId,
         code: error instanceof PlatformError ? error.code : "TITLE_GENERATION_FAILED" }))) };

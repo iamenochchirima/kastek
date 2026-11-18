@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../src/capabilities/skills/package";
 import { randomUUID, createHash } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -19,7 +20,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   });
   afterAll(async () => { await pool?.end(); if(admin){await dropClosedTestDatabase(admin,database);await admin.end();} });
   it("prunes old revision bodies without losing Forget suppression, and fences a restored memory", async () => {
-    const platform = new PlatformStore(pool), memory = new MemoryStore(pool);
+    const platform = new PlatformStore(pool), memory = new MemoryStore(pool, skillPackageCodec);
     const account = await platform.ensureAccount({issuer:"http://localhost/retention",subject:randomUUID(),email:"retention@example.test",displayName:"Retention"});
     const organization = await platform.createOrganization(account.id,"Retention");
     const agent = await platform.createAgent({accountId:account.id,organizationId:organization.id,name:"Retention",configuration:defaultBusinessConfiguration()});

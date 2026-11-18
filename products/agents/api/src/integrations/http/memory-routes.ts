@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../../capabilities/skills/package";
 import type { FastifyInstance,FastifyRequest } from "fastify";
 import type { Pool } from "pg";
 import { z } from "zod";
@@ -9,7 +10,7 @@ import { memoryCapability } from "../../platform/memory/capability";
 
 const operationId = z.string().min(1).max(128), expectedRevision = z.number().int().positive();
 export function registerMemoryRoutes(app: FastifyInstance, options: { pool: Pool; resolveScope(request: FastifyRequest): Promise<ManagementScope>; objects?: PrivateObjectStore }) {
-  const memory = new MemoryStore(options.pool), artifacts = new ArtifactStore(options.pool, options.objects);
+  const memory = new MemoryStore(options.pool, skillPackageCodec), artifacts = new ArtifactStore(options.pool, options.objects);
   const base = memoryCapability.agentBasePath;
   const id = (request: FastifyRequest) => z.uuid().parse((request.params as Record<string, string>).id);
   app.get(`${base}/memory`, async request => { const page = z.strictObject({ offset: z.coerce.number().int().nonnegative().optional(), limit: z.coerce.number().int().min(1).max(100).optional() }).parse(request.query);

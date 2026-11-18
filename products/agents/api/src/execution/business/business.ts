@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../../capabilities/skills/package";
 import { confirmValidProposal } from "./confirmation-proposal";
 import { procedureContext } from "../../capabilities/procedure-tools";
 import { outcomeGuidance } from "./outcome-guidance";
@@ -376,7 +377,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
      knowledgeMode!=="agentic" && availableProductBindings.length===0 && execution.connectedBindings.length===0)
     routedTools=routedTools.filter(tool=>tool.function.name!=="tools_discover"&&tool.function.name!=="tools_load");
   let memoryFence: MemoryFence | undefined;
-  const memory = new MemoryStore(pool), recall = options.readers?.memory ?? memory;
+  const memory = new MemoryStore(pool, skillPackageCodec), recall = options.readers?.memory ?? memory;
   if (memoryReadAllowed) {
     const selected = await recall.readForContext({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal,taskId },task.input,8) as Awaited<ReturnType<MemoryStore["readForContext"]>>;
     const eligible = options.evidence ? new Set((await options.evidence.checkMemories(taskId,selected.memories.map(item=>item.id))).filter(item=>item.eligible).map(item=>item.id)) : undefined;
@@ -400,7 +401,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     }).catch(() => undefined);
   }
   const skills = !config.skillIds.length ? [] : (task.product !== "agents" || task.principal.kind === "automation" || isCustomerPrincipal(task.principal)) ?
-    await loadSkillRevisions(pool,task.organization_id,execution.agentId,config.skillIds) :
+    await loadSkillRevisions(pool,task.organization_id,execution.agentId,config.skillIds,skillPackageCodec) :
     await recall.readSkills({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal }, config.skillIds) as Awaited<ReturnType<MemoryStore["readSkills"]>>;
   const loadedSkills = await skillContext(pool,taskId,skills);
   const specialists:Awaited<ReturnType<typeof discoverSpecialists>>["specialists"]=[];

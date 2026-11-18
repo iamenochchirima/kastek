@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "./package";
 import type {PoolClient} from "pg";
 import {PlatformError} from "../../contracts/contracts";
 import {loadExecution,assertCurrentAuthority} from "../../execution/lifecycle/execution";
@@ -16,7 +17,7 @@ export async function resolveSkillScript(db:PoolClient,taskId:string,operationId
  if(!args.path.startsWith("scripts/")||!args.path.endsWith(".py"))throw new PlatformError("SKILL_LANGUAGE_UNAVAILABLE",400,"Only reviewed Python scripts in scripts/ are supported by the approved runtime");
  const row=(await db.query("SELECT 1 FROM agents_platform.operations WHERE id=$1 AND task_id=$2 AND name='skills.run' AND kind='resource' AND state='started'",[operationId,taskId])).rows[0];
  if(!row)throw new PlatformError("SKILL_OPERATION_REQUIRED",403,"A current admitted skill script operation is required");
- const skill=(await loadSkillRevisions(db,execution.task.organization_id,execution.agentId,[args.skillId]))[0]!;
+ const skill=(await loadSkillRevisions(db,execution.task.organization_id,execution.agentId,[args.skillId],skillPackageCodec))[0]!;
  if(!skill.package||!skill.reviewedDigest)throw new PlatformError("SKILL_PACKAGE_REQUIRED",409,"Select a reviewed package revision");
  const active=(await db.query("SELECT 1 FROM agents_platform.operations WHERE task_id=$1 AND name='skills.activate' AND state='completed' AND output->>'skillId'=$2 AND output->'evidence'->>'packageDigest'=$3",[taskId,skill.id,skill.contentDigest])).rowCount;
  if(!active)throw new PlatformError("SKILL_ACTIVATION_REQUIRED",409,"Activate the reviewed skill before running its script");

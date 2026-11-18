@@ -1,7 +1,7 @@
 import {randomUUID} from "node:crypto";
 import type {Pool} from "pg";
 import {PrivateObjectStore} from "../src/infrastructure/object-store";
-import {KnowledgeStore} from "../src/capabilities/knowledge/knowledge";
+import {KnowledgeStore} from "../src/platform/knowledge/knowledge";
 import {textDigest} from "../src/contracts/source-contracts";
 
 /** Persistence fixture: extraction is supplied explicitly; parser containment has a separate real-runtime suite. */

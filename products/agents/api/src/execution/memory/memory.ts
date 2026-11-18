@@ -8,7 +8,7 @@ import { transaction as memoryTransaction } from "../../infrastructure/database"
 import { assertCurrentEvidence,taskEvidenceManifest } from "../context/evidence";
 import { requestTreeCancellationInTransaction } from "../lifecycle/execution";
 import { skillFamilyId } from "../../contracts/skills";
-import { activateSkillPackage, parseSkillPackage, type SkillPackage } from "../../capabilities/skills/package";
+import type { SkillPackage, SkillPackageCodec } from "../../contracts/skills";
 import { isProductMemoryScope, productMemoryScopeForTask, requireProductMemoryAccess, memoryMutationActor,
   type MemoryManagementScope, type ProductMemoryManagementScope } from "./scope";
 export type { MemoryManagementScope, ProductMemoryManagementScope } from "./scope";
@@ -33,15 +33,15 @@ const skillSelection = `SELECT s.*,p.files AS package_files,r.content_digest AS 
   LEFT JOIN agents_platform.skill_installation_states st ON st.skill_revision_id=s.id
   LEFT JOIN agents_platform.skill_repository_sources rs ON rs.skill_revision_id=s.id
   WHERE s.organization_id=$1 AND s.agent_id=$2`;
-function skill(row: Record<string, any>, requireReview = false): SkillRevision {
+function skill(row: Record<string, any>, codec: SkillPackageCodec, requireReview = false): SkillRevision {
   const result: SkillRevision = { id: row.id, name: row.name, description: row.description, body: row.body,
     familyId:skillFamilyId({organizationId:row.organization_id,name:row.name,sourceKind:row.source_kind,sourceSlug:row.source_slug,repository:row.repository,packagePath:row.package_path}),state:row.installation_state,revision: row.revision, contentDigest: row.content_digest, createdAt: row.created_at.toISOString() };
   if(requireReview&&row.installation_state!=="enabled")throw new PlatformError("SKILL_DISABLED",409,"Selected skill installation is unavailable");
   if (row.package_files) {
-    const pkg = parseSkillPackage({ files: row.package_files.map((file: any) => ({ path: file.path, content: file.content, encoding: file.encoding })) });
+    const pkg = codec.parse({ files: row.package_files.map((file: any) => ({ path: file.path, content: file.content, encoding: file.encoding })) });
     if (pkg.contentDigest !== row.content_digest) throw new PlatformError("SKILL_PACKAGE_CORRUPT", 409, "Skill package content has changed");
     const reviewed = row.reviewed_digest === pkg.contentDigest;
-    if (requireReview) activateSkillPackage(pkg, row.reviewed_digest ?? "");
+    if (requireReview) codec.activate(pkg, row.reviewed_digest ?? "");
     return { ...result, name: pkg.name, description: pkg.description, body: pkg.body, package: pkg,
       reviewState: reviewed ? "reviewed" : "pending", ...(reviewed ? { reviewedDigest: row.reviewed_digest as string } : {}) };
   }
@@ -49,12 +49,12 @@ function skill(row: Record<string, any>, requireReview = false): SkillRevision {
 }
 
 /** Scope authorization belongs to the caller; both publication and task loading use this integrity check. */
-export async function loadSkillRevisions(db: Pool | PoolClient, organizationId: string, agentId: string, skillIds: string[]): Promise<SkillRevision[]> {
+export async function loadSkillRevisions(db: Pool | PoolClient, organizationId: string, agentId: string, skillIds: string[], codec: SkillPackageCodec): Promise<SkillRevision[]> {
   idSchema.parse(organizationId); idSchema.parse(agentId); z.array(idSchema).max(8).parse(skillIds);
   if (!skillIds.length) return [];
   const rows = (await db.query(skillSelection + " AND s.id=ANY($3::uuid[]) ORDER BY s.id", [organizationId, agentId, skillIds])).rows;
   if (rows.length !== new Set(skillIds).size) throw new PlatformError("SKILL_SCOPE_DENIED", 403, "Skill is unavailable");
-  const revisions=rows.map(row => skill(row,true));
+  const revisions=rows.map(row => skill(row,codec,true));
   if(new Set(revisions.map(revision=>revision.familyId)).size!==revisions.length)throw new PlatformError("SKILL_FAMILY_CONFLICT",409,"Select one revision per skill family");
   return revisions;
 }
@@ -67,7 +67,7 @@ export async function requireMemoryAccess(db: PoolClient, scope: ManagementScope
   if (!access.rowCount) throw new PlatformError("ACCESS_DENIED", 403, "Access is unavailable");
 }
 export class MemoryStore implements MemoryContextReader {
-  constructor(readonly pool: Pool) {}
+  constructor(readonly pool: Pool, readonly skills: SkillPackageCodec) {}
   async resolveHuman(db: PoolClient, scope: MemoryScope): Promise<ManagementScope> {
     if (scope.principal.kind !== "human") throw new PlatformError("MEMORY_SCOPE_DENIED", 403, "Personal memory requires a verified user");
     const account = (await db.query(`SELECT id FROM ${schema}.accounts WHERE issuer=$1 AND subject=$2`, [scope.principal.issuer, scope.principal.subject])).rows[0];
@@ -248,12 +248,12 @@ export class MemoryStore implements MemoryContextReader {
   }
   async listSkills(accountId: string, organizationId: string, agentId: string): Promise<SkillRevision[]> {
     return memoryTransaction(this.pool, async db => { await requireMemoryAccess(db, { accountId, organizationId, agentId });
-      return (await db.query(skillSelection + " ORDER BY s.name,s.revision DESC", [organizationId, agentId])).rows.map(row => skill(row)); });
+      return (await db.query(skillSelection + " ORDER BY s.name,s.revision DESC", [organizationId, agentId])).rows.map(row => skill(row,this.skills)); });
   }
   async readSkills(scope: MemoryScope, skillIds: string[]): Promise<SkillRevision[]> {
     z.array(idSchema).max(8).parse(skillIds);
     return memoryTransaction(this.pool, async db => { const resolved = await this.resolveHuman(db, scope);
-      return loadSkillRevisions(db, resolved.organizationId, resolved.agentId, skillIds); });
+      return loadSkillRevisions(db, resolved.organizationId, resolved.agentId, skillIds, this.skills); });
   }
   async publishSkill(scope: ManagementScope, input: { operationId: string; name: string; description: string; body: string }): Promise<SkillRevision> {
     const parsed = z.strictObject({ operationId: operationSchema, name: z.string().trim().min(1).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/), description: z.string().trim().min(1).max(1024).refine(value => Buffer.byteLength(value)<=1024), body: z.string().trim().min(1).max(16384).refine(value => Buffer.byteLength(value)<=16384) }).parse(input);
@@ -261,11 +261,11 @@ export class MemoryStore implements MemoryContextReader {
       await this.namespace(db, scope, true); const requestDigest = digest(JSON.stringify(parsed));
       await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`skill:${scope.organizationId}:${scope.agentId}`]);
       const old = (await db.query(`SELECT * FROM ${schema}.skill_revisions WHERE organization_id=$1 AND agent_id=$2 AND operation_id=$3`, [scope.organizationId, scope.agentId, parsed.operationId])).rows[0];
-      if (old) { if (old.request_digest !== requestDigest) throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "Request key was already used"); return skill(old); }
+      if (old) { if (old.request_digest !== requestDigest) throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "Request key was already used"); return skill(old,this.skills); }
       const revision = Number((await db.query(`SELECT coalesce(max(revision),0)+1 AS next FROM ${schema}.skill_revisions WHERE organization_id=$1 AND agent_id=$2 AND name=$3`, [scope.organizationId, scope.agentId, parsed.name])).rows[0].next);
       const row = (await db.query(`INSERT INTO ${schema}.skill_revisions(id,organization_id,agent_id,created_by,name,description,body,revision,content_digest,operation_id,request_digest) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
         [randomUUID(), scope.organizationId, scope.agentId, scope.accountId, parsed.name, parsed.description, parsed.body, revision, digest(JSON.stringify([parsed.name, parsed.description, parsed.body])), parsed.operationId, requestDigest])).rows[0];
-      return skill(row);
+      return skill(row,this.skills);
     });
   }
 }

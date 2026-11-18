@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../src/capabilities/skills/package";
 import { contextGrantCeiling } from "../src/execution/models/settings";
 import {connectFixtureModel} from "./model-fixture";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
@@ -7,7 +8,7 @@ import {afterAll,beforeAll,describe,expect,it,vi} from "vitest";
 import * as compositionCompiler from "../src/execution/lifecycle/validated-composition";
 import {EvidenceStore,citationLabels,assertCurrentEvidence} from "../src/execution/context/evidence";
 import {PlatformStore} from "../src/product/agents/store";
-import {KnowledgeStore} from "../src/capabilities/knowledge/knowledge";
+import {KnowledgeStore} from "../src/platform/knowledge/knowledge";
 import {defaultBusinessConfiguration,requestDigest} from "../src/contracts/contracts";
 import {beginOperation,finishOperation,settleTask} from "../src/execution/lifecycle/execution";
 import {setupPlatformSchema} from "../src/composition/setup";
@@ -129,7 +130,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   await expect(evidence.recordChunk(a.task.id,a.operationId,a.chunkId)).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
  });
  it("carries accepted personal memory generation into derived output and blocks it after Forget",async()=>{
-  const f=await fixture(true),memory=new MemoryStore(pool),managed={...f.scope,agentId:f.task.resource_id};
+  const f=await fixture(true),memory=new MemoryStore(pool, skillPackageCodec),managed={...f.scope,agentId:f.task.resource_id};
   const candidate=await memory.proposeManaged(managed,{operationId:randomUUID(),kind:"semantic",content:"Prefer concise answers"});
   const accepted=await memory.mutate(managed,candidate.id,{operationId:randomUUID(),expectedRevision:candidate.revision,action:"accept"});
   const op=`memory:${f.task.id}:0`;await beginOperation(pool,f.task.id,{id:op,kind:"tool",name:"memory.search",request:{query:"preferences"},reservedTokens:0,reservedMs:1000,retrySafe:true});
@@ -322,7 +323,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
  });
  it("omits stale sourced memories and atomically refuses candidate acceptance after source withdrawal",async()=>{
   const f=await fixture(true),p=await evidence.recordChunk(f.task.id,f.operationId,f.chunkId);await context(f,p);
-  const memory=new MemoryStore(pool),managed={...f.scope,agentId:f.task.resource_id};
+  const memory=new MemoryStore(pool, skillPackageCodec),managed={...f.scope,agentId:f.task.resource_id};
   const proposed=await memory.proposeManaged(managed,{operationId:randomUUID(),kind:"semantic",content:"Remember sourced preference",sourceTaskId:f.task.id});
   const accepted=await memory.mutate(managed,proposed.id,{operationId:randomUUID(),expectedRevision:proposed.revision,action:"accept"});
   const candidate=await memory.proposeManaged(managed,{operationId:randomUUID(),kind:"semantic",content:"Another sourced preference",sourceTaskId:f.task.id});

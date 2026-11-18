@@ -1,11 +1,11 @@
-import { PostgresKnowledgeObjectStore } from "../src/capabilities/knowledge/postgres-object-store";
+import { PostgresKnowledgeObjectStore } from "../src/platform/knowledge/postgres-object-store";
 import { randomUUID } from "node:crypto";
 import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { FirecrawlClient, FirecrawlError } from "../src/adapters/providers/firecrawl/client";
-import { KnowledgeStore, requireKnowledgeMember } from "../src/capabilities/knowledge/knowledge";
-import { KnowledgeRetrieval } from "../src/capabilities/knowledge/retrieval";
+import { KnowledgeStore, requireKnowledgeMember } from "../src/platform/knowledge/knowledge";
+import { KnowledgeRetrieval } from "../src/platform/knowledge/retrieval";
 import { textDigest } from "../src/contracts/source-contracts";
 import { PlatformStore } from "../src/product/agents/store";
 import { websiteCrawlOperations } from "../src/product/agents/website-crawl-routes";

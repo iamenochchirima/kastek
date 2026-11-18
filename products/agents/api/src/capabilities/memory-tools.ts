@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "./skills/package";
 import type { Pool } from "pg";
 import { PlatformError } from "../contracts/contracts";
 import { assertCurrentAuthority, loadExecution } from "../execution/lifecycle/execution";
@@ -30,7 +31,7 @@ export async function executeMemoryTool(pool: Pool, taskId: string, operationId:
   const acceptedVersion = execution.toolBindings.find(binding => binding.name === name)?.version;
   const includeAssertion = name === "memory.search" ? !["1", "2"].includes(acceptedVersion ?? "") : name === "memory.read" ? acceptedVersion !== "1" : true;
   const args = validateBuiltinArguments(name, input, acceptedVersion) as { query?: string; offset?: number; memoryId?: string; content?: string; kind?: "semantic" | "episodic"; assertion?: MemoryAssertion };
-  const store = new MemoryStore(pool), scope = { organizationId: execution.task.organization_id, agentId: execution.agentId, principal: execution.task.principal, taskId };
+  const store = new MemoryStore(pool, skillPackageCodec), scope = { organizationId: execution.task.organization_id, agentId: execution.agentId, principal: execution.task.principal, taskId };
   const citation = async (memoryId: string, previewBytes?: number) => {
     if (!evidence) return {};
     const passage = await evidence.recordMemory(taskId, operationId, memoryId, previewBytes);

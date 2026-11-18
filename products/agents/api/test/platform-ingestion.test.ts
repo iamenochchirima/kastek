@@ -1,12 +1,12 @@
-import { PostgresKnowledgeObjectStore } from "../src/capabilities/knowledge/postgres-object-store";
+import { PostgresKnowledgeObjectStore } from "../src/platform/knowledge/postgres-object-store";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {PrivateObjectStore} from "../src/infrastructure/object-store";
-import type { DocumentAllocation, DocumentOutput, DocumentRuntime, DocumentRuntimeResult } from "../src/capabilities/knowledge/document-runtime";
-import { IngestionService, stableChunkId } from "../src/capabilities/knowledge/ingestion-runtime";
-import { KnowledgeStore, type KnowledgeScope } from "../src/capabilities/knowledge/knowledge";
+import type { DocumentAllocation, DocumentOutput, DocumentRuntime, DocumentRuntimeResult } from "../src/platform/knowledge/document-runtime";
+import { IngestionService, stableChunkId } from "../src/platform/knowledge/ingestion-runtime";
+import { KnowledgeStore, type KnowledgeScope } from "../src/platform/knowledge/knowledge";
 import { PlatformStore } from "../src/product/agents/store";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { textDigest } from "../src/contracts/source-contracts";
