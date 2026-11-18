@@ -175,7 +175,11 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
    const replay=await call("start_agent_run",runRequest);expect(replay.json().result.structuredContent).toMatchObject({taskId:startedRun.taskId,replayed:true});
    const readRun=await call("get_agent_run",{taskId:startedRun.taskId});expect(readRun.json().result.structuredContent).toMatchObject({taskId:startedRun.taskId,state:"accepted"});
    const runId=(await pool.query("SELECT target FROM agents_platform.mcp_references WHERE id=$1",[startedRun.taskId.slice(4)])).rows[0].target;
-   await settleTask(pool,runId,{state:"failed",errorCode:"TEST_FINISHED"});
+   if(process.env.AGENTS_TEST_RESTATE_BINARY){
+    expect(await completePreview(pool,model.store,runId)).toEqual({state:"completed",calls:1});
+    const finished=await call("get_agent_run",{taskId:startedRun.taskId});
+    expect(finished.json().result.structuredContent).toMatchObject({state:"completed",output:"The opening hours are not available yet."});
+   } else await settleTask(pool,runId,{state:"failed",errorCode:"TEST_FINISHED"});
    const limitedToken=`agents_oauth_${randomBytes(32).toString("base64url")}`,limitedConnection=randomUUID();
    await pool.query(`INSERT INTO agents_platform.mcp_oauth_connections(id,client_id,account_id,organization_id,resource,scopes,access_hash,access_expires_at)
      VALUES($1,$2,$3,$4,$5,ARRAY['runs:start','runs:read'],$6,now()+interval '1 hour')`,[limitedConnection,clientId,account.id,org.id,resource,createHash("sha256").update(limitedToken).digest("hex")]);
