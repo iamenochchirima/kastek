@@ -33,7 +33,7 @@ export class Applications {
     return transaction(this.pool, async db => {
       await this.authorize(db, owner);
       const rows = (await db.query(`SELECT a.id,a.name,a.agent_ids,a.created_at,a.revoked_at,
-        COALESCE(json_agg(json_build_object('id',k.id,'scopes',k.scopes,'createdAt',k.created_at,'revokedAt',k.revoked_at))
+        COALESCE(json_agg(json_build_object('id',k.id,'scopes',k.scopes,'createdAt',k.created_at,'revokedAt',k.revoked_at) ORDER BY k.created_at,k.id)
           FILTER (WHERE k.id IS NOT NULL),'[]'::json) credentials
         FROM agents_platform.applications a LEFT JOIN agents_platform.application_credentials k ON k.application_id=a.id
         WHERE a.organization_id=$1 GROUP BY a.id ORDER BY a.created_at,a.id`, [owner.organizationId])).rows;

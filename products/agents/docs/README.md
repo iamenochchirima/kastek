@@ -47,7 +47,7 @@ website knowledge, preview privately, customize a widget, and request signed-in 
 activation. It uses Agents organization grants; Growth's operation catalogue and permissions remain
 separate.
 Workspace owners can also issue application credentials for the current read-only
-[application API](application-api.md); run access and its management interface are still pending.
+[application API](application-api.md); application run access is still pending.
 The generic capability page links to the existing tools, knowledge, memory, handoff, delegation,
 workflow and skills configuration. Schedules, code execution and browser use are listed as
 unavailable in the new setup. Delegation currently requires assigned published agents; temporary
