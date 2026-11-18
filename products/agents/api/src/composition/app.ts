@@ -42,7 +42,6 @@ sourceAuthorityIds,connectedToolAuthorityIds,
 executionGrantSchema,
 parseAllowedOrigin,
 PlatformError,
-taskStateSchema,
 terminalTaskStates,type AdmissionAuthority,type AgentConfiguration
 } from "../contracts/contracts";
 import type { Account,TaskRecord,VersionRecord } from "../contracts/records";
@@ -109,6 +108,7 @@ import { registerMemberRoutes } from "../product/members/routes";
 import { invitationEmailConfig } from "../product/members/email";
 import { effectivePermissions, requirePermission } from "../platform/access/permissions";
 import { registerAgentManagementRoutes } from "../platform/agents/http";
+import { registerRunReadRoutes } from "../platform/runs/http";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
 import { customerOfferings } from "../product/offerings/offerings";
 import { registerAutomationRoutes } from "../product/automations/automation-routes";
@@ -179,7 +179,6 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const members = new MemberStore(pool);
   const evaluationTrials = new EvaluationTrials(pool);
   const discovery = new PlatformDiscovery(pool,store);
-  const summary = ({position: _position,...row}: Record<string,unknown>) => row;
   const objects = privateStoreFromEnvironment();
   const sourceObjects = privateStoreFromEnvironment(process.env, 10_485_760);
   const knowledge = new KnowledgeStore(pool, new PostgresKnowledgeObjectStore(pool));
@@ -500,16 +499,23 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     await store.getAgent(user.id, org, agentId);
     return { accountId: user.id, organizationId: org, agentId };
   } });
-  app.get(`${base}/conversations`,async request=>{
-    const query=pageQuery.extend({agentId:uuid,versionId:uuid.optional(),state:z.enum(["active","archived"]).optional()}).strict().parse(request.query);
-    const page=await discovery.conversations(await account(request),organizationId(request),query);
-    return {conversations:page.items.map(row=>summary(row as unknown as Record<string,unknown>)),nextCursor:page.nextCursor};
+  registerRunReadRoutes(app, {
+    pool, store, discovery, taskAccess: humanTask, presentTask: readableTask, present: dto,
+    resolveScope: async request => ({ account: await account(request), organizationId: organizationId(request) }),
+    deleteConversationSources: (scope, conversationId) => new MemoryStore(pool).deleteConversationSources(scope, conversationId),
   });
-  app.get(`${base}/tasks`,async request=>{
-    const query=pageQuery.extend({agentId:uuid.optional(),state:taskStateSchema.optional()}).strict().parse(request.query);
-    const page=await discovery.tasks(await account(request),organizationId(request),query);
-    return {tasks:page.items.map(row=>summary(row as unknown as Record<string,unknown>)),nextCursor:page.nextCursor};
-  });
+  async function archiveConversation(request: FastifyRequest, archived: boolean) {
+    const user = await account(request), org = organizationId(request), conversationId = uuid.parse(parameters(request).conversationId);
+    await store.requireMembership(user.id, org);
+    const principal = { kind: "human", issuer: user.issuer, subject: user.subject };
+    const updated = (await pool.query(`UPDATE agents_platform.conversations SET deleted_at=${archived ? "now()" : "NULL"},updated_at=now()
+      WHERE id=$1 AND organization_id=$2 AND principal=$3::jsonb AND deployment_id IS NULL AND (deleted_at IS NOT NULL)<>${archived} RETURNING id`,
+      [conversationId, org, JSON.stringify(principal)])).rows[0];
+    if (!updated) throw new PlatformError("NOT_FOUND", 404, "Conversation not found");
+    return { id: conversationId, archived };
+  }
+  app.post(`${base}/conversations/:conversationId/archive`, async request => archiveConversation(request, true));
+  app.post(`${base}/conversations/:conversationId/restore`, async request => archiveConversation(request, false));
   const creationOperations = agentCreationOperations({ store, pool, assertBindings });
   registerAgentManagementRoutes(app, {
     pool, store, operations: creationOperations, offerings: customerOfferings, avatarSchema: agentAvatarSchema,
@@ -786,13 +792,6 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     }catch(error){if(!(error instanceof PlatformError)||![403,404,409,503].includes(error.statusCode))throw error;}
     return { ...await readPublicAgentUpdates(pool,task.id),orchestration,canSteer,actions,canControl,canDownloadArtifacts:true,task: {...visibleTask,...(runtime?{runtime,elapsedMs:runtime.elapsedMs,workElapsedMs:runtime.workElapsedMs,observedAt:runtime.observedAt}:{}),hasToolReviews,hasEnquiries:Boolean((await pool.query("SELECT 1 FROM agents_platform.enquiries WHERE task_id=$1 LIMIT 1",[task.id])).rowCount),hasBookings:Boolean((await pool.query("SELECT 1 FROM agents_platform.booking_intents WHERE task_id=$1 LIMIT 1",[task.id])).rowCount)}, events: events.map(dto), eventsNextCursor:eventPage.nextCursor, operations: operations.map(dto),operationsNextCursor:operationPage.nextCursor,children:await Promise.all(children.map(async child=>{const visible=await readableTask(child);return {...dto(child),input:visible.input,assignment:visible.input,...await readableOutput(child.id,child.output)};})),resources:resources.map(dto),artifacts };
   });
-  app.get(`${base}/tasks/:taskId/events`,async request=>{
-    const {task,authority,reviewOnly}=await humanTask(request);
-    const query=pageQuery.strict().parse(request.query);
-    if(reviewOnly)return {events:[],nextCursor:null};
-    const page=await store.getEventPage(authority,task.id,query);
-    return {events:page.items.map(dto),nextCursor:page.nextCursor};
-  });
   async function taskPassages(task: TaskRecord) {
     if(task.channel_binding && !(await pool.query("SELECT 1 FROM agents_platform.customer_deliveries WHERE task_id=$1 AND state='published'",[task.id])).rowCount)
       return {passages:[],availability:"unavailable"};
@@ -859,41 +858,6 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       await db.query("COMMIT");
     } catch(error) { await db.query("ROLLBACK"); throw error; } finally { db.release(); }
     await queueChildContinuations(pool,task.id);
-    return { task: dto((await humanTask(request)).task) };
-  });
-  app.get(`${base}/conversations/:conversationId`, async (request) => {
-    const user = await account(request), org = organizationId(request), conversationId = uuid.parse(parameters(request).conversationId);
-    await store.requireMembership(user.id, org);
-    const conversation = (await pool.query<{ agent_id: string }>("SELECT agent_id FROM agents_platform.conversations WHERE organization_id=$1 AND id=$2", [org, conversationId])).rows[0];
-    if (!conversation) throw new PlatformError("NOT_FOUND", 404, "Conversation not found");
-    const page=await store.getConversationPage(humanAuthority(user, org, conversation.agent_id),conversationId,pageQuery.strict().parse(request.query));
-    return {tasks:await Promise.all(page.items.map(readableTask)),nextCursor:page.nextCursor,conversation:page.conversation};
-  });
-  app.delete(`${base}/conversations/:conversationId`, async request => {
-    const user = await account(request), org = organizationId(request), conversationId = uuid.parse(parameters(request).conversationId);
-    const conversation = (await pool.query("SELECT agent_id FROM agents_platform.conversations WHERE organization_id=$1 AND id=$2", [org,conversationId])).rows[0];
-    if (!conversation) throw new PlatformError("NOT_FOUND",404,"Conversation not found");
-    return new MemoryStore(pool).deleteConversationSources({accountId:user.id,organizationId:org,agentId:conversation.agent_id},conversationId);
-  });
-  async function archiveConversation(request: FastifyRequest, archived: boolean) {
-    const user = await account(request), org = organizationId(request), conversationId = uuid.parse(parameters(request).conversationId);
-    await store.requireMembership(user.id, org);
-    const principal = { kind: "human", issuer: user.issuer, subject: user.subject };
-    const updated = (await pool.query(`UPDATE agents_platform.conversations SET deleted_at=${archived ? "now()" : "NULL"},updated_at=now()
-      WHERE id=$1 AND organization_id=$2 AND principal=$3::jsonb AND deployment_id IS NULL AND (deleted_at IS NOT NULL)<>${archived} RETURNING id`,
-      [conversationId, org, JSON.stringify(principal)])).rows[0];
-    if (!updated) throw new PlatformError("NOT_FOUND", 404, "Conversation not found");
-    return { id: conversationId, archived };
-  }
-  app.post(`${base}/conversations/:conversationId/archive`, async request => archiveConversation(request, true));
-  app.post(`${base}/conversations/:conversationId/restore`, async request => archiveConversation(request, false));
-  app.post(`${base}/tasks/:taskId/cancel`, async (request) => {
-    const { task, authority } = await humanTask(request);
-    if(task.principal.kind==="automation"&&(await account(request)).id!==task.principal.ownerAccountId)throw new PlatformError("ACCESS_DENIED",403,"Only the owner can stop this task");
-    if(task.parent_task_id) throw new PlatformError("ROOT_CONTROL_REQUIRED",409,"Cancel the main task");
-    if (!terminalTaskStates.has(task.state)) {
-      await requestTreeCancellation(pool,task.id);
-    }
     return { task: dto((await humanTask(request)).task) };
   });
 
