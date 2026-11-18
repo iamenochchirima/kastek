@@ -58,3 +58,23 @@ and recovery decisions. These checks do not require keeping compatibility code i
 
 External callers outside this repository and live deployment inventory. Archive and restore needs
 its own functionality review.
+
+## Consumer migration tracking
+
+Independent platform proof is complete for the application HTTP API, MCP and the standalone
+client (sections 8.1-8.5). Consumer migration remains follow-on work; no destructive deletion
+has been authorized.
+
+| Consumer | Current path | State | Next action |
+| --- | --- | --- | --- |
+| Standalone Agents UI | `/api/organizations/*` member routes | Serving; same API for application-run audit | None for this upgrade |
+| Independent application client | `/v1` HTTP with application credentials | Proven end to end | Keep the documented contract stable |
+| External MCP assistants | `/mcp` OAuth | Proven, including denied unassigned agents | Keep operation/scope table current |
+| Growth | Product-specific endpoints and `growth-execution` | Not migrated | Separate Growth change: move to `/v1` or MCP, verify one normal and one denied journey |
+| Agency | Agency product runtime/client | Not migrated | Separate Agency change with the same verification |
+| Website widgets and channels | Platform website/channel routes | Serving | No change required by this upgrade |
+| Product tool bundles | Growth/Agency capability manifests | Tracked as follow-on | Migrate after each consumer cutover; keep pinned revisions for accepted work |
+
+Migration order: Growth, then Agency, then external callers identified from the serving
+inventory. Each cutover needs an owner-approved change, a normal journey, a denied-authority
+journey, an outstanding-run decision and a rollback point. Tool bundles follow their consumer.

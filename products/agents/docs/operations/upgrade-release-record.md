@@ -1,0 +1,27 @@
+# Platform upgrade release record
+
+```text
+Change: Product-independent Agents platform upgrade (checklist sections 1-9)
+Owner: iamenochchirima
+Risk: high
+Affected services and user surfaces: Agents API, worker, standalone web UI, application HTTP API, MCP server
+Platform release version or release ID: branch codex/agents-platform-upgrade; no production release
+API/schema/migration changes: application capability scopes (162), application signing keys and delegations (163), declarative workflow revisions (164); all additive
+Feature flag or rollout method: worker roles and pool labels; no production rollout without owner approval
+Analytics events and success metrics: not applicable (no new product analytics events)
+Logs, metrics, dashboards, and alerts: agents.worker.invocations, agents.usage.tokens by tenant, connected provider attempts and throttling, capacity/dispatch queue age, database lock waiters
+User, API, internal, and operational documentation: application-api.md, mcp-integration.md, shared-runtime.md, consumer-retirement.md
+Validation evidence: API typecheck; 516-file boundary check; focused API/MCP/context/capacity suites; live Restate restart and context runs; independent client and browser task-activity proof; load measurement recorded separately
+Rollback or disable plan: deploy the previous commit; migrations are additive and no destructive reset was applied; disable MCP with AGENTS_MCP_ENABLED=false
+Post-release review date: after the owner approves and completes a production rollout
+```
+
+## Release decisions
+
+- Production release, production migration and push are **not authorized** by this record.
+- The load acceptance (9.4) remains unmet on physical-call attribution and worker-loss
+  injection; measured capacity is recorded but is not a certification.
+- Archive and restore remains an owner functionality decision; it is not a cutover prerequisite
+  in this inventory.
+- Consumer cutover and deletion of retired routes are follow-on work; see
+  `architecture/consumer-retirement.md`.
