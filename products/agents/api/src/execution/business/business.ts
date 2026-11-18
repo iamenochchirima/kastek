@@ -62,13 +62,12 @@ type ToolDefinition
 } from "./model";
 
 export { settleTask } from "../lifecycle/execution";
-import { runRequiredReport, type ActionRuntime } from "../../workflows/report-delivery/program";
+import type { ActionRuntime } from "../../workflows/report-delivery/program";
+import { handlerFor, type CapabilityOperationHandler } from "../capabilities/operation-handlers";
 import { channelPorts } from "../../infrastructure/channel-ports";
 import type { ToolReviewStore } from "../../capabilities/reviews/tool-reviews";
-import type { BookingService } from "../../workflows/booking/bookings";
 import { visibleRecordTools } from "../../capabilities/enquiries/record-tools";
 import { awaitEnquiryConfirmation } from "./enquiry-review";
-import { awaitBookingConfirmation } from "./booking-review";
 import { awaitToolInvocationReview } from "./tool-review";
 import { invokeTaskModel, nativeContextCosts } from "../models/runtime";
 import { invokeObservedTaskModel } from "../models/observed-invocation";
@@ -119,7 +118,7 @@ export interface BusinessOptions {
   knowledgeRuntime?: KnowledgeRuntimePort;
   connected?: ConnectedExecutor;
   toolReviews?: ToolReviewStore;
-  bookings?:BookingService;
+  capabilityHandlers?:readonly CapabilityOperationHandler[];
   settleHandoffReceipt?:(taskId:string,candidate:string|null,definitiveFailure:boolean)=>Promise<unknown>;
   selectReportArtifact?:(taskId:string,name:string,generatedOutput:string)=>Promise<{id:string}>;
   executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]}|{skillId:string;path:string;inputArtifactIds?:string[]})=>Promise<unknown>;
@@ -1173,11 +1172,10 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                 proposal=>awaitEnquiryConfirmation(ctx,pool,taskId,id,proposal,name));
               if(checked.valid&&checked.result){outcome=checked.result;stop=true;break;}
             }
-            if(name==="booking.reserve") {
-              if(!options.bookings){outcome={state:"incomplete",errorCode:"BOOKING_PROVIDER_UNAVAILABLE"};stop=true;break;}
-              const bookings=options.bookings;
+            const capabilityHandler=handlerFor(options.capabilityHandlers??[],name);
+            if(capabilityHandler?.confirm) {
               const checked=await confirmValidProposal(name,call.function.arguments,acceptedToolVersion,
-                proposal=>awaitBookingConfirmation(ctx,pool,bookings,taskId,id,(proposal as {start:string}).start));
+                proposal=>capabilityHandler.confirm!({ctx,pool,taskId,operationId:id,operation:name,arguments:proposal}));
               if(checked.valid&&checked.result){outcome=checked.result;stop=true;break;}
             }
             if(binding?.policy.approval==="exact_single_use") {
@@ -1263,12 +1261,8 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                     const created=await options.artifacts.put(taskId,id,{name:input.name,contentType:input.contentType,content:Buffer.from(input.content,"utf8")});
                     return {value:{id:created.id,taskId:created.taskId,rootTaskId:created.rootTaskId,name:created.name,contentType:created.contentType,bytes:created.bytes,contentDigest:created.contentDigest},tokens:0};
                   }
-                  if(name==="booking.availability"||name==="booking.reserve") {
-                    if(!options.bookings)throw new PlatformError("BOOKING_PROVIDER_UNAVAILABLE",503,"Booking is unavailable");
-                    const bookingArguments=args as {start:string;end:string};
-                    const value=name==="booking.availability"?await options.bookings.availability(taskId,id,bookingArguments,ctx.request().attemptCompletedSignal):await options.bookings.execute(taskId,id,bookingArguments.start,ctx.request().attemptCompletedSignal);
-                    return {value,tokens:0};
-                  }
+                  if(capabilityHandler?.invoke) return {value:await capabilityHandler.invoke({ctx,pool,taskId,operationId:id,operation:name,
+                    arguments:args,signal:ctx.request().attemptCompletedSignal}),tokens:0};
                   if(name==="agents.delegate") return {value:await admitChildren(pool,taskId,id,parseModelDelegationRequest(args)),tokens:0};
                   if(name==="agents.discover") return {value:await discoverSpecialists(pool,taskId,args as Parameters<typeof discoverSpecialists>[2]),tokens:0};
                   if(name==="work.update" || name==="work.inspect") return {value:await executeWorkTool(pool,taskId,id,name,args),tokens:0};
@@ -1434,7 +1428,12 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
           const current=await loadExecution(pool,taskId);
           if(current.task.parent_task_id) await options.evidence!.derive(taskId,"child_result",taskId);
         });
-        if(outcome.state==="completed")outcome=await runRequiredReport(ctx,pool,taskId,options,outcome,finalMemoryFence,{awaitAuthority,operation,failed});
+        if(outcome.state==="completed"){
+          const reportHandler=handlerFor(options.capabilityHandlers??[],"report.deliver");
+          if(reportHandler?.afterTurn)outcome=await reportHandler.afterTurn({ctx,pool,taskId,outcome,
+            options:{actions:options.actions,selectReportArtifact:options.selectReportArtifact},memoryFence:finalMemoryFence,
+            ports:{awaitAuthority,operation,failed}});
+        }
       } catch (error) {
         if (error instanceof restate.CancelledError) {
           await ctx.run("settle-cancellation", () => settleTask(pool, taskId, { state: "cancelled" })); throw error;

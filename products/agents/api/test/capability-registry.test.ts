@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { capability, capabilityForTool, capabilityPrerequisitesMet, capabilityRegistry } from "../src/platform/capabilities/registry";
+import { handlerFor } from "../src/execution/capabilities/operation-handlers";
+import { capability, capabilityForTool, capabilityOperations, capabilityPrerequisitesMet, capabilityRegistry, configurationCapabilityError } from "../src/platform/capabilities/registry";
+import { bookingOperationHandler } from "../src/workflows/booking/handler";
+import { reportDeliveryHandler } from "../src/workflows/report-delivery/handler";
 
 describe("agent capability registry", () => {
   it("lists available capabilities and keeps deferred ones unconfigurable", () => {
@@ -20,6 +23,30 @@ describe("capability dispatch", () => {
     expect(capabilityForTool("memory.propose").id).toBe("memory");
     expect(capabilityForTool("agents.discover").id).toBe("delegation");
     expect(capabilityForTool("read_file").id).toBe("tools");
+  });
+});
+
+describe("capability operations", () => {
+  it("declares the operations each capability contributes", () => {
+    expect(capabilityOperations.knowledge).toEqual(["knowledge.search", "knowledge.read"]);
+    expect(capabilityOperations.memory).toEqual(["memory.search", "memory.read", "memory.propose"]);
+    expect(capabilityOperations.workflows).toEqual(["workflow.run"]);
+    expect(capabilityOperations.schedules).toEqual([]);
+  });
+  it("rejects a capability whose prerequisite is disabled", () => {
+    const configuration = { tools: [], sourceRevisionIds: [], connectedToolBindingIds: [], skillIds: [],
+      memory: { enabled: false }, capabilities: { delegation: { enabled: false }, workflows: { enabled: true } } };
+    expect(configurationCapabilityError(configuration)).toBe("CAPABILITY_PREREQUISITE_MISSING:workflows");
+  });
+});
+
+describe("capability operation handlers", () => {
+  it("resolves booking and report operations without a central name branch", () => {
+    const handlers = [bookingOperationHandler(), reportDeliveryHandler()];
+    expect(handlerFor(handlers, "booking.availability")?.capability).toBe("tools");
+    expect(handlerFor(handlers, "booking.reserve")?.capability).toBe("tools");
+    expect(handlerFor(handlers, "report.deliver")?.afterTurn).toBeTypeOf("function");
+    expect(handlerFor(handlers, "knowledge.search")).toBeUndefined();
   });
 });
 

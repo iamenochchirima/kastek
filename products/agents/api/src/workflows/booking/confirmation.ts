@@ -1,10 +1,10 @@
-import { deadlineMillis } from "../lifecycle/deadline";
+import { deadlineMillis } from "../../execution/lifecycle/deadline";
 import * as restate from "@restatedev/restate-sdk";
 import type { Pool } from "pg";
 import { PlatformError,terminalTaskStates } from "../../contracts/contracts";
 import type { TaskOutcome } from "../../contracts/execution";
 import type { BookingService } from "../../workflows/booking/bookings";
-import { event } from "../lifecycle/execution";
+import { event } from "../../execution/lifecycle/execution";
 
 export async function awaitBookingConfirmation(ctx:restate.WorkflowContext,pool:Pool,bookings:BookingService,taskId:string,operationId:string,start:string):Promise<TaskOutcome|undefined> {
   for(let check=0;check<64;check++) {

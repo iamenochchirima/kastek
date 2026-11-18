@@ -12,6 +12,8 @@ import { ToolReviewStore } from "../capabilities/reviews/tool-reviews";
 import { RemoteConnectionStore } from "../product/connections/remote-connections";
 import { ProviderServices } from "../product/connections/provider-services";
 import { BookingService } from "../workflows/booking/bookings";
+import { bookingOperationHandler } from "../workflows/booking/handler";
+import { reportDeliveryHandler } from "../workflows/report-delivery/handler";
 import { ApiConnectionStore } from "../product/connections/api-connections";
 import { createNativeApiCapabilityCatalog } from "../capabilities/connected-tools/generic-connected-runtime";
 import { assertConnectedBindingDependencies } from "../capabilities/connected-tools/connected-tool-schema";
@@ -176,7 +178,8 @@ async function main(): Promise<void> {
     product:productRuntime,
     readRetainedArtifact: (taskId,originTaskId,artifactId)=>artifacts.readRetainedForTask(taskId,originTaskId,artifactId),artifacts,
     actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output),
-    executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews,bookings,
+    executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews,
+    capabilityHandlers:[bookingOperationHandler(bookings),reportDeliveryHandler()],
     history: new PlatformConversationHistory(pool),
     readers: { knowledge: knowledgeRuntime, memory: new MemoryStore(pool, skillPackageCodec), runState: new PlatformRunStateReader(pool) },
     onSettled: taskId => generateConversationTitle({ pool, providers: modelProvider, taskId })
