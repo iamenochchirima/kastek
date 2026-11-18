@@ -125,8 +125,10 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     const store = new PlatformStore(pool);
     const owner = await store.ensureAccount({ issuer: "https://identity.test", subject: randomUUID(), email: "api@example.test", displayName: "Owner" });
     const org = await store.createOrganization(owner.id, "API");
+    const foreignOrg = await store.createOrganization(owner.id, "Other workspace");
     await connectFixtureModel(pool, owner.id, org.id);
     const agent = await store.createConfiguredAgent({ accountId: owner.id, organizationId: org.id, name: "Agent", configuration: defaultBusinessConfiguration() });
+    const foreignAgent = await store.createConfiguredAgent({ accountId: owner.id, organizationId: foreignOrg.id, name: "Other agent", configuration: defaultBusinessConfiguration() });
     const session = await store.createSession({ accountId: owner.id, providerSessionId: randomUUID(), expiresAt: new Date(Date.now() + 3600000) });
     const app = await buildPlatformApp({ pool, logging: false, config: loadPlatformConfig({ NODE_ENV: "test",
       AGENTS_DATABASE_URL: (pool.options as { connectionString: string }).connectionString, AGENTS_PUBLIC_URL: "http://localhost:3100",
@@ -134,13 +136,20 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     try {
       const created = await app.inject({ method: "POST", url: `/api/organizations/${org.id}/applications`,
         headers: { cookie: `agents_session=${session.token}`, origin: "http://localhost:3100" },
-        payload: { name: "Client", agentIds: [agent.agent.id], scopes: ["runs:start", "runs:read"] } });
+        payload: { name: "Client", agentIds: [agent.agent.id], scopes: ["agents:read", "runs:start", "runs:read"] } });
       expect(created.statusCode).toBe(201);
-      const headers = { authorization: `Bearer ${created.json().credential.secret}` };
+      const { application, credential } = created.json();
+      const headers = { authorization: `Bearer ${credential.secret}` };
+      expect((await app.inject({ method: "GET", url: `/v1/agents/${foreignAgent.agent.id}`, headers })).statusCode).toBe(404);
+      expect((await app.inject({ method: "POST", url: "/v1/runs", headers,
+        payload: { agentId: foreignAgent.agent.id, message: "Hello", requestId: randomUUID() } })).statusCode).toBe(403);
       const run = await app.inject({ method: "POST", url: "/v1/runs", headers,
         payload: { agentId: agent.agent.id, message: "Hello", requestId: randomUUID() } });
       expect(run.statusCode).toBe(202);
       expect((await app.inject({ method: "GET", url: `/v1/runs/${run.json().taskId}`, headers })).statusCode).toBe(200);
+      expect((await app.inject({ method: "POST", url: `/api/organizations/${org.id}/applications/${application.id}/credentials/${credential.id}/revoke`,
+        headers: { cookie: `agents_session=${session.token}`, origin: "http://localhost:3100" }, payload: {} })).statusCode).toBe(200);
+      expect((await app.inject({ method: "GET", url: `/v1/runs/${run.json().taskId}`, headers })).statusCode).toBe(401);
     } finally { await app.close(); }
   });
 });
