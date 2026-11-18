@@ -38,7 +38,7 @@ import { capabilityBindingSchema } from "../contracts/capability-catalog";
 import {
 agentConfigurationSchema,assertRuntimeAvailable,
 canonicalJson,
-sourceAuthorityIds,connectedToolAuthorityIds,requestDigest,
+sourceAuthorityIds,connectedToolAuthorityIds,
 executionGrantSchema,
 parseAllowedOrigin,
 PlatformError,
@@ -108,7 +108,6 @@ import { MemberStore } from "../product/members/store";
 import { registerMemberRoutes } from "../product/members/routes";
 import { invitationEmailConfig } from "../product/members/email";
 import { effectivePermissions, requirePermission } from "../product/members/permissions";
-import { transaction } from "../infrastructure/database";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
 import { customerOfferings } from "../product/offerings/offerings";
 import { registerAutomationRoutes } from "../product/automations/automation-routes";
@@ -141,6 +140,7 @@ import { growthServiceTrustFromEnvironment } from "../adapters/products/growth-s
 import { GrowthProductRuntime } from "../execution/products/growth-runtime";
 import { createConfiguredProductRuntime } from "../execution/products/configured-runtime";
 import { registerAgencyProductRoutes, agencyServiceTrustFromEnvironment } from "../product/integrations/agency-routes";
+import { admitMemberRun } from "../platform/runs/member-admission";
 const uuid = z.uuid();
 const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1),
   requestKey: z.string().trim().min(1).max(128), conversationId: uuid.optional() });
@@ -740,31 +740,9 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const input = humanTaskInput.parse(request.body), user = await account(request), org = organizationId(request);
     if (input.agentId) {
       const authority = humanAuthority(user,org,input.agentId);
-      const result = await transaction(pool,async db => {
-        if (!(await db.query("SELECT 1 FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[org])).rowCount) throw new PlatformError("ACCESS_DENIED",403,"Access denied");
-        if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE",[org,user.id])).rowCount) throw new PlatformError("ACCESS_DENIED",403,"Access denied");
-        const existing = (await db.query<TaskRecord>(`SELECT * FROM agents_platform.tasks WHERE product='agents' AND organization_id=$1
-          AND caller_client_id='agents-execution' AND resource_id=$2 AND request_key=$3`,[org,input.agentId,input.requestKey])).rows[0];
-        if (existing) {
-          const digest = requestDigest({authority,versionId:existing.version_id,input:input.input,conversationId:input.conversationId??null,evaluationTrialId:null,channelBinding:null});
-          if (existing.request_digest !== digest) throw new PlatformError("IDEMPOTENCY_CONFLICT",409,"The request key was used for different input");
-          if ((await db.query("SELECT deleted_at FROM agents_platform.conversations WHERE id=$1",[existing.conversation_id])).rows[0]?.deleted_at)
-            throw new PlatformError("CONVERSATION_DELETED",403,"Conversation is unavailable");
-          return {task:existing,replayed:true};
-        }
-        if (input.evaluationRootTokenLimit) throw new PlatformError("EVALUATION_SCOPE_REQUIRED",403,"A trial is required for this allocation");
-        const version = (await db.query<VersionRecord>(`SELECT v.* FROM agents_platform.agent_versions v JOIN agents_platform.agents a
-          ON a.id=v.agent_id AND a.organization_id=v.organization_id WHERE v.organization_id=$1 AND v.agent_id=$2 ORDER BY v.number DESC LIMIT 1`,[org,input.agentId])).rows[0];
-        if (!version) throw new PlatformError("CONFIGURATION_UNAVAILABLE",409,"Save the agent settings before chatting");
-        assertRuntimeAvailable(version.configuration);
-        await assertServices(version.configuration);
-        const grant = executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:grantOperations(version.configuration),
-          sourceRevisionIds:sourceAuthorityIds(version.configuration),connectedToolBindingIds:connectedToolAuthorityIds(version.configuration),
-          maxInputBytes:version.configuration.model.maxInputBytes,maxOutputTokens:version.configuration.model.maxOutputTokens,
-          maxContextTokens:contextGrantCeiling(version.configuration),expiresAt:new Date(Date.now()+30*60_000).toISOString(),revokedAt:null});
-        await store.createGrantInTransaction(db,{accountId:user.id,grant});
-        return store.admitTaskInTransaction(db,{authority,grantId:grant.id,versionId:version.id,input:input.input,requestKey:input.requestKey,
-          conversationId:input.conversationId,configurationMode:"current"});
+      const result = await admitMemberRun({ pool, store, assertServices, grantOperations }, {
+        accountId: user.id, authority, message: input.input, requestKey: input.requestKey,
+        conversationId: input.conversationId, evaluationRootTokenLimit: input.evaluationRootTokenLimit,
       });
       request.log.info({event:"task.admitted",taskId:result.task.id,organizationId:org,replayed:result.replayed},"Task admitted");
       return reply.code(result.replayed?200:202).send({task:await readableTask(result.task)});

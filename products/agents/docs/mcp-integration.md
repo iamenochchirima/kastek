@@ -40,6 +40,10 @@ agent with no assigned tools or retained memory. Both the management API and MCP
 accept an optional purpose and instructions. MCP requires an operation ID for safe retries;
 the management API accepts one. Capability assignment and publication still use the existing
 configuration flow.
+Member chat admission now uses the shared `platform/runs/member-admission.ts` operation. It pins
+the current agent version and creates the execution grant in the same transaction as the run.
+This operation currently accepts signed-in Agents members; external application and MCP run
+admission still require separate integration work.
 Agents adds revision-pinned signed-in reviews for setup changes, knowledge approval, and website
 activation. The boundary follows the shared product architecture in
 [`agent-platform-architecture.md`](./architecture/agent-platform-architecture.md).
