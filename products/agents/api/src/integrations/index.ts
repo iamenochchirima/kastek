@@ -1,0 +1,9 @@
+export { registerApplicationRoutes } from "./http/application-routes";
+export { registerAssistantRoutes } from "./http/assistant-routes";
+export { registerConnectionFallbackRoutes } from "./http/connection-fallback-routes";
+export { registerEvaluationRoutes } from "./http/evaluation-routes";
+export { registerKnowledgeRoutes } from "./http/knowledge-routes";
+export { registerMcpReviewRoutes } from "./http/mcp-review-routes";
+export { registerMemoryRoutes } from "./http/memory-routes";
+export { registerWebsiteRoutes } from "./http/website-routes";
+export { registerWorkspaceRoutes } from "./http/workspace-routes";

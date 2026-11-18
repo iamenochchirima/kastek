@@ -1,3 +1,4 @@
+import { registerApplicationRoutes, registerAssistantRoutes, registerConnectionFallbackRoutes, registerEvaluationRoutes, registerKnowledgeRoutes, registerMcpReviewRoutes, registerMemoryRoutes, registerWebsiteRoutes, registerWorkspaceRoutes } from "../integrations";
 import { skillPackageCodec } from "../capabilities/skills/package";
 import { readTaskTiming } from "../execution/lifecycle/timing";
 import { readTaskRuntime, operationPresentation, productOperationMetadataSql } from "../product/integrations/growth-runtime-reporting";
@@ -51,7 +52,6 @@ import type { PlatformConfig } from "../infrastructure/config";
 import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 import { pageQuery, cursorKeysFromEnvironment, readPageCursor, finishPage } from "../infrastructure/read-pages";
 import { PlatformDiscovery } from "../product/agents/discovery";
-import { registerKnowledgeRoutes } from "../integrations/http/knowledge-routes";
 import { AgentTransferStore } from "../product/agents/transfer-store";
 import { registerAgentTransferRoutes } from "../product/agents/transfer-routes";
 import type { TransferEmail } from "../product/agents/transfer-store";
@@ -74,7 +74,6 @@ import { customerSetupSchema } from "../product/offerings/customer-setup";
 import { modelSelectionSchema } from "../contracts/model-providers";
 import { SOURCE_LIMITS } from "../contracts/source-contracts";
 import { loadFirecrawlConfig } from "../adapters/providers/firecrawl/client";
-import { registerMemoryRoutes } from "../integrations/http/memory-routes";
 import { registerSkillPackageRoutes } from "../product/agents/skill-package-routes";
 import { SkillPackageStore } from "../product/agents/skill-package-store";
 import { registerCatalogueRoutes, readAgentCatalogue, type CatalogueRouteOptions } from "../product/catalogue/catalogue-routes";
@@ -103,16 +102,10 @@ import { PlatformStore } from "../product/agents/store";
 import { MemberStore } from "../product/members/store";
 import { registerMemberRoutes } from "../product/members/routes";
 import { invitationEmailConfig } from "../product/members/email";
-import { effectivePermissions, requirePermission } from "../platform/access";
+import { Applications, authorizeApplicationManager, effectivePermissions, requirePermission } from "../platform/access";
 import { registerAgentManagementRoutes } from "../platform/agents";
 import { registerRunRoutes, taskInput } from "../platform/runs";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
-import { registerEvaluationRoutes } from "../integrations/http/evaluation-routes";
-import { registerWebsiteRoutes } from "../integrations/http/website-routes";
-import { registerAssistantRoutes } from "../integrations/http/assistant-routes";
-import { registerWorkspaceRoutes } from "../integrations/http/workspace-routes";
-import { registerMcpReviewRoutes } from "../integrations/http/mcp-review-routes";
-import { registerConnectionFallbackRoutes } from "../integrations/http/connection-fallback-routes";
 import { customerOfferings } from "../product/offerings/offerings";
 import { registerAutomationRoutes } from "../product/automations/automation-routes";
 import { AutomationService } from "../product/automations/automations";
@@ -147,7 +140,6 @@ import { createConfiguredProductRuntime } from "../execution/products/configured
 import { registerAgencyProductRoutes, agencyServiceTrustFromEnvironment } from "../product/integrations/agency-routes";
 import { admitMemberRun } from "../platform/runs";
 import { admitApplicationRun } from "../platform/runs";
-import { registerApplicationRoutes } from "../integrations/http/application-routes";
 import { registerApplicationConnectionSharing } from "../product/connections/application-sharing";
 const uuid = z.uuid();
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -353,7 +345,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   }
   registerMemberRoutes(app, { store: members, resolveScope, account, sendInvitation: sendInvitationEmail });
   registerApplicationConnectionSharing(app, { pool, resolveScope });
-  registerApplicationRoutes(app, { pool, resolveScope, runs: {
+  registerApplicationRoutes(app, { applications: new Applications(pool, authorizeApplicationManager), resolveScope, runs: {
     start: input => admitApplicationRun({ pool, store, assertServices, grantOperations }, input),
     read: async task => ({ taskId: task.id, conversationId: task.conversation_id, state: task.state,
       errorCode: task.error_code, ...await readableOutput(task.id, task.output), ...await readPublicAgentUpdates(pool, task.id) }),

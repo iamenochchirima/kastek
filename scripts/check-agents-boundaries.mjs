@@ -49,6 +49,9 @@ export function checkAgentsModules(root){
       !(targetParts.length===3&&(targetParts[2]==='index.ts'||owner==='composition'&&targetParts[1]==='knowledge'&&targetParts[2]==='bootstrap.ts'))){
     failures.push(`${relative(root,file)} cannot import private platform module ${relative(root,target)}; use platform/${targetParts[1]}`);
    }
+   if(dependency==='integrations'&&targetParts.length>=3&&owner!=='integrations'){
+    failures.push(`${relative(root,file)} cannot import private integration module ${relative(root,target)}; use integrations`);
+   }
    if(allowed[owner]&&!allowed[owner].includes(dependency)){
     const edge=`${relative(root,file)} -> ${relative(root,target)}`;
     if(acceptedEdges.has(edge))accepted.push(edge);else failures.push(`${relative(root,file)} cannot depend on ${relative(root,target)}`);
