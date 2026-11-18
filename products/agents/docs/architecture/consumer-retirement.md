@@ -12,6 +12,9 @@ replacement is serving and the last caller is migrated.
 | `POST /internal/v1/products/agencies/commands`, `/model` | Platform run and model operations | `products/agency/api/src/capabilities/execution-client.ts` | Agency runs through the platform API |
 | Inbound MCP management tools | Same platform operations as HTTP | MCP clients through OAuth | Management tools call platform operations with identical authority |
 | `product-capabilities-v13` / `AgentsBusinessRunV23` | `product-capabilities-v15` / `AgentsBusinessRunV25` | Tasks admitted while v13 was current | No active task pins v13 |
+| `product-capabilities-v11` / `AgentsBusinessRunV21` | Shared runtime v15 | Existing pinned tasks; `execution/lifecycle/dispatcher.ts` also uses v11 as its default route | Replace the dispatcher default and retire only with a decision on existing tasks. |
+| `product-capabilities-v12` / `AgentsBusinessRunV22` | Shared runtime with equivalent handoff behavior | Existing pinned handoff tasks and `execution/lifecycle/authority.ts` handoff-feedback check | Preserve the supported handoff behavior in the shared runtime and remove v12 dependencies. |
+| `product-capabilities-v14` / `AgentsBusinessRunV24` | Shared runtime v15 | Existing pinned adaptive tasks and `execution/business/business.ts` origin checks | Replace old-release checks and decide the fate of pinned tasks. |
 | Conversation archive and restore | None proposed | `products/agents/web/src/platform/assistant-launcher.tsx` | Owner decides between separate archive state and removing restore |
 | Legacy product execution adapters | Platform integration adapters | Growth and Agency execution clients | Both consumers use the shared run contract |
 
@@ -34,9 +37,9 @@ identifies the current caller; it does not assert that the replacement already e
 | `composition/backfill-knowledge.ts` and `platform/knowledge/backfill-legacy-objects.ts` | Operator command `backfill:knowledge` | New knowledge storage; no legacy backfill prerequisite for the fresh platform. |
 
 Product-owned operations such as Growth resource and channel contracts are not automatically
-retired with product-specific agent orchestration DTOs. The worker also registers v11, v12 and
-v14 business workflows alongside v13 and v15; their callers and target disposition still need to
-be mapped. The external caller inventory and archive/restore destination are also unresolved.
+retired with product-specific agent orchestration DTOs. `execution/programs/publication.ts`
+defaults fresh publication to v15, while the worker and lifecycle still recognize v11–v14.
+The external caller inventory and archive/restore destination remain unresolved.
 
 ## Conditions before deletion
 
