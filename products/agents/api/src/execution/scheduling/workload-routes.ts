@@ -31,3 +31,21 @@ export function workerAcceptsWorkload(workload: CapacityWorkload, workerPool: st
   if (!target) return true;
   return workerPool === target;
 }
+
+export type WorkerRole = "all" | "interactive" | "background" | "ingestion";
+
+/** A worker can be limited to one pool, or reserved for ingestion, by deployment configuration. */
+export function workerRoleFromEnvironment(env: NodeJS.ProcessEnv = process.env): WorkerRole {
+  const value = env.AGENTS_WORKER_ROLE?.trim();
+  if (!value) return "all";
+  if (!["all", "interactive", "background", "ingestion"].includes(value))
+    throw new Error("AGENTS_WORKER_ROLE must be all, interactive, background or ingestion");
+  return value as WorkerRole;
+}
+
+/** Ingestion workers carry only the knowledge-ingestion service and dispatcher. */
+export function workerRunsBusiness(role: WorkerRole): boolean { return role !== "ingestion"; }
+export function workerRunsIngestion(role: WorkerRole): boolean { return role === "all" || role === "ingestion"; }
+export function workerRoleWorkload(role: WorkerRole): "interactive" | "background" | undefined {
+  return role === "interactive" ? "interactive" : role === "background" ? "background" : undefined;
+}

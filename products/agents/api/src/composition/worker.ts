@@ -29,7 +29,7 @@ import { createBusinessWorkflow, type BusinessOptions } from "../execution/busin
 import { PlatformConversationHistory } from "../platform/conversations";
 import { PlatformRunStateReader } from "../platform/runs";
 import { registeredWorkflowServices } from "../platform/capabilities";
-import { workloadPoolsFromEnvironment } from "../execution/scheduling/workload-routes";
+import { workerRoleFromEnvironment, workerRoleWorkload, workerRunsBusiness, workerRunsIngestion, workloadPoolsFromEnvironment } from "../execution/scheduling/workload-routes";
 import { MemoryStore } from "../platform/memory";
 import { createContextCompactionWorkflow } from "../execution/context/compaction-workflow";
 import { createSupportStatusWorkflow,SUPPORT_STATUS_WORKFLOW } from '../execution/business/support-status-business';
@@ -200,15 +200,18 @@ async function main(): Promise<void> {
   const {host,identityKeys} = workerSecurityFromEnvironment();
   const receiptWorkflow=createReceiptWorkflow(pool,HANDOFF_RECEIPT,(db,input)=>inbox.publishPendingHandoffReceipt(db,input));
   const statusWorkflow=createSupportStatusWorkflow(pool,{...workflowOptions,publishSupportStatus:taskId=>inbox.publishSupportStatus(taskId)});
+  const workerRole = workerRoleFromEnvironment();
   const workflowRegistrations = [
-    { id: "business", service: workflow }, { id: "handoff", service: handoffWorkflow },
-    { id: "adaptive-legacy", service: legacyAdaptiveWorkflow }, { id: "adaptive", service: adaptiveWorkflow },
-    { id: "shared", service: sharedWorkflow }, { id: "compaction", service: compactionWorkflow },
-    { id: "handoff-receipt", service: receiptWorkflow }, { id: "support-status", service: statusWorkflow },
-    { id: "automation", service: createAutomationWorkflow(automations) },
-    { id: "support-waiting", service: createSupportWaitingWorkflow(supportWaiting) },
-    ...(followups ? [{ id: "customer-followup", service: createCustomerFollowupWorkflow(followups) }] : []),
-    ...(ingestion ? [{ id: "knowledge-ingestion", service: createIngestionWorkflow(ingestion) }] : []),
+    ...(workerRunsBusiness(workerRole) ? [
+      { id: "business", service: workflow }, { id: "handoff", service: handoffWorkflow },
+      { id: "adaptive-legacy", service: legacyAdaptiveWorkflow }, { id: "adaptive", service: adaptiveWorkflow },
+      { id: "shared", service: sharedWorkflow }, { id: "compaction", service: compactionWorkflow },
+      { id: "handoff-receipt", service: receiptWorkflow }, { id: "support-status", service: statusWorkflow },
+      { id: "automation", service: createAutomationWorkflow(automations) },
+      { id: "support-waiting", service: createSupportWaitingWorkflow(supportWaiting) },
+      ...(followups ? [{ id: "customer-followup", service: createCustomerFollowupWorkflow(followups) }] : []),
+    ] : []),
+    ...(workerRunsIngestion(workerRole) && ingestion ? [{ id: "knowledge-ingestion", service: createIngestionWorkflow(ingestion) }] : []),
   ];
   const server = createServer(createEndpointHandler({ services: registeredWorkflowServices(workflowRegistrations), identityKeys }));
   const sessions = new Set<ServerHttp2Session>();
@@ -219,8 +222,8 @@ async function main(): Promise<void> {
   } catch (error) { server.close(); await pool.end(); throw error; }
   const metrics = createNativeMetrics(pool,"worker");
   const workerPools = workloadPoolsFromEnvironment(), workerPool = process.env.AGENTS_WORKER_POOL?.trim() || null;
-  const workload = workerPools.interactive && workerPool === workerPools.interactive ? "interactive" as const : workerPools.background && workerPool === workerPools.background ? "background" as const : undefined;
-  const dispatcher = startDispatcher(pool, {
+  const workload = workerRoleWorkload(workerRole) ?? (workerPools.interactive && workerPool === workerPools.interactive ? "interactive" as const : workerPools.background && workerPool === workerPools.background ? "background" as const : undefined);
+  const dispatcher = workerRunsBusiness(workerRole) ? startDispatcher(pool, {
     workload,
     policy: dispatchPolicy,
     ingressUrl: process.env.RESTATE_INGRESS_URL ?? "http://127.0.0.1:18080",
@@ -229,16 +232,16 @@ async function main(): Promise<void> {
     supportStatusRoute:{ingressUrl:process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",adminUrl:process.env.RESTATE_ADMIN_URL??"http://127.0.0.1:19070",workflowName:SUPPORT_STATUS_WORKFLOW},
     onError: code => console.error(JSON.stringify({ ...diagnosticIdentity, event: "runtime_publisher_error", code })),
     onPhase: metrics?.dispatcherPhase,
-  });
-  const automationDispatcher=startAutomationDispatcher(pool,automations,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
-    code=>console.error(JSON.stringify({...diagnosticIdentity,event:"automation_publisher_error",code})),()=>actionServices?.actions.reconcilePending()??Promise.resolve());
-  const supportDispatcher=startSupportWaitingDispatcher(pool,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
-    code=>console.error(JSON.stringify({...diagnosticIdentity,event:"support_waiting_publisher_error",code})));
-  const receiptDispatcher=startHandoffReceiptDispatcher(pool,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
-    code=>console.error(JSON.stringify({...diagnosticIdentity,event:"handoff_receipt_publisher_error",code})));
-  const followupDispatcher=followups ? startCustomerFollowupDispatcher(pool,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
+  }) : undefined;
+  const automationDispatcher=workerRunsBusiness(workerRole)?startAutomationDispatcher(pool,automations,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
+    code=>console.error(JSON.stringify({...diagnosticIdentity,event:"automation_publisher_error",code})),()=>actionServices?.actions.reconcilePending()??Promise.resolve()):undefined;
+  const supportDispatcher=workerRunsBusiness(workerRole)?startSupportWaitingDispatcher(pool,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
+    code=>console.error(JSON.stringify({...diagnosticIdentity,event:"support_waiting_publisher_error",code}))):undefined;
+  const receiptDispatcher=workerRunsBusiness(workerRole)?startHandoffReceiptDispatcher(pool,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
+    code=>console.error(JSON.stringify({...diagnosticIdentity,event:"handoff_receipt_publisher_error",code}))):undefined;
+  const followupDispatcher=workerRunsBusiness(workerRole)&&followups ? startCustomerFollowupDispatcher(pool,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
     code=>console.error(JSON.stringify({...diagnosticIdentity,event:"customer_followup_publisher_error",code})),{configurationDigest:followupConfigurationDigest(followupConfig!),adminUrl:process.env.RESTATE_ADMIN_URL??"http://127.0.0.1:19070"}) : undefined;
-  const ingestionDispatcher=ingestion?startIngestionDispatcher(ingestion,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
+  const ingestionDispatcher=workerRunsIngestion(workerRole)&&ingestion?startIngestionDispatcher(ingestion,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
     code=>console.error(JSON.stringify({...diagnosticIdentity,event:"ingestion_publisher_error",code}))):undefined;
   // Object deletion is independent of physical resource cleanup; either backend may be temporarily unavailable.
   const documentCleanup=documents?runDocumentReaper(pool,abort.signal):undefined;
@@ -251,7 +254,7 @@ async function main(): Promise<void> {
     closing = true;
     abort.abort();
     cancellationMaintenance.stop();timeoutMaintenance.stop();deliveryMaintenance.stop();clearInterval(uncertainTimer);clearInterval(preparationTimer); await Promise.all([cancellationMaintenance.pending(),timeoutMaintenance.pending(),deliveryMaintenance.pending(),uncertainPending]);
-    await Promise.all([dispatcher.stop(),automationDispatcher.stop(),supportDispatcher.stop(),receiptDispatcher.stop(),followupDispatcher?.stop(),ingestionDispatcher?.stop(),documentCleanup,sourceCleanup,memoryCleanup]);
+    await Promise.all([dispatcher?.stop(),automationDispatcher?.stop(),supportDispatcher?.stop(),receiptDispatcher?.stop(),followupDispatcher?.stop(),ingestionDispatcher?.stop(),documentCleanup,sourceCleanup,memoryCleanup]);
     await new Promise<void>(resolve => {
       const deadline = setTimeout(() => { for (const session of sessions) session.destroy(); }, 10_000);
       server.close(() => { clearTimeout(deadline); resolve(); });
