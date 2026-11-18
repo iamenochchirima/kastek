@@ -43,8 +43,11 @@ configuration flow. Both entry points enforce the current workspace agent-manage
 and agent-count entitlement at creation; retries recheck permission without consuming another slot.
 Member chat admission now uses the shared `platform/runs/member-admission.ts` operation. It pins
 the current agent version and creates the execution grant in the same transaction as the run.
-This operation currently accepts signed-in Agents members; external application and MCP run
-admission still require separate integration work.
+The MCP `start_agent_run` operation uses it for a signed-in workspace member and records the
+originating OAuth connection with the run. `get_agent_run` returns that connection's run state,
+public updates and result. Assigned tools use the ordinary runtime policy. MCP currently uses
+the existing `agents:manage` scope to start a run and `agents:read` to retrieve it; separate
+application credentials and run-specific scopes still require implementation.
 The operation ceiling used when issuing execution grants is shared under
 `platform/access/grant-operations.ts`. The repository boundary check rejects imports from
 `platform/` into Agents product or integration modules as those platform modules are migrated.

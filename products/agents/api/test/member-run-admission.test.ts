@@ -20,8 +20,9 @@ describe("member run admission", () => {
     const createGrantInTransaction = vi.fn().mockImplementation(async (_db, value) => value.grant);
     const admitTaskInTransaction = vi.fn().mockResolvedValue({ task: { id: "task" }, replayed: false });
     const assertServices = vi.fn().mockResolvedValue(undefined);
+    const onAdmitted = vi.fn().mockResolvedValue(undefined);
     const result = await admitMemberRun({ pool: { query } as unknown as Pool,
-      store: { createGrantInTransaction, admitTaskInTransaction }, assertServices, grantOperations: () => ["model.reply"] }, input);
+      store: { createGrantInTransaction, admitTaskInTransaction }, assertServices, grantOperations: () => ["model.reply"], onAdmitted }, input);
     expect(result.replayed).toBe(false);
     const grant = createGrantInTransaction.mock.calls[0]![1].grant;
     expect(grant.versionId).toBe(version.id);
@@ -29,6 +30,7 @@ describe("member run admission", () => {
       authority, versionId: version.id, grantId: grant.id, input: "Hello", configurationMode: "current",
     }));
     expect(createGrantInTransaction.mock.invocationCallOrder[0]).toBeLessThan(admitTaskInTransaction.mock.invocationCallOrder[0]!);
+    expect(onAdmitted).toHaveBeenCalledWith(expect.anything(), result);
   });
 
   it("replays an identical request without issuing another grant and rejects changed input", async () => {

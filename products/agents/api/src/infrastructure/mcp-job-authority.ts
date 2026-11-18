@@ -10,6 +10,6 @@ export async function assertMcpJobAuthority(db:Pool|PoolClient, row:{mcp_connect
 }
 
 export async function assertMcpTaskAuthority(db:Pool|PoolClient,taskId:string) {
- const row=(await db.query<{mcp_connection_id:string;organization_id:string;account_id:string}>("SELECT connection_id mcp_connection_id,organization_id,account_id FROM agents_platform.mcp_preview_provenance WHERE task_id=$1",[taskId])).rows[0];
+ const row=(await db.query<{mcp_connection_id:string;organization_id:string;account_id:string}>("SELECT connection_id mcp_connection_id,organization_id,account_id FROM agents_platform.mcp_run_provenance WHERE task_id=$1",[taskId])).rows[0];
  if(row)await assertMcpJobAuthority(db,row);
 }

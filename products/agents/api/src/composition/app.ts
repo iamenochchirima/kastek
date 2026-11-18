@@ -4,6 +4,7 @@ import { readTaskTiming } from "../execution/lifecycle/timing";
 import { readTaskRuntime, operationPresentation, productOperationMetadataSql } from "../product/integrations/growth-runtime-reporting";
 import { AGENCY_AGENT_COMMAND_PATH, AGENCY_AGENT_MODEL_PATH } from "@kasitek-labs/contracts";
 import { readPublicAgentUpdates } from "../product/integrations/public-agent-activity";
+import { assertMcpJobAuthority, assertMcpTaskAuthority } from "../infrastructure/mcp-job-authority";
 import { projectRecipientText, taskRecipientTextScope, projectWorkProgress } from "../execution/context/recipient-text";
 import { deadlineMillis } from "../execution/lifecycle/deadline";
 import { readWorkProgress, queueOrchestrationInstruction, authorizeOrchestration } from "../execution/delegation/progress";
@@ -586,6 +587,39 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const sourceReview = new SourceReview(pool,knowledge,config.AGENTS_PUBLIC_URL);
     const configurationReview = new ConfigurationReview(pool,config.AGENTS_PUBLIC_URL,assertBindings);
     const privatePreview = new PrivatePreview(pool,assertServices);
+    type McpRunScope = { accountId: string; organizationId: string; connectionId: string };
+    async function startMcpRun(scope: McpRunScope, raw: unknown) {
+      const input = z.strictObject({ agentId: z.uuid(), message: z.string().trim().min(1).max(65536),
+        requestId: z.uuid(), conversationId: z.uuid().optional() }).parse(raw);
+      const user = (await pool.query<Account>("SELECT * FROM agents_platform.accounts WHERE id=$1", [scope.accountId])).rows[0];
+      if (!user) throw new PlatformError("ACCESS_DENIED", 403, "Access denied");
+      const authority = humanAuthority(user, scope.organizationId, input.agentId);
+      const result = await admitMemberRun({ pool, store, assertServices, grantOperations,
+        onAdmitted: async (db, admitted) => {
+          await assertMcpJobAuthority(db, { mcp_connection_id: scope.connectionId, organization_id: scope.organizationId, account_id: scope.accountId });
+          if (admitted.replayed) {
+            const origin = (await db.query("SELECT connection_id FROM agents_platform.mcp_run_provenance WHERE task_id=$1", [admitted.task.id])).rows[0];
+            if (origin?.connection_id !== scope.connectionId) throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "Request belongs to another connection");
+          } else await db.query("INSERT INTO agents_platform.mcp_run_provenance(task_id,connection_id,account_id,organization_id) VALUES($1,$2,$3,$4)",
+            [admitted.task.id, scope.connectionId, scope.accountId, scope.organizationId]);
+        },
+      }, { accountId: scope.accountId, authority, message: input.message,
+        requestKey: `mcp:${scope.connectionId}:${input.requestId}`, conversationId: input.conversationId });
+      return { taskId: result.task.id, conversationId: result.task.conversation_id, state: result.task.state, replayed: result.replayed };
+    }
+    async function getMcpRun(scope: McpRunScope, raw: unknown) {
+      const { taskId } = z.strictObject({ taskId: z.uuid() }).parse(raw);
+      const task = (await pool.query<TaskRecord>(`SELECT t.* FROM agents_platform.tasks t
+        JOIN agents_platform.mcp_run_provenance p ON p.task_id=t.id
+        JOIN agents_platform.conversations c ON c.id=t.conversation_id AND c.deleted_at IS NULL
+        JOIN agents_platform.memberships m ON m.organization_id=p.organization_id AND m.account_id=p.account_id AND m.revoked_at IS NULL
+        WHERE t.id=$1 AND p.connection_id=$2 AND p.account_id=$3 AND p.organization_id=$4 AND t.parent_task_id IS NULL
+          AND t.execution_purpose<>'private_preview_v1'`, [taskId, scope.connectionId, scope.accountId, scope.organizationId])).rows[0];
+      if (!task) throw new PlatformError("NOT_FOUND", 404, "Run not found");
+      await assertMcpTaskAuthority(pool, task.id);
+      return { taskId: task.id, conversationId: task.conversation_id, state: task.state,
+        errorCode: task.error_code, ...await readableOutput(task.id, task.output), ...await readPublicAgentUpdates(pool, task.id) };
+    }
     app.get("/api/mcp/website-reviews/:id",async request=>websiteReview.get((await account(request)).id,z.uuid().parse((request.params as {id:string}).id)));
     app.post("/api/mcp/website-reviews/:id/decision",async request=>websiteReview.decide((await account(request)).id,z.uuid().parse((request.params as {id:string}).id),z.strictObject({approved:z.boolean()}).parse(request.body).approved));
     app.get("/api/mcp/source-reviews/:id",async request=>sourceReview.get((await account(request)).id,z.uuid().parse((request.params as {id:string}).id)));
@@ -601,6 +635,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       allowedHosts: (process.env.AGENTS_MCP_ALLOWED_HOSTS ?? "").split(",").map(value=>value.trim()).filter(Boolean), operations: [
        { name:"get_capabilities",description:"Check current agent setup capabilities and known knowledge limits.",scope:"agents:read",inputSchema:{type:"object",additionalProperties:false},run:async(scope,args)=>{z.strictObject({}).parse(args);await store.requireMembership(scope.accountId,scope.organizationId);const row=(await pool.query<{sources:number;imports:number}>(`SELECT (SELECT count(*)::integer FROM agents_platform.sources WHERE organization_id=$1 AND state='active') sources,(SELECT count(*)::integer FROM agents_platform.ingestion_jobs WHERE organization_id=$1 AND state NOT IN ('ready','failed','cancelled')) imports`,[scope.organizationId])).rows[0]!;return {agentSetup:true,websiteDiscovery:websiteCrawls.available,websiteTextImport:{available:websiteCrawls.available,maxBytes:262144,retrieval:"lexical-v1",description:"Imports bounded text from completed website crawls when document processing is unavailable."},documentImport:documentRuntime?await documentRuntime.available():false,privatePreview:{supported:true,limitations:"Requires an available model. Approved knowledge only; external actions and other tools are unavailable."},websiteActivation:"signed_in_review",knowledge:{activeSources:row.sources,sourceLimit:SOURCE_LIMITS.organizationSources,activeImports:row.imports,concurrentImportLimit:SOURCE_LIMITS.concurrentImports,maxSourceBytes:SOURCE_LIMITS.rawBytes},knowledgeImport:{contentTypes:[...MCP_KNOWLEDGE_CONTENT_TYPES],maxBytes:MCP_KNOWLEDGE_IMPORT_BYTES,requiresReview:true},billing:{available:false,reason:"Provider prices and remaining credits are not available here."}};} },
        { name: "list_agents", description: "List agents in the authorized organization.", scope: "agents:read", inputSchema: {type:"object",additionalProperties:false}, run: async scope => ({ agents: (await creationOperations.list(scope)).map(agent => ({ id: agent.id, name: agent.name })) }) },
+       { name: "start_agent_run", description: "Start a run with the agent's assigned capabilities. Reuse requestId for a safe retry.", scope: "agents:manage", idempotent: true, openWorld: true, inputSchema: { type: "object", properties: { agentId: { type: "string", format: "uuid" }, message: { type: "string" }, requestId: { type: "string", format: "uuid" }, conversationId: { type: "string", format: "uuid" } }, required: ["agentId", "message", "requestId"], additionalProperties: false }, run: startMcpRun },
+       { name: "get_agent_run", description: "Read the state, public activity and result of a run started by this connection.", scope: "agents:read", inputSchema: { type: "object", properties: { taskId: { type: "string", format: "uuid" } }, required: ["taskId"], additionalProperties: false }, run: getMcpRun },
        { name: "agent_readiness", description: "Check the setup readiness of an agent.", scope: "agents:read", inputSchema: {type:"object", properties:{agentId:{type:"string",format:"uuid"}},required:["agentId"],additionalProperties:false}, run: async (scope, args) => creationOperations.readiness(scope, identifier.parse(args).agentId) },
        { name: "get_agent", description: "Read an agent's name, instructions and configuration revision.", scope: "agents:read", inputSchema: {type:"object",properties:agentProperty,required:["agentId"],additionalProperties:false}, run: async (scope,args) => { const agent=await creationOperations.get(scope,identifier.parse(args).agentId); return {id:agent.id,name:agent.name,instructions:agent.draft.instructions,revision:agent.draft_revision}; } },
        { name: "get_agent_setup", description: "Read the business details and setup preferences for an agent.", scope: "agents:read", inputSchema: {type:"object",properties:agentProperty,required:["agentId"],additionalProperties:false}, run: async (scope,args) => { const agent=await creationOperations.get(scope,identifier.parse(args).agentId); return {id:agent.id,name:agent.name,setup:agent.setup,revision:agent.draft_revision}; } },

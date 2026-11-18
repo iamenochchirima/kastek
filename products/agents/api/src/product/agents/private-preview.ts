@@ -32,7 +32,7 @@ export class PrivatePreview {
         WHERE product='agents' AND organization_id=$1 AND caller_client_id='agents-execution' AND resource_id=$2 AND request_key=$3`,
         [scope.organizationId,input.agentId,input.requestId])).rows[0];
       if(existing) {
-        const provenance=(await db.query("SELECT connection_id FROM agents_platform.mcp_preview_provenance WHERE task_id=$1",[existing.id])).rows[0];
+        const provenance=(await db.query("SELECT connection_id FROM agents_platform.mcp_run_provenance WHERE task_id=$1",[existing.id])).rows[0];
         if((provenance?.connection_id??null)!==(scope.connectionId??null))throw new PlatformError("IDEMPOTENCY_CONFLICT",409,"The request identifier was used for another connection");
         if(existing.execution_purpose!=="private_preview_v1" || existing.input!==input.message || existing.principal?.kind!=="human" ||
           existing.principal.issuer!==user.issuer || existing.principal.subject!==user.subject)
@@ -52,7 +52,7 @@ export class PrivatePreview {
         maxContextTokens:contextGrantCeiling(version.configuration),expiresAt:new Date(Date.now()+30*60_000).toISOString(),revokedAt:null});
       await this.store.createGrantInTransaction(db,{accountId:scope.accountId,grant});
       const result=await this.store.admitPrivatePreviewInTransaction(db,{authority,grantId:grant.id,versionId:version.id,input:input.message,requestKey:input.requestId,configurationMode:"current"});
-      if(scope.connectionId)await db.query("INSERT INTO agents_platform.mcp_preview_provenance(task_id,connection_id,account_id,organization_id) VALUES($1,$2,$3,$4)",[result.task.id,scope.connectionId,scope.accountId,scope.organizationId]);
+      if(scope.connectionId)await db.query("INSERT INTO agents_platform.mcp_run_provenance(task_id,connection_id,account_id,organization_id) VALUES($1,$2,$3,$4)",[result.task.id,scope.connectionId,scope.accountId,scope.organizationId]);
       return {id:result.task.id,state:result.task.state,replayed:result.replayed,limitations:"Preview can read approved knowledge. External actions and other tools are unavailable."};
     });
   }

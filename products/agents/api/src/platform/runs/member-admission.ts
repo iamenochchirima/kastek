@@ -19,6 +19,7 @@ export async function admitMemberRun(options: {
   store: AdmissionPort;
   assertServices(configuration: AgentConfiguration): Promise<void>;
   grantOperations(configuration: AgentConfiguration): ExecutionGrant["operations"];
+  onAdmitted?(db: PoolClient, result: { task: TaskRecord; replayed: boolean }): Promise<void>;
 }, input: {
   accountId: string;
   authority: AdmissionAuthority;
@@ -41,7 +42,9 @@ export async function admitMemberRun(options: {
       const digest = requestDigest({ authority, versionId: existing.version_id, input: input.message, conversationId: input.conversationId ?? null, evaluationTrialId: null, channelBinding: null });
       if (existing.request_digest !== digest) throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "The request key was used for different input");
       if ((await db.query("SELECT deleted_at FROM agents_platform.conversations WHERE id=$1", [existing.conversation_id])).rows[0]?.deleted_at) throw new PlatformError("CONVERSATION_DELETED", 403, "Conversation is unavailable");
-      return { task: existing, replayed: true };
+      const result = { task: existing, replayed: true };
+      await options.onAdmitted?.(db, result);
+      return result;
     }
     if (input.evaluationRootTokenLimit) throw new PlatformError("EVALUATION_SCOPE_REQUIRED", 403, "A trial is required for this allocation");
     const version = (await db.query<VersionRecord>(`SELECT v.* FROM agents_platform.agent_versions v JOIN agents_platform.agents a
@@ -54,7 +57,9 @@ export async function admitMemberRun(options: {
       maxInputBytes: version.configuration.model.maxInputBytes, maxOutputTokens: version.configuration.model.maxOutputTokens,
       maxContextTokens: contextGrantCeiling(version.configuration), expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), revokedAt: null });
     await options.store.createGrantInTransaction(db, { accountId: input.accountId, grant });
-    return options.store.admitTaskInTransaction(db, { authority, grantId: grant.id, versionId: version.id, input: input.message,
+    const result = await options.store.admitTaskInTransaction(db, { authority, grantId: grant.id, versionId: version.id, input: input.message,
       requestKey: input.requestKey, conversationId: input.conversationId, configurationMode: "current" });
+    await options.onAdmitted?.(db, result);
+    return result;
   });
 }
