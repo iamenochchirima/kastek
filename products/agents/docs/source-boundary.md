@@ -295,9 +295,9 @@ Training data → Import website. Owners can enter a bare domain, follow crawl p
 select pages, inspect extracted Markdown, and import the selection as one knowledge candidate.
 The next review shows the normalized candidate. **Approve and use** approves the revision, publishes
 it for customer replies, and attaches it through the normal revision-checked agent configuration API.
-Knowledge has no visibility split: an attached source is usable in every conversation with that agent,
-including customer channels. Removing a source from customer answers is done by not attaching it, or by
-deleting it. Closing or reloading resumes the exact persisted import and derives completion from its ready
+Customer channels use active, approved, attached public sources. Member conversations can also use
+attached private sources. Retrieval and reused evidence check current visibility, so changing a source
+to private prevents its use in customer replies. Closing or reloading resumes the exact persisted import and derives completion from its ready
 revision, current approval, active source, and saved agent knowledge bindings. Withdrawn, unavailable,
 failed and cancelled imports remain distinct and can be retried without reporting success.
 

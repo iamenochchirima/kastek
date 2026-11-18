@@ -29,7 +29,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   let start=0;const chunks=values.map((value,ordinal)=>{const chunk={id:randomUUID(),revisionId:job.revisionId,ordinal,start,end:start+value.length,page:ordinal+1,section:null,text:value,digest:textDigest(value),tokens:64};start=chunk.end+2;return chunk;});await pool.query("UPDATE agents_platform.ingestion_jobs SET state='extracting' WHERE id=$1",[job.id]);
   await knowledge.publishExtraction(job.id,{text,chunks,normalizerRelease:"fixture-nfc-v1",acquiredAt:new Date().toISOString(),...(hybrid?{embeddings:chunks.map(()=>Array.from({length:384},(_,index)=>index===0?1:0))}:{})});await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"approve",revisionId:job.revisionId});
   await connectFixtureModel(pool,account.id,org.id);
-  const config=defaultBusinessConfiguration();config.model.maxOutputTokens=1024;config.sourceRevisionIds=[job.revisionId];config.tools=["knowledge.search","knowledge.read"];config.retrievalProfile=hybrid?{kind:"hybrid-v1",embeddingRelease:release}:{kind:"lexical-v1"};const agent=await platform.createAgent({...scope,name:"Researcher",configuration:config}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
+  const config=defaultBusinessConfiguration();config.memory={enabled:false};config.model.maxOutputTokens=1024;config.sourceRevisionIds=[job.revisionId];config.tools=["knowledge.search","knowledge.read"];config.retrievalProfile=hybrid?{kind:"hybrid-v1",embeddingRelease:release}:{kind:"lexical-v1"};const agent=await platform.createAgent({...scope,name:"Researcher",configuration:config}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
   const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}},grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read"],sourceRevisionIds:[job.revisionId],maxInputBytes:16384,maxOutputTokens:1024,maxContextTokens:contextGrantCeiling(config),expiresAt:new Date(Date.now()+600000).toISOString(),revokedAt:null});await platform.createGrant({...scope,grant});const {task}=await platform.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Zircon refrigeration policy"});
   return{scope,job,text,chunks,task,grant,authority,version};
  }
@@ -39,7 +39,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   const f=await fixture(false,[facts,"Independent laboratory samples require refrigerated storage."]);
   for(const query of ["We're launching Wheelhouse next Monday. Can you put together a practical launch plan, a couple of social posts and a WhatsApp message?","What can you tell me about Wheelhouse?"]){
    const id=await operation(f.task.id,"knowledge.search",{query}),result=await runtime.search(f.task.id,id,query);
-   expect(result.passages).toHaveLength(1);expect(result.passages[0]!.text).toBe(facts);expect(result.passages[0]!.revisionId).toBe(f.job.revisionId);
+   expect(f.version.configuration.memory.enabled).toBe(false);expect(result.passages).toHaveLength(1);expect(result.passages[0]!.text).toBe(facts);expect(result.passages[0]!.revisionId).toBe(f.job.revisionId);
    expect((await pool.query("SELECT operation_id,revision_id FROM agents_platform.evidence_references WHERE id=$1",[result.passages[0]!.evidenceId])).rows[0]).toMatchObject({operation_id:id,revision_id:f.job.revisionId});
   }
  });
@@ -85,8 +85,25 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   const scope={organizationId:f.scope.organizationId,versionId:f.version.id,sourceRevisionIds:[f.job.revisionId],publicOnly:true};
   const profile={kind:"hybrid-v1" as const,embeddingRelease:release,queryVector:Array.from({length:384},(_,index)=>index===0?1:0)};
   const authorize=async(db:import("pg").PoolClient)=>assertCurrentAuthority(db,await loadExecution(db,f.task.id));
+  expect(await runtime.retrieval.search(scope,"zircon",{kind:"lexical-v1"},authorize)).toEqual([]);
+  expect((await runtime.retrieval.search({...scope,publicOnly:false},"zircon",{kind:"lexical-v1"},authorize)).length).toBeGreaterThan(0);
   expect(await runtime.retrieval.search(scope,"zircon",profile,authorize)).toEqual([]);
   await expect(runtime.retrieval.search({...scope,publicOnly:false},"zircon",profile,authorize)).rejects.toMatchObject({code:"RETRIEVAL_BACKEND_UNAVAILABLE"});
+ });
+ it("keeps private pinned sections out of customer context",async()=>{
+  const f=await fixture(false,["Private zircon instructions"]),content="Private zircon instructions";
+  await pool.query(`INSERT INTO agents_platform.source_sections(id,organization_id,revision_id,ordinal,level,heading,heading_path,start_offset,end_offset,chars,content,content_digest)
+    VALUES($1,$2,$3,0,1,'Instructions','Instructions',0,$4,$4,$5,$6)`,[randomUUID(),f.scope.organizationId,f.job.revisionId,content.length,content,textDigest(content)]);
+  await pool.query("UPDATE agents_platform.sources SET visibility='public' WHERE id=$1",[f.job.sourceId]);
+  const deployment=await platform.publishWebsite({accountId:f.scope.accountId,organizationId:f.scope.organizationId,agentId:f.task.resource_id,versionId:f.version.id,allowedOrigins:["https://example.com"]});
+  const grant=await platform.createWebsiteGrant({deploymentId:deployment.id,origin:"https://example.com",sessionId:randomUUID()});
+  const authority={product:grant.product,organizationId:grant.organizationId,resourceId:grant.resourceId,callerClientId:grant.callerClientId,principal:grant.principal};
+  const visitor=await platform.admitTask({authority,versionId:grant.versionId,grantId:grant.id,requestKey:randomUUID(),input:"Hello"});
+  await pool.query("UPDATE agents_platform.sources SET visibility='private' WHERE id=$1",[f.job.sourceId]);
+  expect(await runtime.pinnedEligible(f.task.id)).toBe(true);
+  expect(await runtime.pinnedSources(f.task.id)).toHaveLength(1);
+  expect(await runtime.pinnedEligible(visitor.task.id)).toBe(false);
+  expect(await runtime.pinnedSources(visitor.task.id)).toEqual([]);
  });
  it("denies cross-root handles and rechecks source withdrawal before new searches and reads",async()=>{
   const first=await fixture(),other=await fixture(),id=await operation(first.task.id),found=await runtime.search(first.task.id,id,"zircon"),reference=found.passages[0]!;
