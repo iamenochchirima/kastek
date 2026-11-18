@@ -15,6 +15,29 @@ replacement is serving and the last caller is migrated.
 | Conversation archive and restore | None proposed | `products/agents/web/src/platform/assistant-launcher.tsx` | Owner decides between separate archive state and removing restore |
 | Legacy product execution adapters | Platform integration adapters | Growth and Agency execution clients | Both consumers use the shared run contract |
 
+## Product-specific contracts and compatibility paths
+
+These are source-tree candidates for replacement as the platform contract is completed. A row
+identifies the current caller; it does not assert that the replacement already exists.
+
+| Current surface | Last known caller | Intended replacement or review |
+| --- | --- | --- |
+| `packages/contracts/src/growth-agents.ts` command, conversation, task and result types | Growth `api/src/agents/client.ts` and Agents `product/integrations/growth-routes.ts`, `growth-execution.ts` | Shared platform agent, conversation and run operations at consumer cutover. |
+| `packages/contracts/src/growth-agent-provisioning.ts` | Growth `api/src/agents/provisioning-client.ts` and Agents `product/integrations/growth-provisioning.ts` | Generic platform agent configuration and publication. |
+| `packages/contracts/src/agency-agents.ts` command, conversation and model shapes | Agency `api/src/capabilities/execution-client.ts` and Agents `product/integrations/agency-routes.ts`, `agency-execution.ts` | Shared platform agent, conversation, run and model operations. |
+| Growth legacy delegation defaults in `product/integrations/growth-features.ts` | Growth execution | Generic agent delegation configuration and authority. |
+| Agency legacy context defaults in `product/integrations/agency-execution.ts` | Agency execution and model configuration | Shared context policy configured on the agent. |
+| `execution/context/legacy-control-prefix.ts` and its path in `recipient-text.ts` | Recipient text projection of older tool results | Shared current result projection and evidence policy; preserve disclosure protection when removing. |
+| Legacy product evidence fence in `execution/models/runtime.ts` | Model dispatch for older protocol executions | Shared current evidence and product authority checks. |
+| V1 budget branches in `execution/delegation/adaptive.ts` and `execution/lifecycle/work-continuation.ts` | Older execution policy revisions | Current shared model and work accounting. |
+| Legacy pinned knowledge fallback in `execution/business/business.ts` | Older pinned agent versions | The selected knowledge mode and current retrieval policy. |
+| `composition/backfill-knowledge.ts` and `platform/knowledge/backfill-legacy-objects.ts` | Operator command `backfill:knowledge` | New knowledge storage; no legacy backfill prerequisite for the fresh platform. |
+
+Product-owned operations such as Growth resource and channel contracts are not automatically
+retired with product-specific agent orchestration DTOs. The worker also registers v11, v12 and
+v14 business workflows alongside v13 and v15; their callers and target disposition still need to
+be mapped. The external caller inventory and archive/restore destination are also unresolved.
+
 ## Conditions before deletion
 
 - The replacement is verified in an environment where the consumer runs, not only in
