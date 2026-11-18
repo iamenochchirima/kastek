@@ -199,7 +199,7 @@ async function main(){
    const inFlight=(await pool!.query(`SELECT id FROM agents_platform.tasks WHERE parent_task_id IS NULL AND state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain')`)).rows.map((row:{id:string})=>row.id);
    workers[index].child.kill('SIGKILL');faultEvents.push({kind:'worker-loss',worker:index,activeCalls:affected.length,gateCallId:chosen.id,injectedAt,inFlightRoots:inFlight.length,elapsedMs:injectedAt-started});
    releaseWorkerGate();if(workerGateTimer)clearTimeout(workerGateTimer);await delay(500);workers[index]=await startProcess('worker',{...env,AGENTS_LOAD_WORKER_ID:`worker-${index}`});
-   recovery={kind:fault,injectedAt,restoredAt:Date.now(),taskIds:[...new Set([...inFlight,...affected.flatMap(call=>call.rootTaskId?[call.rootTaskId]:[])])],eventSequences:[],physicalCallIds:affected.map(call=>call.id)};
+   recovery={kind:fault,injectedAt,restoredAt:Date.now(),taskIds:[...new Set(affected.flatMap(call=>call.rootTaskId?[call.rootTaskId]:[]))],eventSequences:[],physicalCallIds:affected.map(call=>call.id)};
    faultEvents.push({kind:'worker-restarted',worker:index,injectedAt,restoredAt:recovery.restoredAt,affectedRoots:recovery.taskIds.length,elapsedMs:Date.now()-started});
   }
  })().catch(()=>{releaseWorkerGate();faultEvents.push({kind:'during-arrival-injection-failed',fault});});

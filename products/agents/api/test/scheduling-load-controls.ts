@@ -23,13 +23,16 @@ export async function exerciseOwnershipControls(pool:Pool,endpoints:string[],ten
    let current=(await call(staffPath,undefined,true)).conversation;
    async function command(action:string,body?:string){current=(await call(staffPath+'/commands',{commandId:randomUUID(),expectedRevision:current.revision,action,...(body?{body}:{})},true)).conversation;}
    await command('claim');await command('takeover');
-   const taken=await call(path),sequence=taken.nextSequence;
+   const takeoverAt=new Date(),taken=await call(path),sequence=taken.nextSequence;
    const roots=async()=>Number((await pool.query('SELECT count(*)::int n FROM agents_platform.customer_messages WHERE conversation_id=$1 AND task_id IS NOT NULL',[conversation.id])).rows[0].n);
    const before=await roots();await call(path,{requestKey:randomUUID(),body:'Please handle this manually.'});result.humanBacklogAdmissions+=await roots()-before;
    await command('reply','A support team member is helping.');await command('return');result.returnBacklogAdmissions+=await roots()-before;
    const reconnected=await call(path+'?after='+encodeURIComponent(sequence),undefined,false,other);
    if(reconnected.messages.some((message:any)=>message.authorKind==='human'))result.reconnects++;else result.errors.push('Missing human reply after cross-replica reconnect');
-   result.postTakeoverAssistantMessages+=reconnected.messages.filter((message:any)=>message.authorKind==='assistant').length;
+   // The pre-takeover visitor question may still be answered. Only assistant output for work
+   // admitted after takeover violates human ownership.
+   result.postTakeoverAssistantMessages+=Number((await pool.query(`SELECT count(*)::int n FROM agents_platform.customer_messages m
+     JOIN agents_platform.tasks t ON t.id=m.task_id WHERE m.conversation_id=$1 AND m.author_kind='assistant' AND t.created_at>$2`,[conversation.id,takeoverAt])).rows[0].n);
    await call(path,{requestKey:randomUUID(),body:'opening hours'});
    if(await roots()!==before+1)result.errors.push('New input after return did not admit exactly one root');
   }catch(error){result.errors.push(error instanceof Error?error.message:'Unknown control failure');}
