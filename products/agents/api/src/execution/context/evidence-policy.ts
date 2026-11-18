@@ -12,7 +12,7 @@ import { loadExecution } from "../lifecycle/state";
 import { assertEvaluationTrial } from "../admission/trial-authority";
 import { assertChannelCustomerAuthority } from "../admission/channel-authority";
 import { assertProductAuthority } from "../admission/product-authority";
-import { assertApplicationAuthority } from "../admission/application-authority";
+import { assertApplicationHistoryAccess } from "../admission/application-authority";
 import { productPorts } from "../../infrastructure/product-ports";
 import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
 import { currentVisitorLineageAllowed,historyPrincipalAllowed } from "./visitor-lineage";
@@ -76,7 +76,7 @@ export async function inspectionAuthority(db: Db, execution: Execution): Promise
   } else if (accountId) {
     if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE", [root.task.organization_id, accountId])).rowCount) throw unavailable();
   } else if (root.task.principal.kind === "application") {
-    await assertApplicationAuthority(db, { product: root.task.product, organizationId: root.task.organization_id,
+    await assertApplicationHistoryAccess(db, { product: root.task.product, organizationId: root.task.organization_id,
       resourceId: root.task.resource_id, callerClientId: root.task.caller_client_id, principal: root.task.principal }, root.agentId);
   } else if (root.task.principal.kind === "visitor") {
     if (!await currentVisitorLineageAllowed(db,root)) throw unavailable();

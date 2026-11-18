@@ -19,12 +19,12 @@ export async function admitApplicationRun(options: { pool: Pool; store: Port;
   message: string; requestId: string; conversationId?: string }): Promise<{ task: TaskRecord; replayed: boolean }> {
   const authority: AdmissionAuthority = { product: "agents", organizationId: input.organizationId,
     resourceId: input.agentId, callerClientId: "agents-application",
-    principal: { kind: "application", applicationId: input.applicationId, credentialId: input.credentialId } };
+    principal: { kind: "application", applicationId: input.applicationId } };
   const requestKey = `application:${input.applicationId}:${input.requestId}`;
   return transaction(options.pool, async db => {
     if (!(await db.query("SELECT 1 FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [input.organizationId])).rowCount)
       throw new PlatformError("ACCESS_DENIED", 403, "Application access is unavailable");
-    await assertApplicationAuthority(db, authority, input.agentId);
+    await assertApplicationAuthority(db, authority, input.agentId, input.credentialId);
     const existing = (await db.query<TaskRecord>(`SELECT * FROM agents_platform.tasks WHERE product='agents' AND organization_id=$1
       AND caller_client_id='agents-application' AND resource_id=$2 AND request_key=$3`, [input.organizationId, input.agentId, requestKey])).rows[0];
     if (existing) {
@@ -44,7 +44,7 @@ export async function admitApplicationRun(options: { pool: Pool; store: Port;
     assertRuntimeAvailable(version.configuration);
     await options.assertServices(version.configuration);
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
-      operations: options.grantOperations(version.configuration), sourceRevisionIds: sourceAuthorityIds(version.configuration),
+      applicationCredentialId: input.credentialId, operations: options.grantOperations(version.configuration), sourceRevisionIds: sourceAuthorityIds(version.configuration),
       connectedToolBindingIds: connectedToolAuthorityIds(version.configuration), maxInputBytes: version.configuration.model.maxInputBytes,
       maxOutputTokens: version.configuration.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(version.configuration),
       expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), revokedAt: null });

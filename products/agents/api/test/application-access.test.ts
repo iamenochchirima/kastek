@@ -88,7 +88,8 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
       expect((await app.inject({ method: "GET", url: `/v1/runs/${taskId}`, headers })).json()).toMatchObject({ taskId, state: "accepted" });
       expect((await app.inject({ method: "POST", url: `/v1/runs/${taskId}/cancel`, headers, payload: {} })).statusCode).toBe(401);
       const row = (await pool.query("SELECT principal FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0];
-      expect(row.principal).toEqual({ kind: "application", applicationId: application.id, credentialId: credential.id });
+      expect(row.principal).toEqual({ kind: "application", applicationId: application.id });
+      expect((await pool.query("SELECT g.application_credential_id FROM agents_platform.execution_grants g JOIN agents_platform.tasks t ON t.grant_id=g.id WHERE t.id=$1", [taskId])).rows[0].application_credential_id).toBe(credential.id);
       await app.inject({ method: "POST", url: `${path}/${application.id}/revoke` });
       expect((await app.inject({ method: "GET", url: `/v1/runs/${taskId}`, headers })).statusCode).toBe(401);
     } finally { await app.close(); }

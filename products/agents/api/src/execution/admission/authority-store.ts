@@ -47,13 +47,13 @@ export class AuthorityStore {
   }
   protected async insertGrant(db: Db, grant: ExecutionGrant): Promise<ExecutionGrant> {
     await db.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,
-      version_id,operations,max_input_bytes,max_output_tokens,expires_at,revoked_at,max_context_tokens,root_token_limit,source_revision_ids,connected_tool_binding_ids)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`, [grant.id, grant.product, grant.organizationId, grant.resourceId,
+      version_id,operations,max_input_bytes,max_output_tokens,expires_at,revoked_at,max_context_tokens,root_token_limit,source_revision_ids,connected_tool_binding_ids,application_credential_id)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`, [grant.id, grant.product, grant.organizationId, grant.resourceId,
       grant.callerClientId, grant.principal, grant.versionId, JSON.stringify(grant.operations),
-      grant.maxInputBytes, grant.maxOutputTokens, grant.expiresAt, grant.revokedAt, grant.maxContextTokens, grant.rootTokenLimit, grant.sourceRevisionIds, grant.connectedToolBindingIds]);
+      grant.maxInputBytes, grant.maxOutputTokens, grant.expiresAt, grant.revokedAt, grant.maxContextTokens, grant.rootTokenLimit, grant.sourceRevisionIds, grant.connectedToolBindingIds, grant.applicationCredentialId]);
     return grant;
   }
-  protected async assertPrincipal(db: Db, authority: AdmissionAuthority, version: VersionRecord, options: { currentDeployment?: boolean } = {}): Promise<void> {
+  protected async assertPrincipal(db: Db, authority: AdmissionAuthority, version: VersionRecord, options: { currentDeployment?: boolean; applicationCredentialId?: string | null } = {}): Promise<void> {
     if (authority.product !== "agents") return assertProductAuthority(db,authority,version.id);
     if (authority.principal.kind === "human") {
       if (authority.callerClientId !== "agents-execution" || authority.resourceId !== version.agent_id) denied();
@@ -61,7 +61,7 @@ export class AuthorityStore {
       if (!account) denied();
       await this.membership(db, account.id, authority.organizationId);
     } else if (authority.principal.kind === "application") {
-      await assertApplicationAuthority(db, authority, version.agent_id);
+      await assertApplicationAuthority(db, authority, version.agent_id, options.applicationCredentialId ?? null);
     } else if (authority.principal.kind === "visitor") {
       if (authority.callerClientId !== "agents-website" || authority.resourceId !== authority.principal.deploymentId) denied();
       const deployment = (await db.query<WebsiteDeployment>("SELECT * FROM agents_platform.website_deployments WHERE organization_id=$1 AND id=$2 AND revoked_at IS NULL AND paused=false FOR SHARE", [authority.organizationId, authority.principal.deploymentId])).rows[0];

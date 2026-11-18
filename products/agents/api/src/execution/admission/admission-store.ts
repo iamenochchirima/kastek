@@ -50,7 +50,7 @@ function grantFromRow(row: Record<string, unknown>): ExecutionGrant {
   return executionGrantSchema.parse({ id: row.id, product: row.product, organizationId: row.organization_id,
     resourceId: row.resource_id, callerClientId: row.caller_client_id, principal: row.principal, versionId: row.version_id,
     operations: row.operations, sourceRevisionIds: row.source_revision_ids, connectedToolBindingIds: row.connected_tool_binding_ids, maxInputBytes: row.max_input_bytes,
-    maxOutputTokens: row.max_output_tokens, maxContextTokens: row.max_context_tokens, rootTokenLimit: row.root_token_limit, expiresAt: (row.expires_at as Date).toISOString(),
+    maxOutputTokens: row.max_output_tokens, maxContextTokens: row.max_context_tokens, rootTokenLimit: row.root_token_limit, applicationCredentialId: row.application_credential_id, expiresAt: (row.expires_at as Date).toISOString(),
     revokedAt: row.revoked_at ? (row.revoked_at as Date).toISOString() : null });
 }
 
@@ -60,7 +60,7 @@ export class AdmissionStore extends AuthorityStore {
     const grant = executionGrantSchema.parse(input.grant);
     if (grant.principal.kind !== "application" || new Date(grant.expiresAt).getTime() > Date.now() + 30 * 60_000) denied();
     const version = await this.version(db, grant.organizationId, grant.versionId);
-    await this.assertPrincipal(db, grant, version);
+    await this.assertPrincipal(db, grant, version, { applicationCredentialId: grant.applicationCredentialId });
     assertGrantAuthority(grant, grant, version.id, version.configuration);
     return this.insertGrant(db, grant);
   }
@@ -102,7 +102,7 @@ export class AdmissionStore extends AuthorityStore {
     assertComposition(version.effective_composition, composition);
     assertGrantAuthority(grant, input.authority, input.versionId, config);
     assertRuntimeAvailable(config);
-    await this.assertPrincipal(db, input.authority, version, { currentDeployment: true });
+    await this.assertPrincipal(db, input.authority, version, { currentDeployment: true, applicationCredentialId: grant.applicationCredentialId });
     if (input.authority.principal.kind === "channel_customer" && (!input.channelBinding ||
       channelBindingSchema.parse(input.channelBinding).customerConversationId !== input.authority.principal.participantId)) denied();
     if (input.configurationMode === "current") {

@@ -184,6 +184,7 @@ export const executionGrantSchema = z.strictObject({
   resourceId: z.string().min(1).max(256),
   callerClientId: z.string().min(1).max(128),
   principal: principalSchema,
+  applicationCredentialId: z.uuid().nullable().default(null),
   versionId: z.uuid(),
   operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver", "connected.read", "connected.execute", "channel.handoff", "skill.read", "booking.read", "booking.execute", "product.read", "product.write", "enquiry.submit", "enquiry.read", "enquiry.amend", "records.read", "records.write", "tasks.read", "tasks.cancel"])).min(1).max(24),
   sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),
