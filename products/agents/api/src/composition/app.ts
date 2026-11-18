@@ -140,6 +140,7 @@ import { createConfiguredProductRuntime } from "../execution/products/configured
 import { registerAgencyProductRoutes, agencyServiceTrustFromEnvironment } from "../product/integrations/agency-routes";
 import { admitMemberRun } from "../platform/runs";
 import { admitApplicationRun } from "../platform/runs";
+import { createApplicationAgentManagement } from "../product/agents/application-management";
 import { registerApplicationConnectionSharing } from "../product/connections/application-sharing";
 const uuid = z.uuid();
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -286,7 +287,9 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   }
   registerMemberRoutes(app, { store: members, resolveScope, account, sendInvitation: sendInvitationEmail });
   registerApplicationConnectionSharing(app, { pool, resolveScope });
-  registerApplicationRoutes(app, { applications: new Applications(pool, authorizeApplicationManager), resolveScope, runs: {
+  const creationOperations = agentCreationOperations({ store, pool, assertBindings });
+  registerApplicationRoutes(app, { applications: new Applications(pool, authorizeApplicationManager, { publicUrl: config.AGENTS_PUBLIC_URL }),
+    agentManagement: createApplicationAgentManagement({ pool, store, operations: creationOperations, assertBindings }), resolveScope, runs: {
     start: input => admitApplicationRun({ pool, store, assertServices, grantOperations }, input),
     read: async task => ({ taskId: task.id, conversationId: task.conversation_id, state: task.state,
       errorCode: task.error_code, ...await readableOutput(task.id, task.output), ...await readPublicAgentUpdates(pool, task.id) }),
@@ -427,7 +430,6 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   }
   app.post(`${base}/conversations/:conversationId/archive`, async request => archiveConversation(request, true));
   app.post(`${base}/conversations/:conversationId/restore`, async request => archiveConversation(request, false));
-  const creationOperations = agentCreationOperations({ store, pool, assertBindings });
   registerAgentManagementRoutes(app, {
     pool, store, operations: creationOperations, offerings: customerOfferings, avatarSchema: agentAvatarSchema,
     assertBindings, composedInstructions: composeAgentInstructions, present: dto,

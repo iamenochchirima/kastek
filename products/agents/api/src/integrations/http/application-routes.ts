@@ -3,10 +3,18 @@ import { z } from "zod";
 import { PlatformError, terminalTaskStates } from "../../contracts/contracts";
 import type { ApplicationAccess } from "../../platform/access";
 import type { TaskRecord } from "../../contracts/records";
-import type { ApplicationRunSnapshot, ApplicationRunStartResponse } from "@kasitek-labs/contracts";
+import type { ApplicationAgentBinding, ApplicationAgentPreviewResponse, ApplicationAgentVersionSummary, ApplicationRunSnapshot, ApplicationRunStartResponse } from "@kasitek-labs/contracts";
+import { agentConfigurationSchema } from "../../contracts/contracts";
 
 export function registerApplicationRoutes(app: FastifyInstance, options: {
   applications: ApplicationAccess; resolveScope(request: FastifyRequest): Promise<{ accountId: string; organizationId: string }>;
+  agentManagement?: {
+    create(caller: { organizationId: string; applicationId: string; credentialId: string }, input: { name: string; purpose?: string; instructions?: string; operationId: string }): Promise<{ id: string; name: string }>;
+    update(caller: { organizationId: string; applicationId: string; credentialId: string }, agentId: string, input: { name?: string; configuration: unknown; expectedRevision: number }): Promise<{ id: string; name: string; draftRevision: number }>;
+    preview(caller: { organizationId: string; applicationId: string; credentialId: string }, agentId: string, input: { configuration: unknown }): Promise<ApplicationAgentPreviewResponse>;
+    publish(caller: { organizationId: string; applicationId: string; credentialId: string }, agentId: string, input: { expectedRevision: number }): Promise<ApplicationAgentVersionSummary>;
+    bind(caller: { organizationId: string; applicationId: string; credentialId: string }, agentId: string, input: { versionId?: string; allowedOrigins: string[] }): Promise<ApplicationAgentBinding>;
+  };
   runs?: {
     start(input: { organizationId: string; applicationId: string; credentialId: string; agentId: string; message: string; requestId: string; conversationId?: string; delegated?: { subject: string; assertionDigest: string; issuedAt: string; expiresAt: string } }): Promise<{ task: TaskRecord; replayed: boolean }>;
     read(task: TaskRecord): Promise<unknown>;
@@ -53,13 +61,44 @@ export function registerApplicationRoutes(app: FastifyInstance, options: {
     const { agentId } = z.strictObject({ agentId: z.uuid() }).parse(request.params);
     return reply.header("cache-control", "private, no-store").send({ agent: await applications.inspectAgent(match[1]!, agentId) });
   });
-  if (!options.runs) return;
   const runs = options.runs;
   function bearer(request: FastifyRequest): string {
     const match = /^Bearer ([^\s]+)$/.exec(request.headers.authorization ?? "");
     if (!match) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
     return match[1]!;
   }
+  const management = options.agentManagement;
+  if (management) {
+    const agentId = (request: FastifyRequest) => z.strictObject({ agentId: z.uuid() }).parse(request.params).agentId;
+    app.post("/v1/agents", async (request, reply) => {
+      const caller = await applications.authenticate(bearer(request), "agents:manage");
+      const input = z.strictObject({ name: z.string().trim().min(1).max(120), purpose: z.string().trim().min(1).max(600).optional(),
+        instructions: z.string().trim().min(1).max(8000).optional(), operationId: z.uuid() }).parse(request.body);
+      return reply.code(201).send({ agent: await management.create(caller, input) });
+    });
+    app.patch("/v1/agents/:agentId", async (request, reply) => {
+      const caller = await applications.authenticate(bearer(request), "agents:manage");
+      const input = z.strictObject({ name: z.string().trim().min(1).max(120).optional(),
+        configuration: agentConfigurationSchema, expectedRevision: z.number().int().positive() }).parse(request.body);
+      return reply.send({ agent: await management.update(caller, agentId(request), input) });
+    });
+    app.post("/v1/agents/:agentId/preview", async (request, reply) => {
+      const caller = await applications.authenticate(bearer(request), "agents:manage");
+      const input = z.strictObject({ configuration: agentConfigurationSchema }).parse(request.body);
+      return reply.send(await management.preview(caller, agentId(request), input));
+    });
+    app.post("/v1/agents/:agentId/versions", async (request, reply) => {
+      const caller = await applications.authenticate(bearer(request), "agents:publish");
+      const input = z.strictObject({ expectedRevision: z.number().int().positive() }).parse(request.body);
+      return reply.code(201).send({ version: await management.publish(caller, agentId(request), input) });
+    });
+    app.post("/v1/agents/:agentId/deployments", async (request, reply) => {
+      const caller = await applications.authenticate(bearer(request), "agents:publish");
+      const input = z.strictObject({ versionId: z.uuid().optional(), allowedOrigins: z.array(z.string()).min(1).max(10) }).parse(request.body);
+      return reply.code(201).send({ deployment: await management.bind(caller, agentId(request), input) });
+    });
+  }
+  if (!runs) return;
   async function accessRun(request: FastifyRequest, scope: "runs:read" | "runs:control") {
     const { taskId } = z.strictObject({ taskId: z.uuid() }).parse(request.params);
     return applications.authorizedRun(bearer(request), taskId, scope);

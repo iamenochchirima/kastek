@@ -30,3 +30,12 @@ export interface ApplicationCredentialResponse { credential: ApplicationCredenti
 export interface ApplicationRunStartResponse { taskId: string; conversationId: string; state: string; replayed: boolean }
 export interface ApplicationRunSnapshot { taskId: string; conversationId: string; state: string; errorCode: string | null;
   output: string | null; outputAvailability: string; updates: unknown[]; updatesTruncated: boolean }
+
+export interface ApplicationAgentCreateRequest { name: string; purpose?: string; instructions?: string; operationId: string }
+export interface ApplicationAgentUpdateRequest { name?: string; configuration: unknown; expectedRevision: number }
+export interface ApplicationAgentPublishRequest { expectedRevision: number }
+export interface ApplicationAgentBindRequest { versionId?: string; allowedOrigins: string[] }
+export interface ApplicationAgentPreviewRequest { configuration: unknown }
+export interface ApplicationAgentPreviewResponse { ready: boolean; errors: Array<{ code: string; message: string }> }
+export interface ApplicationAgentVersionSummary { id: string; number: number; createdAt: string }
+export interface ApplicationAgentBinding { id: string; versionId: string; allowedOrigins: string[]; publishedAt: string }
