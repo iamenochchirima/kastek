@@ -27,6 +27,7 @@ import { createBusinessWorkflow, type BusinessOptions } from "../execution/busin
 import { PlatformConversationHistory } from "../platform/conversations/history";
 import { PlatformRunStateReader } from "../platform/runs/run-state";
 import { registeredWorkflowServices } from "../platform/capabilities/workflows";
+import { workloadPoolsFromEnvironment } from "../execution/scheduling/workload-routes";
 import { MemoryStore } from "../platform/memory/memory";
 import { createContextCompactionWorkflow } from "../execution/context/compaction-workflow";
 import { createSupportStatusWorkflow,SUPPORT_STATUS_WORKFLOW } from '../execution/business/support-status-business';
@@ -214,7 +215,10 @@ async function main(): Promise<void> {
     await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(port, host, resolve); });
   } catch (error) { server.close(); await pool.end(); throw error; }
   const metrics = createNativeMetrics(pool,"worker");
+  const workerPools = workloadPoolsFromEnvironment(), workerPool = process.env.AGENTS_WORKER_POOL?.trim() || null;
+  const workload = workerPools.interactive && workerPool === workerPools.interactive ? "interactive" as const : workerPools.background && workerPool === workerPools.background ? "background" as const : undefined;
   const dispatcher = startDispatcher(pool, {
+    workload,
     policy: dispatchPolicy,
     ingressUrl: process.env.RESTATE_INGRESS_URL ?? "http://127.0.0.1:18080",
     adminUrl: process.env.RESTATE_ADMIN_URL ?? "http://127.0.0.1:19070",
