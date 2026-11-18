@@ -12,7 +12,7 @@ import type { TaskModelInvocation, ModelRuntimeDependencies } from "../models/ru
 import type { ProductRuntimePort } from "../products/product-runtime";
 import type { EvidenceStore } from "./evidence";
 import type { ContextGroup } from "./context";
-import { adoptCompactionCheckpoint, failCompactionJob, readCompactionJobOutcome, type CompactionJobOutcome } from "./checkpoints";
+import { adoptCompactionCheckpoint, failCompactionJob, readCompactionJobOutcome, type CompactionJobOutcome } from "../lifecycle/checkpoints";
 
 export { CONTEXT_COMPACTION_WORKFLOW } from "../../contracts/execution";
 export interface ContextCompactionOptions {

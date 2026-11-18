@@ -78,7 +78,7 @@ import { SHARED_HARNESS_RELEASE } from "../../contracts/execution";
 import { historyResultBytes, readHistory, searchHistory, toolReceiptPreview, type RetainedArtifactReader } from "../context/journal";
 import { historyToolDefinitions } from "../../capabilities/history-tools";
 import { protocolToolVersions } from "../../capabilities/protocol-tools";
-import { loadContinuityCheckpoint, prepareCompactionJob, adoptCompactionCheckpoint, readCompactionJobOutcome, failCompactionJob, retireQueuedBackgroundCompaction, type CompactionJobOutcome, type ContinuityCheckpoint } from "../context/checkpoints";
+import { loadContinuityCheckpoint, prepareCompactionJob, adoptCompactionCheckpoint, readCompactionJobOutcome, failCompactionJob, retireQueuedBackgroundCompaction, type CompactionJobOutcome, type ContinuityCheckpoint } from "../lifecycle/checkpoints";
 import { customerChannelInstructions, customerSafeInstructions, retrievalOnlyChannelInstructions, sharedProtocolInstructions } from "../context/protocol-instructions";
 import { planBackgroundCompaction } from "../context/background-planning";
 import { CONTEXT_COMPACTION_WORKFLOW,type ContextCompactionWorkflow } from "../context/compaction-workflow";

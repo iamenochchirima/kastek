@@ -2,7 +2,7 @@ import type {Pool} from "pg";
 import type {Execution,MemoryFence} from "../../contracts/execution";
 import {requestDigest as modelRequestDigest,type ModelRequest} from "../business/model";
 import {prepareCompaction,type ContextGroup,type ContextModelPolicy} from "./context";
-import {prepareCompactionJob,type ContinuityCheckpoint} from "./checkpoints";
+import {prepareCompactionJob,type ContinuityCheckpoint} from "../lifecycle/checkpoints";
 import type {EvidenceStore} from "./evidence";
 import {PlatformError,requestDigest} from "../../contracts/contracts";
 
