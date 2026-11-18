@@ -9,6 +9,8 @@ import { admitApplicationRun } from "../src/platform/runs/application-admission"
 import { operationsForConfiguration } from "../src/platform/access/grant-operations";
 import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { connectFixtureModel } from "./model-fixture";
+import { buildPlatformApp } from "../src/composition/app";
+import { loadPlatformConfig } from "../src/infrastructure/config";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 
 const url = process.env.AGENTS_TEST_DATABASE_URL;
@@ -89,6 +91,29 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
       expect(row.principal).toEqual({ kind: "application", applicationId: application.id, credentialId: credential.id });
       await app.inject({ method: "POST", url: `${path}/${application.id}/revoke` });
       expect((await app.inject({ method: "GET", url: `/v1/runs/${taskId}`, headers })).statusCode).toBe(401);
+    } finally { await app.close(); }
+  });
+
+  it("accepts bearer run requests through the composed API without a browser origin", async () => {
+    const store = new PlatformStore(pool);
+    const owner = await store.ensureAccount({ issuer: "https://identity.test", subject: randomUUID(), email: "api@example.test", displayName: "Owner" });
+    const org = await store.createOrganization(owner.id, "API");
+    await connectFixtureModel(pool, owner.id, org.id);
+    const agent = await store.createConfiguredAgent({ accountId: owner.id, organizationId: org.id, name: "Agent", configuration: defaultBusinessConfiguration() });
+    const session = await store.createSession({ accountId: owner.id, providerSessionId: randomUUID(), expiresAt: new Date(Date.now() + 3600000) });
+    const app = await buildPlatformApp({ pool, logging: false, config: loadPlatformConfig({ NODE_ENV: "test",
+      AGENTS_DATABASE_URL: (pool.options as { connectionString: string }).connectionString, AGENTS_PUBLIC_URL: "http://localhost:3100",
+      AGENTS_OIDC_ISSUER_URL: "https://identity.test", AGENTS_OIDC_CLIENT_SECRET: "isolated-application-fixture-secret" }) });
+    try {
+      const created = await app.inject({ method: "POST", url: `/api/organizations/${org.id}/applications`,
+        headers: { cookie: `agents_session=${session.token}`, origin: "http://localhost:3100" },
+        payload: { name: "Client", agentIds: [agent.agent.id], scopes: ["runs:start", "runs:read"] } });
+      expect(created.statusCode).toBe(201);
+      const headers = { authorization: `Bearer ${created.json().credential.secret}` };
+      const run = await app.inject({ method: "POST", url: "/v1/runs", headers,
+        payload: { agentId: agent.agent.id, message: "Hello", requestId: randomUUID() } });
+      expect(run.statusCode).toBe(202);
+      expect((await app.inject({ method: "GET", url: `/v1/runs/${run.json().taskId}`, headers })).statusCode).toBe(200);
     } finally { await app.close(); }
   });
 });
