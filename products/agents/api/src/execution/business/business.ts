@@ -124,6 +124,7 @@ export interface BusinessOptions {
   toolReviews?: ToolReviewStore;
   capabilityHandlers?:readonly CapabilityOperationHandler[];
   bookings?:BookingService;
+  onInvocation?: (info: { release: string }) => void;
   settleHandoffReceipt?:(taskId:string,candidate:string|null,definitiveFailure:boolean)=>Promise<unknown>;
   selectReportArtifact?:(taskId:string,name:string,generatedOutput:string)=>Promise<{id:string}>;
   executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]}|{skillId:string;path:string;inputArtifactIds?:string[]})=>Promise<unknown>;
@@ -769,6 +770,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
     run: async (ctx: restate.WorkflowContext, input: { taskId: string }) => {
       if (ctx.key !== input.taskId) throw new restate.TerminalError("Task identity mismatch", { errorCode: 400 });
       const taskId = input.taskId;
+      options.onInvocation?.({ release: runtime.release });
       const knowledge = options.readers?.knowledge ?? options.knowledgeRuntime;
       // A process-local registry must be hydrated on replay too; a journaled cache fill would be skipped.
       const runStarted = Date.now();

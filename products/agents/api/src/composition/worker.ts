@@ -174,6 +174,7 @@ async function main(): Promise<void> {
   const modelVault = connectionVaultFromEnvironment();
   const modelProvider = new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined);
   const productRuntime=await createConfiguredProductRuntime(pool,evidence);
+  let metrics: ReturnType<typeof createNativeMetrics> | undefined;
   const workflowOptions: BusinessOptions = { modelProvider, signal: abort.signal,
     product:productRuntime,
     readRetainedArtifact: (taskId,originTaskId,artifactId)=>artifacts.readRetainedForTask(taskId,originTaskId,artifactId),artifacts,
@@ -182,6 +183,8 @@ async function main(): Promise<void> {
     capabilityHandlers:[bookingOperationHandler(bookings),reportDeliveryHandler()],
     history: new PlatformConversationHistory(pool),
     readers: { knowledge: knowledgeRuntime, memory: new MemoryStore(pool, skillPackageCodec), runState: new PlatformRunStateReader(pool) },
+    onInvocation: info => metrics?.invocation({ release: info.release, role: process.env.AGENTS_WORKER_ROLE ?? "all",
+      workload: process.env.AGENTS_WORKER_POOL ?? "all" }),
     onSettled: taskId => generateConversationTitle({ pool, providers: modelProvider, taskId })
       .catch(error => console.error(JSON.stringify({ ...diagnosticIdentity, event: "conversation.title.failed", taskId,
         code: error instanceof PlatformError ? error.code : "TITLE_GENERATION_FAILED" }))) };
@@ -220,7 +223,7 @@ async function main(): Promise<void> {
     await pool.query("SELECT 1 FROM agents_platform.tasks LIMIT 1");
     await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(port, host, resolve); });
   } catch (error) { server.close(); await pool.end(); throw error; }
-  const metrics = createNativeMetrics(pool,"worker");
+  metrics = createNativeMetrics(pool,"worker");
   const workerPools = workloadPoolsFromEnvironment(), workerPool = process.env.AGENTS_WORKER_POOL?.trim() || null;
   const workload = workerRoleWorkload(workerRole) ?? (workerPools.interactive && workerPool === workerPools.interactive ? "interactive" as const : workerPools.background && workerPool === workerPools.background ? "background" as const : undefined);
   const dispatcher = workerRunsBusiness(workerRole) ? startDispatcher(pool, {
