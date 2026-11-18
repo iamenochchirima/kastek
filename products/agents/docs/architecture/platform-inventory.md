@@ -24,9 +24,11 @@ entry point registers.
 
 | Module | Routes | Mount point |
 | --- | ---: | --- |
-| `composition/app.ts` | 39 | Session, evaluation trials, website widget, health |
+| `composition/app.ts` | 21 | Session, assistant, connections and tool bindings, health |
 | `platform/agents/http.ts` | 17 | `/api/organizations/:organizationId/agents/*`, `/offerings` |
 | `platform/runs/http.ts` | 13 | Conversation and task lists, admission, detail, events, evidence, artifacts, instructions, continuation, cancel, history export, conversation read and delete |
+| `integrations/http/evaluation-routes.ts` | 9 | Model preview and evaluation trials, channels, history and revocation |
+| `integrations/http/website-routes.ts` | 9 | Website metadata, widget, visitor session, tasks, evidence, conversation and CORS preflight |
 | `product/channels/channel-routes.ts` | 27 | `/api/organizations/:organizationId/channels` |
 | `product/inbox/inbox-routes.ts` | 19 | `/api/organizations/:organizationId/inbox`, `/api/website/:deploymentId/customer-conversations` |
 | `integrations/http/application-routes.ts` | 13 | `/api/organizations/:organizationId/applications`, `/v1/agents`, `/v1/runs` |
@@ -72,8 +74,8 @@ entry point registers.
 | `acceptance/report-receiver.ts` | 1 | `/deliveries` (separate process) |
 | `adapters/executors/executor-host.ts` | 1 | `/v1/resources/commands` (separate executor process) |
 
-Current code owners follow the source tree: 39 routes are registered directly in
-`composition/app.ts`, 298 sit in `product/`, `integrations/`, `platform/` and `workflows/`, and 2
+Current code owners follow the source tree: 21 routes are registered directly in
+`composition/app.ts`, 316 sit in `product/`, `integrations/`, `platform/` and `workflows/`, and 2
 belong to separate processes. The plan's target moves request handling to `integrations/` and the
 decisions behind it to `platform/`.
 

@@ -1391,7 +1391,9 @@ avatar schema as ports, so the module depends only on `contracts` and
 Task and conversation handlers moved to `platform/runs/http.ts`: lists, admission,
 detail, events, evidence, artifacts, instructions, continuation, cancel, history
 export, conversation read and conversation delete. Archive and restore remain in
-composition because retention makes deletion irreversible.
+composition because retention makes deletion irreversible. Evaluation trial routes
+moved to `integrations/http/evaluation-routes.ts` and visitor website routes to
+`integrations/http/website-routes.ts`; both receive product behaviour as ports.
 
 Composition entry points are `api/src/composition/` and compile to
 `api/dist/composition/`. MCP's bounded helper remains adjacent to its adapter under

@@ -37,7 +37,6 @@ import {
 agentConfigurationSchema,
 canonicalJson,
 connectedToolAuthorityIds,
-parseAllowedOrigin,
 PlatformError,
 terminalTaskStates,type AdmissionAuthority,type AgentConfiguration
 } from "../contracts/contracts";
@@ -107,6 +106,8 @@ import { effectivePermissions, requirePermission } from "../platform/access/perm
 import { registerAgentManagementRoutes } from "../platform/agents/http";
 import { registerRunRoutes, taskInput } from "../platform/runs/http";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
+import { registerEvaluationRoutes } from "../integrations/http/evaluation-routes";
+import { registerWebsiteRoutes } from "../integrations/http/website-routes";
 import { customerOfferings } from "../product/offerings/offerings";
 import { registerAutomationRoutes } from "../product/automations/automation-routes";
 import { AutomationService } from "../product/automations/automations";
@@ -144,7 +145,6 @@ import { admitApplicationRun } from "../platform/runs/application-admission";
 import { registerApplicationRoutes } from "../integrations/http/application-routes";
 import { registerApplicationConnectionSharing } from "../product/connections/application-sharing";
 const uuid = z.uuid();
-const websiteTaskInput = taskInput.omit({ versionId: true });
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
 const dto = (row: object) => ({ ...Object.fromEntries(Object.entries(row).map(([key, value]) => [
   key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()), value,
@@ -644,52 +644,10 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       () => app.log.error({ event: "website_crawl_dispatch_failed", code: "WEBSITE_CRAWL_DISPATCH_FAILED" }));
   });
   app.addHook("onClose", async () => { await stopWebsiteCrawls?.(); });
-  app.post(`${base}/agents/:agentId/model-preview`, async request => evaluationTrials.preview(
-    (await account(request)).id, organizationId(request), uuid.parse(parameters(request).agentId), request.body));
-  app.post(`${base}/evaluation-trials`, async (request, reply) => {
-    const org = organizationId(request), user = await account(request);
-    const trial = await evaluationTrials.prepare(user.id, org, prepareTrialSchema.parse(request.body));
-    return reply.code(201).send({ trial, submitPath: `/api/organizations/${org}/tasks`, taskBinding: { evaluationTrialId: trial.id },
-      revokePath: `/api/organizations/${org}/evaluation-trials/${trial.id}/revoke` });
-  });
-  app.get(`${base}/evaluation-trials`, async request => {
-    const query = z.strictObject({ trialId: z.string().min(1).max(128) }).parse(request.query);
-    return evaluationTrials.get((await account(request)).id, organizationId(request), query);
-  });
-  app.get(`${base}/evaluation-trials/:trialId`, async request => evaluationTrials.get((await account(request)).id,
-    organizationId(request), { id: uuid.parse(parameters(request).trialId) }));
-  app.post(`${base}/evaluation-trials/:trialId/channel-session`,async request=>{
-    if(!config.AGENTS_LOGIN_RETURN_SECRET)throw new PlatformError("EVALUATION_CHANNEL_UNAVAILABLE",503,"Evaluation channels require the configured signing secret");
-    return evaluationTrials.channelSession((await account(request)).id,organizationId(request),uuid.parse(parameters(request).trialId),request.body,config.AGENTS_LOGIN_RETURN_SECRET);
-  });
-  app.post(`${base}/evaluation-trials/:trialId/channel-fixture`,async request=>{
-    if(!channelServices.fixtures)throw new PlatformError("EVALUATION_CHANNEL_UNAVAILABLE",503,"Isolated channel storage is unavailable");
-    return channelServices.fixtures.prepare(await resolveScope(request),uuid.parse(parameters(request).trialId),request.body);
-  });
-  app.post(`${base}/evaluation-trials/:trialId/channel-fixture/ingress`,async request=>{
-    if(!channelServices.fixtures)throw new PlatformError("EVALUATION_CHANNEL_UNAVAILABLE",503,"Isolated channel storage is unavailable");
-    return channelServices.fixtures.ingress(await resolveScope(request),uuid.parse(parameters(request).trialId),request.body);
-  });
-  app.get(`${base}/evaluation-trials/:trialId/channel-history`,async request=>{
-    const user=await account(request),org=organizationId(request),id=uuid.parse(parameters(request).trialId);
-    const trial=await evaluationTrials.get(user.id,org,{id});
-    if(!trial.trial)throw new PlatformError("NOT_FOUND",404,"Trial not found");
-    if((await pool.query("SELECT 1 FROM agents_platform.evaluation_trial_messaging_channels WHERE trial_id=$1 AND organization_id=$2",[id,org])).rowCount){
-      if(!channelServices.fixtures)throw new PlatformError("EVALUATION_CHANNEL_UNAVAILABLE",503,"Isolated channel storage is unavailable");
-      return channelServices.fixtures.history({accountId:user.id,organizationId:org},id);
-    }
-    const channel=(await pool.query(`SELECT c.id FROM agents_platform.evaluation_trial_channels e
-      JOIN agents_platform.customer_conversations c ON c.session_id=e.session_id AND c.deployment_id=e.deployment_id
-      WHERE e.trial_id=$1 AND c.organization_id=$2`,[id,org])).rows[0];
-    if(!channel)return {conversation:null,messages:[],commands:[],deliveries:[],rootTaskIds:trial.rootTaskIds};
-    const history=await inbox.readStaff({accountId:user.id,organizationId:org},channel.id);
-    const commands=(await pool.query(`SELECT command_id,action,actor_account_id,created_at FROM agents_platform.customer_commands WHERE conversation_id=$1 ORDER BY created_at,command_id LIMIT 1000`,[channel.id])).rows;
-    const deliveries=(await pool.query(`SELECT id,task_id,message_id,ownership_generation,state,reason,created_at FROM agents_platform.customer_deliveries WHERE conversation_id=$1 ORDER BY created_at,id LIMIT 1000`,[channel.id])).rows;
-    return {...history,commands,deliveries,rootTaskIds:trial.rootTaskIds};
-  });
-  app.post(`${base}/evaluation-trials/:trialId/revoke`, async request => {
-    z.strictObject({}).parse(request.body ?? {});
-    return evaluationTrials.revoke((await account(request)).id, organizationId(request), uuid.parse(parameters(request).trialId));
+  registerEvaluationRoutes(app, {
+    pool, trials: evaluationTrials, parseTrial: raw => prepareTrialSchema.parse(raw),
+    fixtures: channelServices.fixtures, signingSecret: config.AGENTS_LOGIN_RETURN_SECRET, inbox,
+    resolveScope: async request => ({ account: await account(request), organizationId: organizationId(request) }),
   });
   async function taskPassages(task: TaskRecord) {
     if(task.channel_binding && !(await pool.query("SELECT 1 FROM agents_platform.customer_deliveries WHERE task_id=$1 AND state='published'",[task.id])).rowCount)
@@ -710,72 +668,14 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     }
   }
 
-  async function websiteContext(request: FastifyRequest, reply?: { header: (key: string, value: string) => unknown }) {
-    const deployment = await store.getWebsiteDeployment(uuid.parse(parameters(request).deploymentId));
-    const suppliedOrigin = request.headers.origin;
-    // The first-party chat view is a preview of this explicit publication, never a draft.
-    const websiteOrigin = suppliedOrigin || (request.method === "GET" ? origin : "");
-    const allowed = deployment.allowed_origins.includes(websiteOrigin) || websiteOrigin === origin;
-    if (!allowed || (websiteOrigin && parseAllowedOrigin(websiteOrigin) !== websiteOrigin)) throw new PlatformError("ORIGIN_DENIED", 403, "Website origin is not allowed");
-    if (suppliedOrigin) {
-      reply?.header("access-control-allow-origin", suppliedOrigin);
-      reply?.header("vary", "Origin");
-      reply?.header("access-control-allow-headers", "Content-Type, Authorization");
-      reply?.header("access-control-allow-methods", "GET, POST, OPTIONS");
-    }
-    return { deployment, websiteOrigin, grantOrigin: websiteOrigin === origin ? deployment.allowed_origins[0]! : websiteOrigin };
-  }
-  // Saved visitors also preflight the metadata GET because it carries Authorization.
-  for (const path of ["/api/website/:deploymentId", "/api/website/:deploymentId/*"]) {
-    app.options(path, async (request, reply) => {
-      await websiteContext(request, reply); return reply.code(204).send();
-    });
-  }
-  async function publicRate(deploymentId: string): Promise<void> {
-    await pool.query("DELETE FROM agents_platform.website_rate_limits WHERE deployment_id=$1 AND minute<now()-interval '1 day'", [deploymentId]);
-    const row = (await pool.query<{ requests: number }>(`INSERT INTO agents_platform.website_rate_limits(deployment_id,minute,requests)
-      VALUES($1,date_trunc('minute',now()),1) ON CONFLICT(deployment_id,minute) DO UPDATE SET requests=agents_platform.website_rate_limits.requests+1 RETURNING requests`, [deploymentId])).rows[0]!;
-    if (row.requests > 20) throw new PlatformError("RATE_LIMIT", 429, "Too many requests. Try again shortly");
-  }
-  async function websiteAuthority(request: FastifyRequest, deployment: Awaited<ReturnType<PlatformStore["getWebsiteDeployment"]>>, websiteOrigin: string): Promise<AdmissionAuthority> {
-    if(deployment.paused)throw new PlatformError("WEBSITE_PAUSED",409,"This chat is paused");
-    const token = request.headers.authorization?.match(/^Bearer ([A-Za-z0-9_-]{43})$/)?.[1];
-    if (!token) throw new PlatformError("WEBSITE_SESSION_REQUIRED", 401, "Website session required");
-    const row = (await pool.query<{ id: string }>(`SELECT id FROM agents_platform.website_sessions
-      WHERE deployment_id=$1 AND token_hash=$2 AND origin=$3 AND expires_at>now()`, [deployment.id, hash(token), websiteOrigin])).rows[0];
-    if (!row) throw new PlatformError("WEBSITE_SESSION_EXPIRED", 401, "Website session expired");
-    return { product: "agents", organizationId: deployment.organization_id, resourceId: deployment.id,
-      callerClientId: "agents-website", principal: { kind: "visitor", deploymentId: deployment.id, sessionId: row.id } };
-  }
-  app.get("/api/website/:deploymentId", async (request, reply) => {
-    const { deployment } = await websiteContext(request, reply);
-    const row = (await pool.query<{ name: string }>("SELECT name FROM agents_platform.agents WHERE id=$1 AND organization_id=$2", [deployment.agent_id, deployment.organization_id])).rows[0];
-    const version=(await pool.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1 AND organization_id=$2",[deployment.version_id,deployment.organization_id])).rows[0];
-    return { name: row?.name ?? "Assistant",appearance:websiteAppearanceSchema.parse(deployment.appearance),paused:deployment.paused,followupPreferencesAvailable:true,followupEnabled:followupConfig?await customerFollowupReady(pool,followupConfig,config.RESTATE_ADMIN_URL):false,
-      nativeEnquiryEnabled:Boolean(version?.configuration.capabilities?.enquiries?.enabled),intakeEnabled:Boolean(version?.configuration.connectedToolBindingIds.length || version?.configuration.capabilities?.enquiries?.enabled),bookingEnabled:Boolean(version?.configuration.capabilities?.businessActions?.enabled) };
+  const { resolveVisitor, publicRate } = registerWebsiteRoutes(app, {
+    pool, store, inbox, origin,
+    followup: { enabled: Boolean(followupConfig), ready: () => followupConfig ? customerFollowupReady(pool, followupConfig, config.RESTATE_ADMIN_URL) : Promise.resolve(false) },
+    parseAppearance: value => websiteAppearanceSchema.parse(value),
+    widgetScript: (deploymentId, appearance) => websiteWidgetScript(deploymentId, websiteAppearanceSchema.parse(appearance)),
+    presentTask: readableTask, present: dto, passages: taskPassages,
   });
-  app.get("/api/website/:deploymentId/widget.js", async (request, reply) => {
-    const deploymentId = uuid.parse(parameters(request).deploymentId);
-    const deployment = await store.getWebsiteDeployment(deploymentId);
-    return reply.type("application/javascript; charset=utf-8").send(
-      websiteWidgetScript(deploymentId, websiteAppearanceSchema.parse(deployment.appearance)),
-    );
-  });
-  app.post("/api/website/:deploymentId/session", async (request, reply) => {
-    const { deployment, websiteOrigin } = await websiteContext(request, reply);
-    await publicRate(deployment.id);
-    await pool.query(`DELETE FROM agents_platform.website_sessions s WHERE deployment_id=$1 AND expires_at<=now()
-      AND NOT EXISTS(SELECT 1 FROM agents_platform.customer_conversations c WHERE c.session_id=s.id)`, [deployment.id]);
-    const token = randomBytes(32).toString("base64url");
-    await pool.query("INSERT INTO agents_platform.website_sessions(id,deployment_id,token_hash,origin) VALUES($1,$2,$3,$4)", [randomUUID(), deployment.id, hash(token), websiteOrigin]);
-    return reply.code(201).send({ token });
-  });
-  const resolveVisitor = async (request: FastifyRequest, reply: FastifyReply) => {
-      const { deployment, websiteOrigin } = await websiteContext(request, reply);
-      const authority = await websiteAuthority(request, deployment, websiteOrigin);
-      if (authority.principal.kind !== "visitor") throw new PlatformError("ACCESS_DENIED", 403, "Customer session required");
-      return { deploymentId: deployment.id, sessionId: authority.principal.sessionId };
-    };
+
   registerInboxRoutes(app, { inbox, bookings,toolReviews,enquiries,publicRate,connectedReconciliation:actionServices?new ConnectedReconciliation(pool,providers):undefined,
     resolveScope: async request => ({ accountId: (await account(request)).id, organizationId: organizationId(request) }),
     resolveVisitor,
@@ -785,29 +685,6 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     registerCustomerFollowupReturn(app,{challenges,resolveVisitor,publicRate});
     registerCustomerFollowupConsent(app,{challenges,resolveVisitor,publicRate,send:sender?input=>sender.send(input):undefined,ready:()=>followupConfig?customerFollowupReady(pool,followupConfig,config.RESTATE_ADMIN_URL):Promise.resolve(false)});
   }
-  app.post("/api/website/:deploymentId/tasks", async (request, reply) => {
-    const { deployment, websiteOrigin, grantOrigin } = await websiteContext(request, reply);
-    const authority = await websiteAuthority(request, deployment, websiteOrigin), input = websiteTaskInput.parse(request.body);
-    await publicRate(deployment.id);
-    if (authority.principal.kind !== "visitor") throw new PlatformError("ACCESS_DENIED", 403, "Access denied");
-    const scope={deploymentId:deployment.id,sessionId:authority.principal.sessionId};
-    const result=await inbox.firstMessage(scope,{requestKey:input.requestKey,body:input.input},input.conversationId);
-    const task=result.message.task_id?await store.getTask(authority,result.message.task_id):null;
-    return reply.code(result.replayed?200:202).send({task:task?await readableTask(task):null,customerConversationId:result.conversation.id,state:result.conversation.state});
-  });
-  app.get("/api/website/:deploymentId/tasks/:taskId", async (request, reply) => {
-    const { deployment, websiteOrigin } = await websiteContext(request, reply), authority = await websiteAuthority(request, deployment, websiteOrigin);
-    const task = await store.getTask(authority, uuid.parse(parameters(request).taskId));
-    return { task: await readableTask(task), events: (await store.listTaskEvents(authority, task.id)).map(dto) };
-  });
-  app.get("/api/website/:deploymentId/tasks/:taskId/evidence", async (request, reply) => {
-    const { deployment, websiteOrigin } = await websiteContext(request, reply), authority = await websiteAuthority(request, deployment, websiteOrigin);
-    return taskPassages(await store.getTask(authority, uuid.parse(parameters(request).taskId)));
-  });
-  app.get("/api/website/:deploymentId/conversations/:conversationId", async (request, reply) => {
-    const { deployment, websiteOrigin } = await websiteContext(request, reply), authority = await websiteAuthority(request, deployment, websiteOrigin);
-    return { tasks: await Promise.all((await store.getConversation(authority, uuid.parse(parameters(request).conversationId))).map(readableTask)) };
-  });
   registerAdminReportingRoutes(app,pool,process.env.KASITEK_ADMIN_SERVICE_SECRET);
   registerAdminCustomerRoutes(app,pool,process.env.KASITEK_ADMIN_SERVICE_SECRET);
   return app;
