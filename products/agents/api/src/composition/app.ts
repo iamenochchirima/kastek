@@ -1,4 +1,3 @@
-import { afterHoursAssistance } from "../contracts/procedure-definitions";
 import { contextGrantCeiling } from "../execution/models/settings";
 import { readTaskTiming } from "../execution/lifecycle/timing";
 import { readTaskRuntime, operationPresentation, productOperationMetadataSql } from "../product/integrations/growth-runtime-reporting";
@@ -109,6 +108,7 @@ import { MemberStore } from "../product/members/store";
 import { registerMemberRoutes } from "../product/members/routes";
 import { invitationEmailConfig } from "../product/members/email";
 import { effectivePermissions, requirePermission } from "../platform/access/permissions";
+import { registerAgentManagementRoutes } from "../platform/agents/http";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
 import { customerOfferings } from "../product/offerings/offerings";
 import { registerAutomationRoutes } from "../product/automations/automation-routes";
@@ -386,7 +386,6 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.post(`${assistantBase}/member-channels/challenges`,async request=>memberChannels.challenge(await resolveScope(request),request.body));
   app.post(`${assistantBase}/member-channels/:linkId/confirm`,async request=>{z.strictObject({}).parse(request.body??{});return memberChannels.confirm(await resolveScope(request),uuid.parse(parameters(request).linkId));});
   app.delete(`${assistantBase}/member-channels/:linkId`,async request=>memberChannels.revoke(await resolveScope(request),uuid.parse(parameters(request).linkId)));
-  app.get(`${assistantBase}/agents/:agentId/specialists`,async request=>specialistCatalogue(pool,await resolveScope(request),uuid.parse(parameters(request).agentId)));
   registerChannelRoutes(app,{store:channelServices.channels,telegram:channelServices.telegram,meta:channelServices.meta,growthLinks:channelServices.growthLinks,resolveScope,
     assertChannelLimit:async(scope,current)=>{await assertAgentsBillingLimit(pool,scope.organizationId,"limit.agent_channels",current);},
     resolveActor:async request=>{const user=await account(request);return {issuer:user.issuer,subject:user.subject};},
@@ -501,10 +500,6 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     await store.getAgent(user.id, org, agentId);
     return { accountId: user.id, organizationId: org, agentId };
   } });
-  app.get(`${base}/agents/summaries`,async request=>{
-    const page=await discovery.agents(await account(request),organizationId(request),pageQuery.extend({q:z.string().trim().max(120).optional(),status:z.enum(["all","configured","changes-pending","setup"]).optional()}).strict().parse(request.query));
-    return {agents:page.items.map(row=>summary(row as unknown as Record<string,unknown>)),nextCursor:page.nextCursor};
-  });
   app.get(`${base}/conversations`,async request=>{
     const query=pageQuery.extend({agentId:uuid,versionId:uuid.optional(),state:z.enum(["active","archived"]).optional()}).strict().parse(request.query);
     const page=await discovery.conversations(await account(request),organizationId(request),query);
@@ -516,80 +511,15 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return {tasks:page.items.map(row=>summary(row as unknown as Record<string,unknown>)),nextCursor:page.nextCursor};
   });
   const creationOperations = agentCreationOperations({ store, pool, assertBindings });
-  app.get(`${base}/agents`, async (request) => ({ agents: (await creationOperations.list({ accountId: (await account(request)).id, organizationId: organizationId(request) })).map(dto) }));
-  app.post(`${base}/agents`, async (request, reply) => {
-    const user = await account(request);
-    const organization = organizationId(request);
-    const created = await creationOperations.create({ accountId: user.id, organizationId: organization }, request.body);
-    return reply.code(201).send({ agent: dto(created.agent), snapshot: dto(created.snapshot) });
-  });
-  app.get(`${base}/agents/:agentId`, async (request) => {
-    const user = await account(request), org = organizationId(request), agentId = uuid.parse(parameters(request).agentId);
-    const agent = await creationOperations.get({ accountId: user.id, organizationId: org }, agentId);
-    const [versions, deployments] = await Promise.all([store.listVersions(user.id, org, agentId), store.listDeployments(user.id, org, agentId)]);
-    return { agent: dto(agent), versions: versions.map(dto), deployments: deployments.map(dto) };
-  });
-  app.post(`${base}/agents/:agentId/effective-settings`, async request => {
-    const user = await account(request);
-    await store.requireMembership(user.id, organizationId(request));
-    uuid.parse(parameters(request).agentId);
-    const { configuration } = z.strictObject({ configuration: agentConfigurationSchema }).parse(request.body);
-    return { composed: composeAgentInstructions(configuration), sources: configuration.sourceRevisionIds.length,
-      tools: configuration.tools.length, connectedTools: configuration.connectedToolBindingIds.length, skills: configuration.skillIds.length };
-  });
-  app.get(`${base}/agents/:agentId/identity-defaults`, async request => {
-    const user = await account(request);
-    return { defaults: await store.identityDefaults(user.id, organizationId(request), uuid.parse(parameters(request).agentId)) };
-  });
-  app.get(`${base}/agents/:agentId/procedures`, async request => {
-    const agent = await store.getAgent((await account(request)).id, organizationId(request), uuid.parse(parameters(request).agentId));
-    const config = agentConfigurationSchema.parse(agent.draft);
-    const reasons = [
-      ...(!config.tools.includes("channel.request_handoff") ? [{code:"HUMAN_SUPPORT_DISABLED",message:"Enable human support"}] : []),
-      ...(!config.tools.includes("support.get_status_v2") ? [{code:"SUPPORT_STATUS_DISABLED",message:"Enable support status"}] : []),
-      ...(!config.supportHours ? [{code:"SUPPORT_HOURS_MISSING",message:"Set support hours"}] : []),
-    ];
-    return {entries:[{id:afterHoursAssistance.id,version:afterHoursAssistance.version,name:afterHoursAssistance.title,description:afterHoursAssistance.description,
-      readiness:{state:reasons.length ? "unavailable" : "ready",reasons}}]};
-  });
-  app.delete(`${base}/agents/:agentId`, async (request, reply) => {
-    const user = await account(request), org = organizationId(request);
-    await requirePermission(pool, { accountId: user.id, organizationId: org }, "agents.delete");
-    await store.deleteAgent(user.id, org, uuid.parse(parameters(request).agentId));
-    return reply.code(204).send();
-  });
-  app.get(`${base}/agents/:agentId/setup-readiness`, async request => ({ readiness: await creationOperations.readiness({ accountId: (await account(request)).id, organizationId: organizationId(request) }, uuid.parse(parameters(request).agentId)) }));
-  app.put(`${base}/agents/:agentId`, async (request) => {
-    const user = await account(request), org = organizationId(request);
-    await requirePermission(pool, { accountId: user.id, organizationId: org }, "agents.manage");
-    const input = z.strictObject({ name: z.string().min(1).max(120).optional(), avatar: agentAvatarSchema.optional(),
-      configuration: agentConfigurationSchema, expectedRevision: z.number().int().positive() }).parse(request.body);
-    return { agent: dto(await store.updateDraft({ ...input, accountId: user.id,
-      organizationId: org, agentId: uuid.parse(parameters(request).agentId) })) };
-  });
-  app.patch(`${base}/agents/:agentId`, async (request) => {
-    const user = await account(request), org = organizationId(request);
-    await requirePermission(pool, { accountId: user.id, organizationId: org }, "agents.manage");
-    const input = z.strictObject({ name: z.string().min(1).max(120).optional(), avatar: agentAvatarSchema.optional() })
-      .refine(value => value.name !== undefined || value.avatar !== undefined, { message: "Nothing to update" }).parse(request.body);
-    return { agent: dto(await creationOperations.profile({ accountId: user.id,
-      organizationId: org }, uuid.parse(parameters(request).agentId), input)) };
-  });
-  app.put(`${base}/agents/:agentId/capabilities`, async (request) => {
-    const user = await account(request), org = organizationId(request);
-    await requirePermission(pool, { accountId: user.id, organizationId: org }, "agents.manage");
-    const result = await creationOperations.setCapabilities({ accountId: user.id,
-      organizationId: org }, uuid.parse(parameters(request).agentId), request.body);
-    return { agent: dto(result.agent), snapshot: dto(result.snapshot) };
-  });
-  app.post(`${base}/agents/:agentId/configuration`, async request => {
-    const user = await account(request), org = organizationId(request);
-    await requirePermission(pool, { accountId: user.id, organizationId: org }, "agents.manage");
-    const result = await creationOperations.save({ accountId: user.id,
-      organizationId: org }, uuid.parse(parameters(request).agentId), request.body);
-    request.log.info({ event: "agent.configuration.saved", agentId: result.agent.id, snapshotId: result.snapshot.id,
-      organizationId: result.agent.organization_id }, "Agent configuration saved");
-    return { agent: dto(result.agent), snapshot: dto(result.snapshot), deployments: result.deployments.map(dto) };
+  registerAgentManagementRoutes(app, {
+    pool, store, operations: creationOperations, offerings: customerOfferings, avatarSchema: agentAvatarSchema,
+    assertBindings, composedInstructions: composeAgentInstructions, present: dto,
+    resolveScope: async request => ({ account: await account(request), organizationId: organizationId(request) }),
+    summaries: async (scope, query) => {
+      const page = await discovery.agents(scope.account, scope.organizationId, query);
+      return { items: page.items as unknown as Record<string, unknown>[], nextCursor: page.nextCursor };
+    },
+    specialists: (scope, agentId) => specialistCatalogue(pool, { accountId: scope.account.id, organizationId: scope.organizationId }, agentId),
   });
   registerKnowledgeRoutes(app, { knowledge, runtime: documentRuntime, resolveScope: async request => ({ accountId: (await account(request)).id, organizationId: organizationId(request) }) });
   const websiteCrawls = new WebsiteCrawlStore(pool, knowledge, loadFirecrawlConfig());
@@ -699,27 +629,6 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       () => app.log.error({ event: "website_crawl_dispatch_failed", code: "WEBSITE_CRAWL_DISPATCH_FAILED" }));
   });
   app.addHook("onClose", async () => { await stopWebsiteCrawls?.(); });
-  app.post(`${base}/agents/:agentId/versions`, async (request, reply) => {
-    const input = z.strictObject({ expectedRevision: z.number().int().positive() }).parse(request.body);
-    const user = await account(request), org = organizationId(request), agentId = uuid.parse(parameters(request).agentId);
-    await requirePermission(pool, { accountId: user.id, organizationId: org }, "agents.manage");
-    const agent = await store.getAgent(user.id, org, agentId);
-    await assertBindings(agentConfigurationSchema.parse(agent.draft));
-    return reply.code(201).send({ version: dto(await store.createVersion({ ...input, accountId: user.id,
-      organizationId: org, agentId })) });
-  });
-  app.post(`${base}/agents/:agentId/deployments`, async (request, reply) => {
-    const input = z.strictObject({ versionId: uuid.optional(), allowedOrigins: z.array(z.string()).min(1).max(10) }).parse(request.body);
-    const accountId = (await account(request)).id, organizationIdValue = organizationId(request);
-    await requirePermission(pool, { accountId, organizationId: organizationIdValue }, "deploy.manage");
-    const scope = { accountId, organizationId: organizationIdValue, agentId: uuid.parse(parameters(request).agentId), allowedOrigins: input.allowedOrigins };
-    const deployment = input.versionId ? await store.publishWebsite({ ...scope, versionId: input.versionId }) : await store.publishCurrentWebsite(scope);
-    return reply.code(201).send({ deployment: dto(deployment) });
-  });
-  app.get(`${base}/offerings`, async request => {
-    await store.requireMembership((await account(request)).id, organizationId(request));
-    return { offerings: customerOfferings };
-  });
   app.get(`${base}/tasks/:taskId/history-export`, async request => {
     const user = await account(request), org = organizationId(request), taskId = uuid.parse(parameters(request).taskId);
     return exportExecutionHistory(pool, taskId, async (db, rootTaskId) => {

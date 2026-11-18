@@ -1383,6 +1383,11 @@ there. The serialized-payload token estimate moved to `contracts/serialized-toke
 and identity prompt composition to `execution/context/agent-identity.ts`; product
 identity defaults remain in `product/agents/identity.ts`.
 
+Agent management HTTP handlers moved from composition to `platform/agents/http.ts`.
+Composition passes the product store, creation operations, offerings data and the
+avatar schema as ports, so the module depends only on `contracts` and
+`infrastructure`. Paths and payloads are unchanged.
+
 Composition entry points are `api/src/composition/` and compile to
 `api/dist/composition/`. MCP's bounded helper remains adjacent to its adapter under
 `adapters/providers/`; schema loading remains relative to the API package schema.
