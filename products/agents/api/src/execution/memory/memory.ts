@@ -3,7 +3,8 @@ import { createHash,randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import { z } from "zod";
 import { PlatformError,type InitiatingPrincipal } from "../../contracts/contracts";
-import { memoryAssertionSchema, type MemoryAssertion } from "../../contracts/memory";
+import { memoryAssertionSchema, type MemoryAssertion, type ManagementScope, type MemoryScope, type SkillRevision } from "../../contracts/memory";
+export type { ManagementScope, MemoryScope, SkillRevision } from "../../contracts/memory";
 import { transaction as memoryTransaction } from "../../infrastructure/database";
 import { assertCurrentEvidence,taskEvidenceManifest } from "../context/evidence";
 import { requestTreeCancellationInTransaction } from "../lifecycle/execution";
@@ -13,12 +14,8 @@ import { isProductMemoryScope, productMemoryScopeForTask, requireProductMemoryAc
   type MemoryManagementScope, type ProductMemoryManagementScope } from "./scope";
 export type { MemoryManagementScope, ProductMemoryManagementScope } from "./scope";
 
-export interface MemoryScope { organizationId: string; agentId: string; principal: InitiatingPrincipal; taskId?: string }
-export interface ManagementScope { accountId: string; organizationId: string; agentId: string }
 export type ScopeReference = MemoryManagementScope & { id: string; generation: number };
 export interface MemoryRecord { id: string; kind: "semantic" | "episodic"; content: string; status: "candidate" | "accepted" | "forgotten"; revision: number; sourceTaskId: string | null; expiresAt: string | null; createdAt: string; updatedAt: string; origin: "user_supplied" | "model_candidate"; assertion: MemoryAssertion; verified: false }
-export interface SkillRevision { id: string; name: string; description: string; body: string; revision: number; contentDigest: string; createdAt: string;
-  familyId?:string; state?:"enabled"|"disabled"|"removed"; reviewState?: "pending" | "reviewed"; package?: SkillPackage; reviewedDigest?: string }
 const schema = "agents_platform";
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const contentSchema = z.string().trim().min(1).max(8192).refine(value => Buffer.byteLength(value) <= 8192);
