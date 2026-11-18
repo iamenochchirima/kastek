@@ -143,6 +143,7 @@ import { GrowthProductRuntime } from "../execution/products/growth-runtime";
 import { createConfiguredProductRuntime } from "../execution/products/configured-runtime";
 import { registerAgencyProductRoutes, agencyServiceTrustFromEnvironment } from "../product/integrations/agency-routes";
 import { admitMemberRun } from "../platform/runs/member-admission";
+import { registerApplicationRoutes } from "../integrations/http/application-routes";
 const uuid = z.uuid();
 const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1),
   requestKey: z.string().trim().min(1).max(128), conversationId: uuid.optional() });
@@ -352,6 +353,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if (result.state !== "accepted") throw new PlatformError("INVITATION_EMAIL_FAILED", 502, "Invitation email could not be sent");
   }
   registerMemberRoutes(app, { store: members, resolveScope, account, sendInvitation: sendInvitationEmail });
+  registerApplicationRoutes(app, { pool, resolveScope });
   const transfers = new AgentTransferStore(pool, new PostgresKnowledgeObjectStore(pool));
   async function sendTransferEmail(input: TransferEmail): Promise<void> {
     if (!invitationSender) throw new PlatformError("TRANSFER_EMAIL_UNAVAILABLE", 503, "Transfer email is unavailable");
