@@ -70,6 +70,13 @@ describe("product agent gateway", () => {
       const unknown = await f.post({ ...base, operation: "tasks.legacy" });
       expect(unknown.status).toBe(400);
 
+      const wrongVersion = await f.post({ ...base, version: "2" });
+      expect(wrongVersion.status).toBe(400);
+
+      const oversized = await f.post({ ...base, operation: "runs.start",
+        input: { conversationId: randomUUID(), message: "x".repeat(131073) } });
+      expect(oversized.status).toBe(400);
+
       const badActor = await f.post({ ...base, actor: { ...actor, issuer: "https://other.test" } });
       expect(badActor.status).toBe(401);
       expect(f.execute).not.toHaveBeenCalled();
