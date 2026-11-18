@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { Applications } from "../src/platform/access/applications";
 import { PlatformStore } from "../src/product/agents/store";
-import { requirePermission } from "../src/product/members/permissions";
+import { requirePermission } from "../src/platform/access/permissions";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 
 const url = process.env.AGENTS_TEST_DATABASE_URL;

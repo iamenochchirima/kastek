@@ -108,7 +108,7 @@ import { PlatformStore } from "../product/agents/store";
 import { MemberStore } from "../product/members/store";
 import { registerMemberRoutes } from "../product/members/routes";
 import { invitationEmailConfig } from "../product/members/email";
-import { effectivePermissions, requirePermission } from "../product/members/permissions";
+import { effectivePermissions, requirePermission } from "../platform/access/permissions";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
 import { customerOfferings } from "../product/offerings/offerings";
 import { registerAutomationRoutes } from "../product/automations/automation-routes";

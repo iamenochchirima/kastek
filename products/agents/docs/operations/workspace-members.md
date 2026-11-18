@@ -30,7 +30,7 @@ Membership is the single ownership record. There is no separate `ownerId` column
 changes cannot drift from the ownership source.
 
 The permission vocabulary lives in
-`products/agents/api/src/product/members/permissions.ts`. Routes resolve the caller's role
+`products/agents/api/src/platform/access/permissions.ts`. Routes resolve the caller's role
 and overrides through that module instead of comparing a literal role string.
 
 ## Permission overrides

@@ -3,8 +3,8 @@ import type { Pool } from "pg";
 import { AgentStore } from "../src/product/agents/agent-store";
 
 const policy = vi.hoisted(() => ({ permission: vi.fn(), limit: vi.fn() }));
-vi.mock("../src/product/members/permissions", async original => ({
-  ...await original<typeof import("../src/product/members/permissions")>(), requirePermission: policy.permission,
+vi.mock("../src/platform/access/permissions", async original => ({
+  ...await original<typeof import("../src/platform/access/permissions")>(), requirePermission: policy.permission,
 }));
 vi.mock("../src/product/billing/billing", async original => ({
   ...await original<typeof import("../src/product/billing/billing")>(), assertAgentsBillingLimit: policy.limit,

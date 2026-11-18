@@ -4,7 +4,7 @@ import { z } from "zod";
 import { PlatformError, terminalTaskStates } from "../../contracts/contracts";
 import { Applications } from "../../platform/access/applications";
 import type { TaskRecord } from "../../contracts/records";
-import { requirePermission } from "../../product/members/permissions";
+import { requirePermission } from "../../platform/access/permissions";
 
 export function registerApplicationRoutes(app: FastifyInstance, options: {
   pool: Pool; resolveScope(request: FastifyRequest): Promise<{ accountId: string; organizationId: string }>;

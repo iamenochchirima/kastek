@@ -1357,7 +1357,7 @@ Executor routing and physical recovery require their own independent-process acc
 ## Internal module boundaries
 
 Implemented code lives under `contracts`, `infrastructure`, `execution`, `capabilities`,
-`workflows`, `adapters`, `product`, and `composition`. Product identity, agent/version,
+`workflows`, `adapters`, `platform`, `integrations`, `product`, and `composition`. Product identity, agent/version,
 website deployment, and execution admission stores have separate implementations;
 `product/agents/store.ts` composes their existing management interface. Execution
 consumers use neutral record contracts and credential ports. S3 transport is separate
@@ -1367,9 +1367,19 @@ so authority checks do not depend cyclically on storage.
 `pnpm verify:agents-modules` checks static imports, type imports, re-exports,
 string-literal dynamic imports/requires, forbidden dependency directions and file
 cycles. Contracts and infrastructure cannot import product routes or programs;
-capability/workflow/runtime modules cannot import product implementations. Unsupported
-computed module loading fails the check. Negative fixtures prove these checks reject
-forbidden edges and cycles. Cross-product checks remain separate.
+capability/workflow/runtime modules cannot import product implementations. `platform`
+may use contracts, infrastructure, execution and observability, and cannot reach
+product or integration implementations. `integrations` may use platform, and cannot
+reach product implementations. `product` may use platform. Unsupported computed module
+loading fails the check. Negative fixtures prove these checks reject forbidden edges
+and cycles. Cross-product checks remain separate.
+
+Five edges predate these rules and are listed with a reason in
+`scripts/check-agents-boundaries.mjs`. The command reports them as accepted debt, still
+fails the same edge from any other file, and reports a recorded edge that no longer
+occurs as stale so it can be deleted. Workspace permissions moved to
+`platform/access/permissions.ts`; product routes and integrations require them from
+there.
 
 Composition entry points are `api/src/composition/` and compile to
 `api/dist/composition/`. MCP's bounded helper remains adjacent to its adapter under

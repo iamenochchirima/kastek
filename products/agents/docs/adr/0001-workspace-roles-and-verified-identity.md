@@ -30,7 +30,8 @@ Agents uses three workspace roles: owner, admin and member.
   provider credentials and owner/admin escalation.
 - Members use agents, inbox conversations and assigned work. They do not configure agents.
 
-Permissions are declared once in `product/members/permissions.ts`. Routes resolve the
+Permissions are declared once in `product/members/permissions.ts` (now
+`platform/access/permissions.ts`). Routes resolve the
 caller's membership role and check a named permission instead of comparing role strings.
 
 Escalation rules:

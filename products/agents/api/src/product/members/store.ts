@@ -22,9 +22,9 @@ import {
   type PermissionEffect,
   type PermissionOverride,
   type WorkspacePermission,
-} from "./permissions";
+} from "../../platform/access/permissions";
 
-export type { MemberRole } from "./permissions";
+export type { MemberRole } from "../../platform/access/permissions";
 export type MemberScope = { accountId: string; organizationId: string };
 
 export type MemberRecord = {

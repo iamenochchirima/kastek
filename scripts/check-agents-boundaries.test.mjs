@@ -10,6 +10,17 @@ test('permits dependency direction and detects type imports and re-exports',()=>
  fixture({'product/private.ts':'export type Private=string;','contracts/id.ts':'import type {Private} from "../product/private"; export type Id=Private;'},result=>assert.match(result.failures.join('\n'),/cannot depend/));
  fixture({'product/private.ts':'export const p=1;','capabilities/tool.ts':'export * from "../product/private";'},result=>assert.match(result.failures.join('\n'),/cannot depend/));
 });
+test('keeps platform and integrations independent of product implementations',()=>{
+ fixture({'product/private.ts':'export const p=1;','platform/access/scope.ts':'import {p} from "../../product/private"; export const scope=p;'},result=>assert.match(result.failures.join('\n'),/cannot depend/));
+ fixture({'product/private.ts':'export const p=1;','integrations/http/route.ts':'import {p} from "../../product/private"; export const route=p;'},result=>assert.match(result.failures.join('\n'),/cannot depend/));
+ fixture({'platform/access/scope.ts':'export const scope=1;','integrations/http/route.ts':'import {scope} from "../../platform/access/scope"; export const route=scope;','product/page.ts':'import {scope} from "../platform/access/scope"; export const page=scope;'},result=>assert.deepEqual(result.failures,[]));
+});
+test('accepts only the recorded debt edge and fails the same edge from another file',()=>{
+ fixture({'capabilities/connected-tools/credential-reflection.ts':'export const v=1;','adapters/providers/remote-mcp.ts':'import {v} from "../../capabilities/connected-tools/credential-reflection"; export const a=v;','adapters/providers/other.ts':'import {v} from "../../capabilities/connected-tools/credential-reflection"; export const b=v;'},result=>{
+  assert.deepEqual(result.failures,['adapters/providers/other.ts cannot depend on capabilities/connected-tools/credential-reflection.ts']);
+  assert.deepEqual(result.accepted,['adapters/providers/remote-mcp.ts -> capabilities/connected-tools/credential-reflection.ts']);
+ });
+});
 test('checks dynamic imports and requires, unresolved paths and dependency cycles',()=>{
  for(const source of ['await import("../product/private")','require("../product/private")'])fixture({'product/private.ts':'export const p=1;','capabilities/tool.ts':source},result=>assert.match(result.failures.join('\n'),/cannot depend/));
  fixture({'contracts/a.ts':'export type A=import("./b").B;','contracts/b.ts':'import type {A} from "./a"; export type B=A;'},result=>assert.match(result.failures.join('\n'),/Dependency cycle/));

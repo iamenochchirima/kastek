@@ -29,7 +29,7 @@ import { DeploymentStore } from "../deployments/deployment-store";
 import { AuthorityStore } from "../../execution/admission/authority-store";
 import { loadSkillRevisions } from "../../execution/memory/memory";
 import { assertAgentsBillingFeature, assertAgentsBillingLimit } from "../billing/billing";
-import { requirePermission } from "../members/permissions";
+import { requirePermission } from "../../platform/access/permissions";
 
 type Db=Pool|PoolClient;
 function updatedSupportHoursSetup(agent:AgentRecord,configuration:AgentConfiguration):CustomerSetup|undefined {

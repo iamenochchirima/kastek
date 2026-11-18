@@ -8,7 +8,7 @@ import {
   permissionsFor,
   roleCan,
   workspacePermissions,
-} from "../src/product/members/permissions";
+} from "../src/platform/access/permissions";
 
 describe("workspace permissions", () => {
   it("gives owners every permission", () => {
