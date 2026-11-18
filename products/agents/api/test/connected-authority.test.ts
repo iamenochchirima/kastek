@@ -5,6 +5,7 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { agentConfigurationSchema, assertGrantAuthority, connectedToolAuthorityIds, defaultBusinessConfiguration,
   executionGrantSchema, type AgentConfiguration } from "../src/contracts/contracts";
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import { AutomationService } from "../src/product/automations/automations";
 import { operationsForConfiguration } from "../src/platform/access/grant-operations";
 import { PlatformStore } from "../src/product/agents/store";
@@ -41,7 +42,7 @@ describe("direct tools and delegated authority", () => {
     const versionId = randomUUID();
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId,
       operations: operationsForConfiguration(config), connectedToolBindingIds: connectedToolAuthorityIds(config), sourceRevisionIds: [],
-      maxInputBytes: config.model.maxInputBytes, maxOutputTokens: config.model.maxOutputTokens,
+      maxInputBytes: config.model.maxInputBytes, maxOutputTokens: config.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(config),
       expiresAt: new Date(Date.now() + 60_000).toISOString(), revokedAt: null });
     expect(() => assertGrantAuthority(grant, authority, versionId, config)).not.toThrow();
     expect(grant.operations).toContain("connected.read");
@@ -125,7 +126,7 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
       principal: { kind: "human" as const, issuer: f.account.issuer, subject: f.account.subject } };
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id, operations: operationsForConfiguration(f.config),
       connectedToolBindingIds: ids, sourceRevisionIds: [], maxInputBytes: f.config.model.maxInputBytes,
-      maxOutputTokens: f.config.model.maxOutputTokens, expiresAt: new Date(Date.now() + 60_000).toISOString(), revokedAt: null });
+      maxOutputTokens: f.config.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(f.config), expiresAt: new Date(Date.now() + 60_000).toISOString(), revokedAt: null });
     await store.createGrant({ accountId: f.account.id, grant });
     const { task } = await store.admitTask({ authority, versionId: version.id, grantId: grant.id, requestKey: randomUUID(), input: "Delegate research and compare the evidence." });
     expect((await loadExecution(pool, task.id)).connectedBindings).toEqual([]);
@@ -143,9 +144,10 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const f=await fixture(),config=defaultBusinessConfiguration();config.connectedToolBindingIds=f.bindings.map(binding=>binding.id);
     await store.updateDraft({...f.scope,agentId:f.root.id,expectedRevision:1,configuration:config});
     const version=await store.createVersion({...f.scope,agentId:f.root.id,expectedRevision:2});
+    const published=version.configuration;
     const authority={product:"agents" as const,organizationId:f.org.id,resourceId:f.root.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:f.account.issuer,subject:f.account.subject}};
     const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:operationsForConfiguration(config),connectedToolBindingIds:config.connectedToolBindingIds,
-      sourceRevisionIds:[],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,expiresAt:new Date(Date.now()+60000).toISOString(),revokedAt:null});
+      sourceRevisionIds:[],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(config),expiresAt:new Date(Date.now()+60000).toISOString(),revokedAt:null});
     await store.createGrant({accountId:f.account.id,grant});
     const {task}=await store.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Read approved repository"});
     const warmed=await loadExecution(pool,task.id);expect((await loadExecution(pool,task.id)).connectedBindings).toEqual(warmed.connectedBindings);
@@ -154,11 +156,11 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
         await db.query('BEGIN');await db.query(`ALTER TABLE agents_platform.${table} DISABLE TRIGGER ${trigger}`);await db.query(sql,values);
         if(code)await expect(loadExecution(db,task.id)).rejects.toMatchObject({code});else await expect(loadExecution(db,task.id)).rejects.toThrow();
       }finally{await db.query('ROLLBACK');db.release();}
-      expect((await loadExecution(pool,task.id)).configuration).toEqual(config);
+      expect((await loadExecution(pool,task.id)).configuration).toEqual(published);
     }
-    await corrupt('tasks','immutable_execution_composition',"UPDATE agents_platform.tasks SET effective_configuration=$2 WHERE id=$1",[task.id,{...config,instructions:'PRIVATE_changed_config_canary'}],'PROGRAM_RELEASE_UNAVAILABLE');
-    await corrupt('agent_versions','immutable_agent_version',"UPDATE agents_platform.agent_versions SET configuration=$2 WHERE id=$1",[version.id,{...config,instructions:'PRIVATE_changed_version_canary'}],'PROGRAM_RELEASE_UNAVAILABLE');
-    await corrupt('tasks','immutable_execution_composition',"UPDATE agents_platform.tasks SET effective_configuration=$2 WHERE id=$1",[task.id,{...config,model:{...config.model,provider:'untrusted'}}]);
+    await corrupt('tasks','immutable_execution_composition',"UPDATE agents_platform.tasks SET effective_configuration=$2 WHERE id=$1",[task.id,{...published,instructions:'PRIVATE_changed_config_canary'}],'PROGRAM_RELEASE_UNAVAILABLE');
+    await corrupt('agent_versions','immutable_agent_version',"UPDATE agents_platform.agent_versions SET configuration=$2 WHERE id=$1",[version.id,{...published,instructions:'PRIVATE_changed_version_canary'}],'PROGRAM_RELEASE_UNAVAILABLE');
+    await corrupt('tasks','immutable_execution_composition',"UPDATE agents_platform.tasks SET effective_configuration=$2 WHERE id=$1",[task.id,{...published,model:{...published.model,provider:'untrusted'}}]);
     const binding=f.bindings[0]!;await corrupt('capability_bindings','immutable_capability_binding',"UPDATE agents_platform.capability_bindings SET binding=$2 WHERE id=$1",[binding.id,{...binding,limits:{...binding.limits,timeoutMs:29000}}]);
     await corrupt('tasks','immutable_execution_composition',"UPDATE agents_platform.tasks SET effective_composition=jsonb_set(effective_composition,'{digest}',to_jsonb(repeat('0',64))) WHERE id=$1",[task.id],'PROGRAM_RELEASE_UNAVAILABLE');
     await corrupt('agent_versions','immutable_agent_version',"UPDATE agents_platform.agent_versions SET effective_composition=jsonb_set(effective_composition,'{digest}',to_jsonb(repeat('0',64))) WHERE id=$1",[version.id],'PROGRAM_RELEASE_UNAVAILABLE');
