@@ -7,6 +7,7 @@ import { registerApplicationRoutes } from "../src/integrations/http/application-
 import { PlatformStore } from "../src/product/agents/store";
 import { admitApplicationRun } from "../src/platform/runs/application-admission";
 import { operationsForConfiguration } from "../src/platform/access/grant-operations";
+import { Applications, authorizeApplicationManager } from "../src/platform/access";
 import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { connectFixtureModel } from "./model-fixture";
 import { buildPlatformApp } from "../src/composition/app";
@@ -35,7 +36,7 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     const unassigned = await store.createConfiguredAgent({ accountId: owner.id, organizationId: org.id, name: "Not assigned" });
     const app = Fastify();
     let accountId = owner.id;
-    registerApplicationRoutes(app, { pool, resolveScope: async () => ({ accountId, organizationId: org.id }) });
+    registerApplicationRoutes(app, { applications: new Applications(pool, authorizeApplicationManager), resolveScope: async () => ({ accountId, organizationId: org.id }) });
     try {
       const path = `/api/organizations/${org.id}/applications`;
       accountId = member.id;
@@ -77,7 +78,7 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     const agent = await store.createConfiguredAgent({ accountId: owner.id, organizationId: org.id, name: "Allowed", configuration: defaultBusinessConfiguration() });
     const other = await store.createConfiguredAgent({ accountId: owner.id, organizationId: org.id, name: "Other", configuration: defaultBusinessConfiguration() });
     const app = Fastify();
-    registerApplicationRoutes(app, { pool, resolveScope: async () => ({ accountId: owner.id, organizationId: org.id }), runs: {
+    registerApplicationRoutes(app, { applications: new Applications(pool, authorizeApplicationManager), resolveScope: async () => ({ accountId: owner.id, organizationId: org.id }), runs: {
       start: input => admitApplicationRun({ pool, store, assertServices: async () => {}, grantOperations: c => operationsForConfiguration(c, true) }, input),
       read: async task => ({ taskId: task.id, state: task.state }), steer: async () => ({ accepted: true }), cancel: async () => ({ accepted: true }),
     } });
@@ -97,6 +98,14 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
       const row = (await pool.query("SELECT principal FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0];
       expect(row.principal).toEqual({ kind: "application", applicationId: application.id });
       expect((await pool.query("SELECT g.application_credential_id FROM agents_platform.execution_grants g JOIN agents_platform.tasks t ON t.grant_id=g.id WHERE t.id=$1", [taskId])).rows[0].application_credential_id).toBe(credential.id);
+      const createdConversation = await app.inject({ method: "POST", url: "/v1/conversations", headers, payload: { agentId: agent.agent.id } });
+      expect(createdConversation.statusCode).toBe(201);
+      const conversationId = createdConversation.json().conversation.id;
+      const runInConversation = await app.inject({ method: "POST", url: "/v1/runs", headers,
+        payload: { ...request, requestId: randomUUID(), conversationId } });
+      expect(runInConversation.statusCode).toBe(202);
+      const conversationRead = await app.inject({ method: "GET", url: `/v1/conversations/${conversationId}`, headers });
+      expect(conversationRead.json().tasks.map((task: { taskId: string }) => task.taskId)).toContain(runInConversation.json().taskId);
       await app.listen({ host: "127.0.0.1", port: 0 });
       const address = app.server.address();
       if (!address || typeof address === "string") throw new Error("Missing server address");

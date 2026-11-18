@@ -67,10 +67,21 @@ export function registerApplicationRoutes(app: FastifyInstance, options: {
     if (!match) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
     return match[1]!;
   }
+  app.post("/v1/conversations", async (request, reply) => {
+  const match = /^Bearer ([^\s]+)$/.exec(request.headers.authorization ?? "");
+  if (!match) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
+  return reply.code(201).send(await applications.createConversation(match[1]!, request.body));
+  });
+  app.get("/v1/conversations/:conversationId", async (request, reply) => {
+  const match = /^Bearer ([^\s]+)$/.exec(request.headers.authorization ?? "");
+  if (!match) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
+  const { conversationId } = z.strictObject({ conversationId: z.uuid() }).parse(request.params);
+  return reply.header("cache-control", "private, no-store").send(await applications.readConversation(match[1]!, conversationId));
+  });
   const management = options.agentManagement;
   if (management) {
     const agentId = (request: FastifyRequest) => z.strictObject({ agentId: z.uuid() }).parse(request.params).agentId;
-    app.post("/v1/agents", async (request, reply) => {
+  app.post("/v1/agents", async (request, reply) => {
       const caller = await applications.authenticate(bearer(request), "agents:manage");
       const input = z.strictObject({ name: z.string().trim().min(1).max(120), purpose: z.string().trim().min(1).max(600).optional(),
         instructions: z.string().trim().min(1).max(8000).optional(), operationId: z.uuid() }).parse(request.body);
@@ -113,6 +124,11 @@ export function registerApplicationRoutes(app: FastifyInstance, options: {
     const payload: ApplicationRunStartResponse = {
       taskId: result.task.id, conversationId: result.task.conversation_id, state: result.task.state, replayed: result.replayed };
     return reply.code(result.replayed ? 200 : 202).header("cache-control", "no-store").send(payload);
+  });
+  app.get("/v1/runs/:taskId/pending", async (request, reply) => {
+    const task = await accessRun(request, "runs:read");
+    return reply.header("cache-control", "private, no-store").send({ taskId: task.id, state: task.state,
+      pending: await applications.pendingReviews(task.organization_id, task.id) });
   });
   app.get("/v1/runs/:taskId", async (request, reply) => {
     const snapshot = await runs.read(await accessRun(request, "runs:read")) as ApplicationRunSnapshot;

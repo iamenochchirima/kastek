@@ -175,6 +175,46 @@ export class Applications {
     return { ...caller, subject: parsed.subject, assertionDigest: createHash("sha256").update(signed).digest("hex"), issuedAt: parsed.issuedAt, expiresAt: parsed.expiresAt };
   }
 
+
+  async createConversation(secret: string, raw: unknown) {
+    const caller = await this.authenticate(secret, "runs:start");
+    const { agentId } = z.strictObject({ agentId: z.uuid() }).parse(raw);
+    return transaction(this.pool, async db => {
+      const application = (await db.query("SELECT id FROM agents_platform.applications WHERE organization_id=$1 AND id=$2 AND revoked_at IS NULL AND $3=ANY(agent_ids) FOR SHARE",
+        [caller.organizationId, caller.applicationId, agentId])).rows[0];
+      const agent = (await db.query("SELECT id FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR SHARE",
+        [caller.organizationId, agentId])).rows[0];
+      if (!application || !agent) throw new PlatformError("ACCESS_DENIED", 403, "Agent is unavailable");
+      const id = randomUUID();
+      await db.query("INSERT INTO agents_platform.conversations(id,organization_id,agent_id,principal) VALUES($1,$2,$3,$4)",
+        [id, caller.organizationId, agentId, { kind: "application", applicationId: caller.applicationId }]);
+      return { conversation: { id, agentId } };
+    });
+  }
+
+  async readConversation(secret: string, conversationId: string) {
+    const caller = await this.authenticate(secret, "runs:read");
+    z.uuid().parse(conversationId);
+    const conversation = (await this.pool.query("SELECT id,agent_id,deleted_at FROM agents_platform.conversations WHERE organization_id=$1 AND id=$2",
+      [caller.organizationId, conversationId])).rows[0];
+    if (!conversation || conversation.deleted_at || conversation.agent_id == null) throw new PlatformError("NOT_FOUND", 404, "Conversation not found");
+    const assigned = (await this.pool.query("SELECT 1 FROM agents_platform.applications WHERE organization_id=$1 AND id=$2 AND revoked_at IS NULL AND $3=ANY(agent_ids)",
+      [caller.organizationId, caller.applicationId, conversation.agent_id])).rows[0];
+    if (!assigned) throw new PlatformError("NOT_FOUND", 404, "Conversation not found");
+    const tasks = (await this.pool.query(`SELECT id,state,created_at,output FROM agents_platform.tasks
+      WHERE organization_id=$1 AND conversation_id=$2 AND principal->>'kind'='application' AND principal->>'applicationId'=$3
+      ORDER BY turn_sequence LIMIT 100`, [caller.organizationId, conversationId, caller.applicationId])).rows;
+    return { conversation: { id: conversation.id, agentId: conversation.agent_id },
+      tasks: tasks.map(task => ({ taskId: task.id, state: task.state, createdAt: task.created_at, output: task.output })) };
+  }
+
+
+  async pendingReviews(organizationId: string, taskId: string) {
+    const rows = (await this.pool.query(`SELECT id,state,expires_at FROM agents_platform.tool_invocation_reviews
+      WHERE task_id=$1 AND organization_id=$2 AND state IN ('pending','approved','claimed') ORDER BY created_at`, [taskId, organizationId])).rows;
+    return rows.map(review => ({ reviewId: review.id, state: review.state, expiresAt: review.expires_at }));
+  }
+
   async authenticate(secret: string, scope: ApplicationScope) {
     if (!/^kat_[A-Za-z0-9_-]{43}$/.test(secret)) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
     const result = await this.pool.query<{ organization_id: string; application_id: string; credential_id: string }>(`SELECT k.organization_id,k.application_id,k.id credential_id
@@ -204,4 +244,4 @@ export class Applications {
 
 /** Public operations consumed by protocol adapters; storage remains owned by this module. */
 export type ApplicationAccess = Pick<Applications, "create" | "list" | "revoke" | "assignAgents" | "issueCredential" |
-  "revokeCredential" | "listAgents" | "inspectAgent" | "authenticate" | "authorizedRun" | "registerKey" | "revokeKey" | "verifyAssertion">;
+  "revokeCredential" | "listAgents" | "inspectAgent" | "authenticate" | "authorizedRun" | "registerKey" | "revokeKey" | "verifyAssertion" | "createConversation" | "readConversation" | "pendingReviews">;
