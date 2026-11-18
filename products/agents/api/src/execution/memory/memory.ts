@@ -3,7 +3,7 @@ import { createHash,randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import { z } from "zod";
 import { PlatformError,type InitiatingPrincipal } from "../../contracts/contracts";
-import { memoryAssertionSchema, type MemoryAssertion, type ManagementScope, type MemoryScope, type SkillRevision } from "../../contracts/memory";
+import { memoryAssertionSchema, type MemoryAccessPort, type MemoryAssertion, type ManagementScope, type MemoryScope, type SkillRevision, type SkillRevisionReader } from "../../contracts/memory";
 export type { ManagementScope, MemoryScope, SkillRevision } from "../../contracts/memory";
 import { transaction as memoryTransaction } from "../../infrastructure/database";
 import { assertCurrentEvidence,taskEvidenceManifest } from "../context/evidence";
@@ -266,3 +266,7 @@ export class MemoryStore implements MemoryContextReader {
     });
   }
 }
+
+/** Port implementations for execution consumers that must not import this module after the move. */
+export const memoryAccess: MemoryAccessPort = { requireMemoryAccess };
+export const skillRevisionReader: SkillRevisionReader = { loadSkillRevisions };
