@@ -5,7 +5,7 @@ import { fromBuffer, type Entry, type ZipFile } from "yauzl";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
 import { parseSkillRequirements } from "./requirements";
-import { SKILL_PACKAGE_LIMITS, type SkillPackage, type SkillPackageFile, type SkillRequirements } from "../../contracts/skills";
+import { SKILL_PACKAGE_LIMITS, type SkillPackage, type SkillPackageCodec, type SkillPackageFile, type SkillRequirements } from "../../contracts/skills";
 
 export { SKILL_PACKAGE_LIMITS } from "../../contracts/skills";
 export type { SkillPackage, SkillPackageFile } from "../../contracts/skills";
@@ -167,3 +167,9 @@ export function readSkillPackageFile(pkg: SkillPackage, path: string, reviewedDi
   return { content: utf8(Buffer.from(file.content, "base64")),
     evidence: { packageDigest: current.contentDigest, path: file.path, contentDigest: file.digest } satisfies SkillFileEvidence };
 }
+
+/** The codec MemoryStore receives, so memory does not import package parsing. */
+export const skillPackageCodec: SkillPackageCodec = {
+  parse: parseSkillPackage,
+  activate: activateSkillPackage,
+};

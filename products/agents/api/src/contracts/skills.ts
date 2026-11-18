@@ -17,3 +17,9 @@ export interface SkillPackage {
   readonly files: readonly SkillPackageFile[]; readonly totalBytes: number;
   readonly requirements: SkillRequirements;
 }
+
+/** Parsing and activation surface MemoryStore depends on. Implemented by the skills capability. */
+export interface SkillPackageCodec {
+  parse(input: unknown): SkillPackage;
+  activate(pkg: SkillPackage, reviewedDigest: string): unknown;
+}
