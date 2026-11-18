@@ -24,9 +24,9 @@ entry point registers.
 
 | Module | Routes | Mount point |
 | --- | ---: | --- |
-| `composition/app.ts` | 46 | Session, task detail and admission, evaluation trials, website widget, health |
+| `composition/app.ts` | 39 | Session, evaluation trials, website widget, health |
 | `platform/agents/http.ts` | 17 | `/api/organizations/:organizationId/agents/*`, `/offerings` |
-| `platform/runs/http.ts` | 6 | Conversation and task lists, task events, task cancel, conversation read and delete |
+| `platform/runs/http.ts` | 13 | Conversation and task lists, admission, detail, events, evidence, artifacts, instructions, continuation, cancel, history export, conversation read and delete |
 | `product/channels/channel-routes.ts` | 27 | `/api/organizations/:organizationId/channels` |
 | `product/inbox/inbox-routes.ts` | 19 | `/api/organizations/:organizationId/inbox`, `/api/website/:deploymentId/customer-conversations` |
 | `integrations/http/application-routes.ts` | 13 | `/api/organizations/:organizationId/applications`, `/v1/agents`, `/v1/runs` |
@@ -72,8 +72,8 @@ entry point registers.
 | `acceptance/report-receiver.ts` | 1 | `/deliveries` (separate process) |
 | `adapters/executors/executor-host.ts` | 1 | `/v1/resources/commands` (separate executor process) |
 
-Current code owners follow the source tree: 46 routes are registered directly in
-`composition/app.ts`, 291 sit in `product/`, `integrations/`, `platform/` and `workflows/`, and 2
+Current code owners follow the source tree: 39 routes are registered directly in
+`composition/app.ts`, 298 sit in `product/`, `integrations/`, `platform/` and `workflows/`, and 2
 belong to separate processes. The plan's target moves request handling to `integrations/` and the
 decisions behind it to `platform/`.
 
@@ -90,7 +90,7 @@ decisions behind it to `platform/`.
 | `product/connections/*` management routes | Mounted under `/api/organizations/...` | Move handlers to `platform/tools` and `integrations/http`; paths and payloads stay | Same paths | `products/agents/web/src/platform/connections.tsx` |
 | Agent management routes | Handlers moved to `platform/agents/http.ts`; composition passes the store, creation operations and product defaults as ports | Move the store and creation operations behind the same module, then delete the port wiring | `products/agents/web/src/platform`, inbound MCP |
 | Application DTOs | Inline shapes in `integrations/http/application-routes.ts` | Move consumer schemas to `packages/contracts` | One shared DTO set | `applications-settings.tsx`, external applications |
-| Task and conversation read and control | Lists, task events, task cancel, conversation read and conversation delete moved to `platform/runs/http.ts`; archive and restore remain inline | Resolve the archive/restore conflict, then move task detail, admission, evidence, artifacts, instructions and continuation | Same paths | `products/agents/web/src/platform/assistant-launcher.tsx` |
+| Task and conversation routes | All task and conversation routes except archive and restore now live in `platform/runs/http.ts` | Resolve the archive/restore conflict, which needs separate archive state or removal of restore | Same paths | `products/agents/web/src/platform/assistant-launcher.tsx` |
 | Billing entitlement read in `execution/admission/admission-store.ts` | Direct import from `product/billing` | Replace with an admission port provided by composition | Port in `contracts/` with the billing implementation injected | Internal only; recorded as accepted boundary debt |
 | `POST /deliveries` | Acceptance harness receiver | Keep out of the API process | None | Evaluation harness |
 

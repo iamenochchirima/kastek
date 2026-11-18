@@ -1,11 +1,9 @@
-import { contextGrantCeiling } from "../execution/models/settings";
 import { readTaskTiming } from "../execution/lifecycle/timing";
 import { readTaskRuntime, operationPresentation, productOperationMetadataSql } from "../product/integrations/growth-runtime-reporting";
 import { AGENCY_AGENT_COMMAND_PATH, AGENCY_AGENT_MODEL_PATH } from "@kasitek-labs/contracts";
 import { readPublicAgentUpdates } from "../product/integrations/public-agent-activity";
 import { assertMcpJobAuthority, assertMcpTaskAuthority } from "../infrastructure/mcp-job-authority";
 import { projectRecipientText, taskRecipientTextScope, projectWorkProgress } from "../execution/context/recipient-text";
-import { deadlineMillis } from "../execution/lifecycle/deadline";
 import { readWorkProgress, queueOrchestrationInstruction, authorizeOrchestration } from "../execution/delegation/progress";
 import { specialistCatalogue } from "../product/assistant/specialists";
 import { OrganizationAssistantStore } from "../product/agents/organization-assistant";
@@ -36,10 +34,9 @@ import { KnowledgeStore } from "../capabilities/knowledge/knowledge";
 import { resourceBackends } from "./resource-backends";
 import { capabilityBindingSchema } from "../contracts/capability-catalog";
 import {
-agentConfigurationSchema,assertRuntimeAvailable,
+agentConfigurationSchema,
 canonicalJson,
-sourceAuthorityIds,connectedToolAuthorityIds,
-executionGrantSchema,
+connectedToolAuthorityIds,
 parseAllowedOrigin,
 PlatformError,
 terminalTaskStates,type AdmissionAuthority,type AgentConfiguration
@@ -48,7 +45,7 @@ import type { Account,TaskRecord,VersionRecord } from "../contracts/records";
 import { TaskArtifactStore } from "../execution/artifacts/task-artifacts";
 import { assertCurrentEvidence,citationLabels,EvidenceStore } from "../execution/context/evidence";
 import { resolveAutomationOwner,resolveAutomationReviewer } from "../execution/lifecycle/automation-authority";
-import { queueChildContinuations,requestTreeCancellation } from "../execution/lifecycle/execution";
+import { requestTreeCancellation } from "../execution/lifecycle/execution";
 import { MemoryStore } from "../execution/memory/memory";
 import type { PlatformConfig } from "../infrastructure/config";
 import { privateStoreFromEnvironment } from "../infrastructure/object-store";
@@ -108,7 +105,7 @@ import { registerMemberRoutes } from "../product/members/routes";
 import { invitationEmailConfig } from "../product/members/email";
 import { effectivePermissions, requirePermission } from "../platform/access/permissions";
 import { registerAgentManagementRoutes } from "../platform/agents/http";
-import { registerRunReadRoutes } from "../platform/runs/http";
+import { registerRunRoutes, taskInput } from "../platform/runs/http";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
 import { customerOfferings } from "../product/offerings/offerings";
 import { registerAutomationRoutes } from "../product/automations/automation-routes";
@@ -147,13 +144,7 @@ import { admitApplicationRun } from "../platform/runs/application-admission";
 import { registerApplicationRoutes } from "../integrations/http/application-routes";
 import { registerApplicationConnectionSharing } from "../product/connections/application-sharing";
 const uuid = z.uuid();
-const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1),
-  requestKey: z.string().trim().min(1).max(128), conversationId: uuid.optional() });
 const websiteTaskInput = taskInput.omit({ versionId: true });
-const humanTaskInput = taskInput.omit({ versionId: true }).extend({ agentId: uuid.optional(), versionId: uuid.optional(),
-  evaluationTrialId: uuid.optional(), evaluationRootTokenLimit: z.number().int().positive().max(2147483647).optional() })
-  .refine(input => Boolean(input.agentId) !== Boolean(input.versionId), "Choose an agent or an explicit evaluation snapshot")
-  .refine(input => !input.agentId || !input.evaluationTrialId, "Evaluations require an explicit snapshot");
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
 const dto = (row: object) => ({ ...Object.fromEntries(Object.entries(row).map(([key, value]) => [
   key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()), value,
@@ -499,10 +490,28 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     await store.getAgent(user.id, org, agentId);
     return { accountId: user.id, organizationId: org, agentId };
   } });
-  registerRunReadRoutes(app, {
-    pool, store, discovery, taskAccess: humanTask, presentTask: readableTask, present: dto,
+  registerRunRoutes(app, {
+    pool, store, discovery, taskAccess: humanTask, presentTask: readableTask, presentOutput: readableOutput, present: dto,
     resolveScope: async request => ({ account: await account(request), organizationId: organizationId(request) }),
     deleteConversationSources: (scope, conversationId) => new MemoryStore(pool).deleteConversationSources(scope, conversationId),
+    admitMember: input => admitMemberRun({ pool, store, assertServices, grantOperations }, input),
+    assertServices, grantOperations, evaluationTrials, actions: actionServices?.actions, artifacts: taskArtifacts, evidence,
+    readRuntime: task => readTaskRuntime(pool, task, "agents"),
+    readPublicUpdates: taskId => readPublicAgentUpdates(pool, taskId),
+    readWorkProgress: taskId => readWorkProgress(pool, taskId),
+    projectWorkProgress: (taskId, progress) => projectWorkProgress(pool, taskId, progress),
+    authorizeOrchestration: taskId => authorizeOrchestration(pool, taskId),
+    operationMetadataSql: productOperationMetadataSql, presentOperation: operationPresentation,
+    exportHistory: (user, org, taskId) => exportExecutionHistory(pool, taskId, async (db, rootTaskId) => {
+      const visitorScope = await evaluationTrials.authorizeCustomerRoot(db, user.id, org, rootTaskId);
+      if (visitorScope) return visitorScope;
+      const allowed = await db.query(`SELECT t.id FROM agents_platform.tasks t
+        JOIN agents_platform.memberships m ON m.organization_id=t.organization_id AND m.account_id=$3 AND m.revoked_at IS NULL
+        WHERE t.id=$1 AND t.organization_id=$2 AND t.product='agents' AND t.caller_client_id='agents-execution'
+          AND t.parent_task_id IS NULL AND t.principal=$4::jsonb FOR SHARE OF t,m`,
+      [rootTaskId, org, user.id, JSON.stringify({ kind: "human", issuer: user.issuer, subject: user.subject })]);
+      if (!allowed.rowCount) throw new PlatformError("ACCESS_DENIED", 403, "Execution history is unavailable");
+    }, { objects: sourceObjects }),
   });
   async function archiveConversation(request: FastifyRequest, archived: boolean) {
     const user = await account(request), org = organizationId(request), conversationId = uuid.parse(parameters(request).conversationId);
@@ -635,19 +644,6 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       () => app.log.error({ event: "website_crawl_dispatch_failed", code: "WEBSITE_CRAWL_DISPATCH_FAILED" }));
   });
   app.addHook("onClose", async () => { await stopWebsiteCrawls?.(); });
-  app.get(`${base}/tasks/:taskId/history-export`, async request => {
-    const user = await account(request), org = organizationId(request), taskId = uuid.parse(parameters(request).taskId);
-    return exportExecutionHistory(pool, taskId, async (db, rootTaskId) => {
-      const visitorScope=await evaluationTrials.authorizeCustomerRoot(db,user.id,org,rootTaskId);
-      if(visitorScope)return visitorScope;
-      const allowed = await db.query(`SELECT t.id FROM agents_platform.tasks t
-        JOIN agents_platform.memberships m ON m.organization_id=t.organization_id AND m.account_id=$3 AND m.revoked_at IS NULL
-        WHERE t.id=$1 AND t.organization_id=$2 AND t.product='agents' AND t.caller_client_id='agents-execution'
-          AND t.parent_task_id IS NULL AND t.principal=$4::jsonb FOR SHARE OF t,m`,
-      [rootTaskId, org, user.id, JSON.stringify({ kind: "human", issuer: user.issuer, subject: user.subject })]);
-      if (!allowed.rowCount) throw new PlatformError("ACCESS_DENIED", 403, "Execution history is unavailable");
-    }, {objects:sourceObjects});
-  });
   app.post(`${base}/agents/:agentId/model-preview`, async request => evaluationTrials.preview(
     (await account(request)).id, organizationId(request), uuid.parse(parameters(request).agentId), request.body));
   app.post(`${base}/evaluation-trials`, async (request, reply) => {
@@ -695,109 +691,11 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     z.strictObject({}).parse(request.body ?? {});
     return evaluationTrials.revoke((await account(request)).id, organizationId(request), uuid.parse(parameters(request).trialId));
   });
-  app.post(`${base}/tasks`, async (request, reply) => {
-    const input = humanTaskInput.parse(request.body), user = await account(request), org = organizationId(request);
-    if (input.agentId) {
-      const authority = humanAuthority(user,org,input.agentId);
-      const result = await admitMemberRun({ pool, store, assertServices, grantOperations }, {
-        accountId: user.id, authority, message: input.input, requestKey: input.requestKey,
-        conversationId: input.conversationId, evaluationRootTokenLimit: input.evaluationRootTokenLimit,
-      });
-      request.log.info({event:"task.admitted",taskId:result.task.id,organizationId:org,replayed:result.replayed},"Task admitted");
-      return reply.code(result.replayed?200:202).send({task:await readableTask(result.task)});
-    }
-    const version = await store.getVersion(user.id, org, input.versionId!);
-    assertRuntimeAvailable(version.configuration);
-    await assertServices(version.configuration);
-    const authority = humanAuthority(user, org, version.agent_id);
-    const trial = input.evaluationTrialId ? (await evaluationTrials.get(user.id, org, { id: input.evaluationTrialId })).trial : null;
-    if (input.evaluationTrialId && !trial) throw new PlatformError("EVALUATION_TRIAL_INACTIVE", 403, "Trial not found");
-    if (input.evaluationRootTokenLimit && !trial) throw new PlatformError("EVALUATION_SCOPE_REQUIRED", 403, "A trial is required for this allocation");
-    if (trial && input.evaluationRootTokenLimit !== undefined && input.evaluationRootTokenLimit !== trial.rootTokenLimit) throw new PlatformError("EVALUATION_MODEL_MISMATCH", 409, "Use the trial's pinned root allocation");
-    const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
-      operations: grantOperations(version.configuration), sourceRevisionIds: sourceAuthorityIds(version.configuration), connectedToolBindingIds: connectedToolAuthorityIds(version.configuration),
-      maxInputBytes: version.configuration.model.maxInputBytes, maxOutputTokens: version.configuration.model.maxOutputTokens,
-      maxContextTokens: contextGrantCeiling(version.configuration),
-      ...(trial ? { rootTokenLimit: trial.rootTokenLimit } : {}),
-      expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), revokedAt: null });
-    await store.createGrant({ accountId: user.id, grant });
-    const result = await store.admitTask({ ...input, versionId: version.id, authority, grantId: grant.id });
-    request.log.info({ event: "task.admitted", taskId: result.task.id, organizationId: org, replayed: result.replayed }, "Task admitted");
-    return reply.code(result.replayed ? 200 : 202).send({ task: await readableTask(result.task) });
-  });
-  app.get(`${base}/tasks/:taskId`, async (request) => {
-    const { task, reviewOnly, authority } = await humanTask(request);
-    const eventQuery=z.object({eventsLimit:pageQuery.shape.limit,eventsCursor:pageQuery.shape.cursor,operationsLimit:pageQuery.shape.limit,operationsCursor:pageQuery.shape.cursor}).strict().parse(request.query);
-    if(reviewOnly){
-      const scope={accountId:(await account(request)).id,organizationId:task.organization_id};
-      const actions=actionServices?await actionServices.actions.listForTask(scope,task.id):[];
-      const reports=actions.length?(await pool.query("SELECT id,name,content_type,bytes FROM agents_platform.artifacts WHERE task_id=$1 AND id=ANY($2::uuid[]) AND state='available'",[task.id,actions.map(action=>action.artifactId)])).rows:[];
-      return {task:{id:task.id,state:task.state,output:null,errorCode:null},actions,canControl:false,canDownloadArtifacts:true,
-        events:[],eventsNextCursor:null,operations:[],children:[],resources:[],artifacts:reports.map(report=>({...dto(report),downloadPath:`/api/organizations/${task.organization_id}/tasks/${task.id}/artifacts/${report.id}`}))};
-    }
-    const viewer=await account(request),canControl=task.principal.kind!=="automation"||task.principal.ownerAccountId===viewer.id;
-    const operationScope={kind:"owner-task-operations",account:viewer.id,organization:task.organization_id,task:task.id};
-    const operationCursor=readPageCursor(eventQuery.operationsCursor,operationScope);
-    if(operationCursor.position&&!Number.isFinite(Date.parse(operationCursor.position)))throw new PlatformError("INVALID_CURSOR",400,"Invalid operation cursor");
-    const operationRows = (await pool.query(`SELECT o.id AS operation_id,md5(o.id) AS cursor_id,
-      to_char(o.started_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_position,
-      o.kind,${productOperationMetadataSql},o.state,o.error_code,o.accounted_tokens,o.started_at,o.completed_at,
-      greatest(0,extract(epoch FROM (coalesce(o.completed_at,now())-o.started_at))*1000)::float8 AS duration_ms,
-      b.binding->>'transport' AS transport,b.binding->'definition'->>'providerOperation' AS provider_operation
-      FROM agents_platform.operations o JOIN agents_platform.tasks t ON t.id=o.task_id
-      JOIN agents_platform.agent_versions v ON v.id=t.version_id AND v.organization_id=t.organization_id
-      LEFT JOIN agents_platform.capability_bindings b ON b.alias=o.name AND b.organization_id=$2
-      WHERE o.task_id=$1 AND o.started_at<=$3 AND ($4::text='' OR (o.started_at,md5(o.id))<($4::timestamptz,$5::text))
-      ORDER BY o.started_at DESC,md5(o.id) DESC LIMIT $6`, [task.id,task.organization_id,operationCursor.snapshot,operationCursor.position,operationCursor.id,eventQuery.operationsLimit+1])).rows;
-    const operationPage=finishPage(operationRows,eventQuery.operationsLimit,operationScope,operationCursor.snapshot,row=>({position:row.cursor_position,id:row.cursor_id}));
-    const operations=operationPage.items.reverse().map(({cursor_id:_,cursor_position:__,catalog_binding,catalog_description,...operation})=>({...operation,...operationPresentation(operation.kind,operation.name,catalog_binding,catalog_description)}));
-    const eventPage=await store.getEventPage(authority,task.id,{limit:eventQuery.eventsLimit,cursor:eventQuery.eventsCursor});
-    const events=eventPage.items;
-    const children = (await pool.query(`SELECT t.id,a.name AS agent_name,t.version_id,v.number AS version_number,d.binding_id,
-      t.state,t.created_at,CASE WHEN c.deleted_at IS NULL THEN t.input ELSE NULL END AS input,CASE WHEN c.deleted_at IS NULL THEN t.output ELSE NULL END AS output,t.error_code,t.root_task_id,t.parent_task_id FROM agents_platform.tasks t
-      JOIN agents_platform.agent_versions v ON v.id=t.version_id JOIN agents_platform.agents a ON a.id=v.agent_id
-      JOIN agents_platform.conversations c ON c.id=t.conversation_id
-      JOIN agents_platform.delegations d ON d.child_task_id=t.id WHERE t.parent_task_id=$1 ORDER BY d.operation_id,d.slot`,[task.id])).rows;
-    const resources = (await pool.query(`SELECT id,task_id,profile_id AS profile,state,
-      CASE WHEN state='destroyed' THEN 'completed' WHEN state='destroying' THEN 'pending'
-        WHEN state='uncertain' THEN 'uncertain' ELSE 'active' END AS cleanup_state,lease_expires_at AS expires_at
-      FROM agents_platform.sandbox_allocations WHERE root_task_id=$1 ORDER BY created_at,id`,[task.root_task_id])).rows;
-    const visibleArtifacts = await taskArtifacts.listForRoot(task.root_task_id).catch(error=>{
-      if(error instanceof PlatformError && error.code==="ARTIFACT_NOT_FOUND")return [];
-      throw error;
-    });
-    const reviewerReports=!canControl?(await pool.query("SELECT artifact_id FROM agents_platform.actions WHERE root_task_id=$1 AND reviewer_account_id=$2",[task.root_task_id,viewer.id])).rows.map(row=>row.artifact_id):null;
-    const artifacts = visibleArtifacts.filter(a=>(!task.parent_task_id||a.taskId===task.id)&&(!reviewerReports||reviewerReports.includes(a.id)))
-      .map(a=>({...a,downloadPath:`/api/organizations/${task.organization_id}/tasks/${task.id}/artifacts/${a.id}`}));
-    const actions=actionServices?await actionServices.actions.listForTask({accountId:viewer.id,organizationId:task.organization_id},task.id):[];
-    const hasToolReviews=Boolean((await pool.query("SELECT 1 FROM agents_platform.tool_invocation_reviews WHERE task_id=$1 AND organization_id=$2 AND reviewer_account_id=$3 LIMIT 1",[task.id,task.organization_id,viewer.id])).rowCount);
-    const configuration=agentConfigurationSchema.parse((await pool.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1",[task.version_id])).rows[0].configuration);
-    const adaptive=configuration.program.id==="tool-directed"&&configuration.program.version==="4"&&configuration.capabilities.delegation.enabled;
-    let orchestration=adaptive?await readWorkProgress(pool,task.id):undefined;
-    if(orchestration?.record){
-      const conversation=(await pool.query("SELECT deleted_at FROM agents_platform.conversations WHERE id=$1",[task.conversation_id])).rows[0];
-      try{
-        if(!conversation||conversation.deleted_at)throw new PlatformError("CONVERSATION_DELETED",403,"Conversation unavailable");
-        const policy=await import("../execution/context/evidence");
-        await policy.assertCurrentEvidence(pool,task.id,await policy.taskEvidenceManifest(pool,task.id),{requireActiveTask:false});
-        orchestration=await projectWorkProgress(pool,task.id,orchestration);
-      }catch(error){if(!(error instanceof PlatformError))throw error;orchestration={revision:orchestration.revision,record:null};}
-    }
-    let canSteer=(adaptive||task.effective_composition?.runtime.release==="product-capabilities-v15")&&canControl&&task.principal.kind==="human"&&!task.parent_task_id&&!terminalTaskStates.has(task.state)&&task.state!=="cancel_requested";
-    if(canSteer)try{await authorizeOrchestration(pool,task.id);}catch(error){if(!(error instanceof PlatformError))throw error;canSteer=false;}
-    const visibleTask=await readableTask(task);
-    let runtime;
-    if(task.product==="agents"&&!task.channel_binding&&visibleTask.inputAvailability!=="unavailable"&&visibleTask.outputAvailability!=="unavailable")try{
-      runtime=await readTaskRuntime(pool,task,"agents");
-    }catch(error){if(!(error instanceof PlatformError)||![403,404,409,503].includes(error.statusCode))throw error;}
-    return { ...await readPublicAgentUpdates(pool,task.id),orchestration,canSteer,actions,canControl,canDownloadArtifacts:true,task: {...visibleTask,...(runtime?{runtime,elapsedMs:runtime.elapsedMs,workElapsedMs:runtime.workElapsedMs,observedAt:runtime.observedAt}:{}),hasToolReviews,hasEnquiries:Boolean((await pool.query("SELECT 1 FROM agents_platform.enquiries WHERE task_id=$1 LIMIT 1",[task.id])).rowCount),hasBookings:Boolean((await pool.query("SELECT 1 FROM agents_platform.booking_intents WHERE task_id=$1 LIMIT 1",[task.id])).rowCount)}, events: events.map(dto), eventsNextCursor:eventPage.nextCursor, operations: operations.map(dto),operationsNextCursor:operationPage.nextCursor,children:await Promise.all(children.map(async child=>{const visible=await readableTask(child);return {...dto(child),input:visible.input,assignment:visible.input,...await readableOutput(child.id,child.output)};})),resources:resources.map(dto),artifacts };
-  });
   async function taskPassages(task: TaskRecord) {
     if(task.channel_binding && !(await pool.query("SELECT 1 FROM agents_platform.customer_deliveries WHERE task_id=$1 AND state='published'",[task.id])).rowCount)
       return {passages:[],availability:"unavailable"};
     if (!evidence) return { state: "unavailable", code: "EVIDENCE_BACKEND_UNAVAILABLE", passages: [] };
     try {
-      // Cited passages when the answer carries evidence handles; otherwise the supplied manifest.
       const passages = task.output && citationLabels(task.output).length
         ? await evidence.validateCitations(task.id, task.output)
         : await evidence.suppliedPassages(task.id);
@@ -811,55 +709,6 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       throw error;
     }
   }
-  app.get(`${base}/tasks/:taskId/evidence`, async request => {
-    const {task}=await humanTask(request), viewer=await account(request);
-    // A report reviewer receives only the prepared report's citations through ActionService.
-    if(task.principal.kind==="automation" && task.principal.ownerAccountId!==viewer.id) throw new PlatformError("NOT_FOUND",404,"Task not found");
-    return taskPassages(task);
-  });
-  app.get(`${base}/tasks/:taskId/artifacts/:artifactId`, async (request,reply) => {
-    const {task}=await humanTask(request), user=await account(request);
-    const result=await taskArtifacts.download(user.id,task.organization_id,task.id,uuid.parse(parameters(request).artifactId));
-    return reply.header("content-type",result.artifact.contentType).header("content-disposition",`attachment; filename="${result.artifact.name}"`)
-      .header("cache-control","private, no-store").header("x-content-type-options","nosniff").send(Buffer.from(result.content));
-  });
-  app.post(`${base}/tasks/:taskId/instructions`, async request => {
-    const {task,reviewOnly}=await humanTask(request);
-    if(reviewOnly||task.principal.kind!=="human"||task.parent_task_id)throw new PlatformError("ACCESS_DENIED",403,"Task instructions are unavailable");
-    return queueOrchestrationInstruction(pool,task.id,request.body);
-  });
-  app.post(`${base}/tasks/:taskId/continue`, async request => {
-    const { task, authority } = await humanTask(request);
-    if(task.principal.kind!=="human")throw new PlatformError("AUTOMATION_CONTROL_REQUIRED",403,"Manage access on the automation");
-    if(task.parent_task_id) throw new PlatformError("ROOT_CONTROL_REQUIRED",409,"Continue the main task");
-    const user = await account(request);
-    const childNeedsAuthority = task.state === "waiting_children" && Boolean((await pool.query(
-      "SELECT 1 FROM agents_platform.tasks WHERE root_task_id=$1 AND parent_task_id IS NOT NULL AND state='waiting_authority' LIMIT 1",[task.id])).rowCount);
-    if (task.state !== "waiting_authority" && !childNeedsAuthority) return { task: dto(task) };
-    const previous = (await pool.query("SELECT revoked_at FROM agents_platform.execution_grants WHERE id=$1",[task.grant_id])).rows[0];
-    if(!previous || previous.revoked_at) throw new PlatformError("GRANT_REVOKED",403,"Execution access was revoked");
-    const version = await store.getVersion(user.id, task.organization_id, task.version_id);
-    const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
-      operations: grantOperations(version.configuration),
-      sourceRevisionIds: sourceAuthorityIds(version.configuration), connectedToolBindingIds: connectedToolAuthorityIds(version.configuration), maxInputBytes: version.configuration.model.maxInputBytes,
-      maxOutputTokens: version.configuration.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(version.configuration),
-      rootTokenLimit: (task as TaskRecord & {root_token_limit:number}).root_token_limit,
-      expiresAt: new Date(Math.min(Date.now()+30*60_000, deadlineMillis((task as TaskRecord & {deadline_at:Date|null}).deadline_at))).toISOString(), revokedAt: null });
-    await store.createGrant({ accountId: user.id, grant });
-    const db = await pool.connect();
-    try {
-      await db.query("BEGIN");
-      const current=(await db.query(`SELECT g.id FROM agents_platform.tasks t JOIN agents_platform.execution_grants g ON g.id=t.grant_id
-        WHERE t.id=$1 AND g.revoked_at IS NULL FOR NO KEY UPDATE OF t FOR SHARE OF g`,[task.id])).rows[0];
-      if(!current)throw new PlatformError("GRANT_REVOKED",403,"Execution access was revoked");
-      const updated = (await db.query(`UPDATE agents_platform.tasks SET grant_id=$2,control_generation=control_generation+1,updated_at=now()
-        WHERE id=$1 AND state IN ('waiting_authority','waiting_children') RETURNING control_generation-1 AS generation,state`, [task.id, grant.id])).rows[0];
-      if (updated?.state === "waiting_authority") await db.query("INSERT INTO agents_platform.task_controls(task_id,generation) VALUES($1,$2) ON CONFLICT DO NOTHING", [task.id, updated.generation]);
-      await db.query("COMMIT");
-    } catch(error) { await db.query("ROLLBACK"); throw error; } finally { db.release(); }
-    await queueChildContinuations(pool,task.id);
-    return { task: dto((await humanTask(request)).task) };
-  });
 
   async function websiteContext(request: FastifyRequest, reply?: { header: (key: string, value: string) => unknown }) {
     const deployment = await store.getWebsiteDeployment(uuid.parse(parameters(request).deploymentId));

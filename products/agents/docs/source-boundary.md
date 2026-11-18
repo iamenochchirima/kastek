@@ -1388,10 +1388,10 @@ Composition passes the product store, creation operations, offerings data and th
 avatar schema as ports, so the module depends only on `contracts` and
 `infrastructure`. Paths and payloads are unchanged.
 
-Conversation and task read and control handlers moved to `platform/runs/http.ts`:
-lists, task events, task cancel, conversation read and conversation delete. The task
-detail, admission, evidence, artifact, instruction and continuation handlers, and the
-archive and restore pair, remain in composition.
+Task and conversation handlers moved to `platform/runs/http.ts`: lists, admission,
+detail, events, evidence, artifacts, instructions, continuation, cancel, history
+export, conversation read and conversation delete. Archive and restore remain in
+composition because retention makes deletion irreversible.
 
 Composition entry points are `api/src/composition/` and compile to
 `api/dist/composition/`. MCP's bounded helper remains adjacent to its adapter under
