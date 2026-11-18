@@ -3,9 +3,12 @@ import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
 import { transaction } from "../../infrastructure/database";
+import { requirePermission } from "./permissions";
+import type { TaskRecord } from "../../contracts/records";
 import type { ApplicationAgentDetail, ApplicationAgentSummary, ApplicationCreateResponse, ApplicationCredentialResponse, ApplicationSummary } from "@kasitek-labs/contracts";
 
-export const applicationScopeSchema = z.enum(["agents:read", "runs:start", "runs:read", "runs:control"]);
+export const applicationScopeSchema = z.enum(["agents:read", "agents:manage", "agents:publish",
+  "connections:manage", "runs:start", "runs:read", "runs:control", "reviews:decide"]);
 export type ApplicationScope = z.infer<typeof applicationScopeSchema>;
 const scopeSchema = applicationScopeSchema;
 const createSchema = z.strictObject({ name: z.string().trim().min(1).max(120),
@@ -14,6 +17,12 @@ const createSchema = z.strictObject({ name: z.string().trim().min(1).max(120),
 const hash = (secret: string) => createHash("sha256").update(secret).digest("hex");
 type Owner = { accountId: string; organizationId: string };
 type Authorize = (db: PoolClient, owner: Owner) => Promise<void>;
+
+export async function authorizeApplicationManager(db: PoolClient, owner: Owner): Promise<void> {
+  const membership = await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE", [owner.organizationId, owner.accountId]);
+  if (!membership.rowCount) throw new PlatformError("ACCESS_DENIED", 403, "Access denied");
+  await requirePermission(db, owner, "credentials.manage");
+}
 
 export class Applications {
   constructor(private readonly pool: Pool, private readonly authorize: Authorize) {}
@@ -129,4 +138,23 @@ export class Applications {
     if (!row) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
     return { organizationId: row.organization_id, applicationId: row.application_id, credentialId: row.credential_id };
   }
+
+  async authorizedRun(secret: string, taskId: string, scope: "runs:read" | "runs:control"): Promise<TaskRecord> {
+    z.uuid().parse(taskId);
+    const caller = await this.authenticate(secret, scope);
+    const task = (await this.pool.query<TaskRecord>(`SELECT t.* FROM agents_platform.tasks t
+      JOIN agents_platform.applications a ON a.id=$2 AND a.organization_id=t.organization_id AND a.revoked_at IS NULL
+      JOIN agents_platform.application_credentials k ON k.id=$3 AND k.application_id=a.id AND k.organization_id=a.organization_id AND k.revoked_at IS NULL
+      JOIN agents_platform.agents agent ON agent.id::text=t.resource_id AND agent.organization_id=t.organization_id AND agent.deleted_at IS NULL
+      JOIN agents_platform.conversations c ON c.id=t.conversation_id AND c.deleted_at IS NULL
+      WHERE t.id=$1 AND t.organization_id=$4 AND t.parent_task_id IS NULL AND t.principal->>'kind'='application'
+        AND t.principal->>'applicationId'=a.id::text AND agent.id=ANY(a.agent_ids) AND $5=ANY(k.scopes)`,
+    [taskId, caller.applicationId, caller.credentialId, caller.organizationId, scope])).rows[0];
+    if (!task) throw new PlatformError("NOT_FOUND", 404, "Run not found");
+    return task;
+  }
 }
+
+/** Public operations consumed by protocol adapters; storage remains owned by this module. */
+export type ApplicationAccess = Pick<Applications, "create" | "list" | "revoke" | "assignAgents" | "issueCredential" |
+  "revokeCredential" | "listAgents" | "inspectAgent" | "authenticate" | "authorizedRun">;
