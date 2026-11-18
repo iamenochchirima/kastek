@@ -11,6 +11,10 @@ Send the credential as a bearer token. The available scopes and operations are:
 - `runs:start`: `POST /v1/runs` starts a run with `{ agentId, message, requestId, conversationId? }`.
   Reuse the request ID to retry the same request.
 - `runs:read`: `GET /v1/runs/:taskId` returns the run state, public activity, and available result.
+- `runs:read`: `GET /v1/runs/:taskId/events` streams the same public run snapshot as server-sent
+  events. Each connection starts with a current snapshot, followed by changed snapshots. Reconnect
+  with the same bearer authorization to get the latest snapshot; this does not replay every change
+  or stream model tokens. The stream ends when the run settles or access becomes unavailable.
 - `runs:control`: `POST /v1/runs/:taskId/instructions` queues `{ instruction, requestKey }` and
   `POST /v1/runs/:taskId/cancel` requests cancellation.
 
@@ -25,5 +29,9 @@ the old credential at `POST /api/organizations/:organizationId/applications/:app
 Revoke the whole application at `POST /api/organizations/:organizationId/applications/:applicationId/revoke`.
 Credential responses are not cached and secrets are not returned by the application list.
 
-Application agent-configuration access, per-plan API entitlement, agent assignment changes, and
-streaming are not yet implemented. MCP OAuth permissions are separate from these credentials.
+Change the assigned agents with `PUT /api/organizations/:organizationId/applications/:applicationId/agents`
+and `{ "agentIds": [...] }`. An empty list removes all assignments. Removing an agent stops further
+execution and access for its existing application runs.
+
+Application agent-configuration access and per-plan API entitlement are not yet implemented.
+MCP OAuth permissions are separate from these credentials.
