@@ -23,6 +23,7 @@ import { createSandboxExecutor } from "../capabilities/sandbox/sandbox-executor"
 import { capabilityBindingSchema } from "../contracts/capability-catalog";
 import { PlatformError,connectedToolAuthorityIds } from "../contracts/contracts";import { TaskArtifactStore } from "../execution/artifacts/task-artifacts";
 import { createBusinessWorkflow, type BusinessOptions } from "../execution/business/business";
+import { PlatformConversationHistory } from "../platform/conversations/history";
 import { createContextCompactionWorkflow } from "../execution/context/compaction-workflow";
 import { createSupportStatusWorkflow,SUPPORT_STATUS_WORKFLOW } from '../execution/business/support-status-business';
 import { ModelProviderStore } from "../product/model-providers/store";
@@ -171,6 +172,7 @@ async function main(): Promise<void> {
     readRetainedArtifact: (taskId,originTaskId,artifactId)=>artifacts.readRetainedForTask(taskId,originTaskId,artifactId),artifacts,
     actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output),
     executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews,bookings,
+    history: new PlatformConversationHistory(pool),
     onSettled: taskId => generateConversationTitle({ pool, providers: modelProvider, taskId })
       .catch(error => console.error(JSON.stringify({ ...diagnosticIdentity, event: "conversation.title.failed", taskId,
         code: error instanceof PlatformError ? error.code : "TITLE_GENERATION_FAILED" }))) };

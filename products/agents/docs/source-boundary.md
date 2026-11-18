@@ -1389,6 +1389,9 @@ bumped because their manifest path lists changed the executable digest.
 
 Conversation turn, event and page reads moved to `platform/conversations/reads.ts`.
 Admission still creates turns; the read store owns how they are listed and paginated.
+Context assembly reads history through `execution/context/readers.ts`; the workflow
+receives `PlatformConversationHistory` from composition and keeps its inline query as
+the fallback for callers that do not inject a reader.
 
 Agent management HTTP handlers moved from composition to `platform/agents/http.ts`.
 Composition passes the product store, creation operations, offerings data and the

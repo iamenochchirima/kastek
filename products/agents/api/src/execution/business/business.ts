@@ -123,13 +123,16 @@ export interface BusinessOptions {
   selectReportArtifact?:(taskId:string,name:string,generatedOutput:string)=>Promise<{id:string}>;
   executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]}|{skillId:string;path:string;inputArtifactIds?:string[]})=>Promise<unknown>;
   onSettled?: (taskId: string) => Promise<unknown> | unknown;
+  history?: ConversationHistoryReader;
 }
 import { operation, uncertainOperation, type Result } from "../lifecycle/durable-operation";
+import type { ConversationHistoryReader, ConversationHistoryTurn } from "../context/readers";
 export { operation } from "../lifecycle/durable-operation";
 interface Snapshot { primaryInstructionIds?:string[]; id: string; messages: HarnessMessage[]; digest: string; estimatedTokens: number;
   memoryFence?: MemoryFence; historyCutoff: string; tools: ToolDefinition[]; evidenceManifest?: DependencyManifest; catalog?: ToolCatalog;instructionHead?:string;
   contextPlan?: { budgets: { maxInputTokens: number } } }
-const terminalSql = "('completed','incomplete','refused','failed','cancelled','uncertain')";
+const terminalStates = ["completed","incomplete","refused","failed","cancelled","uncertain"] as const;
+const terminalSql = `('${terminalStates.join("','")}')`;
 
 
 async function guardedRun<T>(ctx:restate.WorkflowContext,name:string,perform:()=>Promise<T>):Promise<T>{
@@ -408,16 +411,24 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   phase.mark("capabilities");
   const invalidated = (knownGeneration !== undefined && knownGeneration !== memoryFence?.generation) ||
     (knownExpiry !== undefined && Date.now() >= knownExpiry);
-  const priorPredicate=`FROM agents_platform.tasks t
-    WHERE t.conversation_id=$1 AND t.turn_sequence<$2 AND t.state IN ${terminalSql}
-    AND NOT EXISTS(SELECT 1 FROM agents_platform.context_snapshots c WHERE c.task_id=t.id AND c.memory_scope_id=$3
-      AND c.memory_generation<>$4)`;
   const priorParams=[task.conversation_id, task.turn_sequence, memoryFence?.id ?? null, memoryFence?.generation ?? null];
-  const prior = (await pool.query(`SELECT t.id,t.input,t.output,t.state,t.turn_sequence::text AS sequence,t.created_at ${priorPredicate}
-    ORDER BY t.turn_sequence DESC LIMIT $5`, [...priorParams, historyTurnWindow()])).rows;
-  const olderTurns = !task.channel_binding
-    ? Math.max(0, Number((await pool.query(`SELECT count(*)::int AS n ${priorPredicate}`, priorParams)).rows[0]?.n ?? 0) - prior.length)
-    : 0;
+  let prior: ConversationHistoryTurn[], olderTurns = 0;
+  if (options.history) {
+    const read = await options.history.readWindow({ conversationId: task.conversation_id, beforeSequence: task.turn_sequence,
+      limit: historyTurnWindow(), terminalStates, memoryScopeId: memoryFence?.id ?? null, memoryGeneration: memoryFence?.generation ?? null });
+    prior = read.turns;
+    olderTurns = task.channel_binding ? 0 : read.olderCount;
+  } else {
+    const priorPredicate=`FROM agents_platform.tasks t
+      WHERE t.conversation_id=$1 AND t.turn_sequence<$2 AND t.state IN ${terminalSql}
+      AND NOT EXISTS(SELECT 1 FROM agents_platform.context_snapshots c WHERE c.task_id=t.id AND c.memory_scope_id=$3
+        AND c.memory_generation<>$4)`;
+    prior = (await pool.query(`SELECT t.id,t.input,t.output,t.state,t.turn_sequence::text AS sequence,t.created_at ${priorPredicate}
+      ORDER BY t.turn_sequence DESC LIMIT $5`, [...priorParams, historyTurnWindow()])).rows;
+    olderTurns = !task.channel_binding
+      ? Math.max(0, Number((await pool.query(`SELECT count(*)::int AS n ${priorPredicate}`, priorParams)).rows[0]?.n ?? 0) - prior.length)
+      : 0;
+  }
   const eligible = options.evidence ? new Set<string>() : undefined;
   let unavailableHistory=0;
   if(options.evidence)for(let offset=0;offset<prior.length;offset+=64){
