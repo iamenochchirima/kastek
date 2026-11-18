@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
 import { defaultBusinessConfiguration } from "../src/contracts/contracts";
-import { MemoryStore } from "../src/execution/memory/memory";
+import { MemoryStore } from "../src/platform/memory/memory";
 import { purgeMemoryRevisionContent, exportMemoryDeletionLedger, replayMemoryDeletionLedger } from "../src/platform/memory/retention";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 

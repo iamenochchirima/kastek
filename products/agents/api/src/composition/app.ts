@@ -46,7 +46,7 @@ import { TaskArtifactStore } from "../execution/artifacts/task-artifacts";
 import { assertCurrentEvidence,citationLabels,EvidenceStore } from "../execution/context/evidence";
 import { resolveAutomationOwner,resolveAutomationReviewer } from "../execution/lifecycle/automation-authority";
 import { requestTreeCancellation } from "../execution/lifecycle/execution";
-import { MemoryStore } from "../execution/memory/memory";
+import { MemoryStore } from "../platform/memory/memory";
 import type { PlatformConfig } from "../infrastructure/config";
 import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 import { pageQuery, cursorKeysFromEnvironment, readPageCursor, finishPage } from "../infrastructure/read-pages";

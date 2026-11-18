@@ -42,9 +42,10 @@ export interface ContextRunStateReader {
 }
 
 /** Readers available to context assembly. Unimplemented readers stay undefined. */
+import type { MemoryStorePort } from "../../contracts/memory";
 export interface ContextReaders {
   history?: ConversationHistoryReader;
   knowledge?: KnowledgeContextReader;
-  memory?: MemoryContextReader;
+  memory?: MemoryContextReader & MemoryStorePort;
   runState?: ContextRunStateReader;
 }

@@ -8,7 +8,7 @@ import {PlatformStore} from "../src/product/agents/store";
 import {defaultBusinessConfiguration,executionGrantSchema,requestDigest} from "../src/contracts/contracts";
 import {EvidenceStore,assertCurrentEvidence,assertDelegationInputEvidence,taskEvidenceManifest} from "../src/execution/context/evidence";
 import {KnowledgeRuntime} from "../src/platform/knowledge/knowledge-runtime";
-import {MemoryStore} from "../src/execution/memory/memory";
+import {MemoryStore} from "../src/platform/memory/memory";
 import {admitChildren,readChildResults} from "../src/execution/delegation/delegation";
 import {beginOperation,finishOperation,loadExecution,settleTask,assertCurrentAuthority} from "../src/execution/lifecycle/execution";
 import {setupPlatformSchema} from "../src/composition/setup";

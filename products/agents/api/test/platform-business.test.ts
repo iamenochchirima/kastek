@@ -38,7 +38,7 @@ import { KnowledgeStore } from "../src/platform/knowledge/knowledge";
 import { KnowledgeRuntime } from "../src/platform/knowledge/knowledge-runtime";
 import { EvidenceStore } from "../src/execution/context/evidence";
 import { textDigest } from "../src/contracts/source-contracts";
-import { MemoryStore } from "../src/execution/memory/memory";
+import { MemoryStore } from "../src/platform/memory/memory";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
 import { toolsFor, executeTool } from "../src/capabilities/tools";

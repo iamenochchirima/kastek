@@ -11,7 +11,7 @@ import { defaultBusinessConfiguration, executionGrantSchema } from "../src/contr
 import { activateSkillPackage, parseSkillPackage } from "../src/capabilities/skills/package";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { loadSkillRevisions } from "../src/execution/memory/skills";
-import { MemoryStore } from "../src/execution/memory/memory";
+import { MemoryStore } from "../src/platform/memory/memory";
 import {assertCurrentSkillPolicy} from "../src/capabilities/skills/current-policy";
 import type {Execution} from "../src/contracts/execution";
 import { composeInbox } from "../src/composition/inbox";

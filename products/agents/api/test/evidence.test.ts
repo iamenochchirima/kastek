@@ -20,7 +20,7 @@ import {TaskArtifactStore} from "../src/execution/artifacts/task-artifacts";
 import {ActionService} from "../src/workflows/report-delivery/actions";
 import {createReportReceiver,initializeReportReceiver} from "../src/acceptance/report-receiver";
 import {ArtifactStore} from "../src/execution/artifacts/artifacts";
-import {MemoryStore} from "../src/execution/memory/memory";
+import {MemoryStore} from "../src/platform/memory/memory";
 import {textDigest} from "../src/contracts/source-contracts";
 
 it("parses only the explicit citation convention, preserving first occurrence",()=>{

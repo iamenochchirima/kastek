@@ -16,7 +16,7 @@ import {EvidenceStore} from "../src/execution/context/evidence";
 import {publishFixtureSource} from "./knowledge-fixture";
 import {readHistory,searchHistory} from "../src/execution/context/journal";
 import {validateBuiltinArguments,validateBuiltinResult} from "../src/capabilities/tool-contracts";
-import {MemoryStore} from "../src/execution/memory/memory";
+import {MemoryStore} from "../src/platform/memory/memory";
 import {TaskArtifactStore} from "../src/execution/artifacts/task-artifacts";
 import {ConnectionVault} from "../src/infrastructure/vault";
 import {ConnectionStore} from "../src/product/connections/connections";

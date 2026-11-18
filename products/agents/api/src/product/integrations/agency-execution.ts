@@ -22,7 +22,7 @@ import { readGrowthRuntime } from "./growth-runtime-reporting";
 import { observeProductTask, readProductChildren } from "./growth-observation";
 import { readPublicAgentUpdates } from "./public-agent-activity";
 import { projectRecipientText, taskRecipientTextScope } from "../../execution/context/recipient-text";
-import { MemoryStore, type ProductMemoryManagementScope } from "../../execution/memory/memory";
+import { MemoryStore, type ProductMemoryManagementScope } from "../../platform/memory/memory";
 import { builtinProviderRegistry } from "../../adapters/models/registry";
 import { TaskArtifactStore } from "../../execution/artifacts/task-artifacts";
 import { privateStoreFromEnvironment } from "../../infrastructure/object-store";

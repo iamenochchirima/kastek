@@ -49,7 +49,6 @@ type Execution,
 type MemoryFence,
 type TaskOutcome
 } from "../lifecycle/execution";
-import { MemoryStore } from "../memory/memory";
 import { loadSkillRevisions } from "../memory/skills";
 import { executeMemoryTool } from "../../capabilities/memory-tools";
 import {
@@ -130,6 +129,7 @@ export interface BusinessOptions {
 }
 import { operation, uncertainOperation, type Result } from "../lifecycle/durable-operation";
 import type { ContextReaders, ConversationHistoryReader, ConversationHistoryTurn } from "../context/readers";
+import type { MemoryRecord, SkillRevision } from "../../contracts/memory";
 export { operation } from "../lifecycle/durable-operation";
 interface Snapshot { primaryInstructionIds?:string[]; id: string; messages: HarnessMessage[]; digest: string; estimatedTokens: number;
   memoryFence?: MemoryFence; historyCutoff: string; tools: ToolDefinition[]; evidenceManifest?: DependencyManifest; catalog?: ToolCatalog;instructionHead?:string;
@@ -378,9 +378,10 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
      knowledgeMode!=="agentic" && availableProductBindings.length===0 && execution.connectedBindings.length===0)
     routedTools=routedTools.filter(tool=>tool.function.name!=="tools_discover"&&tool.function.name!=="tools_load");
   let memoryFence: MemoryFence | undefined;
-  const memory = new MemoryStore(pool, skillPackageCodec), recall = options.readers?.memory ?? memory;
+  const recall = options.readers?.memory;
   if (memoryReadAllowed) {
-    const selected = await recall.readForContext({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal,taskId },task.input,8) as Awaited<ReturnType<MemoryStore["readForContext"]>>;
+    if (!recall) throw new PlatformError("MEMORY_READER_UNAVAILABLE", 503, "Memory reader is unavailable");
+    const selected = await recall.readForContext({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal,taskId },task.input,8) as { scope: { id: string; generation: number }; generation: number; memories: MemoryRecord[]; nextOffset: number | null } ;
     const eligible = options.evidence ? new Set((await options.evidence.checkMemories(taskId,selected.memories.map(item=>item.id))).filter(item=>item.eligible).map(item=>item.id)) : undefined;
     const memories = selected.memories.filter(item=>!eligible || eligible.has(item.id));
     const expiries = memories.flatMap(item => item.expiresAt ? [new Date(item.expiresAt).getTime()] : []);
@@ -401,9 +402,11 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       injectedBytes, nextOffset: selected.nextOffset, queryBytes: Buffer.byteLength(task.input, "utf8"),
     }).catch(() => undefined);
   }
-  const skills = !config.skillIds.length ? [] : (task.product !== "agents" || task.principal.kind === "automation" || isCustomerPrincipal(task.principal)) ?
+  const sharedSkills = task.product !== "agents" || task.principal.kind === "automation" || isCustomerPrincipal(task.principal);
+  if (config.skillIds.length && !sharedSkills && !recall) throw new PlatformError("MEMORY_READER_UNAVAILABLE", 503, "Memory reader is unavailable");
+  const skills = !config.skillIds.length ? [] : sharedSkills ?
     await loadSkillRevisions(pool,task.organization_id,execution.agentId,config.skillIds,skillPackageCodec) :
-    await recall.readSkills({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal }, config.skillIds) as Awaited<ReturnType<MemoryStore["readSkills"]>>;
+    await recall!.readSkills({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal }, config.skillIds) as SkillRevision[];
   const loadedSkills = await skillContext(pool,taskId,skills);
   const specialists:Awaited<ReturnType<typeof discoverSpecialists>>["specialists"]=[];
   if(directoryProtocol&&directTools.some(tool=>tool.function.name==="agents_discover")){
@@ -1298,13 +1301,13 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                     } catch(error) { if(error instanceof z.ZodError) throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Check the knowledge arguments"); throw error; }
                   }
                   if(name==="memory.search"||name==="memory.read"||name==="memory.propose"){
-                    const value=await executeMemoryTool(pool,taskId,id,name,args,options.evidence);
+                    const value=await executeMemoryTool(pool,options.readers!.memory!,taskId,id,name,args,options.evidence);
                     if(name==="memory.propose" && options.evidence && value && typeof value==="object" && "candidateId" in value)await options.evidence.derive(taskId,"memory",String(value.candidateId));
                     return {value,tokens:0};
                   }
                   const contextPolicy = name==="skills.activate"||name==="skills.read"
                     ? contextModelPolicy(execution,"primary",await nativeContextCosts(pool,execution),packingOverhead) : undefined;
-                  const value = await executeTool(pool,taskId,id,name,call.function.arguments,resultBound,handoffFeedback,
+                  const value = await executeTool(pool,options.readers!.memory!,taskId,id,name,call.function.arguments,resultBound,handoffFeedback,
                     contextPolicy ? loaded => skillFitsRequest(loaded,name,request,messages,call.id,contextPolicy) : undefined,acceptedToolVersion);
                   if (name === "memory.propose" && options.evidence && value && typeof value === "object" && "candidateId" in value) await options.evidence.derive(taskId,"memory",String(value.candidateId));
                   return {value,tokens:0};

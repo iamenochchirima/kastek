@@ -5,7 +5,7 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
-import { MemoryStore, type ProductMemoryManagementScope } from "../src/execution/memory/memory";
+import { MemoryStore, type ProductMemoryManagementScope } from "../src/platform/memory/memory";
 import { executeMemoryTool } from "../src/capabilities/memory-tools";
 import { EvidenceStore, assertCurrentEvidence, taskEvidenceManifest } from "../src/execution/context/evidence";
 import { beginOperation, finishOperation, loadExecution, settleTask } from "../src/execution/lifecycle/execution";

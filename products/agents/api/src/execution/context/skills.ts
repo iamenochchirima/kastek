@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import { PlatformError, requestDigest } from "../../contracts/contracts";
-import type { SkillRevision } from "../memory/memory";
+import type { SkillRevision } from "../../contracts/memory";
 import { skillSourceMessage, type ContextGroup, type ContextModelPolicy, type ContextSource, type SkillCatalogEntry } from "./context";
 import type { HarnessMessage, ModelRequest } from "../business/model";
 import { validateBuiltinResult } from "../../capabilities/tool-contracts";

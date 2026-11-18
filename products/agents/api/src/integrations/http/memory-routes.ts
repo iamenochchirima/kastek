@@ -3,7 +3,7 @@ import type { FastifyInstance,FastifyRequest } from "fastify";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { ArtifactStore } from "../../execution/artifacts/artifacts";
-import { MemoryStore,type ManagementScope } from "../../execution/memory/memory";
+import { MemoryStore,type ManagementScope } from "../../platform/memory/memory";
 import { type PrivateObjectStore } from "../../infrastructure/object-store";
 import { memoryAssertionSchema } from "../../contracts/memory";
 import { memoryCapability } from "../../platform/memory/capability";

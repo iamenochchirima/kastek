@@ -26,7 +26,7 @@ import { PlatformError,connectedToolAuthorityIds } from "../contracts/contracts"
 import { createBusinessWorkflow, type BusinessOptions } from "../execution/business/business";
 import { PlatformConversationHistory } from "../platform/conversations/history";
 import { PlatformRunStateReader } from "../platform/runs/run-state";
-import { MemoryStore } from "../execution/memory/memory";
+import { MemoryStore } from "../platform/memory/memory";
 import { createContextCompactionWorkflow } from "../execution/context/compaction-workflow";
 import { createSupportStatusWorkflow,SUPPORT_STATUS_WORKFLOW } from '../execution/business/support-status-business';
 import { ModelProviderStore } from "../product/model-providers/store";

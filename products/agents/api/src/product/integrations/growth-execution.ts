@@ -33,7 +33,7 @@ import { growthDelegationPolicy,growthFeatureConfiguration,growthFeatureProvisio
 import { agentAvatars, randomAgentAvatar } from "../agents/avatars";
 import { assertModelCredentialAvailable } from "../../execution/models/credential-readiness";
 import { productAuthorityBindings } from "../../capabilities/products/product-capabilities";
-import { MemoryStore, type ProductMemoryManagementScope } from "../../execution/memory/memory";
+import { MemoryStore, type ProductMemoryManagementScope } from "../../platform/memory/memory";
 import { refreshGrowthManagedRoster } from "./growth-managed-roster";
 import { rebaseGrowthRuntimeDraft } from "./growth-runtime-binding-plan";
 import { rolloutGrowthConnectionBindings } from "./growth-runtime-binding-rollout";

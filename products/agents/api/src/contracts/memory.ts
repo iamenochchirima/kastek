@@ -32,7 +32,7 @@ export interface MemoryRecord {
 /** The memory tool surface, so the tool gateway does not construct the store. */
 export interface MemoryStorePort {
   read(scope: MemoryScope, query?: string, page?: { offset?: number; limit?: number }):
-    Promise<{ generation: number; memories: MemoryRecord[]; nextOffset?: number }>;
+    Promise<{ scope: { id: string; generation: number }; generation: number; memories: MemoryRecord[]; nextOffset: number | null }>;
   readOne(scope: MemoryScope, memoryId: string): Promise<{ generation: number; memory: MemoryRecord }>;
   propose(scope: MemoryScope, input: { operationId: string; kind: "semantic" | "episodic"; content: string;
     sourceTaskId?: string; expiresAt?: string; assertion?: MemoryAssertion }): Promise<{ id: string }>;

@@ -10,7 +10,7 @@ import { ConnectionVault } from "../src/infrastructure/vault";
 import { composeInbox } from "../src/composition/inbox";
 import { transaction } from "../src/infrastructure/database";
 import { assertCurrentAuthority, event, loadExecution, settleTask } from "../src/execution/lifecycle/execution";
-import { MemoryStore } from "../src/execution/memory/memory";
+import { MemoryStore } from "../src/platform/memory/memory";
 import { isCustomerPrincipal } from "../src/contracts/contracts";
 import { customerConfiguration } from "../src/product/offerings/offerings";
 import { connectFixtureModel } from "./model-fixture";

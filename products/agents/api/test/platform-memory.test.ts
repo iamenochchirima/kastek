@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 import { Pool } from "pg";
 import Fastify from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { MemoryStore } from "../src/execution/memory/memory";
+import { MemoryStore } from "../src/platform/memory/memory";
 import { memoryContextAllowed } from "../src/execution/business/business";
 import { registerMemoryRoutes } from "../src/integrations/http/memory-routes";
 import { defaultBusinessConfiguration, type AgentConfiguration } from "../src/contracts/contracts";
