@@ -59,7 +59,7 @@ export function McpConsent() {
             {details.organizations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </label>
-        <div><h2 className="text-sm font-medium">Access requested</h2><ul className="mt-2 list-inside list-disc text-sm">{details.request.scopes.map(scope => <li key={scope}>{scope === "agents:read" ? "View agents and configuration" : scope === "agents:manage" ? "Create and manage agents" : scope}</li>)}</ul></div>
+        <div><h2 className="text-sm font-medium">Access requested</h2><ul className="mt-2 list-inside list-disc text-sm">{details.request.scopes.map(scope => <li key={scope}>{scope === "agents:read" ? "View agents and configuration" : scope === "agents:manage" ? "Create and manage agents" : scope === "runs:start" ? "Start agent runs" : scope === "runs:read" ? "View agent runs" : scope}</li>)}</ul></div>
         <div className="flex gap-3"><Button onClick={() => void decide(true)} disabled={busy || !organization || !details.request.clientId || !details.request.redirectHost}>Connect</Button><Button variant="outline" onClick={() => void decide(false)} disabled={busy}>Cancel</Button></div>
       </>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

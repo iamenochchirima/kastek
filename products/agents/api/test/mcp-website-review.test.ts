@@ -154,7 +154,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   try {
    const registration=await app.inject({method:"POST",url:"/oauth/register",payload:{client_name:"Test assistant",redirect_uris:["https://client.test/callback"]}});expect(registration.statusCode).toBe(201);
    const clientId=registration.json().client_id,verifier=randomBytes(32).toString("base64url"),resource="http://localhost:3100/mcp";
-   const query=new URLSearchParams({response_type:"code",client_id:clientId,redirect_uri:"https://client.test/callback",resource,scope:"agents:read agents:manage",state:"test",code_challenge:createHash("sha256").update(verifier).digest("base64url"),code_challenge_method:"S256"});
+   const query=new URLSearchParams({response_type:"code",client_id:clientId,redirect_uri:"https://client.test/callback",resource,scope:"agents:read agents:manage runs:start runs:read",state:"test",code_challenge:createHash("sha256").update(verifier).digest("base64url"),code_challenge_method:"S256"});
    const start=await app.inject({method:"GET",url:`/oauth/authorize?${query}`});expect(start.statusCode).toBe(302);
    const nonce=new URL(start.headers.location!,"http://localhost:3100").searchParams.get("request"),cookie=`agents_session=${session.token}`;
    expect((await app.inject({method:"GET",url:`/api/mcp/oauth/requests/${nonce}`,headers:{cookie}})).statusCode).toBe(200);
@@ -176,6 +176,17 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
    const readRun=await call("get_agent_run",{taskId:startedRun.taskId});expect(readRun.json().result.structuredContent).toMatchObject({taskId:startedRun.taskId,state:"accepted"});
    const runId=(await pool.query("SELECT target FROM agents_platform.mcp_references WHERE id=$1",[startedRun.taskId.slice(4)])).rows[0].target;
    await settleTask(pool,runId,{state:"failed",errorCode:"TEST_FINISHED"});
+   const limitedToken=`agents_oauth_${randomBytes(32).toString("base64url")}`,limitedConnection=randomUUID();
+   await pool.query(`INSERT INTO agents_platform.mcp_oauth_connections(id,client_id,account_id,organization_id,resource,scopes,access_hash,access_expires_at)
+     VALUES($1,$2,$3,$4,$5,ARRAY['runs:start','runs:read'],$6,now()+interval '1 hour')`,[limitedConnection,clientId,account.id,org.id,resource,createHash("sha256").update(limitedToken).digest("hex")]);
+   const limitedCall=async(name:string,args:unknown)=>app.inject({method:"POST",url:"/mcp",headers:{host:"localhost:3100",authorization:`Bearer ${limitedToken}`,accept:"application/json, text/event-stream"},payload:{jsonrpc:"2.0",id:1,method:"tools/call",params:{name,arguments:args}}});
+   expect((await limitedCall("create_agent",{name:"Denied",operationId:randomUUID()})).json().result.isError).toBe(true);
+   const nativeAgentId=(await pool.query("SELECT target FROM agents_platform.mcp_references WHERE id=$1",[agentId.slice(4)])).rows[0].target;
+   const limitedRun=await limitedCall("start_agent_run",{agentId:nativeAgentId,message:"Hello",requestId:randomUUID()});expect(limitedRun.json().result.isError).not.toBe(true);
+   const limitedRunRef=limitedRun.json().result.structuredContent.taskId;
+   expect((await limitedCall("get_agent_run",{taskId:limitedRunRef})).json().result.isError).not.toBe(true);
+   const limitedRunId=(await pool.query("SELECT target FROM agents_platform.mcp_references WHERE id=$1",[limitedRunRef.slice(4)])).rows[0].target;
+   await settleTask(pool,limitedRunId,{state:"failed",errorCode:"TEST_FINISHED"});
    const readiness=await call("agent_readiness",{agentId});expect(readiness.statusCode).toBe(200);expect(readiness.json().result.isError).not.toBe(true);
    const agent=JSON.parse((await call("get_agent",{agentId})).json().result.content[0].text);
    const configured=await call("update_agent_instructions",{agentId,expectedRevision:agent.revision,instructions:"Answer clearly using approved knowledge."});expect(configured.json().result.isError).not.toBe(true);
