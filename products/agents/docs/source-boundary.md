@@ -1388,6 +1388,11 @@ public-repository, remote-MCP, native-API and native-provider adapter releases w
 bumped because their manifest path lists changed the executable digest.
 
 Conversation turn, event and page reads moved to `platform/conversations/reads.ts`.
+Compaction inputs and summaries stay owned by `execution/context` and the compaction
+workflow: execution produces them while a run is live, and the API only reads the
+resulting checkpoints. Moving them under platform/conversations requires the context
+group and source types to move to contracts first, because execution cannot import
+platform.
 Admission still creates turns; the read store owns how they are listed and paginated.
 Context assembly reads history through `execution/context/readers.ts`; the workflow
 receives `PlatformConversationHistory` from composition and keeps its inline query as
