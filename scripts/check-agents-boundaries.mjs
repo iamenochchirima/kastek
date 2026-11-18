@@ -43,6 +43,12 @@ export function checkAgentsModules(root){
    const base=resolve(dirname(file),specifier),target=[base+'.ts',resolve(base,'index.ts'),...(specifier.endsWith('.json')?[base]:[])].find(path=>graph.has(path));
    if(!target){failures.push(`${relative(root,file)} has unresolved internal reference ${specifier}`);continue;}
    const dependency=relative(root,target).split('/')[0];
+   const sourceParts=relative(root,file).split('/'),targetParts=relative(root,target).split('/');
+   if(dependency==='platform'&&targetParts.length>=3&&
+      !(owner==='platform'&&sourceParts[1]===targetParts[1])&&
+      !(targetParts.length===3&&(targetParts[2]==='index.ts'||owner==='composition'&&targetParts[1]==='knowledge'&&targetParts[2]==='bootstrap.ts'))){
+    failures.push(`${relative(root,file)} cannot import private platform module ${relative(root,target)}; use platform/${targetParts[1]}`);
+   }
    if(allowed[owner]&&!allowed[owner].includes(dependency)){
     const edge=`${relative(root,file)} -> ${relative(root,target)}`;
     if(acceptedEdges.has(edge))accepted.push(edge);else failures.push(`${relative(root,file)} cannot depend on ${relative(root,target)}`);

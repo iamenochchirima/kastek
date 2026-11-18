@@ -11,7 +11,7 @@ import { PlatformStore } from "../agents/store";
 import { resolveAcceptedModelRoutes } from '../../execution/models/resolution';
 import { contextGrantCeiling, executionModelLayers } from '../../execution/models/settings';
 import { loadAutomationModelRoutes,saveAutomationModelRoutes } from '../../execution/models/automation-routes';
-import { operationsForConfiguration } from '../../platform/access/grant-operations';
+import { operationsForConfiguration } from '../../platform/access';
 
 export const automationScheduleSchema=z.discriminatedUnion('kind',[
  z.strictObject({kind:z.literal('once'),at:z.iso.datetime({offset:true})}),

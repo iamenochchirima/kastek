@@ -1,5 +1,5 @@
-import { knowledgeCapability } from "../knowledge/capability";
-import { memoryCapability } from "../memory/capability";
+import { knowledgeCapability } from "../knowledge";
+import { memoryCapability } from "../memory";
 
 import { deferredCapabilities, capabilityForOperation, enabledCapabilities, type CapabilityId } from "../../contracts/capabilities";
 export type { CapabilityId } from "../../contracts/capabilities";

@@ -1,10 +1,10 @@
-import { assertKnowledgeBackfilled } from "../platform/knowledge/cutover";
-import { PostgresKnowledgeObjectStore } from "../platform/knowledge/postgres-object-store";
+import { assertKnowledgeBackfilled } from "../platform/knowledge/bootstrap";
+import { PostgresKnowledgeObjectStore } from "../platform/knowledge";
 import type { PrivateObjectStore } from "../infrastructure/object-store";
 import { PlatformError } from "../contracts/contracts";
 import { databasePoolOptions } from "../infrastructure/pool-policy";
 import { Pool } from "pg";
-import { reapSourceObjects } from "../platform/knowledge/source-objects";
+import { reapSourceObjects } from "../platform/knowledge";
 import { reapExecutionObjects } from "../execution/artifacts/execution-objects";
 import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 

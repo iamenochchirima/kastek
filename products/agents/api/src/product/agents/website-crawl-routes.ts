@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
-import type { DocumentRuntime } from "../../platform/knowledge/document-runtime";
-import type { KnowledgeScope } from "../../platform/knowledge/knowledge";
+import type { DocumentRuntime } from "../../platform/knowledge";
+import type { KnowledgeScope } from "../../platform/knowledge";
 import { PlatformError } from "../../contracts/contracts";
 import { WebsiteCrawlStore } from "./website-crawls";
 

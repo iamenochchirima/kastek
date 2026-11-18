@@ -5,7 +5,7 @@ import { agentConfigurationSchema, type AgentConfiguration } from "../../contrac
 import { afterHoursAssistance } from "../../contracts/procedure-definitions";
 import type { Account, AgentRecord, VersionRecord, WebsiteDeployment } from "../../contracts/records";
 import { pageQuery } from "../../infrastructure/read-pages";
-import { requirePermission } from "../access/permissions";
+import { requirePermission } from "../access";
 
 export type AgentScope = { account: Account; organizationId: string };
 type Scope = { accountId: string; organizationId: string };

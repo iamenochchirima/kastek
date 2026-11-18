@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { ActionScope } from "../../contracts/connections";
 import { PlatformError } from "../../contracts/contracts";
 import { transaction } from "../../infrastructure/database";
-import { requirePermission } from "../../platform/access/permissions";
+import { requirePermission } from "../../platform/access";
 
 /** A workspace owner may share only a connection they personally control. */
 export function registerApplicationConnectionSharing(app: FastifyInstance, options: {

@@ -1,7 +1,6 @@
 import { Pool } from "pg";
-import { backfillLegacyKnowledgeObjects } from "../platform/knowledge/backfill-legacy-objects";
-import { assertKnowledgeBackfilled } from "../platform/knowledge/cutover";
-import { PostgresKnowledgeObjectStore } from "../platform/knowledge/postgres-object-store";
+import { backfillLegacyKnowledgeObjects, assertKnowledgeBackfilled } from "../platform/knowledge/bootstrap";
+import { PostgresKnowledgeObjectStore } from "../platform/knowledge";
 import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 import { databasePoolOptions } from "../infrastructure/pool-policy";
 

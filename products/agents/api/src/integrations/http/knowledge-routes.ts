@@ -1,10 +1,10 @@
 import type { FastifyInstance,FastifyRequest } from "fastify";
 import { z } from "zod";
-import type { DocumentRuntime } from "../../platform/knowledge/document-runtime";
-import { KnowledgeStore,requireKnowledgeMember,type KnowledgeScope } from "../../platform/knowledge/knowledge";
-import { KnowledgeRetrieval } from "../../platform/knowledge/retrieval";
+import type { DocumentRuntime } from "../../platform/knowledge";
+import { KnowledgeStore,requireKnowledgeMember,type KnowledgeScope } from "../../platform/knowledge";
+import { KnowledgeRetrieval } from "../../platform/knowledge";
 import { agentConfigurationSchema, PlatformError } from "../../contracts/contracts";
-import { knowledgeCapability } from "../../platform/knowledge/capability";
+import { knowledgeCapability } from "../../platform/knowledge";
 
 export function registerKnowledgeRoutes(app: FastifyInstance, options: { knowledge: KnowledgeStore; runtime?: Pick<DocumentRuntime,"available"|"profile">; resolveScope(request: FastifyRequest): Promise<KnowledgeScope> }) {
   const organizationBase = "/api/organizations/:organizationId", base = knowledgeCapability.basePath, params = (request: FastifyRequest) => request.params as Record<string, string>;

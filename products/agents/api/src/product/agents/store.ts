@@ -1,7 +1,7 @@
 import { agentsAdmissionEntitlements } from "../billing/billing";
 import type { Pool } from "pg";
 import { AdmissionStore } from "../../execution/admission/admission-store";
-import { ConversationReads } from "../../platform/conversations/reads";
+import { ConversationReads } from "../../platform/conversations";
 import { DeploymentStore } from "../deployments/deployment-store";
 import { IdentityStore } from "../identity/identity-store";
 import { AgentStore } from "./agent-store";

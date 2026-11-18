@@ -30,7 +30,7 @@ import { DeploymentStore } from "../deployments/deployment-store";
 import { AuthorityStore } from "../../execution/admission/authority-store";
 import { loadSkillRevisions } from "../../execution/memory/skills";
 import { assertAgentsBillingFeature, assertAgentsBillingLimit } from "../billing/billing";
-import { requirePermission } from "../../platform/access/permissions";
+import { requirePermission } from "../../platform/access";
 
 type Db=Pool|PoolClient;
 function updatedSupportHoursSetup(agent:AgentRecord,configuration:AgentConfiguration):CustomerSetup|undefined {

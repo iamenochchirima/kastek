@@ -3,10 +3,10 @@ import type { FastifyInstance,FastifyRequest } from "fastify";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { ArtifactStore } from "../../execution/artifacts/artifacts";
-import { MemoryStore,type ManagementScope } from "../../platform/memory/memory";
+import { MemoryStore,type ManagementScope } from "../../platform/memory";
 import { type PrivateObjectStore } from "../../infrastructure/object-store";
 import { memoryAssertionSchema } from "../../contracts/memory";
-import { memoryCapability } from "../../platform/memory/capability";
+import { memoryCapability } from "../../platform/memory";
 
 const operationId = z.string().min(1).max(128), expectedRevision = z.number().int().positive();
 export function registerMemoryRoutes(app: FastifyInstance, options: { pool: Pool; resolveScope(request: FastifyRequest): Promise<ManagementScope>; objects?: PrivateObjectStore }) {

@@ -7,7 +7,7 @@ import { contextGrantCeiling } from "../../execution/models/settings";
 import { assertCurrentEvidence, assertDelegationInputEvidence, taskEvidenceManifest } from "../../execution/context/evidence";
 import { projectRecipientText, taskRecipientTextScope } from "../../execution/context/recipient-text";
 import { transaction } from "../../infrastructure/database";
-import { operationsForConfiguration } from "../../platform/access/grant-operations";
+import { operationsForConfiguration } from "../../platform/access";
 import { PlatformStore } from "./store";
 import { assertMcpJobAuthority, assertMcpTaskAuthority } from "../../infrastructure/mcp-job-authority";
 

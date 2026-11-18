@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 import { PlatformError } from "../contracts/contracts";
 import { decodeExecutorValue, encodeExecutorValue } from "../contracts/executor";
 import { sandboxAllocationId, type SandboxInput, type SandboxManager, type SandboxScope } from "../capabilities/sandbox/sandbox";
-import type { DocumentAllocation, DocumentRuntime } from "../platform/knowledge/document-runtime";
+import type { DocumentAllocation, DocumentRuntime } from "../platform/knowledge";
 import { ExecutorClient } from "../adapters/executors/executor-client";
 
 export type SandboxBackend = Pick<SandboxManager, "available" | "analyze" | "status" | "finalize" | "destroy" | "reap">;

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Pool } from "pg";
 import { agentConfigurationSchema, defaultBusinessConfiguration, PlatformError, type AgentConfiguration } from "../../contracts/contracts";
-import { configurationCapabilityError } from "../../platform/capabilities/registry";
+import { configurationCapabilityError } from "../../platform/capabilities";
 import { applyCustomerSetup, customerConfigurationForSetup, customerSetupSchema, type CustomerSetup } from "../offerings/customer-setup";
 import type { PlatformStore } from "./store";
 import { customerSetupReadiness } from "./setup-readiness";

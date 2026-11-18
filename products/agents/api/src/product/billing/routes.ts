@@ -7,7 +7,7 @@ import {
   agentsBillingClient,
   ensureAgentsBillingAccount,
 } from "./billing";
-import { requirePermission } from "../../platform/access/permissions";
+import { requirePermission } from "../../platform/access";
 
 type Scope = { accountId: string; organizationId: string };
 

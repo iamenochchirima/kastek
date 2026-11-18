@@ -1,0 +1,1 @@
+export { registerAgentManagementRoutes } from "./http";

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { DocumentRuntime } from "../../platform/knowledge/document-runtime";
-import type { KnowledgeStore } from "../../platform/knowledge/knowledge";
+import type { DocumentRuntime } from "../../platform/knowledge";
+import type { KnowledgeStore } from "../../platform/knowledge";
 import { PlatformError } from "../../contracts/contracts";
 import { knowledgeJob } from "./projections";
 import type { McpOperation } from "./server";

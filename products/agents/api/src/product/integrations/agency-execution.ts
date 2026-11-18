@@ -1,5 +1,5 @@
 import { skillPackageCodec } from "../../capabilities/skills/package";
-import { ConversationReads } from "../../platform/conversations/reads";
+import { ConversationReads } from "../../platform/conversations";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type { AgencyAgentCommand, AgencyAgentConversation, GrowthAgentCommand, GrowthAgentTask } from "@kasitek-labs/contracts";
@@ -22,7 +22,7 @@ import { readGrowthRuntime } from "./growth-runtime-reporting";
 import { observeProductTask, readProductChildren } from "./growth-observation";
 import { readPublicAgentUpdates } from "./public-agent-activity";
 import { projectRecipientText, taskRecipientTextScope } from "../../execution/context/recipient-text";
-import { MemoryStore, type ProductMemoryManagementScope } from "../../platform/memory/memory";
+import { MemoryStore, type ProductMemoryManagementScope } from "../../platform/memory";
 import { builtinProviderRegistry } from "../../adapters/models/registry";
 import { TaskArtifactStore } from "../../execution/artifacts/task-artifacts";
 import { privateStoreFromEnvironment } from "../../infrastructure/object-store";

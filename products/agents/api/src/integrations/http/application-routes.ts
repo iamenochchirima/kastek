@@ -2,9 +2,9 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { PlatformError, terminalTaskStates } from "../../contracts/contracts";
-import { Applications } from "../../platform/access/applications";
+import { Applications } from "../../platform/access";
 import type { TaskRecord } from "../../contracts/records";
-import { requirePermission } from "../../platform/access/permissions";
+import { requirePermission } from "../../platform/access";
 import type { ApplicationRunSnapshot, ApplicationRunStartResponse } from "@kasitek-labs/contracts";
 
 export function registerApplicationRoutes(app: FastifyInstance, options: {

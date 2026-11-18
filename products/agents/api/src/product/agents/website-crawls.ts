@@ -3,7 +3,7 @@ import { lookup } from "node:dns/promises";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { FirecrawlClient, FirecrawlError, type FirecrawlConfig } from "../../adapters/providers/firecrawl/client";
-import { KnowledgeStore, requireKnowledgeMember, type KnowledgeScope } from "../../platform/knowledge/knowledge";
+import { KnowledgeStore, requireKnowledgeMember, type KnowledgeScope } from "../../platform/knowledge";
 import { PlatformError, requestDigest } from "../../contracts/contracts";
 import { SOURCE_LIMITS } from "../../contracts/source-contracts";
 import { publicAddress } from "../../infrastructure/connected-network";

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { KnowledgeStore } from "../../platform/knowledge/knowledge";
+import type { KnowledgeStore } from "../../platform/knowledge";
 
 /** Offsets count Unicode code points, so pages do not split surrogate pairs. */
 export async function readKnowledgeSourcePage(knowledge:KnowledgeStore,scope:{accountId:string;organizationId:string},raw:unknown) {
