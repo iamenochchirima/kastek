@@ -16,3 +16,22 @@ export function capabilityForOperation(name: string): CapabilityId {
 export function operationCapabilityDeferred(name: string): boolean {
   return deferredCapabilities.has(capabilityForOperation(name));
 }
+
+type ConfigurationLike = {
+  tools: readonly string[]; sourceRevisionIds: readonly string[]; connectedToolBindingIds: readonly string[];
+  skillIds: readonly string[]; memory: { enabled: boolean };
+  capabilities: { delegation: { enabled: boolean }; workflows?: { enabled: boolean } | null };
+};
+
+/** Capabilities a configuration currently enables. Deferred capabilities are never included. */
+export function enabledCapabilities(configuration: ConfigurationLike): CapabilityId[] {
+  const enabled: CapabilityId[] = [];
+  if (configuration.tools.length || configuration.connectedToolBindingIds.length) enabled.push("tools");
+  if (configuration.sourceRevisionIds.length) enabled.push("knowledge");
+  if (configuration.memory.enabled) enabled.push("memory");
+  if (configuration.tools.includes("channel.request_handoff")) enabled.push("handoff");
+  if (configuration.capabilities.delegation.enabled) enabled.push("delegation");
+  if (configuration.capabilities.workflows?.enabled) enabled.push("workflows");
+  if (configuration.skillIds.length) enabled.push("skills");
+  return enabled;
+}

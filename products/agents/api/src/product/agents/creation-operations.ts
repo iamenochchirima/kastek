@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Pool } from "pg";
-import { agentConfigurationSchema, defaultBusinessConfiguration, type AgentConfiguration } from "../../contracts/contracts";
+import { agentConfigurationSchema, defaultBusinessConfiguration, PlatformError, type AgentConfiguration } from "../../contracts/contracts";
+import { configurationCapabilityError } from "../../platform/capabilities/registry";
 import { applyCustomerSetup, customerConfigurationForSetup, customerSetupSchema, type CustomerSetup } from "../offerings/customer-setup";
 import type { PlatformStore } from "./store";
 import { customerSetupReadiness } from "./setup-readiness";
@@ -49,12 +50,16 @@ export function agentCreationOperations(options: { store: PlatformStore; pool: P
     ...(input.purpose ? { identity: { purpose: input.purpose, voice: "Clear and helpful" } } : {}),
    }) : input.configuration;
    if (configuration) await options.assertBindings(configuration);
+   const capabilityError = configuration ? configurationCapabilityError(configuration) : null;
+   if (capabilityError) throw new PlatformError("CAPABILITY_PREREQUISITE_MISSING", 400, "Enable tools before workflows");
    return store.createConfiguredAgent({ ...scope, name: input.name, offering: input.offering,
     configuration, setup: input.setup, operationId: input.operationId });
   },
   save: async (scope: CreationScope, agentId: string, raw: unknown) => {
    const input = saveSchema.parse(raw);
    await options.assertBindings(input.configuration);
+   const capabilityError = configurationCapabilityError(input.configuration);
+   if (capabilityError) throw new PlatformError("CAPABILITY_PREREQUISITE_MISSING", 400, "Enable tools before workflows");
    return store.saveConfiguration({ ...input, ...scope, agentId: z.uuid().parse(agentId) });
   },
   profile: (scope: CreationScope, agentId: string, raw: unknown) => {

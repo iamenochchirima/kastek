@@ -1,7 +1,7 @@
 import { knowledgeCapability } from "../knowledge/capability";
 import { memoryCapability } from "../memory/capability";
 
-import { deferredCapabilities, capabilityForOperation, type CapabilityId } from "../../contracts/capabilities";
+import { deferredCapabilities, capabilityForOperation, enabledCapabilities, type CapabilityId } from "../../contracts/capabilities";
 export type { CapabilityId } from "../../contracts/capabilities";
 
 export interface CapabilityDefinition {
@@ -57,4 +57,10 @@ export const capabilityPrerequisites: Readonly<Partial<Record<CapabilityId, read
 
 export function capabilityPrerequisitesMet(id: CapabilityId, enabled: readonly CapabilityId[]): boolean {
   return (capabilityPrerequisites[id] ?? []).every(dependency => enabled.includes(dependency));
+}
+
+export function configurationCapabilityError(configuration: Parameters<typeof enabledCapabilities>[0]): string | null {
+  const enabled = enabledCapabilities(configuration);
+  for (const id of enabled) if (!capabilityPrerequisitesMet(id, enabled)) return `CAPABILITY_PREREQUISITE_MISSING:${id}`;
+  return null;
 }
