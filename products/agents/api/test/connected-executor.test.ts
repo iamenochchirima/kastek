@@ -19,6 +19,11 @@ import {beginOperation,finishOperation,settleTask,loadExecution} from "../src/ex
 import type {CapabilityBinding} from "../src/contracts/capability-catalog";
 import {assertConnectedBindingDependencies,connectedModelArguments,connectedModelTool} from "../src/capabilities/connected-tools/connected-tool-schema";
 import {readGithubJourneyScopes} from "./support/github-journey-scopes";
+import Fastify from "fastify";
+import { registerApplicationConnectionSharing } from "../src/product/connections/application-sharing";
+import { Applications } from "../src/platform/access/applications";
+import { admitApplicationRun } from "../src/platform/runs/application-admission";
+import { operationsForConfiguration } from "../src/platform/access/grant-operations";
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("registered connected executor with actual PostgreSQL, HTTP and private fixture objects",()=>{
  let admin:Pool,pool:Pool,server:Server,platform:PlatformStore,connections:ConnectionStore,executor:ConnectedExecutor,evidence:EvidenceStore;
@@ -71,6 +76,31 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  }
  async function call(f:Awaited<ReturnType<typeof fixture>>,name:string,args:object){const binding=f.bindings.find(b=>b.definition.providerOperation===name)!,operationId=`tool:${f.task.id}:${randomUUID()}`;await beginOperation(pool,f.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:30000,retrySafe:true});return{result:await executor.execute(f.task.id,operationId,binding,args),binding,operationId,args};}
  async function completedCall(f:Awaited<ReturnType<typeof fixture>>,name:string,args:object){const result=await call(f,name,args);await finishOperation(pool,f.task.id,result.operationId,"completed",result.result,null,0);return result;}
+ it("allows an application to read an explicitly shared connection and revokes that access immediately",async()=>{
+  const f=await fixture(),agentId=f.task.resource_id;
+  const app=Fastify();let actor=f.scope.accountId;
+  registerApplicationConnectionSharing(app,{pool,resolveScope:async()=>({organizationId:f.scope.organizationId,accountId:actor})});
+  try {
+   const path=`/api/organizations/${f.scope.organizationId}/connections/${f.connection.id}/application-sharing`;
+   expect((await app.inject({method:"GET",url:path})).json()).toEqual({enabled:false,policyRevision:1});
+   const member=await platform.ensureAccount({issuer:"http://localhost/connected-executor",subject:randomUUID(),email:"member@example.test",displayName:"Member"});
+   await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'member')",[f.scope.organizationId,member.id]);
+   actor=member.id;expect((await app.inject({method:"PUT",url:path,payload:{enabled:true,policyRevision:1}})).statusCode).toBe(403);actor=f.scope.accountId;
+   expect((await app.inject({method:"PUT",url:path,payload:{enabled:true,policyRevision:2}})).statusCode).toBe(409);
+   const applications=new Applications(pool,async()=>{}),created=await applications.create(f.scope,{name:"Client",agentIds:[agentId],scopes:["runs:start"]});
+   const run=await admitApplicationRun({pool,store:platform,assertServices:async()=>{},grantOperations:c=>operationsForConfiguration(c,true)},
+    {organizationId:f.scope.organizationId,applicationId:created.application.id,credentialId:created.credential.id,agentId,message:"Read public source",requestId:randomUUID()});
+   const binding=f.bindings.find(b=>b.definition.providerOperation==="get_repository")!,args={repository:"approved/public"};
+   const attempt=async()=>{const operationId=`tool:${run.task.id}:${randomUUID()}`;await beginOperation(pool,run.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:30000,retrySafe:true});return executor.execute(run.task.id,operationId,binding,args);};
+   await expect(attempt()).rejects.toMatchObject({code:"CONNECTED_SCOPE_DENIED"});
+   expect((await app.inject({method:"PUT",url:path,payload:{enabled:true,policyRevision:1}})).json()).toEqual({enabled:true,policyRevision:1});
+   const observation=await attempt().catch(error=>{throw new Error(`connected error: ${error.code}`);});expect(observation.status).toBe("ok");
+   const principal=(await pool.query("SELECT principal FROM agents_platform.tasks WHERE id=$1",[run.task.id])).rows[0].principal;
+   expect(principal.kind).toBe("application");
+   expect((await app.inject({method:"PUT",url:path,payload:{enabled:false,policyRevision:1}})).json()).toEqual({enabled:false,policyRevision:1});
+   await expect(attempt()).rejects.toMatchObject({code:"CONNECTED_SCOPE_DENIED"});
+  }finally{await app.close();}
+ });
  it("releases the only pool connection during two independent provider reads and rejects duplicate live claims",async()=>{
   const first=await fixture(),second=await fixture(),binding=first.bindings.find(item=>item.definition.providerOperation==="get_repository")!,otherBinding=second.bindings.find(item=>item.definition.providerOperation==="get_repository")!,args={repository:"approved/public"};
   const operationId=`tool:${first.task.id}:single-pool`,otherOperation=`tool:${second.task.id}:single-pool`;
@@ -100,7 +130,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   try{
    await inPut;
    const claim=(await pool.query("SELECT c.claim_token,c.claim_expires_at,o.started_at,o.reserved_ms,t.deadline_at FROM agents_platform.connected_reads c JOIN agents_platform.operations o ON o.id=c.operation_id JOIN agents_platform.tasks t ON t.id=c.task_id WHERE c.operation_id=$1",[operationId])).rows[0];
-   expect(claim.claim_token).toMatch(/^[a-f0-9-]{36}$/);expect(claim.claim_expires_at.getTime()).toBe(Math.min(claim.started_at.getTime()+500,claim.deadline_at.getTime()));
+   expect(claim.claim_token).toMatch(/^[a-f0-9-]{36}$/);expect(claim.claim_expires_at.getTime()).toBe(Math.min(claim.started_at.getTime()+500,claim.deadline_at?claim.deadline_at.getTime():Infinity));
    for(const sql of ["claim_token=gen_random_uuid()","claim_expires_at=claim_expires_at+interval '1 second'","request_digest='changed'"])await expect(pool.query(`UPDATE agents_platform.connected_reads SET ${sql} WHERE operation_id=$1`,[operationId])).rejects.toThrow("connected claim identity is immutable");
    await pool.query("SELECT pg_sleep(GREATEST(0,extract(epoch FROM($1::timestamptz-clock_timestamp())))+0.02)",[claim.claim_expires_at]);
    await expect(executor.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});
