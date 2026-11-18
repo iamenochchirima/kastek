@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { databasePoolOptions } from "../infrastructure/pool-policy";
-import { purgeMemoryRevisionContent } from "../execution/memory/retention";
-import { expireInactiveConversations } from "../execution/memory/conversation-retention";
+import { purgeMemoryRevisionContent } from "../platform/memory/retention";
+import { expireInactiveConversations } from "../platform/memory/conversation-retention";
 
 export async function runMemoryRetention(pool: Pool, signal: AbortSignal): Promise<void> {
   while (!signal.aborted) {

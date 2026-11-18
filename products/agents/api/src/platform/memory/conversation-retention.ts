@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import { randomUUID } from "node:crypto";
 import { transaction } from "../../infrastructure/database";
-import { requestTreeCancellationInTransaction } from "../lifecycle/execution";
+import { requestTreeCancellationInTransaction } from "../../execution/lifecycle/execution";
 import { forgetConversationMemoriesInTransaction } from "./retention";
 
 /** Maintenance-only configuration; absence of a policy means no automatic expiry. */

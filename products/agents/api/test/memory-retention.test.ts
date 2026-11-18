@@ -6,7 +6,7 @@ import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
 import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { MemoryStore } from "../src/execution/memory/memory";
-import { purgeMemoryRevisionContent, exportMemoryDeletionLedger, replayMemoryDeletionLedger } from "../src/execution/memory/retention";
+import { purgeMemoryRevisionContent, exportMemoryDeletionLedger, replayMemoryDeletionLedger } from "../src/platform/memory/retention";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
