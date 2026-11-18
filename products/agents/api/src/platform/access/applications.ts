@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
 import { transaction } from "../../infrastructure/database";
-import type { ApplicationAgentDetail, ApplicationAgentSummary } from "@kasitek-labs/contracts";
+import type { ApplicationAgentDetail, ApplicationAgentSummary, ApplicationCreateResponse, ApplicationCredentialResponse, ApplicationSummary } from "@kasitek-labs/contracts";
 
 export const applicationScopeSchema = z.enum(["agents:read", "runs:start", "runs:read", "runs:control"]);
 export type ApplicationScope = z.infer<typeof applicationScopeSchema>;
@@ -18,7 +18,7 @@ type Authorize = (db: PoolClient, owner: Owner) => Promise<void>;
 export class Applications {
   constructor(private readonly pool: Pool, private readonly authorize: Authorize) {}
 
-  async create(owner: Owner, raw: unknown) {
+  async create(owner: Owner, raw: unknown): Promise<ApplicationCreateResponse> {
     const input = createSchema.parse(raw);
     const secret = `kat_${randomBytes(32).toString("base64url")}`;
     return transaction(this.pool, async db => {
@@ -32,7 +32,7 @@ export class Applications {
     });
   }
 
-  async list(owner: Owner) {
+  async list(owner: Owner): Promise<ApplicationSummary[]> {
     return transaction(this.pool, async db => {
       await this.authorize(db, owner);
       const rows = (await db.query(`SELECT a.id,a.name,a.agent_ids,a.created_at,a.revoked_at,
@@ -69,7 +69,7 @@ export class Applications {
     });
   }
 
-  async issueCredential(owner: Owner, applicationId: string, raw: unknown) {
+  async issueCredential(owner: Owner, applicationId: string, raw: unknown): Promise<ApplicationCredentialResponse> {
     z.uuid().parse(applicationId);
     const input = z.strictObject({ scopes: z.array(scopeSchema).min(1).refine(scopes => new Set(scopes).size === scopes.length) }).parse(raw);
     const secret = `kat_${randomBytes(32).toString("base64url")}`;

@@ -21,3 +21,12 @@ export interface ApplicationAgentsResponse {
 export interface ApplicationAgentResponse {
   agent: ApplicationAgentDetail;
 }
+
+export interface ApplicationCredentialSummary { id: string; scopes: string[]; createdAt: string; revokedAt: string | null }
+export interface ApplicationCredentialSecret { id: string; scopes: string[]; secret: string }
+export interface ApplicationSummary { id: string; name: string; agentIds: string[]; createdAt: string; revokedAt: string | null; credentials: ApplicationCredentialSummary[] }
+export interface ApplicationCreateResponse { application: { id: string; name: string; agentIds: string[] }; credential: ApplicationCredentialSecret }
+export interface ApplicationCredentialResponse { credential: ApplicationCredentialSecret }
+export interface ApplicationRunStartResponse { taskId: string; conversationId: string; state: string; replayed: boolean }
+export interface ApplicationRunSnapshot { taskId: string; conversationId: string; state: string; errorCode: string | null;
+  output: string | null; outputAvailability: string; updates: unknown[]; updatesTruncated: boolean }
