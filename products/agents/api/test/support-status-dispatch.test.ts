@@ -10,6 +10,7 @@ vi.mock("../src/execution/lifecycle/execution", async importOriginal => ({
 }));
 
 describe("support status tool dispatch", () => {
+  const memoryStore = {} as never;
   const pool = {} as Pool;
   const configuration = { ...defaultBusinessConfiguration(), tools: ["channel.request_handoff", "support.get_status"] as const,
     supportHours: { timeZone: "Africa/Johannesburg", intervals: [{ day: 1, start: "09:00", end: "17:00" }] } };
@@ -17,30 +18,30 @@ describe("support status tool dispatch", () => {
   beforeEach(() => vi.mocked(loadExecution).mockReset());
   it("dispatches the published configuration, not caller-selected hours", async () => {
     vi.mocked(loadExecution).mockResolvedValue(execution() as never);
-    const result = await executeTool(pool, "task", "operation", "support.get_status", "{}");
+    const result = await executeTool(pool, memoryStore, "task", "operation", "support.get_status", "{}");
     expect(result).toMatchObject({ hours: { timeZone: "Africa/Johannesburg", intervals: configuration.supportHours.intervals }, staffAvailability: "unknown", responseTime: "unknown" });
-    await expect(executeTool(pool, "task", "operation", "support.get_status", '{"timeZone":"UTC"}')).rejects.toMatchObject({ code: "TOOL_ARGUMENTS_INVALID" });
+    await expect(executeTool(pool, memoryStore, "task", "operation", "support.get_status", '{"timeZone":"UTC"}')).rejects.toMatchObject({ code: "TOOL_ARGUMENTS_INVALID" });
   });
   it("returns asynchronous procedure validation errors to the model instead of durable retries", async () => {
     vi.mocked(loadExecution).mockResolvedValue({ ...execution(), configuration: {
       ...configuration, tools: ["channel.request_handoff", "support.get_status_v2"],
       procedures: [{ id: "after-hours-assistance", version: "1" }],
     } } as never);
-    await expect(executeTool(pool, "task", "operation", "support.update_assistance", JSON.stringify({
+    await expect(executeTool(pool, memoryStore, "task", "operation", "support.update_assistance", JSON.stringify({
       requestId: crypto.randomUUID(), action: "save_contact", evidenceMessageId: crypto.randomUUID(),
       evidenceQuote: "Please contact me",
     }))).rejects.toMatchObject({ code: "TOOL_ARGUMENTS_INVALID" });
   });
   it("denies unbound or delegated execution and unpublished access", async () => {
     vi.mocked(loadExecution).mockResolvedValue({ ...execution(), task: { channel_binding: null, parent_task_id: null } } as never);
-    await expect(executeTool(pool, "task", "operation", "support.get_status", "{}")).rejects.toMatchObject({ code: "CHANNEL_SCOPE_DENIED" });
+    await expect(executeTool(pool, memoryStore, "task", "operation", "support.get_status", "{}")).rejects.toMatchObject({ code: "CHANNEL_SCOPE_DENIED" });
     vi.mocked(loadExecution).mockResolvedValue({ ...execution(), task: { channel_binding: {}, parent_task_id: "parent" } } as never);
-    await expect(executeTool(pool, "task", "operation", "support.get_status", "{}")).rejects.toMatchObject({ code: "CHANNEL_SCOPE_DENIED" });
+    await expect(executeTool(pool, memoryStore, "task", "operation", "support.get_status", "{}")).rejects.toMatchObject({ code: "CHANNEL_SCOPE_DENIED" });
     vi.mocked(loadExecution).mockResolvedValue({ ...execution(), configuration: { ...configuration, tools: ["channel.request_handoff"] } } as never);
-    await expect(executeTool(pool, "task", "operation", "support.get_status", "{}")).rejects.toMatchObject({ code: "TOOL_DENIED" });
+    await expect(executeTool(pool, memoryStore, "task", "operation", "support.get_status", "{}")).rejects.toMatchObject({ code: "TOOL_DENIED" });
   });
   it("denies even a published tool to a status-only task",async()=>{
     vi.mocked(loadExecution).mockResolvedValue({...execution(),task:{...execution().task,execution_purpose:'support_status_v1'}} as never);
-    await expect(executeTool(pool,'task','operation','support.get_status','{}')).rejects.toMatchObject({code:'TOOL_DENIED'});
+    await expect(executeTool(pool, memoryStore, 'task','operation','support.get_status','{}')).rejects.toMatchObject({code:'TOOL_DENIED'});
   });
 });
