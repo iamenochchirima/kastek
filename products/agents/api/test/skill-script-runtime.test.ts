@@ -6,6 +6,7 @@ import {rm} from "node:fs/promises";
 import {Pool} from "pg";
 import {beforeAll,afterAll,describe,it,expect} from "vitest";
 import {setupPlatformSchema} from "../src/composition/setup";
+import {contextGrantCeiling} from "../src/execution/models/settings";
 import {PlatformStore} from "../src/product/agents/store";
 import {SkillPackageStore} from "../src/product/agents/skill-package-store";
 import {defaultBusinessConfiguration,executionGrantSchema} from "../src/contracts/contracts";
@@ -33,7 +34,7 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const imported=await packages.import(scope,randomUUID(),parseSkillPackage({files:[{path:"SKILL.md",content:"---\nname: package-report\ndescription: Compute the report from packaged data.\n---\nRun scripts/report.py to compute the exact total. Do not copy its source into context."},{path:"scripts/report.py",content:code},{path:"references/data.json",content:"[20,30,10]"},{path:"scripts/helper.py",content:"def total(values):\n return sum(values)\n"},{path:"shared.py",content:"LABEL='reviewed'\n"},{path:"scripts/other.sh",content:"exit 1"}]}));
   await packages.review(scope,imported.id,imported.contentDigest);configuration.skillIds=[imported.id];if(sandbox){configuration.capabilities.sandbox={enabled:true,profileId:"python-analysis-v1"};configuration.tools=["sandbox.analyze"];}
   const draft=await platform.updateDraft({...scope,configuration,expectedRevision:1}),version=await platform.createVersion({...scope,expectedRevision:draft.draft_revision});
-  const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}},grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","skill.read",...(sandbox?["sandbox.execute","artifact.read","artifact.write"]:[])],maxInputBytes:16384,maxOutputTokens:1024,expiresAt:new Date(Date.now()+600000).toISOString(),revokedAt:null});
+  const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}},grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","skill.read",...(sandbox?["sandbox.execute","artifact.read","artifact.write"]:[])],maxInputBytes:16384,maxOutputTokens:1024,maxContextTokens:contextGrantCeiling(configuration),expiresAt:new Date(Date.now()+600000).toISOString(),revokedAt:null});
   await platform.createGrant({accountId:account.id,grant});const {task}=await platform.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Compute the reviewed package report"});return{scope,task,imported,args:{skillId:imported.id,path:"scripts/report.py"}};
  }
  async function activate(f:Awaited<ReturnType<typeof fixture>>){const id=randomUUID();await beginOperation(pool,f.task.id,{id,kind:"tool",name:"skills.activate",request:{skillId:f.imported.id},reservedTokens:0,reservedMs:30000});const result=await executeSkillTool(pool,f.task.id,"skills.activate",{skillId:f.imported.id});await finishOperation(pool,f.task.id,id,"completed",result,null,0);}

@@ -65,6 +65,7 @@ export { settleTask } from "../lifecycle/execution";
 import type { ActionRuntime } from "../../workflows/report-delivery/program";
 import { bookingOperationHandler } from "../../workflows/booking/handler";
 import { reportDeliveryHandler } from "../../workflows/report-delivery/handler";
+import { skillsOperationHandler } from "../../capabilities/skills/handler";
 import type { BookingService } from "../../workflows/booking/bookings";
 import { handlerFor, type CapabilityOperationHandler } from "../capabilities/operation-handlers";
 import { channelPorts } from "../../infrastructure/channel-ports";
@@ -763,7 +764,7 @@ export function preparationFailureCode(error: unknown): string | null {
 
 export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, runtime: {release:string;workflow:string} = {release:HARNESS_RELEASE,workflow:WORKFLOW_NAME}) {
   // Direct constructions keep the built-in handlers; composition can override the registry.
-  const capabilityHandlers = options.capabilityHandlers ?? [bookingOperationHandler(options.bookings), reportDeliveryHandler()];
+  const capabilityHandlers = options.capabilityHandlers ?? [bookingOperationHandler(options.bookings), reportDeliveryHandler(), skillsOperationHandler(options.executeSandbox)];
   return restate.workflow({ name: restateServiceName(runtime.workflow), options: { workflowRetention: { days: 7 }, journalRetention: { days: 7 } }, handlers: {
     run: async (ctx: restate.WorkflowContext, input: { taskId: string }) => {
       if (ctx.key !== input.taskId) throw new restate.TerminalError("Task identity mismatch", { errorCode: 400 });
@@ -1286,9 +1287,9 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                     return {value:await specialistResult(pool,taskId,input),tokens:0};
                   }
                   if(name==="agents.cancel") return {value:await cancelSpecialist(pool,taskId,(args as {taskId:string}).taskId),tokens:0};
-                  if(name==="sandbox.analyze"||name==="skills.run") {
+                  if(name==="sandbox.analyze") {
                     if(!config.capabilities.sandbox.enabled || !options.executeSandbox) throw new PlatformError("SANDBOX_UNAVAILABLE",503,"Analysis is unavailable");
-                    const parsed=(name==="skills.run"?z.strictObject({skillId:z.uuid(),path:z.string().min(1).max(256),inputArtifactIds:z.array(z.uuid()).max(32).optional()}):z.strictObject({code:z.string().min(1).max(16384),inputArtifactIds:z.array(z.uuid()).max(32).optional()})).safeParse(args);
+                    const parsed=z.strictObject({code:z.string().min(1).max(16384),inputArtifactIds:z.array(z.uuid()).max(32).optional()}).safeParse(args);
                     if(!parsed.success) throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Check the analysis arguments");
                     const value=await options.executeSandbox(taskId,id,parsed.data);
                     if(value && typeof value==="object" && "state" in value && value.state==="uncertain") throw new ModelOperationError("SANDBOX_OUTCOME_UNCERTAIN","uncertain");

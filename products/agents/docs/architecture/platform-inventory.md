@@ -345,3 +345,14 @@ narrowed to the parent's own sources and connections, and remain subject to `max
 `maxDepth`, task-tree and shared model/token limits. `agents.discover` lists named agents only
 on an open roster. The request schema keeps `bindingId` as the selector, so published tool
 contracts do not change.
+
+## Skills and deferred capabilities
+
+Skills operations are owned by `capabilities/skills`: `skills.activate`/`skills.read` run through the
+skill runtime with authority checks, and `skills.run` resolves through the capability handler
+registry (`capabilities/skills/handler.ts`) instead of the sandbox branch in the business loop.
+Agent setup lists Schedules, Code execution and Browser use as unavailable. The capability
+registry keeps them deferred, and `operationCapabilityDeferred` rejects any `schedule.*`,
+`code.*` or `browser.*` operation before dispatch. Legacy automation records and routes remain
+readable until the section 10 consumer cutover; they are not reachable through the capability
+surface.

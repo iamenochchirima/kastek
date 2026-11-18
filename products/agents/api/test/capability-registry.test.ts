@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { handlerFor } from "../src/execution/capabilities/operation-handlers";
+import { operationCapabilityDeferred } from "../src/contracts/capabilities";
+import { skillsOperationHandler } from "../src/capabilities/skills/handler";
 import { capability, capabilityForTool, capabilityOperations, capabilityPrerequisitesMet, capabilityRegistry, configurationCapabilityError } from "../src/platform/capabilities/registry";
 import { bookingOperationHandler } from "../src/workflows/booking/handler";
 import { reportDeliveryHandler } from "../src/workflows/report-delivery/handler";
@@ -47,6 +49,14 @@ describe("capability operation handlers", () => {
     expect(handlerFor(handlers, "booking.reserve")?.capability).toBe("tools");
     expect(handlerFor(handlers, "report.deliver")?.afterTurn).toBeTypeOf("function");
     expect(handlerFor(handlers, "knowledge.search")).toBeUndefined();
+    expect(handlerFor([skillsOperationHandler()], "skills.run")?.capability).toBe("skills");
+  });
+});
+
+describe("deferred capabilities", () => {
+  it("keeps schedules, code and browser operations out of the published surface", () => {
+    for (const name of ["schedule.run", "code.execute", "browser.navigate"]) expect(operationCapabilityDeferred(name)).toBe(true);
+    for (const name of ["knowledge.search", "skills.run", "agents.delegate"]) expect(operationCapabilityDeferred(name)).toBe(false);
   });
 });
 
