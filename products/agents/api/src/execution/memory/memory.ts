@@ -1,3 +1,4 @@
+import type { MemoryContextReader } from "../context/readers";
 import { createHash,randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import { z } from "zod";
@@ -65,7 +66,7 @@ export async function requireMemoryAccess(db: PoolClient, scope: ManagementScope
   [scope.organizationId, scope.accountId, scope.agentId]);
   if (!access.rowCount) throw new PlatformError("ACCESS_DENIED", 403, "Access is unavailable");
 }
-export class MemoryStore {
+export class MemoryStore implements MemoryContextReader {
   constructor(readonly pool: Pool) {}
   async resolveHuman(db: PoolClient, scope: MemoryScope): Promise<ManagementScope> {
     if (scope.principal.kind !== "human") throw new PlatformError("MEMORY_SCOPE_DENIED", 403, "Personal memory requires a verified user");

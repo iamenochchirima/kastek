@@ -1391,7 +1391,10 @@ Conversation turn, event and page reads moved to `platform/conversations/reads.t
 Admission still creates turns; the read store owns how they are listed and paginated.
 Context assembly reads history through `execution/context/readers.ts`; the workflow
 receives `PlatformConversationHistory` from composition and keeps its inline query as
-the fallback for callers that do not inject a reader.
+the fallback for callers that do not inject a reader. KnowledgeRuntime and MemoryStore
+implement the knowledge and memory readers, and context assembly prefers the injected
+readers over constructing stores directly. PlatformRunStateReader is injected and has
+no consumer yet.
 
 Agent management HTTP handlers moved from composition to `platform/agents/http.ts`.
 Composition passes the product store, creation operations, offerings data and the

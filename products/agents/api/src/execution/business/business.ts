@@ -124,9 +124,10 @@ export interface BusinessOptions {
   executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]}|{skillId:string;path:string;inputArtifactIds?:string[]})=>Promise<unknown>;
   onSettled?: (taskId: string) => Promise<unknown> | unknown;
   history?: ConversationHistoryReader;
+  readers?: ContextReaders;
 }
 import { operation, uncertainOperation, type Result } from "../lifecycle/durable-operation";
-import type { ConversationHistoryReader, ConversationHistoryTurn } from "../context/readers";
+import type { ContextReaders, ConversationHistoryReader, ConversationHistoryTurn } from "../context/readers";
 export { operation } from "../lifecycle/durable-operation";
 interface Snapshot { primaryInstructionIds?:string[]; id: string; messages: HarnessMessage[]; digest: string; estimatedTokens: number;
   memoryFence?: MemoryFence; historyCutoff: string; tools: ToolDefinition[]; evidenceManifest?: DependencyManifest; catalog?: ToolCatalog;instructionHead?:string;
@@ -375,9 +376,9 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
      knowledgeMode!=="agentic" && availableProductBindings.length===0 && execution.connectedBindings.length===0)
     routedTools=routedTools.filter(tool=>tool.function.name!=="tools_discover"&&tool.function.name!=="tools_load");
   let memoryFence: MemoryFence | undefined;
-  const memory = new MemoryStore(pool);
+  const memory = new MemoryStore(pool), recall = options.readers?.memory ?? memory;
   if (memoryReadAllowed) {
-    const selected = await memory.readForContext({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal,taskId },task.input,8);
+    const selected = await recall.readForContext({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal,taskId },task.input,8) as Awaited<ReturnType<MemoryStore["readForContext"]>>;
     const eligible = options.evidence ? new Set((await options.evidence.checkMemories(taskId,selected.memories.map(item=>item.id))).filter(item=>item.eligible).map(item=>item.id)) : undefined;
     const memories = selected.memories.filter(item=>!eligible || eligible.has(item.id));
     const expiries = memories.flatMap(item => item.expiresAt ? [new Date(item.expiresAt).getTime()] : []);
@@ -400,7 +401,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   }
   const skills = !config.skillIds.length ? [] : (task.product !== "agents" || task.principal.kind === "automation" || isCustomerPrincipal(task.principal)) ?
     await loadSkillRevisions(pool,task.organization_id,execution.agentId,config.skillIds) :
-    await memory.readSkills({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal }, config.skillIds);
+    await recall.readSkills({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal }, config.skillIds) as Awaited<ReturnType<MemoryStore["readSkills"]>>;
   const loadedSkills = await skillContext(pool,taskId,skills);
   const specialists:Awaited<ReturnType<typeof discoverSpecialists>>["specialists"]=[];
   if(directoryProtocol&&directTools.some(tool=>tool.function.name==="agents_discover")){
@@ -755,6 +756,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
     run: async (ctx: restate.WorkflowContext, input: { taskId: string }) => {
       if (ctx.key !== input.taskId) throw new restate.TerminalError("Task identity mismatch", { errorCode: 400 });
       const taskId = input.taskId;
+      const knowledge = options.readers?.knowledge ?? options.knowledgeRuntime;
       // A process-local registry must be hydrated on replay too; a journaled cache fill would be skipped.
       const runStarted = Date.now();
       const createdRow = (await pool.query(`SELECT created_at FROM agents_platform.tasks WHERE id=$1`, [taskId])).rows[0];
@@ -834,23 +836,23 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
           input: initial.task.input,
         };
         // A legacy pinned version above pinned-core capacity downshifts to retrieval without a republish.
-        if (accepted.mode === "pinned" && options.knowledgeRuntime &&
-            !(await guardedRun(ctx,"pinned-core-capacity",() => options.knowledgeRuntime!.pinnedEligible(taskId)))) accepted.mode = "retrieved";
+        if (accepted.mode === "pinned" && knowledge &&
+            !(await guardedRun(ctx,"pinned-core-capacity",() => knowledge!.pinnedEligible(taskId)))) accepted.mode = "retrieved";
         // The route policy is the resolved policy for this turn; config mode is already folded in.
         const turnPlan: RoutePlan = { decision: route.decision,
           definition: { ...route.definition, policy: { ...route.definition.policy, knowledgeMode: accepted.mode } } };
         let initialKnowledge: KnowledgeObservation | undefined;
         let pinnedKnowledge: ContextSource[] = [];
         if (accepted.sourceRevisionIds.length && accepted.mode !== "none") {
-          if (!options.knowledgeRuntime || !options.evidence) throw new PlatformError("KNOWLEDGE_RUNTIME_UNAVAILABLE", 503, "Knowledge retrieval is unavailable");
+          if (!knowledge || !options.evidence) throw new PlatformError("KNOWLEDGE_RUNTIME_UNAVAILABLE", 503, "Knowledge retrieval is unavailable");
           if (accepted.mode === "pinned") {
-            const sections = await guardedRun(ctx,"initial-knowledge-pinned",() => options.knowledgeRuntime!.pinnedSources(taskId));
+            const sections = await guardedRun(ctx,"initial-knowledge-pinned",() => knowledge!.pinnedSources(taskId)) as Awaited<ReturnType<KnowledgeRuntime["pinnedSources"]>>;
             pinnedKnowledge = sections.map(section => ({ id: section.id, revision: section.revisionId, kind: "knowledge" as const,
               content: `[${section.title} / ${section.headingPath}]\n${section.content}` }));
           } else {
           const query = fitUtf8(accepted.input, 1024), id = `knowledge:${taskId}:initial`;
           const retrieved = await operation<KnowledgeObservation>(ctx, pool, taskId, { id, kind: "tool", name: "knowledge.search", request: { query },
-            reservedTokens: 0, reservedMs: 90000, retrySafe: true, maxResultBytes: 8192 }, async () => {validateBuiltinArguments("knowledge.initial",{query});return { value: await options.knowledgeRuntime!.search(taskId, id, query), tokens: 0 };});
+            reservedTokens: 0, reservedMs: 90000, retrySafe: true, maxResultBytes: 8192 }, async () => {validateBuiltinArguments("knowledge.initial",{query});return { value: await knowledge!.search(taskId, id, query) as KnowledgeObservation, tokens: 0 };});
           if (!retrieved.ok) throw new PlatformError(retrieved.code, 409, "Initial knowledge retrieval is unavailable");
           validateBuiltinResult("knowledge.initial",retrieved.value);
           initialKnowledge = capKnowledge(retrieved.value, route.definition.policy.maxKnowledgeTokens);
@@ -1286,11 +1288,11 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                     return {value,tokens:0};
                   }
                   if (name === "knowledge.search" || name === "knowledge.read") {
-                    if (!options.knowledgeRuntime) throw new PlatformError("KNOWLEDGE_RUNTIME_UNAVAILABLE",503,"Knowledge retrieval is unavailable");
+                    if (!knowledge) throw new PlatformError("KNOWLEDGE_RUNTIME_UNAVAILABLE",503,"Knowledge retrieval is unavailable");
                     try {
-                      if (name === "knowledge.search") { const input=z.strictObject({query:z.string().min(1).max(1024)}).parse(args); return {value:await options.knowledgeRuntime.search(taskId,id,input.query),tokens:0}; }
+                      if (name === "knowledge.search") { const input=z.strictObject({query:z.string().min(1).max(1024)}).parse(args); return {value:await knowledge.search(taskId,id,input.query),tokens:0}; }
                       const input=z.strictObject({evidenceId:z.uuid(),offset:z.number().int().nonnegative().optional()}).parse(args);
-                      return {value:await options.knowledgeRuntime.read(taskId,id,input.evidenceId,input.offset),tokens:0};
+                      return {value:await knowledge.read(taskId,id,input.evidenceId,input.offset),tokens:0};
                     } catch(error) { if(error instanceof z.ZodError) throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Check the knowledge arguments"); throw error; }
                   }
                   if(name==="memory.search"||name==="memory.read"||name==="memory.propose"){

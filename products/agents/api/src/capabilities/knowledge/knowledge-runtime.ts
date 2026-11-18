@@ -1,3 +1,4 @@
+import type { KnowledgeContextReader } from "../../execution/context/readers";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
@@ -31,7 +32,7 @@ function relevantSpan(hit: RetrievalHit, query: string, bytes: number) {
   return { start: hit.start + start, end: hit.start + start + text.length };
 }
 
-export class KnowledgeRuntime {
+export class KnowledgeRuntime implements KnowledgeContextReader {
   readonly retrieval: KnowledgeRetrieval;
   constructor(readonly pool: Pool, readonly evidence: EvidenceStore, readonly embeddings?: QueryEmbeddingService) { this.retrieval = new KnowledgeRetrieval(pool); }
 
