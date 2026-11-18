@@ -5,11 +5,12 @@ import { ArtifactStore } from "../../execution/artifacts/artifacts";
 import { MemoryStore,type ManagementScope } from "../../execution/memory/memory";
 import { type PrivateObjectStore } from "../../infrastructure/object-store";
 import { memoryAssertionSchema } from "../../contracts/memory";
+import { memoryCapability } from "../../platform/memory/capability";
 
 const operationId = z.string().min(1).max(128), expectedRevision = z.number().int().positive();
 export function registerMemoryRoutes(app: FastifyInstance, options: { pool: Pool; resolveScope(request: FastifyRequest): Promise<ManagementScope>; objects?: PrivateObjectStore }) {
   const memory = new MemoryStore(options.pool), artifacts = new ArtifactStore(options.pool, options.objects);
-  const base = "/api/organizations/:organizationId/agents/:agentId";
+  const base = memoryCapability.agentBasePath;
   const id = (request: FastifyRequest) => z.uuid().parse((request.params as Record<string, string>).id);
   app.get(`${base}/memory`, async request => { const page = z.strictObject({ offset: z.coerce.number().int().nonnegative().optional(), limit: z.coerce.number().int().min(1).max(100).optional() }).parse(request.query);
     const result = await memory.list(await options.resolveScope(request), page); return { generation: result.generation, items: result.memories, candidates: result.candidates, nextOffset: result.nextOffset }; });

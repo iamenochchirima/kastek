@@ -8,7 +8,7 @@ import Fastify from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MemoryStore } from "../src/execution/memory/memory";
 import { memoryContextAllowed } from "../src/execution/business/business";
-import { registerMemoryRoutes } from "../src/product/agents/memory-routes";
+import { registerMemoryRoutes } from "../src/integrations/http/memory-routes";
 import { defaultBusinessConfiguration, type AgentConfiguration } from "../src/contracts/contracts";
 import { contextGrantCeiling } from "../src/execution/models/settings";
 import { orchestrationTools } from "../src/contracts/orchestration";

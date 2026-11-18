@@ -73,7 +73,7 @@ import { customerSetupSchema } from "../product/offerings/customer-setup";
 import { modelSelectionSchema } from "../contracts/model-providers";
 import { SOURCE_LIMITS } from "../contracts/source-contracts";
 import { loadFirecrawlConfig } from "../adapters/providers/firecrawl/client";
-import { registerMemoryRoutes } from "../product/agents/memory-routes";
+import { registerMemoryRoutes } from "../integrations/http/memory-routes";
 import { registerSkillPackageRoutes } from "../product/agents/skill-package-routes";
 import { SkillPackageStore } from "../product/agents/skill-package-store";
 import { registerCatalogueRoutes, readAgentCatalogue, type CatalogueRouteOptions } from "../product/catalogue/catalogue-routes";

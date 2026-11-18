@@ -1403,6 +1403,12 @@ descriptor and readiness helper. Execution depends on `contracts/knowledge.ts`, 
 defines the retrieval port and observation types, so it no longer imports platform
 code.
 
+Memory HTTP routes moved to `integrations/http/memory-routes.ts`, and
+`platform/memory/capability.ts` carries the optional capability descriptor and
+readiness helper. MemoryStore stays in `execution/memory` because capabilities/skills
+and execution/memory import each other; moving it needs the skills package contracts
+extracted first.
+
 Agent management HTTP handlers moved from composition to `platform/agents/http.ts`.
 Composition passes the product store, creation operations, offerings data and the
 avatar schema as ports, so the module depends only on `contracts` and
