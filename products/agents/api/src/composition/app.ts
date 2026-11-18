@@ -103,7 +103,7 @@ import { MemberStore } from "../product/members/store";
 import { registerMemberRoutes } from "../product/members/routes";
 import { invitationEmailConfig } from "../product/members/email";
 import { Applications, authorizeApplicationManager, effectivePermissions, requirePermission } from "../platform/access";
-import { registerAgentManagementRoutes } from "../platform/agents";
+import { createServiceReadiness, initializeOwnerModel, registerAgentManagementRoutes } from "../platform/agents";
 import { createRunAccess, registerRunRoutes, taskInput } from "../platform/runs";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
 import { customerOfferings } from "../product/offerings/offerings";
@@ -197,26 +197,9 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   if(!connected)apiRegistry.register(nativeApiAdapterManifest(),executeGenericNativeApi);
   const apiConnections:ApiConnectionStore|undefined=actionServices?new ApiConnectionStore(pool,actionServices.connections.vault,{registry:apiRegistry,createCatalog:createNativeApiCapabilityCatalog,testLoopback:options.testConnectionLoopback}):undefined;
   const grantOperations=(configuration:AgentConfiguration)=>operationsForConfiguration(configuration,true);
-  async function assertBindings(configuration: AgentConfiguration): Promise<void> {
-    if (configuration.retrievalProfile.kind === "hybrid-v1" && (!documentRuntime || !await documentRuntime.available(configuration.retrievalProfile.embeddingRelease))) {
-      throw new PlatformError("RETRIEVAL_BACKEND_UNAVAILABLE", 503, "The selected semantic search profile is unavailable");
-    }
-    const connectedAuthority = connectedToolAuthorityIds(configuration);
-    if (connectedAuthority.length) {
-      if (!connected) throw new PlatformError("CONNECTED_TOOLS_UNAVAILABLE", 503, "Connected tools are unavailable");
-      const rows = (await pool.query("SELECT binding FROM agents_platform.capability_bindings WHERE id=ANY($1::uuid[])", [connectedAuthority])).rows;
-      if (rows.length !== connectedAuthority.length) throw new PlatformError("ADAPTER_RELEASE_UNAVAILABLE", 503, "A selected tool binding is unavailable");
-      const bindings = rows.map(row => capabilityBindingSchema.parse(row.binding));
-      assertConnectedBindingDependencies(bindings.filter(binding => configuration.connectedToolBindingIds.includes(binding.id)));
-      connected.assertAvailable(bindings);
-    }
-  }
-  async function assertServices(configuration:AgentConfiguration):Promise<void> {
-    await assertBindings(configuration);
-    if((configuration.capabilities.sandbox.enabled||configuration.capabilities.workflows.enabled)&&!objects)throw new PlatformError("OBJECT_STORE_UNAVAILABLE",503,"Private storage is unavailable");
-    if(configuration.capabilities.workflows.enabled&&!actionServices)throw new PlatformError("ACTIONS_UNAVAILABLE",503,"Report delivery is unavailable");
-    if(configuration.capabilities.sandbox.enabled&&(!sandbox||!await sandbox.available()))throw new PlatformError("SANDBOX_UNAVAILABLE",503,"Analysis is unavailable");
-  }
+  const { assertBindings, assertServices } = createServiceReadiness({
+    pool, documentRuntime, connected, objects, actionServices, sandbox, assertDependencies: assertConnectedBindingDependencies,
+  });
   const automations=new AutomationService(pool,assertServices);
   const followupConfig = customerFollowupConfig({...process.env, AGENTS_PUBLIC_URL:config.AGENTS_PUBLIC_URL});
   const inbox = composeInbox(pool, { publicOrigin: new URL(config.AGENTS_PUBLIC_URL).origin, followupAccessEnabled:true,followupEnabled: Boolean(followupConfig),supportStatusEnabled:true, assertServices, cursorKeys: cursorKeysFromEnvironment({ NODE_ENV:config.NODE_ENV, AGENTS_OIDC_CLIENT_SECRET:config.AGENTS_OIDC_CLIENT_SECRET, AGENTS_CURSOR_KEYS_JSON:config.AGENTS_CURSOR_KEYS_JSON, AGENTS_CURSOR_ACTIVE_KEY_ID:config.AGENTS_CURSOR_ACTIVE_KEY_ID, AGENTS_CURSOR_MAX_AGE_SECONDS:String(config.AGENTS_CURSOR_MAX_AGE_SECONDS) }) });
@@ -339,10 +322,9 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const modelVault = connectionVaultFromEnvironment();
   const modelProviders = new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined, undefined, options.testModelProviderOptions);
   const initializeDefaultModel=managedModelDefaultFromEnvironment(pool,modelVault?new ModelCredentialVault(modelVault):undefined,process.env,{discoveryFetch:options.testModelProviderOptions?.discoveryFetch});
-  async function initializeOwnerModel(accountId:string,organizationId:string) {
-    try {await initializeDefaultModel?.({accountId,organizationId});}
-    catch(error) {app.log.warn({event:"agents.default_model.initialization_failed",organizationId,code:error instanceof PlatformError?error.code:"MODEL_DEFAULT_UNAVAILABLE"},"Managed model initialization unavailable");}
-  }
+  const initializeOwnerModelFor = (accountId:string,organizationId:string) => initializeOwnerModel({
+    initialize: initializeDefaultModel, warn: (event, message) => app.log.warn(event, message),
+  }, accountId, organizationId);
   registerBillingRoutes(app, { pool, publicUrl: config.AGENTS_PUBLIC_URL, resolveScope });
   registerModelProviderRoutes(app, { store: modelProviders, resolveScope });  registerModelProviderDependencyRoutes(app, { pool, resolveScope });
   registerModelPolicyRoutes(app, { store: modelProviders, resolveScope });
@@ -400,7 +382,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   registerWorkspaceRoutes(app, {
     pool, store, identity, sessionCookie, cookieOptions,
     effectivePermissions: (organizationId, accountId) => effectivePermissions(pool, organizationId, accountId),
-    initializeOwnerModel, account,
+    initializeOwnerModel: initializeOwnerModelFor, account,
   });
   registerPublicIdentityRoutes(app, { identity, store, secure, sessionCookie, loginCookie, signingSecret: config.AGENTS_LOGIN_RETURN_SECRET });
 
