@@ -35,6 +35,11 @@ The Agents MCP transport is in [`server.ts`](../api/src/product/mcp/server.ts);
 [`app.ts`](../api/src/composition/app.ts) composes its operation handlers from the product services. Agent create, read and save operations
 share [`creation-operations.ts`](../api/src/product/agents/creation-operations.ts), which is also
 used by the management API.
+Creating an agent without a customer-service setup or explicit configuration starts a generic
+agent with no assigned tools or retained memory. Both the management API and MCP `create_agent`
+accept an optional purpose and instructions. MCP requires an operation ID for safe retries;
+the management API accepts one. Capability assignment and publication still use the existing
+configuration flow.
 Agents adds revision-pinned signed-in reviews for setup changes, knowledge approval, and website
 activation. The boundary follows the shared product architecture in
 [`agent-platform-architecture.md`](./architecture/agent-platform-architecture.md).
