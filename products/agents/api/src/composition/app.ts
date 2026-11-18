@@ -44,7 +44,7 @@ terminalTaskStates,type AdmissionAuthority,type AgentConfiguration
 } from "../contracts/contracts";
 import type { Account,TaskRecord,VersionRecord } from "../contracts/records";
 import { TaskArtifactStore } from "../execution/artifacts/task-artifacts";
-import { assertCurrentEvidence,citationLabels,EvidenceStore } from "../execution/context/evidence";
+import { assertCurrentEvidence,assertDelegationInputEvidence,citationLabels,EvidenceStore } from "../execution/context/evidence";
 import { resolveAutomationOwner,resolveAutomationReviewer } from "../execution/lifecycle/automation-authority";
 import { requestTreeCancellation } from "../execution/lifecycle/execution";
 import { MemoryStore } from "../platform/memory";
@@ -104,7 +104,7 @@ import { registerMemberRoutes } from "../product/members/routes";
 import { invitationEmailConfig } from "../product/members/email";
 import { Applications, authorizeApplicationManager, effectivePermissions, requirePermission } from "../platform/access";
 import { registerAgentManagementRoutes } from "../platform/agents";
-import { registerRunRoutes, taskInput } from "../platform/runs";
+import { createRunAccess, registerRunRoutes, taskInput } from "../platform/runs";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
 import { customerOfferings } from "../product/offerings/offerings";
 import { registerAutomationRoutes } from "../product/automations/automation-routes";
@@ -283,52 +283,10 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return { product: "agents", organizationId: org, resourceId, callerClientId: "agents-execution",
       principal: { kind: "human", issuer: user.issuer, subject: user.subject } };
   }
-  async function humanTask(request: FastifyRequest) {
-    const user = await account(request), org = organizationId(request), taskId = uuid.parse(parameters(request).taskId);
-    await store.requireMembership(user.id, org);
-    const task = (await pool.query<TaskRecord>("SELECT * FROM agents_platform.tasks WHERE organization_id=$1 AND id=$2", [org, taskId])).rows[0];
-    if (!task) throw new PlatformError("NOT_FOUND", 404, "Task not found");
-    const root = task.parent_task_id ? (await pool.query<TaskRecord>("SELECT * FROM agents_platform.tasks WHERE id=$1 AND organization_id=$2", [task.root_task_id,org])).rows[0] : task;
-    if (!root || canonicalJson(root.principal)!==canonicalJson(task.principal)) throw new PlatformError("NOT_FOUND",404,"Task not found");
-    let authority = humanAuthority(user, org, root.resource_id);
-    let reviewOnly = false;
-    if(root.principal.kind==="automation") {
-      const owner=await resolveAutomationOwner(pool,org,root.principal),reviewer=await resolveAutomationReviewer(pool,org,root.id);
-      if(user.id!==owner&&user.id!==reviewer)throw new PlatformError("NOT_FOUND",404,"Task not found");
-      reviewOnly = user.id !== owner;
-      if(reviewOnly && task.parent_task_id)throw new PlatformError("NOT_FOUND",404,"Task not found");
-      authority={product:root.product,organizationId:org,resourceId:root.resource_id,callerClientId:root.caller_client_id,principal:root.principal};
-    } else if(root.principal.kind==="visitor"||root.principal.kind==="channel_customer") {
-      if(!await evaluationTrials.authorizeCustomerRoot(pool,user.id,org,root.id))throw new PlatformError("NOT_FOUND",404,"Task not found");
-      authority={product:root.product,organizationId:org,resourceId:root.resource_id,callerClientId:root.caller_client_id,principal:root.principal};
-    } else await store.getTask(authority, root.id);
-    const source=(await pool.query("SELECT deleted_at FROM agents_platform.conversations WHERE id=$1",[task.conversation_id])).rows[0];
-    return { task: source?.deleted_at ? {...task,input:"[Deleted conversation]",output:null} : task, authority, reviewOnly };
-  }
-  async function readableOutput(taskId:string,output:string|null) {
-    const binding=(await pool.query("SELECT channel_binding FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0]?.channel_binding;
-    if(binding) {
-      const published=(await pool.query(`SELECT m.body FROM agents_platform.customer_deliveries d
-        JOIN agents_platform.customer_messages m ON m.id=d.message_id AND m.task_id=d.task_id
-        WHERE d.task_id=$1 AND d.state='published'`,[taskId])).rows[0];
-      const projected=output?projectRecipientText(output,await taskRecipientTextScope(pool,taskId,[output])):output;
-      if(!published||(published.body!==projected&&published.body!==output))return {output:null,outputAvailability:"unavailable"};
-    }
-    try{await (await import("../execution/context/evidence")).assertDelegationInputEvidence(pool,taskId);}catch(error){if(error instanceof PlatformError)return {output:null,outputAvailability:"unavailable"};throw error;}
-    if(!output)return {output};
-    const visible=async()=>publicAnswerText(projectRecipientText(output,await taskRecipientTextScope(pool,taskId,[output])));
-    const influenced=(await pool.query("SELECT 1 FROM agents_platform.evidence_nodes WHERE task_id=$1 LIMIT 1",[taskId])).rowCount;
-    if(!influenced)return {output:await visible()};
-    if(!evidence)return {output:null,outputAvailability:"unavailable"};
-    try {await assertCurrentEvidence(pool,taskId,await evidence.taskManifest(taskId),{requireActiveTask:false});return {output:await visible(),outputAvailability:"available"};}
-    catch(error) {if(error instanceof PlatformError)return {output:null,outputAvailability:"unavailable"};throw error;}
-  }
-  async function readableTask(task:TaskRecord){
-    let input:unknown=task.input,inputAvailability="available";
-    if(task.parent_task_id)try{await (await import("../execution/context/evidence")).assertDelegationInputEvidence(pool,task.id);if(typeof input==="string")input=projectRecipientText(input,await taskRecipientTextScope(pool,task.id,[input]));}catch(error){if(!(error instanceof PlatformError))throw error;input=task.input==="[Deleted conversation]"?task.input:null;inputAvailability="unavailable";}
-    const canContinue=task.principal?.kind==="human"&&!task.parent_task_id&&(task.state==="waiting_authority"||task.state==="waiting_children"&&Boolean((await pool.query("SELECT 1 FROM agents_platform.tasks WHERE root_task_id=$1 AND parent_task_id IS NOT NULL AND state='waiting_authority' LIMIT 1",[task.id])).rowCount));
-    return {...dto(task),...await readTaskTiming(pool,task),canContinue,input,inputAvailability,...await readableOutput(task.id,task.output)};
-  }
+  const { humanTask, readableTask, readableOutput } = createRunAccess({
+    pool, store, account, organizationId, parameters, evaluationTrials, evidence,
+    assertCurrentEvidence, assertDelegationInputEvidence, present: dto, readTiming: readTaskTiming, visibleAnswer: publicAnswerText,
+  });
   async function resolveScope(request:FastifyRequest) {const user=await account(request),org=organizationId(request);await store.requireMembership(user.id,org);return {accountId:user.id,organizationId:org};}
   const invitationConfig = invitationEmailConfig({...process.env, AGENTS_PUBLIC_URL: config.AGENTS_PUBLIC_URL});
   const invitationSender = options.testInvitationSender ?? (invitationConfig ? new ResendNotificationSender(invitationConfig.apiKey, invitationConfig.sender, { timeoutMs: 10_000, ...(options.testInvitationBaseUrl ? { testBaseUrl: options.testInvitationBaseUrl } : {}) }) : undefined);
