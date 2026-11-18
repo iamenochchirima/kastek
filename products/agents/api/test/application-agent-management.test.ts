@@ -29,7 +29,7 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     const seed = await store.createConfiguredAgent({ accountId: owner.id, organizationId: org.id, name: "Seed" });
     const applications = new Applications(pool, async () => {}, { publicUrl: "https://agents.test" });
     const created = await applications.create({ accountId: owner.id, organizationId: org.id },
-      { name: "Client", agentIds: [seed.agent.id], scopes: ["agents:manage", "agents:publish"] });
+      { name: "Client", agentIds: [seed.agent.id], scopes: ["agents:read", "agents:manage", "agents:publish"] });
     const assertBindings = async () => {};
     const management = createApplicationAgentManagement({ pool, store,
       operations: agentCreationOperations({ store, pool, assertBindings }), assertBindings });
@@ -52,6 +52,10 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
       const deployment = await app.inject({ method: "POST", url: `/v1/agents/${agentId}/deployments`, headers,
         payload: { versionId: version.json().version.id, allowedOrigins: ["https://example.com"] } });
       expect(deployment.statusCode).toBe(201);
+      const opened = await app.inject({ method: "GET", url: `/v1/agents/${agentId}`, headers });
+      expect(opened.json().agent.version.id).toBe(version.json().version.id);
+      const workspaceVersions = await store.listVersions(owner.id, org.id, agentId);
+      expect(workspaceVersions.some(item => item.id === version.json().version.id)).toBe(true);
     } finally { await app.close(); }
   });
 });
