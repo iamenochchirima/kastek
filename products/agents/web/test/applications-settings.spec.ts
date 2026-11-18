@@ -35,3 +35,30 @@ test("create an application and show its key once", async ({ page }, testInfo) =
   await page.getByRole("dialog", { name: "Create application" }).screenshot({ path: testInfo.outputPath("create-mobile.png") });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
+
+test("change which agents an application can use", async ({ page }) => {
+  const appId = "33333333-3333-4333-8333-333333333333";
+  const otherId = "44444444-4444-4444-8444-444444444444";
+  let assigned = [agentId];
+  await page.route("**/api/**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/session") return route.fulfill({ json: { account: { id: "owner", email: "owner@example.test", displayName: "Owner" }, organizations: [{ id: org, name: "Workspace", role: "owner", permissions: ["credentials.manage"] }] } });
+    if (path.endsWith("/inbox-alerts")) return route.fulfill({ json: { unread: 0, alerts: [] } });
+    if (path.endsWith(`/applications/${appId}/agents`) && route.request().method() === "PUT") {
+      assigned = (route.request().postDataJSON() as { agentIds: string[] }).agentIds;
+      return route.fulfill({ json: { id: appId, agentIds: assigned } });
+    }
+    if (path.endsWith("/applications")) return route.fulfill({ json: { applications: [{ id: appId, name: "Client", agentIds: assigned, revokedAt: null, credentials: [] }] } });
+    if (path.endsWith("/agents")) return route.fulfill({ json: { agents: [{ id: agentId, name: "Research" }, { id: otherId, name: "Support" }] } });
+    return route.fulfill({ json: {} });
+  });
+  await page.goto("/app/settings?section=applications");
+  await page.getByRole("button", { name: "Agents", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Application agents" });
+  await dialog.getByLabel("Research").uncheck();
+  await dialog.getByLabel("Support").check();
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Remove access" }).click();
+  await expect(dialog).toBeHidden();
+  expect(assigned).toEqual([otherId]);
+});

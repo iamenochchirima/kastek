@@ -53,6 +53,21 @@ export class Applications {
     });
   }
 
+  async assignAgents(owner: Owner, applicationId: string, raw: unknown) {
+    z.uuid().parse(applicationId);
+    const { agentIds } = z.strictObject({ agentIds: z.array(z.uuid()).max(100)
+      .refine(ids => new Set(ids).size === ids.length) }).parse(raw);
+    return transaction(this.pool, async db => {
+      await this.authorize(db, owner);
+      const application = await db.query("SELECT id FROM agents_platform.applications WHERE organization_id=$1 AND id=$2 AND revoked_at IS NULL FOR UPDATE", [owner.organizationId, applicationId]);
+      if (!application.rowCount) throw new PlatformError("NOT_FOUND", 404, "Application not found");
+      const agents = await db.query("SELECT id FROM agents_platform.agents WHERE organization_id=$1 AND id=ANY($2::uuid[]) AND deleted_at IS NULL FOR SHARE", [owner.organizationId, agentIds]);
+      if (agents.rowCount !== agentIds.length) throw new PlatformError("ACCESS_DENIED", 403, "An agent is unavailable");
+      await db.query("UPDATE agents_platform.applications SET agent_ids=$3 WHERE organization_id=$1 AND id=$2", [owner.organizationId, applicationId, agentIds]);
+      return { id: applicationId, agentIds };
+    });
+  }
+
   async issueCredential(owner: Owner, applicationId: string, raw: unknown) {
     z.uuid().parse(applicationId);
     const input = z.strictObject({ scopes: z.array(scopeSchema).min(1).refine(scopes => new Set(scopes).size === scopes.length) }).parse(raw);
