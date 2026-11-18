@@ -18,10 +18,14 @@ Send the credential as a bearer token. The available scopes and operations are:
 - `runs:control`: `POST /v1/runs/:taskId/instructions` queues `{ instruction, requestKey }` and
   `POST /v1/runs/:taskId/cancel` requests cancellation.
 
-An application can only access its own runs for currently assigned agents. Runs are bound to the
-initiating key, whose revocation stops further execution. Conversation continuation currently
-requires the same key; support for continuing after key rotation is pending. Account-owned connected
-tools do not acquire a member's authority through an application key.
+An application can only access its own runs for currently assigned agents. Each run is bound to the
+credential that started it, and revoking that credential stops work it still has in flight.
+Conversation history belongs to the application, so a replacement credential can continue the
+conversation and read its prior turns.
+
+Application keys do not gain a member's connected-account access. A connection owner can share a
+read-only connection with applications in the workspace through
+[application connection access](application-connections.md).
 
 Issue another credential with
 `POST /api/organizations/:organizationId/applications/:applicationId/credentials`, then revoke

@@ -145,6 +145,7 @@ import { registerAgencyProductRoutes, agencyServiceTrustFromEnvironment } from "
 import { admitMemberRun } from "../platform/runs/member-admission";
 import { admitApplicationRun } from "../platform/runs/application-admission";
 import { registerApplicationRoutes } from "../integrations/http/application-routes";
+import { registerApplicationConnectionSharing } from "../product/connections/application-sharing";
 const uuid = z.uuid();
 const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1),
   requestKey: z.string().trim().min(1).max(128), conversationId: uuid.optional() });
@@ -356,6 +357,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if (result.state !== "accepted") throw new PlatformError("INVITATION_EMAIL_FAILED", 502, "Invitation email could not be sent");
   }
   registerMemberRoutes(app, { store: members, resolveScope, account, sendInvitation: sendInvitationEmail });
+  registerApplicationConnectionSharing(app, { pool, resolveScope });
   registerApplicationRoutes(app, { pool, resolveScope, runs: {
     start: input => admitApplicationRun({ pool, store, assertServices, grantOperations }, input),
     read: async task => ({ taskId: task.id, conversationId: task.conversation_id, state: task.state,

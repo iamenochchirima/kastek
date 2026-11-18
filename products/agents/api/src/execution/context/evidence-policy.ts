@@ -15,6 +15,7 @@ import { assertProductAuthority } from "../admission/product-authority";
 import { assertApplicationHistoryAccess } from "../admission/application-authority";
 import { productPorts } from "../../infrastructure/product-ports";
 import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
+import { applicationConnectionCustodian } from "../../capabilities/connected-tools/application-connection-authority";
 import { currentVisitorLineageAllowed,historyPrincipalAllowed } from "./visitor-lineage";
 import { assertParentEdge, delegationAncestors } from "../delegation/scope";
 import { continuationChildAllowed } from "./work-lineage";
@@ -178,9 +179,11 @@ export async function bindingAllowed(db: Db, execution: Execution, bindingId: st
   if (!execution.configuration.connectedToolBindingIds.includes(bindingId) || !grant?.connected_tool_binding_ids.includes(bindingId)) throw denied();
   if (!(await db.query("SELECT 1 FROM agents_platform.version_connected_tools WHERE organization_id=$1 AND version_id=$2 AND binding_id=$3",[execution.task.organization_id,execution.task.version_id,bindingId])).rowCount) throw denied();
   const row = (await db.query("SELECT binding,account_id FROM agents_platform.capability_bindings WHERE id=$1 AND organization_id=$2", [bindingId, execution.task.organization_id])).rows[0];
-  const expectedOwner=isCustomerPrincipal(execution.task.principal)?(await assertCustomerNativeBindings(db as PoolClient,execution.task.organization_id,[bindingId]))[0]?.ownerAccountId:await owner(db,execution);
-  if (!row || row.account_id !== expectedOwner) throw denied();
+  if (!row) throw denied();
   const binding = capabilityBindingSchema.parse(row.binding);
+  const expectedOwner=isCustomerPrincipal(execution.task.principal)?(await assertCustomerNativeBindings(db as PoolClient,execution.task.organization_id,[bindingId]))[0]?.ownerAccountId:
+    execution.task.principal.kind==="application"?await applicationConnectionCustodian(db,execution,binding):await owner(db,execution);
+  if (row.account_id !== expectedOwner) throw denied();
   const remote=["remote-mcp-v1","custom-api-v1","hubspot-contacts-v1"].includes(binding.connection?.profileId??""),reviewed=remote&&binding.policy.effect==="reviewed_write";
   if(!grant.operations.includes(reviewed?"connected.execute":"connected.read"))throw denied();
   if (!binding.connection || (!remote && (binding.policy.effect !== "read" || binding.policy.disclosure !== (binding.connection.profileId === "stash-read-v1" ? "approved_resource_identifiers" : "public_identifiers")))) throw denied();
@@ -344,7 +347,8 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
     if (dependency.kind !== "connection") continue;
     const binding = await connectionEvidenceBinding(db,execution,dependency,origins);
     const row = (await db.query("SELECT * FROM agents_platform.connections WHERE id=$1 AND organization_id=$2 FOR SHARE", [dependency.connectionId, execution.task.organization_id])).rows[0];
-    const expectedOwner=isCustomerPrincipal(execution.task.principal)?(await assertCustomerNativeBindings(db as PoolClient,execution.task.organization_id,[binding.id]))[0]?.ownerAccountId:await owner(db,execution);
+    const expectedOwner=isCustomerPrincipal(execution.task.principal)?(await assertCustomerNativeBindings(db as PoolClient,execution.task.organization_id,[binding.id]))[0]?.ownerAccountId:
+      execution.task.principal.kind==="application"?await applicationConnectionCustodian(db,execution,binding):await owner(db,execution);
     if (!row || row.state !== "active" || row.policy_revision !== dependency.policyRevision || new Date(row.expires_at).getTime() <= Date.now() || row.account_id !== expectedOwner || binding.connection?.policyRevision !== row.policy_revision || !row.resource_handles.some((resource: ResourceHandle) => requestDigest(resource) === dependency.resource)) throw unavailable();
   }
   for(const dependency of dependencies){

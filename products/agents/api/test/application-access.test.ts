@@ -90,7 +90,26 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
       const row = (await pool.query("SELECT principal FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0];
       expect(row.principal).toEqual({ kind: "application", applicationId: application.id });
       expect((await pool.query("SELECT g.application_credential_id FROM agents_platform.execution_grants g JOIN agents_platform.tasks t ON t.grant_id=g.id WHERE t.id=$1", [taskId])).rows[0].application_credential_id).toBe(credential.id);
-      await app.inject({ method: "POST", url: `${path}/${application.id}/revoke` });
+      await app.listen({ host: "127.0.0.1", port: 0 });
+      const address = app.server.address();
+      if (!address || typeof address === "string") throw new Error("Missing server address");
+      const abort = new AbortController();
+      try {
+        const response = await fetch(`http://127.0.0.1:${address.port}/v1/runs/${taskId}/events`, { headers, signal: abort.signal });
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toContain("text/event-stream");
+        const reader = response.body!.getReader();
+        const first = new TextDecoder().decode((await reader.read()).value);
+        expect(first).toContain("event: snapshot");
+        expect(first).toContain(taskId);
+        // A newly connected client receives the current snapshot without a cursor.
+        const second = await fetch(`http://127.0.0.1:${address.port}/v1/runs/${taskId}/events`, { headers, signal: abort.signal });
+        const secondReader = second.body!.getReader();
+        expect(new TextDecoder().decode((await secondReader.read()).value)).toContain(taskId);
+        await secondReader.cancel();
+        await app.inject({ method: "POST", url: `${path}/${application.id}/revoke` });
+        expect(new TextDecoder().decode((await reader.read()).value)).toContain("event: unavailable");
+      } finally { abort.abort(); }
       expect((await app.inject({ method: "GET", url: `/v1/runs/${taskId}`, headers })).statusCode).toBe(401);
     } finally { await app.close(); }
   });

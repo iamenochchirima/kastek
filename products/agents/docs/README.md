@@ -46,8 +46,8 @@ An opt-in Agents MCP server lets authorized external assistants create and confi
 website knowledge, preview privately, customize a widget, and request signed-in review before
 activation. It uses Agents organization grants; Growth's operation catalogue and permissions remain
 separate.
-Workspace owners can also issue application credentials for the current read-only
-[application API](application-api.md); application run access is still pending.
+Workspace owners can also issue application credentials for the
+[application API](application-api.md), including runs, run events and conversation continuation.
 The generic capability page links to the existing tools, knowledge, memory, handoff, delegation,
 workflow and skills configuration. Schedules, code execution and browser use are listed as
 unavailable in the new setup. Delegation currently requires assigned published agents; temporary
@@ -81,6 +81,7 @@ implementation and boundaries:
 - [Workspace members](operations/workspace-members.md): owner/admin/member roles, permissions, invitations, email configuration and member management.
 - [Enquiry outcomes](operations/enquiry-outcomes.md): website visitor confirmation, customer-record projection and outcome references.
 - [Sandbox workspace bootstrap](operations/sandbox-bootstrap.md): product-owned owner/workspace bootstrap for a fresh evaluation sandbox.
+- [Application connections](application-connections.md): sharing a connection owner's read access with application runs.
 - [Integration boundaries](mcp-integration.md): outbound read adapters, provider acceptance gates and future product connections.
 - [Threat model](THREAT_MODEL.md): enforced controls and release limits.
 
