@@ -26,6 +26,7 @@ import { PlatformError,connectedToolAuthorityIds } from "../contracts/contracts"
 import { createBusinessWorkflow, type BusinessOptions } from "../execution/business/business";
 import { PlatformConversationHistory } from "../platform/conversations/history";
 import { PlatformRunStateReader } from "../platform/runs/run-state";
+import { registeredWorkflowServices } from "../platform/capabilities/workflows";
 import { MemoryStore } from "../platform/memory/memory";
 import { createContextCompactionWorkflow } from "../execution/context/compaction-workflow";
 import { createSupportStatusWorkflow,SUPPORT_STATUS_WORKFLOW } from '../execution/business/support-status-business';
@@ -195,7 +196,17 @@ async function main(): Promise<void> {
   const {host,identityKeys} = workerSecurityFromEnvironment();
   const receiptWorkflow=createReceiptWorkflow(pool,HANDOFF_RECEIPT,(db,input)=>inbox.publishPendingHandoffReceipt(db,input));
   const statusWorkflow=createSupportStatusWorkflow(pool,{...workflowOptions,publishSupportStatus:taskId=>inbox.publishSupportStatus(taskId)});
-  const server = createServer(createEndpointHandler({ services: [workflow,handoffWorkflow,legacyAdaptiveWorkflow,adaptiveWorkflow,sharedWorkflow,compactionWorkflow,receiptWorkflow,statusWorkflow,createAutomationWorkflow(automations),createSupportWaitingWorkflow(supportWaiting),...(followups?[createCustomerFollowupWorkflow(followups)]:[]),...(ingestion?[createIngestionWorkflow(ingestion)]:[])], identityKeys }));
+  const workflowRegistrations = [
+    { id: "business", service: workflow }, { id: "handoff", service: handoffWorkflow },
+    { id: "adaptive-legacy", service: legacyAdaptiveWorkflow }, { id: "adaptive", service: adaptiveWorkflow },
+    { id: "shared", service: sharedWorkflow }, { id: "compaction", service: compactionWorkflow },
+    { id: "handoff-receipt", service: receiptWorkflow }, { id: "support-status", service: statusWorkflow },
+    { id: "automation", service: createAutomationWorkflow(automations) },
+    { id: "support-waiting", service: createSupportWaitingWorkflow(supportWaiting) },
+    ...(followups ? [{ id: "customer-followup", service: createCustomerFollowupWorkflow(followups) }] : []),
+    ...(ingestion ? [{ id: "knowledge-ingestion", service: createIngestionWorkflow(ingestion) }] : []),
+  ];
+  const server = createServer(createEndpointHandler({ services: registeredWorkflowServices(workflowRegistrations), identityKeys }));
   const sessions = new Set<ServerHttp2Session>();
   server.on("session", session => { sessions.add(session); session.once("close", () => sessions.delete(session)); });
   try {
