@@ -1394,6 +1394,9 @@ export, conversation read and conversation delete. Archive and restore remain in
 composition because retention makes deletion irreversible. Evaluation trial routes
 moved to `integrations/http/evaluation-routes.ts` and visitor website routes to
 `integrations/http/website-routes.ts`; both receive product behaviour as ports.
+Session, workspace, assistant, member-channel, connection-fallback and MCP review
+routes moved to their own `integrations/http/` modules. Only the archive and restore
+pair remains in composition.
 
 Composition entry points are `api/src/composition/` and compile to
 `api/dist/composition/`. MCP's bounded helper remains adjacent to its adapter under

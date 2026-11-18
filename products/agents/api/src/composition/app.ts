@@ -108,6 +108,10 @@ import { registerRunRoutes, taskInput } from "../platform/runs/http";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
 import { registerEvaluationRoutes } from "../integrations/http/evaluation-routes";
 import { registerWebsiteRoutes } from "../integrations/http/website-routes";
+import { registerAssistantRoutes } from "../integrations/http/assistant-routes";
+import { registerWorkspaceRoutes } from "../integrations/http/workspace-routes";
+import { registerMcpReviewRoutes } from "../integrations/http/mcp-review-routes";
+import { registerConnectionFallbackRoutes } from "../integrations/http/connection-fallback-routes";
 import { customerOfferings } from "../product/offerings/offerings";
 import { registerAutomationRoutes } from "../product/automations/automation-routes";
 import { AutomationService } from "../product/automations/automations";
@@ -370,12 +374,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   registerAgentTransferRoutes(app, { store: transfers, resolveScope, account, sendTransfer: sendTransferEmail });
   const organizationAssistant=new OrganizationAssistantStore(pool),memberChannels=new MemberChannels(pool);
   const assistantBase="/api/organizations/:organizationId";
-  app.get(`${assistantBase}/assistant`,async request=>{const scope=await resolveScope(request);return organizationAssistant.getOrganizationAssistant(scope.accountId,scope.organizationId);});
-  app.post(`${assistantBase}/assistant/repair`,async request=>{z.strictObject({}).parse(request.body??{});const scope=await resolveScope(request);return organizationAssistant.repairOrganizationAssistant(scope.accountId,scope.organizationId);});
-  app.get(`${assistantBase}/member-channels`,async request=>memberChannels.list(await resolveScope(request)));
-  app.post(`${assistantBase}/member-channels/challenges`,async request=>memberChannels.challenge(await resolveScope(request),request.body));
-  app.post(`${assistantBase}/member-channels/:linkId/confirm`,async request=>{z.strictObject({}).parse(request.body??{});return memberChannels.confirm(await resolveScope(request),uuid.parse(parameters(request).linkId));});
-  app.delete(`${assistantBase}/member-channels/:linkId`,async request=>memberChannels.revoke(await resolveScope(request),uuid.parse(parameters(request).linkId)));
+  registerAssistantRoutes(app, { assistant: organizationAssistant, memberChannels, resolveScope });
+
   registerChannelRoutes(app,{store:channelServices.channels,telegram:channelServices.telegram,meta:channelServices.meta,growthLinks:channelServices.growthLinks,resolveScope,
     assertChannelLimit:async(scope,current)=>{await assertAgentsBillingLimit(pool,scope.organizationId,"limit.agent_channels",current);},
     resolveActor:async request=>{const user=await account(request);return {issuer:user.issuer,subject:user.subject};},
@@ -445,45 +445,14 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   if(actionServices)registerActionRoutes(app,{...actionServices,catalogs:connected?.catalogs,
     discoverCatalog:connected?(scope,input)=>connected.discover(scope,input):undefined,
     resolveScope,resolveTask:async request=>({...await resolveScope(request),taskId:uuid.parse(parameters(request).taskId)})});
-  else app.get("/api/organizations/:organizationId/connections",async request=>{
-    await resolveScope(request);return{connections:[],targets:[],profiles:[],available:false};
-  });
-  if(!connected)app.get("/api/organizations/:organizationId/tool-bindings",async request=>{
-    await resolveScope(request);return{bindings:[],available:false};
-  });
-  app.get("/health", async () => ({ status: "ok", service: "agents-platform", schema: "001_platform" }));
-  app.get("/ready", async (_request, reply) => {
-    const result = await pool.query("SELECT version FROM agents_platform.schema_version");
-    const ready = result.rows[0]?.version === "001_platform";
-    return reply.code(ready ? 200 : 503).send({ status: ready ? "ready" : "unavailable", business: ready, workspace: false });
+  registerConnectionFallbackRoutes(app, { resolveScope, connections: !actionServices, toolBindings: !connected });
+  registerWorkspaceRoutes(app, {
+    pool, store, identity, sessionCookie, cookieOptions,
+    effectivePermissions: (organizationId, accountId) => effectivePermissions(pool, organizationId, accountId),
+    initializeOwnerModel, account,
   });
   registerPublicIdentityRoutes(app, { identity, store, secure, sessionCookie, loginCookie, signingSecret: config.AGENTS_LOGIN_RETURN_SECRET });
-  app.post("/api/auth/logout", async (request, reply) => {
-    await store.revokeSession(request.cookies[sessionCookie] ?? "");
-    reply.clearCookie(sessionCookie, cookieOptions);
-    return { redirectTo: await identity.logoutUrl() };
-  });
-  app.post("/api/auth/backchannel-logout", async (request, reply) => {
-    const input = z.strictObject({ logout_token: z.string().min(1).max(16_000) }).parse(request.body);
-    await identity.backchannelLogout(input.logout_token);
-    return reply.code(204).send();
-  });
-  app.get("/api/session", async (request) => {
-    const user = await account(request);
-    await store.ensureInitialWorkspace(user.id);
-    const organizations=await Promise.all((await store.listOrganizations(user.id)).map(async organization => ({
-      ...organization,
-      permissions: (await effectivePermissions(pool, organization.id, user.id))?.permissions ?? [],
-    })));
-    for(const organization of organizations)if(organization.role==="owner")await initializeOwnerModel(user.id,organization.id);
-    return { account: { id: user.id, email: user.email, displayName: user.display_name }, organizations };
-  });
-  app.post("/api/organizations", async (request, reply) => {
-    const user = await account(request), input = z.strictObject({ name: z.string().min(1).max(120) }).parse(request.body);
-    const organization=await store.createOrganization(user.id,input.name);
-    await initializeOwnerModel(user.id,organization.id);
-    return reply.code(201).send({organization});
-  });
+
   const base = "/api/organizations/:organizationId";
   registerMemoryRoutes(app, { pool, objects, resolveScope: async request => {
     const user = await account(request), org = organizationId(request), agentId = uuid.parse(parameters(request).agentId);
@@ -582,12 +551,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       return { taskId: task.id, conversationId: task.conversation_id, state: task.state,
         errorCode: task.error_code, ...await readableOutput(task.id, task.output), ...await readPublicAgentUpdates(pool, task.id) };
     }
-    app.get("/api/mcp/website-reviews/:id",async request=>websiteReview.get((await account(request)).id,z.uuid().parse((request.params as {id:string}).id)));
-    app.post("/api/mcp/website-reviews/:id/decision",async request=>websiteReview.decide((await account(request)).id,z.uuid().parse((request.params as {id:string}).id),z.strictObject({approved:z.boolean()}).parse(request.body).approved));
-    app.get("/api/mcp/source-reviews/:id",async request=>sourceReview.get((await account(request)).id,z.uuid().parse((request.params as {id:string}).id)));
-    app.post("/api/mcp/source-reviews/:id/decision",async request=>sourceReview.decide((await account(request)).id,z.uuid().parse((request.params as {id:string}).id),z.strictObject({approved:z.boolean()}).parse(request.body).approved));
-    app.get("/api/mcp/config-reviews/:id",async request=>configurationReview.get((await account(request)).id,z.uuid().parse((request.params as {id:string}).id)));
-    app.post("/api/mcp/config-reviews/:id/decision",async request=>configurationReview.decide((await account(request)).id,z.uuid().parse((request.params as {id:string}).id),z.strictObject({approved:z.boolean()}).parse(request.body).approved));
+    registerMcpReviewRoutes(app, { website: websiteReview, source: sourceReview, configuration: configurationReview, account });
     const identifier = z.strictObject({ agentId: z.uuid() });
     const crawls = websiteCrawlOperations({ crawls: websiteCrawls, runtime: documentRuntime });
     const appearance = new WebsiteAppearanceStore(pool);
