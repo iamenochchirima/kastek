@@ -59,6 +59,31 @@ and recovery decisions. These checks do not require keeping compatibility code i
 External callers outside this repository and live deployment inventory. Archive and restore needs
 its own functionality review.
 
+## Growth cutover target
+
+Growth keeps its signed backend authentication and its public API. Agents replaces the
+Growth-specific command translation with a generic product gateway that carries the same
+operations as the shared agent/run contract. Growth owns its product composition.
+
+| Growth operation | Target |
+| --- | --- |
+| `provision` | Shared agent create, configure and publish; Growth owns the feature-to-configuration mapping |
+| `conversations.create/list/get/context` | Shared conversation operations |
+| `turns.submit` | Shared run start |
+| `tasks.get/list/observe/events/export` | Shared run read, activity, list and export |
+| `tasks.cancel/instructions/continue` | Shared run control |
+| `reviews.list/decide` | Shared pending decisions |
+| `artifacts.list/get` | Shared artifact operations |
+| `models.list/select` | Shared model connections and agent configuration |
+| `features.list/configure/profile/upgrade.*` | Growth extension until feature composition moves into Growth |
+| `memory.list/mutate/configure` | Growth extension until a generic memory operation is justified |
+| Growth resources | Growth extension |
+| `channels`, `usage` | Product-owned; not part of this cutover |
+
+Deletion boundary: Agency imports `GrowthAgentTask`, `GrowthAgentObservation` and
+`GrowthAgentMessage`. Move those to a neutral contract module before deleting Growth-only
+contracts. Keep shared product tables and v11-v14 registrations until the Agency cutover.
+
 ## Consumer migration tracking
 
 Independent platform proof is complete for the application HTTP API, MCP and the standalone
