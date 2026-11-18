@@ -322,3 +322,4 @@ export * from "./operations.js";
 export * from "./growth-operations.js";
 
 export type { GrowthAgentRuntime, GrowthAgentRuntimeOperation } from "./growth-agent-runtime.js";
+export * from "./application-api.js";

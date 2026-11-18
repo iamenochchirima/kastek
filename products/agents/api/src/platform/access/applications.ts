@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
 import { transaction } from "../../infrastructure/database";
+import type { ApplicationAgentDetail, ApplicationAgentSummary } from "@kasitek-labs/contracts";
 
 export const applicationScopeSchema = z.enum(["agents:read", "runs:start", "runs:read", "runs:control"]);
 export type ApplicationScope = z.infer<typeof applicationScopeSchema>;
@@ -92,7 +93,7 @@ export class Applications {
     });
   }
 
-  async listAgents(secret: string) {
+  async listAgents(secret: string): Promise<ApplicationAgentSummary[]> {
     if (!/^kat_[A-Za-z0-9_-]{43}$/.test(secret)) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
     const rows = (await this.pool.query(`SELECT a.id,a.name FROM agents_platform.application_credentials k
       JOIN agents_platform.applications app ON app.id=k.application_id AND app.organization_id=k.organization_id
@@ -103,7 +104,7 @@ export class Applications {
     return rows.filter(row => row.id !== null).map(row => ({ id: row.id, name: row.name }));
   }
 
-  async inspectAgent(secret: string, agentId: string) {
+  async inspectAgent(secret: string, agentId: string): Promise<ApplicationAgentDetail> {
     if (!/^kat_[A-Za-z0-9_-]{43}$/.test(secret)) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
     z.uuid().parse(agentId);
     const row = (await this.pool.query(`SELECT a.id,a.name,v.id version_id,v.number version_number,v.created_at version_created_at
