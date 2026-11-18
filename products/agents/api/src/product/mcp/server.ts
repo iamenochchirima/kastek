@@ -7,7 +7,7 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
 import { resolveAgentsOAuthToken } from "./oauth";
-import { containsConnectorCredential } from "../../capabilities/connected-tools/credential-reflection";
+import { containsConnectorCredential } from "../../infrastructure/credential-reflection";
 import { projectMcpReferences, referenceAwareSchema, resolveMcpReferences } from "./references";
 export type McpOperation = { name: string; description: string; scope: "agents:read" | "agents:manage" | "runs:read" | "runs:start" | "runs:control"; inputSchema: { type: "object"; properties?: Record<string, unknown>; required?: string[]; additionalProperties?: boolean }; idempotent?: boolean; openWorld?: boolean; run(scope: { accountId: string; organizationId: string; connectionId: string }, args: Record<string, unknown>): Promise<unknown> };
 

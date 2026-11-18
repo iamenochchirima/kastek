@@ -10,9 +10,9 @@ import type { NetworkAttempt } from "../../infrastructure/connected-network";
 
 export function nativeProviderAdapterManifest():AdapterManifest {
   const extension=extname(__filename),hash=createHash("sha256");
-  for(const path of ["./native-provider-tools","./connected-executor","./application-connection-authority","./connected-tool-schema","./credential-reflection","./retained-security-overlays","../../product/connections/provider-connections","../../adapters/providers/hubspot-contacts","../../adapters/providers/connector-registry","../../contracts/capability-catalog","./customer-native-policy","../reviews/tool-reviews","../../product/channels/channel-tool-reviews","../../contracts/channel","../../execution/context/evidence-policy","../../infrastructure/connected-network"])
+  for(const path of ["./native-provider-tools","./connected-executor","./application-connection-authority","./connected-tool-schema","../../infrastructure/credential-reflection","./retained-security-overlays","../../product/connections/provider-connections","../../adapters/providers/hubspot-contacts","../../adapters/providers/connector-registry","../../contracts/capability-catalog","./customer-native-policy","../reviews/tool-reviews","../../product/channels/channel-tool-reviews","../../contracts/channel","../../execution/context/evidence-policy","../../infrastructure/connected-network"])
     hash.update(path).update(readFileSync(join(__dirname,path+extension)));
-  return {schemaVersion:1,id:"native-provider",release:"1",executableDigest:hash.digest("hex"),transports:["native_http"],protocolVersions:[],boundedSchemaValidation:true};
+  return {schemaVersion:1,id:"native-provider",release:"2",executableDigest:hash.digest("hex"),transports:["native_http"],protocolVersions:[],boundedSchemaValidation:true};
 }
 function reference():CapabilityCatalog["adapter"] {
   const manifest=nativeProviderAdapterManifest();return {id:manifest.id,release:manifest.release,manifestDigest:requestDigest(manifest)};

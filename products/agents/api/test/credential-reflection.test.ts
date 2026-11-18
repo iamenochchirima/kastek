@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { containsConnectorCredential } from "../src/capabilities/connected-tools/credential-reflection";
+import { containsConnectorCredential } from "../src/infrastructure/credential-reflection";
 
 describe("connector credential reflection", () => {
   it("detects the active bearer token without its header and encoded in response text", () => {

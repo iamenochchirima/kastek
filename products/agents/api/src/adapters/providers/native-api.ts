@@ -4,9 +4,9 @@ import type { RequestArguments, RequestTemplate, ResolvedOpenApiCredential } fro
 import { compileOpenApiRequest, injectOpenApiCredentials } from "./openapi";
 import { requestDigest, PlatformError } from "../../contracts/contracts";
 import { createBoundedFetch, type NetworkAttempt } from "../../infrastructure/connected-network";
-import { credentialReflectionVariants } from "../../capabilities/connected-tools/credential-reflection";
+import { credentialReflectionVariants } from "../../infrastructure/credential-reflection";
 
-export const NATIVE_API_RELEASE = "native-api-v2";
+export const NATIVE_API_RELEASE = "native-api-v3";
 export const NATIVE_API_LIMITS = Object.freeze({ requestBytes: 32768, responseBytes: 1048576, responseDepth: 24, responseNodes: 20000, wallMs: 30000 });
 export interface NativeApiOperationRuntime {
   authorizationGeneration?:number; operationId: string; template: RequestTemplate; serverOrigin: string; importDigest: string; policyRevision: number;
