@@ -7,3 +7,4 @@ export { registerMcpReviewRoutes } from "./http/mcp-review-routes";
 export { registerMemoryRoutes } from "./http/memory-routes";
 export { registerWebsiteRoutes } from "./http/website-routes";
 export { registerWorkspaceRoutes } from "./http/workspace-routes";
+export { registerWorkflowRoutes } from "./http/workflow-routes";

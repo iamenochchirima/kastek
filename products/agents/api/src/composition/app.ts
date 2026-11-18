@@ -1,4 +1,4 @@
-import { registerApplicationRoutes, registerAssistantRoutes, registerConnectionFallbackRoutes, registerEvaluationRoutes, registerKnowledgeRoutes, registerMcpReviewRoutes, registerMemoryRoutes, registerWebsiteRoutes, registerWorkspaceRoutes } from "../integrations";
+import { registerApplicationRoutes, registerAssistantRoutes, registerConnectionFallbackRoutes, registerEvaluationRoutes, registerKnowledgeRoutes, registerMcpReviewRoutes, registerMemoryRoutes, registerWebsiteRoutes, registerWorkflowRoutes, registerWorkspaceRoutes } from "../integrations";
 import { skillPackageCodec } from "../capabilities/skills/package";
 import { readTaskTiming } from "../execution/lifecycle/timing";
 import { readTaskRuntime, operationPresentation, productOperationMetadataSql } from "../product/integrations/growth-runtime-reporting";
@@ -104,6 +104,7 @@ import { registerMemberRoutes } from "../product/members/routes";
 import { invitationEmailConfig } from "../product/members/email";
 import { Applications, authorizeApplicationManager, effectivePermissions, requirePermission } from "../platform/access";
 import { createServiceReadiness, initializeOwnerModel, registerAgentManagementRoutes } from "../platform/agents";
+import { WorkflowRevisions } from "../execution/procedures/workflow-revisions";
 import { createRunAccess, registerRunRoutes, taskInput } from "../platform/runs";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
 import { customerOfferings } from "../product/offerings/offerings";
@@ -382,6 +383,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     discoverCatalog:connected?(scope,input)=>connected.discover(scope,input):undefined,
     resolveScope,resolveTask:async request=>({...await resolveScope(request),taskId:uuid.parse(parameters(request).taskId)})});
   registerConnectionFallbackRoutes(app, { resolveScope, connections: !actionServices, toolBindings: !connected });
+  registerWorkflowRoutes(app, { store: new WorkflowRevisions(pool), resolveScope });
   registerWorkspaceRoutes(app, {
     pool, store, identity, sessionCookie, cookieOptions,
     effectivePermissions: (organizationId, accountId) => effectivePermissions(pool, organizationId, accountId),

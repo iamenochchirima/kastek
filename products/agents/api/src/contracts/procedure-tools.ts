@@ -1,3 +1,4 @@
+import { findProcedure } from './procedure-definitions';
 import {z} from 'zod';
 import type {AgentConfiguration} from './contracts';
 import type {ToolDefinition} from './model-messages';
@@ -62,8 +63,8 @@ const descriptions:Record<Name,string>={
 };
 export const selectedProcedures=(config:AgentConfiguration)=>config.procedures??[];
 function handoffConfigured(config:AgentConfiguration){return config.tools.some(name=>['channel.request_handoff','support.request_handoff','support.request_handoff_v2','support.request_assistance'].includes(name));}
-export function procedureReady(config:AgentConfiguration,ref:ProcedureReference){return handoffConfigured(config)&&!!config.supportHours&&config.tools.includes('support.get_status_v2')&&ref.id===afterHoursAssistance.id&&ref.version===afterHoursAssistance.version;}
-export function procedureModelTools(config:AgentConfiguration):ToolDefinition[]{
- if(!selectedProcedures(config).some(ref=>procedureReady(config,ref)))return [];
+export function procedureReady(config:AgentConfiguration,ref:ProcedureReference){return handoffConfigured(config)&&!!config.supportHours&&config.tools.includes('support.get_status_v2')&&!!findProcedure(ref);}
+export function procedureModelTools(config:AgentConfiguration,declarativeProcedures=0):ToolDefinition[]{
+ if(!selectedProcedures(config).some(ref=>procedureReady(config,ref))&&declarativeProcedures===0)return [];
  return procedureToolNames.map(name=>({type:'function',function:{name:name.replaceAll('.','_'),description:descriptions[name],parameters:z.toJSONSchema(procedureToolContracts[name].input) as Record<string,unknown>}}));
 }

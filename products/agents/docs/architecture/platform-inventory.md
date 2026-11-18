@@ -17,7 +17,7 @@ persisted count is distinct tables created across `schema/`.
 
 ## HTTP surface
 
-339 route registrations across 45 modules. Two modules do not mount on the API app:
+341 route registrations across 46 modules. Two modules do not mount on the API app:
 `adapters/executors/executor-host.ts` runs as the separate executor process
 (`composition/executor.ts`), and `acceptance/report-receiver.ts` exports a receiver that no API
 entry point registers.
@@ -33,6 +33,7 @@ entry point registers.
 | `integrations/http/assistant-routes.ts` | 6 | Organization assistant and member channels |
 | `integrations/http/mcp-review-routes.ts` | 6 | Website, source and configuration review decisions |
 | `integrations/http/connection-fallback-routes.ts` | 2 | Empty connection and tool-binding catalogues when optional services are absent |
+| `integrations/http/workflow-routes.ts` | 2 | Declarative workflow revision publish and list |
 | `product/channels/channel-routes.ts` | 27 | `/api/organizations/:organizationId/channels` |
 | `product/inbox/inbox-routes.ts` | 19 | `/api/organizations/:organizationId/inbox`, `/api/website/:deploymentId/customer-conversations` |
 | `integrations/http/application-routes.ts` | 13 | `/api/organizations/:organizationId/applications`, `/v1/agents`, `/v1/runs` |
@@ -321,3 +322,15 @@ the plan must keep working while modules move.
 
 Callers outside this repository, the live deployment inventory, and production task counts. This
 document covers the source tree only.
+
+## Declarative workflow revisions
+
+Workspace owners publish immutable workflow revisions at
+`POST /api/organizations/:organizationId/workflow-revisions` and list them at `GET` on the same
+path (`integrations/http/workflow-routes.ts`). A revision declares prerequisites, waits and
+completion evidence; schema 164 stores it in `agents_platform.workflow_revisions`, and
+`platform/capabilities/workflow-revisions.ts` resolves it into the same definition shape as the
+built-in procedures. Agents assign revisions through `procedures` references; publication
+validates the reference against the stored revision and pins its digest in the effective
+composition. Runtime procedure discovery, load and start resolve the stored definition, and
+procedure progress completes only on validated receipt kinds.

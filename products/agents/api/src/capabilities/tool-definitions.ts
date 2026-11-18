@@ -36,8 +36,8 @@ export function parseModelDelegationRequest(input:unknown):z.infer<typeof modelD
 }
 
 export function publishedToolBindings(config:AgentConfiguration,legacyAdaptive=false,toolVersions?:ReadonlyMap<string,string>,
-  includeProtocol=!legacyAdaptive&&(toolVersions===undefined||PROTOCOL_TOOL_NAMES.some(name=>toolVersions.has(name)))):{name:string;version:string;digest:string}[] {
-  const bindings:{name:string;version:string;digest:string}[]=toolsFor(config,[],legacyAdaptive,toolVersions).map(tool=>{
+  includeProtocol=!legacyAdaptive&&(toolVersions===undefined||PROTOCOL_TOOL_NAMES.some(name=>toolVersions.has(name))),declarativeProcedures=0):{name:string;version:string;digest:string}[] {
+  const bindings:{name:string;version:string;digest:string}[]=toolsFor(config,[],legacyAdaptive,toolVersions,declarativeProcedures).map(tool=>{
     const name=builtinToolName(tool.function.name)!,descriptor=toolDescriptor(name,legacyAdaptive,toolVersions?.get(name));
     if(!descriptor)throw new PlatformError("TOOL_VERSION_UNAVAILABLE",503,"Published tool binding is unavailable on this worker");
     return {name,version:descriptor.version,digest:requestDigest({descriptor,definition:tool,outputSchema:descriptor.outputSchema})};
@@ -55,7 +55,7 @@ export function assertPublishedTools(config:AgentConfiguration,bindings:{name:st
   }
 }
 
-export function toolsFor(config: AgentConfiguration, connectedTools: readonly ToolDefinition[] = [],legacyAdaptive=false,toolVersions?:ReadonlyMap<string,string>): ToolDefinition[] {
+export function toolsFor(config: AgentConfiguration, connectedTools: readonly ToolDefinition[] = [],legacyAdaptive=false,toolVersions?:ReadonlyMap<string,string>,declarativeProcedures=0): ToolDefinition[] {
   const permitted = new Set(config.tools);
   if (builtinToolEnabled(config,"memory.read")&&!(toolVersions?.get("memory.search")==="1"&&!toolVersions.has("memory.read"))) permitted.add("memory.read");
   const definitions: [string, string, object][] = [
@@ -84,7 +84,7 @@ export function toolsFor(config: AgentConfiguration, connectedTools: readonly To
       tool.function.parameters={type:"object",properties:{query:{type:"string",maxLength:512}},required:["query"],additionalProperties:false};
     }
   }
-  result.push(...procedureModelTools(config));
+  result.push(...procedureModelTools(config,declarativeProcedures));
   if(builtinToolEnabled(config,"artifact.create"))result.push({type:"function",function:{name:"artifact_create",
     description:"Create a downloadable text, Markdown or JSON file when a file is useful for the request. The file stays in this task and is not sent externally.",
     parameters:z.toJSONSchema(builtinContract("artifact.create")!.input)}});
