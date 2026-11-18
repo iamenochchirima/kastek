@@ -39,7 +39,8 @@ Creating an agent without a customer-service setup or explicit configuration sta
 agent with no assigned tools or retained memory. Both the management API and MCP `create_agent`
 accept an optional purpose and instructions. MCP requires an operation ID for safe retries;
 the management API accepts one. Capability assignment and publication still use the existing
-configuration flow.
+configuration flow. Both entry points enforce the current workspace agent-management permission
+and agent-count entitlement at creation; retries recheck permission without consuming another slot.
 Member chat admission now uses the shared `platform/runs/member-admission.ts` operation. It pins
 the current agent version and creates the execution grant in the same transaction as the run.
 This operation currently accepts signed-in Agents members; external application and MCP run

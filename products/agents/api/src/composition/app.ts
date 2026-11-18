@@ -505,18 +505,6 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.post(`${base}/agents`, async (request, reply) => {
     const user = await account(request);
     const organization = organizationId(request);
-    await requirePermission(pool, { accountId: user.id, organizationId: organization }, "agents.manage");
-    const agents = await pool.query<{ count: string }>(
-      `SELECT count(*)::text AS count FROM agents_platform.agents
-        WHERE organization_id=$1 AND deleted_at IS NULL`,
-      [organization],
-    );
-    await assertAgentsBillingLimit(
-      pool,
-      organization,
-      "limit.agent_count",
-      Number(agents.rows[0]?.count ?? "0"),
-    );
     const created = await creationOperations.create({ accountId: user.id, organizationId: organization }, request.body);
     return reply.code(201).send({ agent: dto(created.agent), snapshot: dto(created.snapshot) });
   });

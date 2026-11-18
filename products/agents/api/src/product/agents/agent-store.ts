@@ -28,7 +28,8 @@ import type { Account,AgentRecord,VersionRecord,WebsiteDeployment } from "../../
 import { DeploymentStore } from "../deployments/deployment-store";
 import { AuthorityStore } from "../../execution/admission/authority-store";
 import { loadSkillRevisions } from "../../execution/memory/memory";
-import { assertAgentsBillingFeature } from "../billing/billing";
+import { assertAgentsBillingFeature, assertAgentsBillingLimit } from "../billing/billing";
+import { requirePermission } from "../members/permissions";
 
 type Db=Pool|PoolClient;
 function updatedSupportHoursSetup(agent:AgentRecord,configuration:AgentConfiguration):CustomerSetup|undefined {
@@ -155,7 +156,7 @@ export class AgentStore extends AuthorityStore {
     }
     return this.transaction(async db=>{
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
-      await this.membership(db,input.accountId,input.organizationId);
+      await requirePermission(db, { accountId: input.accountId, organizationId: input.organizationId }, "agents.manage", true);
       const digest=requestDigest({name:input.name,offering:input.offering??"customer-service",setup,...(input.configuration?{configuration:config}:{})});
       if(input.operationId){
         const existing=(await db.query<AgentRecord & {setup_request_digest:string}>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND created_by=$2 AND setup_operation_id=$3",[input.organizationId,input.accountId,input.operationId])).rows[0];
@@ -165,6 +166,9 @@ export class AgentStore extends AuthorityStore {
           return {agent:existing,snapshot,deployments:[]};
         }
       }
+      const count = await db.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM agents_platform.agents WHERE organization_id=$1 AND deleted_at IS NULL", [input.organizationId]);
+      await assertAgentsBillingLimit(this.pool, input.organizationId, "limit.agent_count", Number(count.rows[0]?.count ?? "0"));
       const agent=(await db.query<AgentRecord>(`INSERT INTO agents_platform.agents(id,organization_id,name,avatar,draft,created_by,offering,setup,setup_step,setup_operation_id,setup_request_digest)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,[randomUUID(),input.organizationId,text(input.name,120),randomAgentAvatar(),config,input.accountId,setup?"customer-service":input.offering??(input.configuration?null:"faq"),setup,setup?"Responsibilities":null,input.operationId??null,input.operationId?digest:null])).rows[0]!;
       const snapshot=await this.createVersionInTransaction(db,{...input,agentId:agent.id},agent);
