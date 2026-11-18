@@ -118,7 +118,7 @@ registered in `composition/worker.ts`.
 | Adaptive run | Restate workflow | `product-capabilities-v14` / `AgentsBusinessRunV24` | execution/business | Keep while published versions select it |
 | Shared run | Restate workflow | `product-capabilities-v15` / `AgentsBusinessRunV25` | execution/business | Keep |
 | Context compaction | Restate workflow | `AgentsContextCompactionV1` | platform/context | Keep |
-| Automation | Restate workflow | `AgentsAutomationV1` | product/automations | Listed capability, unavailable for new setup |
+| Automation | Restate workflow | `AgentsAutomationV1` | product/automations | Legacy automation remains exposed in the standalone UI and API; the new Schedules capability is listed as unavailable |
 | Support waiting | Restate workflow | `AgentsSupportWaitingV1` | product/inbox | Keep |
 | Handoff receipt | Restate workflow | `AgentsHandoffReceiptV1` | product/inbox | Keep |
 | Support status | Restate workflow | `AgentsSupportStatusV23` | execution/business | Keep |
@@ -268,6 +268,19 @@ Owner: product/assistant, product/reporting. Carries forward. Private assistant 
 | Evaluation service and UI | `/api/organizations/...` (agent setup, conversations, models) | `services/evals/src/product-agents.ts`, `product-chat.ts`, `product-models.ts`; `apps/evals` |
 | Admin site | `/api/admin/*` | `apps/admin-site/src/app/(dashboard)/operations/page.tsx` |
 | Evaluation harness | `POST /deliveries` | acceptance receiver, separate process |
+
+### Scheduled, event and evaluation execution paths
+
+| Initiator | Entry and handler | Execution and consumer |
+| --- | --- | --- |
+| Agents workspace member | `web/src/platform/automations.tsx` and `automation-form.tsx` call `/api/organizations/:organizationId/automations`; `product/automations/automation-routes.ts` calls `AutomationService` | `automation-runtime.ts` dispatches due timer records to `AgentsAutomationV1`; that workflow admits agent work and records occurrences. The UI reads occurrence and action status. |
+| External event sender holding an automation event key | `POST /api/automation-events/:automationId` in `automation-routes.ts` calls `AutomationService.event` | The service validates the key and directly admits an occurrence via `AutomationService.occur`; the caller receives an occurrence acknowledgement. No repository-owned external sender was found. |
+| Evaluation service and UI | `services/evals/src/product-agents.ts`, `product-models.ts` and `product-chat.ts` use the Agents organization API; `services/evals/src/harness/interactive.ts` sends and reads tasks | The ordinary task admission and worker routes execute the run; the evaluation service reads status, output and evidence for `apps/evals`. Growth evaluation paths also use Growth's own API. |
+| Knowledge ingestion | Knowledge API admits a job and writes an ingestion outbox entry | `composition/worker.ts` registers the knowledge import workflow and its dispatcher; the standalone knowledge UI reads job and source status. |
+
+This inventory records the currently wired legacy automation paths; it does not enable the deferred
+Schedules capability or make event-driven execution part of the new platform contract. Unknown
+external callers and live deployment registrations require separate discovery.
 
 ## Operator entry points
 
