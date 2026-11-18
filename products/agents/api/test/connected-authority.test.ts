@@ -5,7 +5,8 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { agentConfigurationSchema, assertGrantAuthority, connectedToolAuthorityIds, defaultBusinessConfiguration,
   executionGrantSchema, type AgentConfiguration } from "../src/contracts/contracts";
-import { AutomationService, operationsForConfiguration } from "../src/product/automations/automations";
+import { AutomationService } from "../src/product/automations/automations";
+import { operationsForConfiguration } from "../src/platform/access/grant-operations";
 import { PlatformStore } from "../src/product/agents/store";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { ConnectionStore } from "../src/product/connections/connections";

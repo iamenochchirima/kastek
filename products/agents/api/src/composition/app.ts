@@ -111,7 +111,8 @@ import { effectivePermissions, requirePermission } from "../product/members/perm
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
 import { customerOfferings } from "../product/offerings/offerings";
 import { registerAutomationRoutes } from "../product/automations/automation-routes";
-import { AutomationService,operationsForConfiguration } from "../product/automations/automations";
+import { AutomationService } from "../product/automations/automations";
+import { operationsForConfiguration } from "../platform/access/grant-operations";
 import { registerActionRoutes } from "../product/connections/actions-routes";
 import { PlatformIdentity } from "../product/identity/auth";
 import { registerPublicIdentityRoutes } from "../product/identity/auth-routes";

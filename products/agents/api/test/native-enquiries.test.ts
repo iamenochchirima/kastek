@@ -7,7 +7,7 @@ import {EnquiryStore,enquiryArguments} from "../src/capabilities/enquiries/enqui
 import {executeTool} from "../src/capabilities/tools";
 import {loadExecution} from "../src/execution/lifecycle/execution";
 import {visibleRecordTools} from "../src/capabilities/enquiries/record-tools";
-import {operationsForConfiguration} from "../src/product/automations/automations";
+import {operationsForConfiguration} from "../src/platform/access/grant-operations";
 import {toolsFor} from "../src/capabilities/tool-definitions";
 import {enquiryReviewDecision,enquiryReviewText,enquiryReviewButtons} from "../src/product/channels/channel-enquiry-reviews";
 import {channelWebhookEventSchema} from "../src/contracts/channel-adapters";

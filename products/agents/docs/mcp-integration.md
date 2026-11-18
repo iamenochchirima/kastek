@@ -45,6 +45,9 @@ Member chat admission now uses the shared `platform/runs/member-admission.ts` op
 the current agent version and creates the execution grant in the same transaction as the run.
 This operation currently accepts signed-in Agents members; external application and MCP run
 admission still require separate integration work.
+The operation ceiling used when issuing execution grants is shared under
+`platform/access/grant-operations.ts`. The repository boundary check rejects imports from
+`platform/` into Agents product or integration modules as those platform modules are migrated.
 Agents adds revision-pinned signed-in reviews for setup changes, knowledge approval, and website
 activation. The boundary follows the shared product architecture in
 [`agent-platform-architecture.md`](./architecture/agent-platform-architecture.md).
