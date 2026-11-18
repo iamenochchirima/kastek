@@ -35,7 +35,9 @@ operator limits, verification scope, and remaining work.
 
 Owner: Agents engineering. Last reviewed: 2026-11-12.
 
-The standalone product offers a customer-service agent with selectable question answering, support,
+The standalone product creates a generic agent from a name and optional purpose and instructions,
+then opens its configuration. Knowledge, tools and memory are not assigned by creation. Existing
+customer-service agents retain their selectable question answering, support,
 booking and enquiry responsibilities across customer channels, with a shared inbox for staff
 support. Research and campaign experiences belong in Growth or Agencies. The [product boundary and inbox contract](architecture/agent-platform-architecture.md#standalone-agents-product)
 define that scope. Website Inbox, assignment, human replies, takeover and explicit return to automation
