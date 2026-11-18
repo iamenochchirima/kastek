@@ -135,6 +135,7 @@ import { exportExecutionHistory } from "../product/evaluation/history-export";
 
 import {registerGrowthProvisionRoute} from "../product/integrations/growth-provisioning";
 import { registerGrowthProductRoutes } from "../product/integrations/growth-routes";
+import { registerProductAgentGateway } from "../product/integrations/product-agent-gateway";
 import { registerGrowthChannelAdminRoutes } from "../product/integrations/growth-channels";
 import { growthServiceTrustFromEnvironment } from "../adapters/products/growth-service-auth";
 import { GrowthProductRuntime } from "../execution/products/growth-runtime";
@@ -221,6 +222,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   registerGrowthProvisionRoute(app,pool,growthServiceTrustFromEnvironment());
   const productRuntime=await createConfiguredProductRuntime(pool,evidence);
   registerGrowthProductRoutes(app,{pool,trust:growthServiceTrustFromEnvironment(),
+    runtime:productRuntime instanceof GrowthProductRuntime?productRuntime:undefined});
+  registerProductAgentGateway(app,{pool,trust:growthServiceTrustFromEnvironment(),
     runtime:productRuntime instanceof GrowthProductRuntime?productRuntime:undefined});
   registerAgencyProductRoutes(app,{pool,runtime:productRuntime,trust:agencyServiceTrustFromEnvironment()});
   await app.register(cookie);

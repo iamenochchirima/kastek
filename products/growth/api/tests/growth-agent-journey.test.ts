@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { generateKeyPair, exportPKCS8 } from "jose";
 import { readConfig } from "../src/config.js";
 import { buildApp } from "../src/app.js";
@@ -25,6 +26,7 @@ test("Growth journey preserves its public API while recording the signed command
     pool: { query, connect: async () => ({ query, release() {} }) },
   } as unknown as CoreContext;
   const commands: Array<Record<string, any>> = [];
+  const conversationId = randomUUID(), taskId = randomUUID(), nextTaskId = randomUUID();
   const app = await buildApp(core, [(app, core) => registerGrowthAgentRoutes(app, core, {
     resolveScope: async () => scope,
     fetch: async (_url, init) => {
@@ -32,22 +34,22 @@ test("Growth journey preserves its public API while recording the signed command
       commands.push(command);
       switch (command.operation) {
         case "conversations.create":
-          return Response.json({ conversation: { id: "conversation-1", featureId: "assistant" } });
-        case "turns.submit":
-          return Response.json({ task: { id: "task-1", conversationId: "conversation-1", featureId: "assistant", state: "working" }, replayed: false });
-        case "tasks.get":
-          return Response.json({ task: { id: "task-1", conversationId: "conversation-1", featureId: "assistant", state: "completed" } });
-        case "tasks.observe":
-          return Response.json({ rootTaskId: "task-1", parentTaskId: null, task: { id: "task-1", state: "completed" },
+          return Response.json({ conversation: { id: conversationId, featureId: "assistant" } });
+        case "runs.start":
+          return Response.json({ task: { id: taskId, conversationId, featureId: "assistant", state: "working" }, replayed: false });
+        case "runs.get":
+          return Response.json({ task: { id: taskId, conversationId, featureId: "assistant", state: "completed" } });
+        case "runs.activity":
+          return Response.json({ rootTaskId: taskId, parentTaskId: null, task: { id: taskId, state: "completed" },
             operations: [], updates: [], updatesTruncated: false, events: [], nextCursor: null });
         case "reviews.list":
           return Response.json({ reviews: [] });
-        case "tasks.instructions":
+        case "runs.steer":
           return Response.json({ accepted: true });
-        case "tasks.cancel":
+        case "runs.cancel":
           return Response.json({ cancelled: true });
-        case "tasks.continue":
-          return Response.json({ task: { id: "task-2", conversationId: "conversation-1", featureId: "assistant", state: "working" }, replayed: false });
+        case "runs.continue":
+          return Response.json({ task: { id: nextTaskId, conversationId, featureId: "assistant", state: "working" }, replayed: false });
         default:
           return Response.json({ ok: true });
       }
@@ -60,31 +62,31 @@ test("Growth journey preserves its public API while recording the signed command
   try {
     const conversation = await call("POST", "/api/agents/conversations", { requestId: "journey-conversation", featureId: "assistant" });
     assert.equal(conversation.status, 201, JSON.stringify(conversation.body));
-    assert.deepEqual(conversation.body, { conversation: { id: "conversation-1", featureId: "assistant" } });
+    assert.deepEqual(conversation.body, { conversation: { id: conversationId, featureId: "assistant" } });
 
-    const turn = await call("POST", "/api/agents/conversations/conversation-1/messages", { requestId: "journey-turn", text: "Hello" });
+    const turn = await call("POST", `/api/agents/conversations/${conversationId}/messages`, { requestId: "journey-turn", text: "Hello" });
     assert.equal(turn.status, 202, JSON.stringify(turn.body));
-    assert.equal(turn.body.task.id, "task-1");
+    assert.equal(turn.body.task.id, taskId);
 
-    const task = await call("GET", "/api/agents/tasks/task-1");
+    const task = await call("GET", `/api/agents/tasks/${taskId}`);
     assert.equal(task.status, 200);
     assert.equal(task.body.task.state, "completed");
 
-    const activity = await call("GET", "/api/agents/tasks/task-1/activity");
+    const activity = await call("GET", `/api/agents/tasks/${taskId}/activity`);
     assert.equal(activity.status, 200);
-    assert.equal(activity.body.rootTaskId, "task-1");
+    assert.equal(activity.body.rootTaskId, taskId);
 
-    const reviews = await call("GET", "/api/agents/tasks/task-1/reviews");
+    const reviews = await call("GET", `/api/agents/tasks/${taskId}/reviews`);
     assert.equal(reviews.status, 200);
     assert.deepEqual(reviews.body.reviews, []);
 
-    assert.equal((await call("POST", "/api/agents/tasks/task-1/instructions", { requestId: "journey-instruction", instruction: "Keep it short." })).status, 200);
-    assert.equal((await call("POST", "/api/agents/tasks/task-1/cancel", { requestId: "journey-cancel" })).status, 200);
-    assert.equal((await call("POST", "/api/agents/tasks/task-1/continue", { requestId: "journey-continue" })).status, 200);
+    assert.equal((await call("POST", `/api/agents/tasks/${taskId}/instructions`, { requestId: "journey-instruction", instruction: "Keep it short." })).status, 200);
+    assert.equal((await call("POST", `/api/agents/tasks/${taskId}/cancel`, { requestId: "journey-cancel" })).status, 200);
+    assert.equal((await call("POST", `/api/agents/tasks/${taskId}/continue`, { requestId: "journey-continue" })).status, 200);
 
     assert.deepEqual(commands.map(command => command.operation), [
-      "features.list", "conversations.create", "turns.submit", "tasks.get", "tasks.observe", "reviews.list",
-      "tasks.instructions", "tasks.cancel", "tasks.continue",
+      "features.list", "conversations.create", "runs.start", "runs.get", "runs.activity", "reviews.list",
+      "runs.steer", "runs.cancel", "runs.continue",
     ]);
     for (const command of commands) {
       assert.equal(command.version, "1");
@@ -92,9 +94,14 @@ test("Growth journey preserves its public API while recording the signed command
       assert.deepEqual(command.actor, actor);
       assert.equal(typeof command.requestId, "string");
     }
+    const shared = commands.slice(1);
+    for (const command of shared) assert.equal(command.product, "growth");
+    assert.deepEqual(shared[0]!.input.target, { kind: "product_feature", featureId: "assistant" });
+    assert.equal(shared[1]!.input.conversationId, conversationId);
+    assert.equal(shared[1]!.input.message, "Hello");
 
     member = false;
-    const denied = await call("GET", "/api/agents/tasks/task-1");
+    const denied = await call("GET", `/api/agents/tasks/${taskId}`);
     assert.equal(denied.status, 403);
   } finally {
     await app.close();

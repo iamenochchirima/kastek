@@ -16,6 +16,9 @@ const usageInput = z.strictObject({
   limit: z.number().int().min(1).max(200),
   actor: z.strictObject({ issuer: z.string().min(1).max(512), subject: z.string().min(1).max(512) }),
 });
+const migratedOperations=new Set(["conversations.create","conversations.get","conversations.list","conversations.context",
+  "turns.submit","tasks.get","tasks.list","tasks.observe","tasks.events","tasks.instructions","tasks.cancel","tasks.continue",
+  "reviews.list","reviews.decide"]);
 export function registerGrowthProductRoutes(app:FastifyInstance,options:{pool:Pool;trust?:GrowthServiceTrust;runtime?:GrowthProductRuntime}) {
   const auth=options.trust?new GrowthServiceAuth(options.trust):undefined;
   const service=options.trust?new GrowthExecutionService(options.pool,options.trust,options.runtime):undefined;
@@ -26,6 +29,7 @@ export function registerGrowthProductRoutes(app:FastifyInstance,options:{pool:Po
     const bearer=request.headers.authorization?.match(/^Bearer ([A-Za-z0-9_.-]+)$/)?.[1];
     if(!bearer)throw new PlatformError("PRODUCT_SERVICE_DENIED",401,"Product service authentication is required");
     const verified=await auth.verify(bearer,command);
+    if(migratedOperations.has(command.operation))throw new PlatformError("PRODUCT_COMMAND_MOVED",410,"Use the product agent gateway");
     await recordProductServiceAssertion(options.pool,"growth",verified,command);
     return service.execute(command);
   });

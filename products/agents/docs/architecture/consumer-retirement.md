@@ -84,6 +84,11 @@ Deletion boundary: Agency imports `GrowthAgentTask`, `GrowthAgentObservation` an
 `GrowthAgentMessage`. Move those to a neutral contract module before deleting Growth-only
 contracts. Keep shared product tables and v11-v14 registrations until the Agency cutover.
 
+Status: the Growth core run path now uses the shared product gateway
+(`/internal/v1/products/growth/agent-gateway`). The old command route rejects the migrated
+operations with `PRODUCT_COMMAND_MOVED`; it remains for Growth-owned extensions (features,
+memory, resources, models, artifacts and export) until those move or are retired.
+
 ## Consumer migration tracking
 
 Independent platform proof is complete for the application HTTP API, MCP and the standalone

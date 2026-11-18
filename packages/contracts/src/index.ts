@@ -299,6 +299,7 @@ export interface ComparisonRequest {
 }
 
 export * from "./growth-agents.js";
+export * from "./product-agent-gateway.js";
 export * from "./agent-memory.js";
 export * from "./growth-agent-resources.js";
 export * from "./agency-agents.js";

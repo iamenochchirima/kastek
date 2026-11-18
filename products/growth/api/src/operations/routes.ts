@@ -43,7 +43,7 @@ export function registerGrowthOperationRoutes(app: FastifyInstance, core: CoreCo
     let resumePending = false;
     if (row.taskId) {
       try {
-        await new GrowthAgentClient(core.config).command({ tenantId: row.orgId, actor: growthAgentActor(core.config, row.userId) }, "reviews.decide", { taskId: row.taskId, reviewId: row.id, payloadDigest: row.payloadDigest, decision: body.decision as "approve" | "reject" }, `operation-review:${row.id}:${body.decision}`);
+        await new GrowthAgentClient(core.config).shared({ tenantId: row.orgId, actor: growthAgentActor(core.config, row.userId) }, "reviews.decide", { taskId: row.taskId, reviewId: row.id, payloadDigest: row.payloadDigest, decision: body.decision as "approve" | "reject" }, `operation-review:${row.id}:${body.decision}`);
       } catch (error) {
         if (!(error instanceof ApiError) || error.status < 500) throw error;
         resumePending = true;

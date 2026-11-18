@@ -89,7 +89,7 @@ decisions behind it to `platform/`.
 | Surface | Today | Change | Replacement | Last known caller |
 | --- | --- | --- | --- | --- |
 | `product-capabilities-v13` / `AgentsBusinessRunV23` | Registered in the worker and dispatcher route map | Retire once no active task pins it. No current code publishes v13. | `product-capabilities-v15` / `AgentsBusinessRunV25` | Tasks admitted while v13 was current; count requires a production query |
-| `POST /internal/v1/products/growth/commands` | Product-to-product command endpoint | Replace with shared platform run and tool operations; keep a Growth adapter | `POST /v1/runs` semantics under a product caller | `products/growth/api/src/agents/client.ts` |
+| `POST /internal/v1/products/growth/commands` | Product-to-product command endpoint | Growth core operations moved to the shared product gateway; this route now carries Growth-owned extensions | `POST /internal/v1/products/growth/agent-gateway` semantics under a product caller | `products/growth/api/src/agents/client.ts` |
 | `POST /internal/v1/products/growth/provision` | Product provisioning endpoint | Same; provisioning becomes a platform operation | Platform agent create and publish | `products/growth/api/src/agents/provisioning-client.ts` |
 | `/internal/v1/products/growth/channels`, `/usage` | Reporting and channel administration | Same | Platform channel and usage operations | `products/growth/api/src/agents/channel-admin-client.ts`, `usage-feed.ts` |
 | `POST /internal/v1/products/agencies/commands`, `/model` | Product-to-product command endpoint | Same | Platform run and model operations | `products/agency/api/src/capabilities/execution-client.ts` |
