@@ -53,6 +53,12 @@ export function createRunAccess(options: RunAccessPorts) {
     } else if (root.principal.kind === "visitor" || root.principal.kind === "channel_customer") {
       if (!await options.evaluationTrials.authorizeCustomerRoot(pool, user.id, org, root.id)) throw new PlatformError("NOT_FOUND", 404, "Task not found");
       authority = { product: root.product, organizationId: org, resourceId: root.resource_id, callerClientId: root.caller_client_id, principal: root.principal };
+    } else if (root.principal.kind === "application") {
+      await options.store.requireMembership(user.id, org);
+      const application = (await pool.query("SELECT 1 FROM agents_platform.applications WHERE organization_id=$1 AND id=$2",
+        [org, root.principal.applicationId])).rowCount;
+      if (!application) throw new PlatformError("NOT_FOUND", 404, "Task not found");
+      authority = { product: root.product, organizationId: org, resourceId: root.resource_id, callerClientId: root.caller_client_id, principal: root.principal };
     } else await options.store.getTask(authority, root.id);
     const source = (await pool.query("SELECT deleted_at FROM agents_platform.conversations WHERE id=$1", [task.conversation_id])).rows[0];
     return { task: source?.deleted_at ? { ...task, input: "[Deleted conversation]", output: null } : task, authority, reviewOnly };

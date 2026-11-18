@@ -12,7 +12,7 @@ import { transaction } from "../../infrastructure/database";
 import { assertAutomationAdmission, resolveAutomationOwner } from "../lifecycle/automation-authority";
 import { assertChannelCustomerAuthority } from "./channel-authority";
 import { assertProductAuthority } from "./product-authority";
-import { assertApplicationAuthority } from "./application-authority";
+import { assertApplicationAuthority, assertApplicationHistoryAccess } from "./application-authority";
 
 import type { Account,TaskRecord,VersionRecord,WebsiteDeployment } from "../../contracts/records";
 
@@ -71,7 +71,8 @@ export class AuthorityStore {
       if (!account) denied();
       await this.membership(db, account.id, authority.organizationId);
     } else if (authority.principal.kind === "application") {
-      await assertApplicationAuthority(db, authority, version.agent_id, options.applicationCredentialId ?? null);
+      if (options.applicationCredentialId !== undefined) await assertApplicationAuthority(db, authority, version.agent_id, options.applicationCredentialId);
+      else await assertApplicationHistoryAccess(db, authority, version.agent_id);
     } else if (authority.principal.kind === "visitor") {
       if (authority.callerClientId !== "agents-website" || authority.resourceId !== authority.principal.deploymentId) denied();
       const deployment = (await db.query<WebsiteDeployment>("SELECT * FROM agents_platform.website_deployments WHERE organization_id=$1 AND id=$2 AND revoked_at IS NULL AND paused=false FOR SHARE", [authority.organizationId, authority.principal.deploymentId])).rows[0];
