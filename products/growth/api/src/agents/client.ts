@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { GROWTH_AGENT_COMMAND_PATH, isGrowthResourceOperation, parseGrowthAgentCommand, parseProductAgentCommand,
+import { GROWTH_AGENT_EXTENSIONS_PATH, isGrowthResourceOperation, parseGrowthAgentCommand, parseProductAgentCommand,
   productAgentGatewayPath, type GrowthAgentActor, type GrowthAgentCommand, type GrowthAgentCommandInputs,
   type GrowthAgentCommandOperation, type GrowthAgentCommandOutputs, type ProductAgentInputs, type ProductAgentOperation } from "@kasitek-labs/contracts";
 import type { CoreConfig } from "../config.js";
@@ -26,6 +26,11 @@ export interface SharedAgentOutputs {
   "runs.continue": GrowthAgentCommandOutputs["tasks.continue"];
   "reviews.list": GrowthAgentCommandOutputs["reviews.list"];
   "reviews.decide": GrowthAgentCommandOutputs["reviews.decide"];
+  "artifacts.list": GrowthAgentCommandOutputs["artifacts.list"];
+  "artifacts.get": GrowthAgentCommandOutputs["artifacts.get"];
+  "tasks.export": GrowthAgentCommandOutputs["tasks.export"];
+  "models.list": GrowthAgentCommandOutputs["models.list"];
+  "models.select": GrowthAgentCommandOutputs["models.select"];
 }
 export type SharedAgentOperation = keyof SharedAgentOutputs;
 
@@ -58,7 +63,7 @@ export class GrowthAgentClient {
   }
   private async send<K extends GrowthAgentCommandOperation>(scope:{tenantId:string;actor:GrowthAgentActor},operation:K,input:GrowthAgentCommandInputs[K],requestId:string):Promise<GrowthAgentCommandOutputs[K]>{
     const body = parseGrowthAgentCommand(JSON.parse(JSON.stringify({ version: "1", requestId, ...scope, operation, input }))) as GrowthAgentCommand;
-    return await this.request(GROWTH_AGENT_COMMAND_PATH,body,requestId) as GrowthAgentCommandOutputs[K];
+    return await this.request(GROWTH_AGENT_EXTENSIONS_PATH,body,requestId) as GrowthAgentCommandOutputs[K];
   }
   private async request(path:string,body:unknown,requestId:string):Promise<unknown>{
     const base = growthAgentApiUrl(this.config);

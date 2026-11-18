@@ -4,6 +4,8 @@ import { GROWTH_RESOURCE_FIELDS, isGrowthResourceOperation, validGrowthResourceI
 /** Growth product contracts. No standalone Agents membership or installation is implied. */
 export const GROWTH_AGENT_CONTRACT_VERSION = "1" as const;
 export const GROWTH_AGENT_COMMAND_PATH = "/internal/v1/products/growth/commands";
+/** Growth-owned extensions that are not part of the shared agent gateway. */
+export const GROWTH_AGENT_EXTENSIONS_PATH = "/internal/v1/products/growth/extensions";
 export const GROWTH_AGENT_ACTION_PATH = "/internal/agents/actions";
 export const GROWTH_AGENT_PUBLICATION_MAX_BYTES = 262_144;
 export const GROWTH_AGENT_FEATURE_IDS = ["assistant", "research", "content", "campaigns"] as const;

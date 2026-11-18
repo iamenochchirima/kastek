@@ -259,12 +259,12 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
   app.get("/api/agents/features/:featureId/models", async (request, reply) => {
     const auth=await scope(request);await requireAdmin(core.pool,auth.tenantId,auth.actor.subject);
     strict(request.query as Record<string,unknown>??{},[]);reply.header("Cache-Control","no-store");
-    return invoke(request,"models.list",{featureId:id(request,"featureId") as GrowthAgentFeatureId});
+    return invokeShared(request,"models.list",{target:{kind:"product_feature",featureId:id(request,"featureId") as GrowthAgentFeatureId}});
   });
   app.patch("/api/agents/features/:featureId/model", async request => {
     const auth=await scope(request);await requireAdmin(core.pool,auth.tenantId,auth.actor.subject);
     const input=body(request);strict(input,["requestId","expectedRevision","selection"]);
-    return invoke(request,"models.select",{featureId:id(request,"featureId") as GrowthAgentFeatureId,
+    return invokeShared(request,"models.select",{target:{kind:"product_feature",featureId:id(request,"featureId") as GrowthAgentFeatureId},
       expectedRevision:Number(input.expectedRevision),selection:input.selection as GrowthAgentCommandInputs["models.select"]["selection"]},string(input.requestId));
   });
   app.get("/api/agents/features/:featureId/memory",request=>{
@@ -355,7 +355,7 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
       ...(query.childTaskId===undefined?{}:{childTaskId:string(query.childTaskId,"childTaskId")}),
       ...(query.cursor===undefined?{}:{cursor:string(query.cursor,"cursor",2048)}),client,scope:()=>scope(request)});
   });
-  app.get("/api/agents/tasks/:taskId/export", request => invoke(request, "tasks.export", { taskId: id(request, "taskId") }));
+  app.get("/api/agents/tasks/:taskId/export", request => invokeShared(request, "tasks.export", { taskId: id(request, "taskId") }));
   app.get("/api/agents/tasks/:taskId/specialists/:childTaskId/result", async (request, reply) => {
     reply.header("Cache-Control", "no-store");
     const query = request.query as Record<string, unknown> ?? {}; strict(query, ["offset"]);
@@ -428,12 +428,12 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     await scope(request);
     throw new ApiError(400, "agent_review_task_required", "Open the task to review this draft");
   });
-  app.get("/api/agents/tasks/:taskId/artifacts", request => invoke(request, "artifacts.list", { taskId: id(request, "taskId"), ...artifactChild(request) }));
+  app.get("/api/agents/tasks/:taskId/artifacts", request => invokeShared(request, "artifacts.list", { taskId: id(request, "taskId"), ...artifactChild(request) }));
   app.get("/api/agents/tasks/:taskId/artifacts/:artifactId/download", async (request, reply) => {
     const selected=artifactChild(request),artifactId=id(request,"artifactId");
     const chunks: Buffer[] = []; let offset = 0, digest: string | undefined, bytes: number | undefined, mediaType = "application/octet-stream", name:string|undefined;
     do {
-      const result = await invoke(request, "artifacts.get", { taskId: id(request, "taskId"), artifactId, offset, ...selected });
+      const result = await invokeShared(request, "artifacts.get", { taskId: id(request, "taskId"), artifactId, offset, ...selected });
       const part = result.artifact.chunk;
       if (!part || part.offset !== offset || !Number.isSafeInteger(part.bytes) || part.bytes < 0 || part.bytes > 1048576 ||
         result.artifact.id!==artifactId || !/^[a-f0-9]{64}$/.test(part.digest) || (digest !== undefined && (digest !== part.digest || bytes !== part.bytes || mediaType!==result.artifact.mediaType || name!==result.artifact.title)))
@@ -452,5 +452,5 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
       .header("Content-Disposition", `attachment; filename="${name&&/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$/.test(name)?name:"agent-result.bin"}"`);
     return reply.type(mediaType).send(content);
   });
-  app.get("/api/agents/tasks/:taskId/artifacts/:artifactId", request => invoke(request, "artifacts.get", { taskId: id(request, "taskId"), artifactId: id(request, "artifactId"), ...artifactChild(request) }));
+  app.get("/api/agents/tasks/:taskId/artifacts/:artifactId", request => invokeShared(request, "artifacts.get", { taskId: id(request, "taskId"), artifactId: id(request, "artifactId"), ...artifactChild(request) }));
 }

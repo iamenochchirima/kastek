@@ -30,6 +30,11 @@ export const productAgentInputSchemas = {
   "runs.continue": z.strictObject({ taskId: id }),
   "reviews.list": z.strictObject({ taskId: id }),
   "reviews.decide": z.strictObject({ taskId: id, reviewId: id, payloadDigest: z.string().min(1).max(256), decision: z.enum(["approve", "reject"]) }),
+  "artifacts.list": z.strictObject({ taskId: id, childTaskId: id.optional() }),
+  "artifacts.get": z.strictObject({ taskId: id, artifactId: id, childTaskId: id.optional(), offset: z.number().int().min(0).max(2097152).optional() }),
+  "tasks.export": z.strictObject({ taskId: id }),
+  "models.list": z.strictObject({ target: productAgentTargetSchema }),
+  "models.select": z.strictObject({ target: productAgentTargetSchema, expectedRevision: z.number().int().positive(), selection: z.unknown() }),
 } as const;
 
 export type ProductAgentInputs = {

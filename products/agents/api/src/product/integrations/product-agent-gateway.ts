@@ -53,6 +53,16 @@ export function toGrowthCommand(command: ProductAgentCommand): GrowthAgentComman
       return { ...base, operation: "reviews.list", input: { taskId: command.input.taskId } } as GrowthAgentCommand;
     case "reviews.decide":
       return { ...base, operation: "reviews.decide", input: { taskId: command.input.taskId, reviewId: command.input.reviewId, payloadDigest: command.input.payloadDigest, decision: command.input.decision } } as GrowthAgentCommand;
+    case "artifacts.list":
+      return { ...base, operation: "artifacts.list", input: { taskId: command.input.taskId, ...(command.input.childTaskId ? { childTaskId: command.input.childTaskId } : {}) } } as GrowthAgentCommand;
+    case "artifacts.get":
+      return { ...base, operation: "artifacts.get", input: { taskId: command.input.taskId, artifactId: command.input.artifactId, ...(command.input.childTaskId ? { childTaskId: command.input.childTaskId } : {}), ...(command.input.offset ? { offset: command.input.offset } : {}) } } as GrowthAgentCommand;
+    case "tasks.export":
+      return { ...base, operation: "tasks.export", input: { taskId: command.input.taskId } } as GrowthAgentCommand;
+    case "models.list":
+      return { ...base, operation: "models.list", input: { featureId: targetFeature(command) } } as GrowthAgentCommand;
+    case "models.select":
+      return { ...base, operation: "models.select", input: { featureId: targetFeature(command), expectedRevision: command.input.expectedRevision, selection: command.input.selection } } as GrowthAgentCommand;
   }
 }
 

@@ -55,7 +55,7 @@ test("Growth signing binds full scope and fixed audience, rejects changed body a
   await assert.rejects(verifyGrowthAgentAction(conf, `Bearer ${await sign(body, "growth-agent-actions", 300)}`, body), /unauthorized/);
   const client = new GrowthAgentClient(config({ AGENTS_PRODUCT_API_URL: "https://agents.example.test", GROWTH_AGENTS_SIGNING_PRIVATE_KEY: privateKey }), {
     fetch: (async (url, init) => {
-      assert.equal(url, "https://agents.example.test/internal/v1/products/growth/commands");
+      assert.equal(url, "https://agents.example.test/internal/v1/products/growth/agent-gateway");
       const request = JSON.parse(String(init?.body)), bearer = (init?.headers as Record<string, string>).authorization.slice(7);
       const claims = await jwtVerify(bearer, keys.publicKey, { audience: "agents-product-api", issuer: "https://growth.kasitek.co.za", subject: "growth-api" });
       assert.equal(claims.payload.requestDigest, growthAgentDigest(request));
@@ -63,7 +63,7 @@ test("Growth signing binds full scope and fixed audience, rejects changed body a
       return Response.json({ tasks: [], nextCursor: null });
     }) as typeof fetch,
   });
-  assert.deepEqual(await client.command({ tenantId: "org", actor }, "tasks.list", {}, "stable-request"), { tasks: [], nextCursor: null });
+  assert.deepEqual(await client.shared({ tenantId: "org", actor }, "runs.list", {}, "stable-request"), { tasks: [], nextCursor: null });
 });
 test("Growth browser bridge enforces origin and membership and reports truthful unavailability", async () => {
   let member = true;
