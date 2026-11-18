@@ -103,6 +103,21 @@ export class Applications {
     return rows.filter(row => row.id !== null).map(row => ({ id: row.id, name: row.name }));
   }
 
+  async inspectAgent(secret: string, agentId: string) {
+    if (!/^kat_[A-Za-z0-9_-]{43}$/.test(secret)) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
+    z.uuid().parse(agentId);
+    const row = (await this.pool.query(`SELECT a.id,a.name,v.id version_id,v.number version_number,v.created_at version_created_at
+      FROM agents_platform.application_credentials k
+      JOIN agents_platform.applications app ON app.id=k.application_id AND app.organization_id=k.organization_id
+      JOIN agents_platform.agents a ON a.organization_id=app.organization_id AND a.id=ANY(app.agent_ids) AND a.deleted_at IS NULL
+      JOIN LATERAL (SELECT id,number,created_at FROM agents_platform.agent_versions v
+        WHERE v.organization_id=a.organization_id AND v.agent_id=a.id ORDER BY v.number DESC LIMIT 1) v ON true
+      WHERE k.secret_hash=$1 AND k.revoked_at IS NULL AND app.revoked_at IS NULL AND 'agents:read'=ANY(k.scopes) AND a.id=$2`,
+    [hash(secret), agentId])).rows[0];
+    if (!row) throw new PlatformError("NOT_FOUND", 404, "Agent not found");
+    return { id: row.id, name: row.name, version: { id: row.version_id, number: row.version_number, createdAt: row.version_created_at } };
+  }
+
   async authenticate(secret: string, scope: ApplicationScope) {
     if (!/^kat_[A-Za-z0-9_-]{43}$/.test(secret)) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
     const result = await this.pool.query<{ organization_id: string; application_id: string; credential_id: string }>(`SELECT k.organization_id,k.application_id,k.id credential_id

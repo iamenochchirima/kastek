@@ -44,6 +44,12 @@ export function registerApplicationRoutes(app: FastifyInstance, options: {
     if (!match) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
     return reply.header("cache-control", "private, no-store").send({ agents: await applications.listAgents(match[1]!) });
   });
+  app.get("/v1/agents/:agentId", async (request, reply) => {
+    const match = /^Bearer ([^\s]+)$/.exec(request.headers.authorization ?? "");
+    if (!match) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
+    const { agentId } = z.strictObject({ agentId: z.uuid() }).parse(request.params);
+    return reply.header("cache-control", "private, no-store").send({ agent: await applications.inspectAgent(match[1]!, agentId) });
+  });
   if (!options.runs) return;
   const runs = options.runs;
   function bearer(request: FastifyRequest): string {

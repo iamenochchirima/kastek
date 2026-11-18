@@ -8,6 +8,8 @@ The management endpoints require a signed-in workspace owner with `credentials.m
 Send the credential as a bearer token. The available scopes and operations are:
 
 - `agents:read`: `GET /v1/agents` lists the application's selected, active agents.
+  `GET /v1/agents/:agentId` opens one assigned agent with the published version a run would
+  use. An unassigned agent returns `404`.
 - `runs:start`: `POST /v1/runs` starts a run with `{ agentId, message, requestId, conversationId? }`.
   Reuse the request ID to retry the same request.
 - `runs:read`: `GET /v1/runs/:taskId` returns the run state, public activity, and available result.
@@ -37,5 +39,6 @@ Change the assigned agents with `PUT /api/organizations/:organizationId/applicat
 and `{ "agentIds": [...] }`. An empty list removes all assignments. Removing an agent stops further
 execution and access for its existing application runs.
 
-Application agent-configuration access and per-plan API entitlement are not yet implemented.
+The agent and version identity is available through `agents:read`. The agent's full
+configuration and per-plan API entitlement are not yet implemented.
 MCP OAuth permissions are separate from these credentials.
