@@ -292,6 +292,9 @@ This inventory records the currently wired legacy automation paths; it does not 
 Schedules capability or make event-driven execution part of the new platform contract. Unknown
 external callers and live deployment registrations require separate discovery.
 
+On 18 November 2026, a read-only query of the configured local Agents database found no tasks in
+non-terminal states. This is a local snapshot, not evidence about another environment.
+
 ## Operator entry points
 
 These commands run outside HTTP and have no external caller. They are part of the operator surface
