@@ -70,6 +70,7 @@ implementation and boundaries:
 - [Platform interface](../README.md#platform-interface): landing, chat, history, task review and management navigation.
 
 - [Platform architecture](architecture/agent-platform-architecture.md): target contracts and execution categories.
+- [Platform inventory](architecture/platform-inventory.md): current HTTP, runtime and persisted surface with owners, callers and change targets.
 - [Adaptive orchestration](operations/adaptive-orchestration.md): specialist discovery, background work, follow-up, progress and release controls.
 - [Context management](operations/context-management.md): retained originals, request manifests, background compaction and exact recovery.
 - [Shared runtime operations](operations/shared-runtime.md): current retained copies, failure investigation, disable and restore boundaries.
