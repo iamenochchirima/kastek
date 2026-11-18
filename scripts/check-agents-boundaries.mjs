@@ -18,11 +18,9 @@ const allowed={
 // Edges that predate enforcement. Each is debt tied to a specific move; new edges fail.
 // Remove an entry only when the code actually moved, never to silence a new violation.
 const acceptedEdges=new Map([
- ['adapters/models/input-count.ts -> execution/context/serialized-tokens.ts','shared payload estimate; belongs in contracts'],
  ['adapters/providers/native-api.ts -> capabilities/connected-tools/credential-reflection.ts','pure helper; move to infrastructure with an adapter release bump'],
  ['adapters/providers/remote-mcp.ts -> capabilities/connected-tools/credential-reflection.ts','pure helper; move to infrastructure with an adapter release bump'],
  ['execution/admission/admission-store.ts -> product/billing/billing.ts','entitlement lookup; replace with an admission port'],
- ['execution/business/business.ts -> product/agents/identity.ts','instruction composition; belongs in execution context'],
 ]);
 export function checkAgentsModules(root){
  const files=[];const walk=directory=>{for(const entry of readdirSync(directory,{withFileTypes:true})){const path=resolve(directory,entry.name);if(entry.isDirectory())walk(path);else if(entry.name.endsWith('.ts')||entry.name.endsWith('.json'))files.push(path);}};walk(root);

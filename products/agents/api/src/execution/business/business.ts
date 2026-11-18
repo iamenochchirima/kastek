@@ -25,9 +25,9 @@ import { skillContext,skillReceiptGroups,skillFitsRequest } from "../context/ski
 import { isCustomerPrincipal,PlatformError,requestDigest,terminalTaskStates,type AgentConfiguration } from "../../contracts/contracts";
 import type { DependencyManifest } from "../../contracts/source-contracts";
 import { selectedProductContextText } from "../products/product-information";
-import { composeAgentInstructions } from "../../product/agents/identity";
+import { composeAgentInstructions } from "../context/agent-identity";
 import type { TaskRecord } from "../../contracts/records";
-import { estimatedTokensFromSerialized } from "../context/serialized-tokens";
+import { estimatedTokensFromSerialized } from "../../contracts/serialized-tokens";
 import { buildContext,prepareCompaction,type ContextGroup,type ContextSource,type ContextModelPolicy,type RequestTimeContext } from "../context/context";
 import { knowledgeModeForRoute,routePlan,routeTurn,toolAllowed,type PendingActionKind,type RoutePlan } from "../routing/turn-router";
 import { loadContinuation } from "../context/continuation";

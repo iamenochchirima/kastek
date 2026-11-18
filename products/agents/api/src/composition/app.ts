@@ -60,7 +60,7 @@ import { registerKnowledgeRoutes } from "../product/agents/knowledge-routes";
 import { AgentTransferStore } from "../product/agents/transfer-store";
 import { registerAgentTransferRoutes } from "../product/agents/transfer-routes";
 import type { TransferEmail } from "../product/agents/transfer-store";
-import { composeAgentInstructions } from "../product/agents/identity";
+import { composeAgentInstructions } from "../execution/context/agent-identity";
 import { registerBillingRoutes } from "../product/billing/routes";
 import { assertAgentsBillingLimit } from "../product/billing/billing";
 import { WebsiteCrawlStore, startWebsiteCrawlDispatcher } from "../product/agents/website-crawls";
