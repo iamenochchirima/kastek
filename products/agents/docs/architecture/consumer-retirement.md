@@ -1,8 +1,9 @@
 # Consumer retirement inventory
 
 Surfaces the platform upgrade replaces or removes. Paths and callers are from the
-[platform inventory](platform-inventory.md). Nothing here is deleted until the
-replacement is serving and the last caller is migrated.
+[platform inventory](platform-inventory.md). The target is a fresh platform without legacy
+compatibility requirements. This inventory does not authorize destructive changes to a serving
+database; deployed consumers and data need separate cutover decisions.
 
 | Surface | Replacement | Last known caller | Removal gate |
 | --- | --- | --- | --- |
@@ -15,7 +16,6 @@ replacement is serving and the last caller is migrated.
 | `product-capabilities-v11` / `AgentsBusinessRunV21` | Shared runtime v15 | Existing pinned tasks; `execution/lifecycle/dispatcher.ts` also uses v11 as its default route | Replace the dispatcher default and retire only with a decision on existing tasks. |
 | `product-capabilities-v12` / `AgentsBusinessRunV22` | Shared runtime with equivalent handoff behavior | Existing pinned handoff tasks and `execution/lifecycle/authority.ts` handoff-feedback check | Preserve the supported handoff behavior in the shared runtime and remove v12 dependencies. |
 | `product-capabilities-v14` / `AgentsBusinessRunV24` | Shared runtime v15 | Existing pinned adaptive tasks and `execution/business/business.ts` origin checks | Replace old-release checks and decide the fate of pinned tasks. |
-| Conversation archive and restore | None proposed | `products/agents/web/src/platform/assistant-launcher.tsx` | Owner decides between separate archive state and removing restore |
 | Legacy product execution adapters | Platform integration adapters | Growth and Agency execution clients | Both consumers use the shared run contract |
 
 ## Product-specific contracts and compatibility paths
@@ -26,6 +26,7 @@ identifies the current caller; it does not assert that the replacement already e
 | Current surface | Last known caller | Intended replacement or review |
 | --- | --- | --- |
 | `packages/contracts/src/growth-agents.ts` command, conversation, task and result types | Growth `api/src/agents/client.ts` and Agents `product/integrations/growth-routes.ts`, `growth-execution.ts` | Shared platform agent, conversation and run operations at consumer cutover. |
+| `packages/contracts/src/growth-agent-runtime.ts` runtime and activity types | Agents `product/integrations/growth-runtime-reporting.ts`, `growth-observation.ts` and `composition/app.ts`; Growth and Agency consumers | Product-neutral run activity and timing contract; preserve the information consumed by each UI. |
 | `packages/contracts/src/growth-agent-provisioning.ts` | Growth `api/src/agents/provisioning-client.ts` and Agents `product/integrations/growth-provisioning.ts` | Generic platform agent configuration and publication. |
 | `packages/contracts/src/agency-agents.ts` command, conversation and model shapes | Agency `api/src/capabilities/execution-client.ts` and Agents `product/integrations/agency-routes.ts`, `agency-execution.ts` | Shared platform agent, conversation, run and model operations. |
 | Growth legacy delegation defaults in `product/integrations/growth-features.ts` | Growth execution | Generic agent delegation configuration and authority. |
@@ -34,22 +35,26 @@ identifies the current caller; it does not assert that the replacement already e
 | Legacy product evidence fence in `execution/models/runtime.ts` | Model dispatch for older protocol executions | Shared current evidence and product authority checks. |
 | V1 budget branches in `execution/delegation/adaptive.ts` and `execution/lifecycle/work-continuation.ts` | Older execution policy revisions | Current shared model and work accounting. |
 | Legacy pinned knowledge fallback in `execution/business/business.ts` | Older pinned agent versions | The selected knowledge mode and current retrieval policy. |
+| Plain-body skill fallback in `execution/context/skills.ts` | Agent context assembly in `execution/business/business.ts` | Registered, versioned skill package resolution and receipts. |
 | `composition/backfill-knowledge.ts` and `platform/knowledge/backfill-legacy-objects.ts` | Operator command `backfill:knowledge` | New knowledge storage; no legacy backfill prerequisite for the fresh platform. |
+| `composition/backfill-support-contacts.ts` | Operator command `backfill:support-contacts` | Current customer-record projection at creation; old support-contact backfill is not a fresh-platform prerequisite. |
+| Knowledge backfill startup check in `platform/knowledge/cutover.ts`, `backfill-sections.ts` and legacy storage fallback in `composition/source-object-reaper.ts` | API startup in `composition/server.ts` and the source-object reaper | Fresh knowledge schema, owned ingestion and storage without a legacy backfill prerequisite. |
+| Legacy receipt-installation path in `product/channels/channel-delivery.ts` | Channel delivery | Identify and preserve the current channel delivery contract before removing the installation fallback. |
 
 Product-owned operations such as Growth resource and channel contracts are not automatically
 retired with product-specific agent orchestration DTOs. `execution/programs/publication.ts`
 defaults fresh publication to v15, while the worker and lifecycle still recognize v11–v14.
-The external caller inventory and archive/restore destination remain unresolved.
+The external caller inventory remains unresolved. Conversation archive and restore is a separate
+functionality issue: the existing UI calls routes in `composition/app.ts`, but it is not identified
+as a legacy compatibility requirement to preserve or remove by this inventory.
 
-## Conditions before deletion
+## Serving environment cutover
 
-- The replacement is verified in an environment where the consumer runs, not only in
-  isolated tests.
-- Pending runs and uncertain effects on the retired path are resolved.
-- The retirement entry has no remaining caller in this repository.
-- Affected service versions, migrations and rollback are recorded in the release record.
+The fresh implementation may remove compatibility code on this branch. Before changing a serving
+environment, separately account for its consumers, data and pending runs and record the release
+and recovery decisions. These checks do not require keeping compatibility code in the target.
 
 ## Not established
 
-External callers outside this repository and live deployment inventory. The archive and
-restore entry is a decision, not a mechanical deletion.
+External callers outside this repository and live deployment inventory. Archive and restore needs
+its own functionality review.

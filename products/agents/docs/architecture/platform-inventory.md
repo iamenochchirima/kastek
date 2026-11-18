@@ -112,10 +112,10 @@ registered in `composition/worker.ts`.
 
 | Registration | Kind | Release or name | Owner | Change |
 | --- | --- | --- | --- | --- |
-| Current business run | Restate workflow | `product-capabilities-v11` / `AgentsBusinessRunV21` | execution/business | Keep |
-| Handoff business run | Restate workflow | `product-capabilities-v12` / `AgentsBusinessRunV22` | execution/business | Keep |
+| Original business run | Restate workflow | `product-capabilities-v11` / `AgentsBusinessRunV21` | execution/business | Replace with the shared runtime; map existing dependencies before removal |
+| Handoff business run | Restate workflow | `product-capabilities-v12` / `AgentsBusinessRunV22` | execution/business | Move supported handoff behavior to the shared runtime before removal |
 | Legacy adaptive run | Restate workflow | `product-capabilities-v13` / `AgentsBusinessRunV23` | execution/business | Retire with its tasks |
-| Adaptive run | Restate workflow | `product-capabilities-v14` / `AgentsBusinessRunV24` | execution/business | Keep while published versions select it |
+| Adaptive run | Restate workflow | `product-capabilities-v14` / `AgentsBusinessRunV24` | execution/business | Replace with the shared runtime; map existing dependencies before removal |
 | Shared run | Restate workflow | `product-capabilities-v15` / `AgentsBusinessRunV25` | execution/business | Keep |
 | Context compaction | Restate workflow | `AgentsContextCompactionV1` | platform/context | Keep |
 | Automation | Restate workflow | `AgentsAutomationV1` | product/automations | Legacy automation remains exposed in the standalone UI and API; the new Schedules capability is listed as unavailable |
