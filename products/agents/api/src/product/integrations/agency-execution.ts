@@ -1,3 +1,4 @@
+import { ConversationReads } from "../../platform/conversations/reads";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type { AgencyAgentCommand, AgencyAgentConversation, GrowthAgentCommand, GrowthAgentTask } from "@kasitek-labs/contracts";
@@ -261,7 +262,7 @@ export class AgencyExecutionService {
         const conversation=await this.conversation(this.pool,command,command.input.conversationId),tenant=await this.tenant(this.pool,command);
         if(!(await this.pool.query("SELECT 1 FROM agents_platform.tasks WHERE conversation_id=$1 AND parent_task_id IS NULL LIMIT 1",[conversation.conversation_id])).rowCount)
           return {conversation:this.conversationDto(conversation),messages:[],tasks:[],nextCursor:null};
-        const page=await this.store.getConversationPage({product:"agencies",organizationId:tenant.organization_id,resourceId:conversation.feature_id,callerClientId:"agency-api",principal:this.principal(command)},conversation.conversation_id,pageQuery.parse(command.input));
+        const page=await new ConversationReads(this.pool).getConversationPage({product:"agencies",organizationId:tenant.organization_id,resourceId:conversation.feature_id,callerClientId:"agency-api",principal:this.principal(command)},conversation.conversation_id,pageQuery.parse(command.input));
         const messages=[],tasks=[];
         for(const task of page.items){const dto=await this.taskDto(await this.task(command,task.id));tasks.push(dto);messages.push({id:dto.id+":user",role:"user",text:dto.input,taskId:dto.id,createdAt:dto.createdAt});
           for(const instruction of (await this.pool.query("SELECT sequence,instruction,created_at FROM agents_platform.orchestration_instructions WHERE task_id=$1 ORDER BY sequence",[dto.id])).rows)

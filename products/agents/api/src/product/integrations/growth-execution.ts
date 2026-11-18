@@ -1,3 +1,4 @@
+import { ConversationReads } from "../../platform/conversations/reads";
 import { planGrowthCapabilityUpgrade, applyGrowthCapabilityUpgrade, growthCapabilityBaseline, growthDefaultCommissions } from "./growth-capability-upgrade";
 import { listGrowthModels, authorizeGrowthModelSelection } from "./growth-model-selection";
 import { readPublicAgentUpdates } from "./public-agent-activity";
@@ -501,7 +502,7 @@ export class GrowthExecutionService {
         if(!latest)return {conversation:this.conversationDto(c),messages:[],nextCursor:null};
         await this.task(command,latest.id);
         const authority:AdmissionAuthority={product:"growth",organizationId:c.organization_id,resourceId:c.feature_id,callerClientId:"growth-api",principal:this.principal(command)};
-        const page=await this.store.getConversationPage(authority,c.conversation_id,pageQuery.parse(command.input));
+        const page=await new ConversationReads(this.pool).getConversationPage(authority,c.conversation_id,pageQuery.parse(command.input));
         const messages=await mapBounded(page.items,growthTaskListReadConcurrency,async task=>{
           const t=await this.task(command,task.id),items:Array<{id:string;role:"user"|"assistant";text:string;createdAt:string;taskId:string;sources?:GrowthAgentTask["sources"]}>=[{id:t.id+":user",role:"user",text:t.input,createdAt:iso(t.created_at),taskId:t.id}];
           const instructions=(await this.pool.query("SELECT sequence,instruction,created_at FROM agents_platform.orchestration_instructions WHERE task_id=$1 ORDER BY sequence",[t.id])).rows;

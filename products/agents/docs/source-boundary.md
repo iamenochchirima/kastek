@@ -1387,6 +1387,9 @@ helper moved to `infrastructure/credential-reflection.ts`; the GitHub, MCP, Stas
 public-repository, remote-MCP, native-API and native-provider adapter releases were
 bumped because their manifest path lists changed the executable digest.
 
+Conversation turn, event and page reads moved to `platform/conversations/reads.ts`.
+Admission still creates turns; the read store owns how they are listed and paginated.
+
 Agent management HTTP handlers moved from composition to `platform/agents/http.ts`.
 Composition passes the product store, creation operations, offerings data and the
 avatar schema as ports, so the module depends only on `contracts` and

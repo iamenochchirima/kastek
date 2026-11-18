@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import {
+canonicalJson,
 executionGrantSchema,
 PlatformError,
 type AdmissionAuthority,
@@ -8,12 +9,12 @@ type ExecutionGrant
 } from "../../contracts/contracts";
 
 import { transaction } from "../../infrastructure/database";
-import { assertAutomationAdmission } from "../lifecycle/automation-authority";
+import { assertAutomationAdmission, resolveAutomationOwner } from "../lifecycle/automation-authority";
 import { assertChannelCustomerAuthority } from "./channel-authority";
 import { assertProductAuthority } from "./product-authority";
 import { assertApplicationAuthority } from "./application-authority";
 
-import type { Account,VersionRecord,WebsiteDeployment } from "../../contracts/records";
+import type { Account,TaskRecord,VersionRecord,WebsiteDeployment } from "../../contracts/records";
 
 type Db=Pool|PoolClient;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -52,6 +53,15 @@ export class AuthorityStore {
       grant.callerClientId, grant.principal, grant.versionId, JSON.stringify(grant.operations),
       grant.maxInputBytes, grant.maxOutputTokens, grant.expiresAt, grant.revokedAt, grant.maxContextTokens, grant.rootTokenLimit, grant.sourceRevisionIds, grant.connectedToolBindingIds, grant.applicationCredentialId]);
     return grant;
+  }
+  async getTask(authority: AdmissionAuthority, taskId: string): Promise<TaskRecord> {
+    return this.transaction(async (db) => {
+      const task = (await db.query<TaskRecord>("SELECT * FROM agents_platform.tasks WHERE id=$1 AND organization_id=$2", [taskId, authority.organizationId])).rows[0] ?? absent();
+      if (task.product !== authority.product || task.resource_id !== authority.resourceId || task.caller_client_id !== authority.callerClientId || canonicalJson(task.principal) !== canonicalJson(authority.principal)) denied();
+      if(authority.principal.kind==="automation")await resolveAutomationOwner(db,authority.organizationId,authority.principal);
+      else await this.assertPrincipal(db, authority, await this.version(db, authority.organizationId, task.version_id));
+      return task;
+    });
   }
   protected async assertPrincipal(db: Db, authority: AdmissionAuthority, version: VersionRecord, options: { currentDeployment?: boolean; applicationCredentialId?: string | null } = {}): Promise<void> {
     if (authority.product !== "agents") return assertProductAuthority(db,authority,version.id);
