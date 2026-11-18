@@ -63,6 +63,9 @@ type ToolDefinition
 
 export { settleTask } from "../lifecycle/execution";
 import type { ActionRuntime } from "../../workflows/report-delivery/program";
+import { bookingOperationHandler } from "../../workflows/booking/handler";
+import { reportDeliveryHandler } from "../../workflows/report-delivery/handler";
+import type { BookingService } from "../../workflows/booking/bookings";
 import { handlerFor, type CapabilityOperationHandler } from "../capabilities/operation-handlers";
 import { channelPorts } from "../../infrastructure/channel-ports";
 import type { ToolReviewStore } from "../../capabilities/reviews/tool-reviews";
@@ -119,6 +122,7 @@ export interface BusinessOptions {
   connected?: ConnectedExecutor;
   toolReviews?: ToolReviewStore;
   capabilityHandlers?:readonly CapabilityOperationHandler[];
+  bookings?:BookingService;
   settleHandoffReceipt?:(taskId:string,candidate:string|null,definitiveFailure:boolean)=>Promise<unknown>;
   selectReportArtifact?:(taskId:string,name:string,generatedOutput:string)=>Promise<{id:string}>;
   executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]}|{skillId:string;path:string;inputArtifactIds?:string[]})=>Promise<unknown>;
@@ -758,6 +762,8 @@ export function preparationFailureCode(error: unknown): string | null {
 }
 
 export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, runtime: {release:string;workflow:string} = {release:HARNESS_RELEASE,workflow:WORKFLOW_NAME}) {
+  // Direct constructions keep the built-in handlers; composition can override the registry.
+  const capabilityHandlers = options.capabilityHandlers ?? [bookingOperationHandler(options.bookings), reportDeliveryHandler()];
   return restate.workflow({ name: restateServiceName(runtime.workflow), options: { workflowRetention: { days: 7 }, journalRetention: { days: 7 } }, handlers: {
     run: async (ctx: restate.WorkflowContext, input: { taskId: string }) => {
       if (ctx.key !== input.taskId) throw new restate.TerminalError("Task identity mismatch", { errorCode: 400 });
@@ -1172,7 +1178,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                 proposal=>awaitEnquiryConfirmation(ctx,pool,taskId,id,proposal,name));
               if(checked.valid&&checked.result){outcome=checked.result;stop=true;break;}
             }
-            const capabilityHandler=handlerFor(options.capabilityHandlers??[],name);
+            const capabilityHandler=handlerFor(capabilityHandlers,name);
             if(capabilityHandler?.confirm) {
               const checked=await confirmValidProposal(name,call.function.arguments,acceptedToolVersion,
                 proposal=>capabilityHandler.confirm!({ctx,pool,taskId,operationId:id,operation:name,arguments:proposal}));
@@ -1429,7 +1435,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
           if(current.task.parent_task_id) await options.evidence!.derive(taskId,"child_result",taskId);
         });
         if(outcome.state==="completed"){
-          const reportHandler=handlerFor(options.capabilityHandlers??[],"report.deliver");
+          const reportHandler=handlerFor(capabilityHandlers,"report.deliver");
           if(reportHandler?.afterTurn)outcome=await reportHandler.afterTurn({ctx,pool,taskId,outcome,
             options:{actions:options.actions,selectReportArtifact:options.selectReportArtifact},memoryFence:finalMemoryFence,
             ports:{awaitAuthority,operation,failed}});

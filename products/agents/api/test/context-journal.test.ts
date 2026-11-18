@@ -17,7 +17,7 @@ import { connectFixtureModel, fixtureModelProviders } from "./model-fixture";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { EvidenceStore } from "../src/execution/context/evidence";
 import { searchHistory, readHistory, toolReceiptPreview } from "../src/execution/context/journal";
-import { adoptCompactionCheckpoint, loadContinuityCheckpoint, prepareCompactionJob, readCompactionJobOutcome, retireQueuedBackgroundCompaction } from "../src/execution/context/checkpoints";
+import { adoptCompactionCheckpoint, loadContinuityCheckpoint, prepareCompactionJob, readCompactionJobOutcome, retireQueuedBackgroundCompaction } from "../src/execution/lifecycle/checkpoints";
 import { createContextCompactionWorkflow, CONTEXT_COMPACTION_WORKFLOW } from "../src/execution/context/compaction-workflow";
 import { instructionHead } from "../src/execution/context/instruction-state";
 import { prepareCompaction, type ContextGroup } from "../src/execution/context/context";
