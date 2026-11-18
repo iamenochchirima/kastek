@@ -1,4 +1,4 @@
-import {skillFamilyId} from "./family";
+import {skillFamilyId} from "../../contracts/skills";
 import { PlatformError } from "../../contracts/contracts";
 import { parseSkillPackage, type SkillPackage } from "./package";
 

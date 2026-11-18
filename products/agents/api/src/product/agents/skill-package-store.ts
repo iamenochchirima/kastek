@@ -7,7 +7,7 @@ import { transaction } from "../../infrastructure/database";
 import { parseSkillPackage, readSkillPackageFile, type SkillPackage } from "../../capabilities/skills/package";
 import { CURATED_SKILL_PUBLISHER, curatedSkillCatalog, curatedSkillPackage } from "../../capabilities/skills/curated";
 import { acquireSkillRepository,type SkillRepositoryOptions,type SkillRepositorySource } from "../../capabilities/skills/repository";
-import { skillFamilyId } from "../../capabilities/skills/family";
+import { skillFamilyId } from "../../contracts/skills";
 import type { SkillRequirements } from "../../capabilities/skills/requirements";
 import { isProductResourceScope, requireProductResourceAccess, resourceAccountId, resourceService, resourceMatchesScope, type AgentResourceScope } from "../../contracts/resource-scope";
 

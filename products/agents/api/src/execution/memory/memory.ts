@@ -7,7 +7,7 @@ import { memoryAssertionSchema, type MemoryAssertion } from "../../contracts/mem
 import { transaction as memoryTransaction } from "../../infrastructure/database";
 import { assertCurrentEvidence,taskEvidenceManifest } from "../context/evidence";
 import { requestTreeCancellationInTransaction } from "../lifecycle/execution";
-import { skillFamilyId } from "../../capabilities/skills/family";
+import { skillFamilyId } from "../../contracts/skills";
 import { activateSkillPackage, parseSkillPackage, type SkillPackage } from "../../capabilities/skills/package";
 import { isProductMemoryScope, productMemoryScopeForTask, requireProductMemoryAccess, memoryMutationActor,
   type MemoryManagementScope, type ProductMemoryManagementScope } from "./scope";
