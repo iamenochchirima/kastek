@@ -57,6 +57,8 @@ When `AGENTS_MCP_ENABLED=true`, the standalone API exposes `/mcp` and OAuth disc
 authorization code with PKCE, account consent, an organization selection and revocable scoped
 connections. Users can remove their own connections in Settings. MCP requests recheck membership;
 long-running imports also retain their originating connection and recheck it before further work.
+The shared runtime authority check also rechecks the originating MCP connection for a run and its
+child work, in addition to the model-call checks.
 An external request already sent to a provider cannot be recalled on revocation.
 
 The server exposes agent setup, knowledge, supported capabilities, model selection, private preview,

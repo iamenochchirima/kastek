@@ -21,6 +21,7 @@ import { memoryScopeMatchesExecution } from "../memory/scope";
 import { assertProductNativeTaskAccess } from "../../capabilities/products/resource-scope";
 import { assertAcceptedProductMemoryTransition } from "../products/product-information";
 import { assertProductReadCustody } from "../products/product-read-custody";
+import { assertMcpTaskAuthority } from "../../infrastructure/mcp-job-authority";
 
 export type Db = Pool | PoolClient;
 export type EvidenceKind = "context" | "summary" | "memory" | "artifact" | "child_result" | "input";
@@ -407,5 +408,6 @@ export function memoryVisible(value:unknown,id:string,content:string):boolean{
 export async function assertCurrentAuthority(db:Pool|PoolClient,execution:Execution):Promise<void>{
   if(execution.task.execution_purpose==="support_status_v1")await assertPendingSupportStatusAuthority(db,execution);
   else await assertBaseAuthority(db,execution);
+  await assertMcpTaskAuthority(db, execution.task.root_task_id ?? execution.task.id);
   if(execution.task.parent_task_id)await assertDelegationInputEvidence(db,execution.task.id);
 }
