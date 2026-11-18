@@ -16,19 +16,19 @@ vi.mock("../src/infrastructure/database", () => ({
 describe("shared agent creation policy", () => {
   beforeEach(() => { vi.clearAllMocks(); policy.permission.mockResolvedValue("owner"); policy.limit.mockResolvedValue(undefined); });
   it("checks permission and the current agent count before inserting", async () => {
-    const query = vi.fn(async (sql: string) => sql.includes("count(*)") ? { rows: [{ count: "3" }] } :
+    const query = vi.fn(async (sql: string) => sql.includes("FROM agents_platform.memberships") ? { rows: [{ account_id: "account" }] } : sql.includes("count(*)") ? { rows: [{ count: "3" }] } :
       sql.includes("INSERT INTO agents_platform.agents") ? { rows: [{ id: "agent" }] } : { rows: [] });
     const pool = { query } as unknown as Pool;
     const store = new AgentStore(pool);
     vi.spyOn(store, "createVersionInTransaction").mockResolvedValue({ id: "version" } as never);
     await store.createConfiguredAgent({ accountId: "account", organizationId: "workspace", name: "Agent" });
-    expect(policy.permission).toHaveBeenCalledWith(pool, { accountId: "account", organizationId: "workspace" }, "agents.manage", true);
+    expect(policy.permission).toHaveBeenCalledWith(pool, { accountId: "account", organizationId: "workspace" }, "agents.manage");
     expect(policy.limit).toHaveBeenCalledWith(pool, "workspace", "limit.agent_count", 3);
     expect(policy.limit.mock.invocationCallOrder[0]).toBeLessThan(query.mock.invocationCallOrder.find((_, i) => query.mock.calls[i]![0].includes("INSERT INTO agents_platform.agents"))!);
   });
   it("does not insert when the plan limit is reached", async () => {
     policy.limit.mockRejectedValue(new Error("limit reached"));
-    const query = vi.fn(async (sql: string) => sql.includes("count(*)") ? { rows: [{ count: "3" }] } : { rows: [] });
+    const query = vi.fn(async (sql: string) => sql.includes("FROM agents_platform.memberships") ? { rows: [{ account_id: "account" }] } : sql.includes("count(*)") ? { rows: [{ count: "3" }] } : { rows: [] });
     const store = new AgentStore({ query } as unknown as Pool);
     await expect(store.createConfiguredAgent({ accountId: "account", organizationId: "workspace", name: "Agent" })).rejects.toThrow("limit reached");
     expect(query.mock.calls.some(([sql]) => sql.includes("INSERT INTO agents_platform.agents"))).toBe(false);

@@ -156,7 +156,8 @@ export class AgentStore extends AuthorityStore {
     }
     return this.transaction(async db=>{
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
-      await requirePermission(db, { accountId: input.accountId, organizationId: input.organizationId }, "agents.manage", true);
+      await this.membership(db, input.accountId, input.organizationId);
+      await requirePermission(db, { accountId: input.accountId, organizationId: input.organizationId }, "agents.manage");
       const digest=requestDigest({name:input.name,offering:input.offering??"customer-service",setup,...(input.configuration?{configuration:config}:{})});
       if(input.operationId){
         const existing=(await db.query<AgentRecord & {setup_request_digest:string}>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND created_by=$2 AND setup_operation_id=$3",[input.organizationId,input.accountId,input.operationId])).rows[0];
