@@ -129,6 +129,7 @@ export interface BusinessOptions {
 }
 import { operation, uncertainOperation, type Result } from "../lifecycle/durable-operation";
 import type { ContextReaders, ConversationHistoryReader, ConversationHistoryTurn } from "../context/readers";
+import { assertRunActive } from "../context/run-state-guard";
 import type { MemoryRecord, SkillRevision } from "../../contracts/memory";
 export { operation } from "../lifecycle/durable-operation";
 interface Snapshot { primaryInstructionIds?:string[]; id: string; messages: HarnessMessage[]; digest: string; estimatedTokens: number;
@@ -267,6 +268,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   omitted: string[], options: BusinessOptions, initialKnowledge?: KnowledgeObservation, knownGeneration?: number, knownExpiry?: number, executionObservation?: string, packingOverhead = 0, deliveredInstructionIds: readonly string[] = [], pinnedSections: readonly ContextSource[] = [], turnPlan?: RoutePlan): Promise<{ snapshot?: Snapshot; history: ContextGroup[]; working: ContextGroup[];
     memoryFence?: MemoryFence; invalidated: boolean; needsCompaction: boolean; backgroundCompactionRequested?:boolean }> {
   const execution = await loadExecution(pool, taskId), task = execution.task, config = execution.configuration;
+  await assertRunActive(options.readers?.runState, taskId, task.state);
   const phase = phaseTimer(taskId, step, "snapshot");
   const protocolVersions=protocolToolVersions(execution.toolBindings);
   if(task.product!=="agents"){
