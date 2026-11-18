@@ -20,7 +20,6 @@ const allowed={
 const acceptedEdges=new Map([
  ['adapters/providers/native-api.ts -> capabilities/connected-tools/credential-reflection.ts','pure helper; move to infrastructure with an adapter release bump'],
  ['adapters/providers/remote-mcp.ts -> capabilities/connected-tools/credential-reflection.ts','pure helper; move to infrastructure with an adapter release bump'],
- ['execution/admission/admission-store.ts -> product/billing/billing.ts','entitlement lookup; replace with an admission port'],
 ]);
 export function checkAgentsModules(root){
  const files=[];const walk=directory=>{for(const entry of readdirSync(directory,{withFileTypes:true})){const path=resolve(directory,entry.name);if(entry.isDirectory())walk(path);else if(entry.name.endsWith('.ts')||entry.name.endsWith('.json'))files.push(path);}};walk(root);

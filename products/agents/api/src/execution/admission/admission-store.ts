@@ -30,7 +30,7 @@ import { loadExecution } from "../lifecycle/state";
 import { assertPendingSupportStatusAuthority } from "../lifecycle/authority";
 import { assertPlatformRootAdmissionOpen } from "./platform-gate";
 import { assertCustomerChannelRecipient } from "../context/recipient-boundary";
-import { assertAgentsBillingAccess, assertManagedModelAllowance, billingPaidPlan } from "../../product/billing/billing";
+import { unenforcedEntitlements, type AdmissionEntitlements } from "./entitlements";
 import { hasKnownPrice, isFreeModel, reservationMicros } from "../models/admission-budget";
 
 import type { AdmitTaskInput,TaskEvent,TaskRecord } from "../../contracts/records";
@@ -56,6 +56,7 @@ function grantFromRow(row: Record<string, unknown>): ExecutionGrant {
 
 
 export class AdmissionStore extends AuthorityStore {
+  constructor(pool: Pool, readonly entitlements: AdmissionEntitlements = unenforcedEntitlements) { super(pool); }
   async createApplicationGrantInTransaction(db: PoolClient, input: { grant: ExecutionGrant }): Promise<ExecutionGrant> {
     const grant = executionGrantSchema.parse(input.grant);
     if (grant.principal.kind !== "application" || new Date(grant.expiresAt).getTime() > Date.now() + 30 * 60_000) denied();
@@ -84,7 +85,7 @@ export class AdmissionStore extends AuthorityStore {
     if (input.authority.principal.kind === "application" &&
         (input.configurationMode !== "current" || input.channelBinding || input.evaluationTrialId || input.continuationOf || episodeCommandId || privatePreview)) denied();
     let billing: BillingEntitlementSnapshot | null = null;
-    if (input.authority.product === "agents") billing = await assertAgentsBillingAccess(this.pool, input.authority.organizationId);
+    if (input.authority.product === "agents") billing = await this.entitlements.snapshot(input.authority.organizationId);
     const policy=schedulingPolicyFromEnvironment();
     const requestKey = text(input.requestKey, 128);
     if (!input.input.trim()) throw new PlatformError("INVALID_INPUT", 400, "Enter a message");
@@ -129,12 +130,12 @@ export class AdmissionStore extends AuthorityStore {
     let models = input.evaluationTrialId ? await trialModelRoutes(db, input.evaluationTrialId, input.authority.organizationId, grant) : input.authority.principal.kind === "automation" ? await automationModelRoutes(db, input.authority, version.id, grant) : await resolveAcceptedModelRoutes(db, { organizationId: input.authority.organizationId,
       agentId: version.agent_id, product: input.authority.product, selection: config.model.selection, generation: config.model.generation,
       layers: [...executionModelLayers(config, grant),...(episodeCommandId?[{kind:"product" as const,reference:"support-status-v1",limits:{maxModelCalls:1,maxToolCalls:0,maxDurationMs:10000,maxCallDurationMs:10000,maxInputTokens:8192,maxOutputTokens:512,maxRootTokens:8704,compactAtTokens:1}}]:[])], requiresTools: !episodeCommandId && (config.tools.length > 0 || config.connectedToolBindingIds.length > 0 || config.productBindings.length > 0 || config.skillIds.length > 0),
-      allowManagedPaidModels: billing ? billingPaidPlan(billing) : undefined });
+      allowManagedPaidModels: billing ? this.entitlements.paidPlan(billing) : undefined });
     if(input.continuationOf) models=continuationModelRoutes(models,await loadTaskModelRoutes(db,input.continuationOf,input.authority.organizationId));
     // Customer keys keep working at zero allowance; only managed models stop.
     const primaryCustody=billing?(await db.query<{custody:string}>(`SELECT custody FROM agents_platform.model_provider_connections
       WHERE organization_id=$1 AND id=$2`,[input.authority.organizationId,models.primary.binding.connectionId])).rows[0]?.custody:undefined;
-    assertManagedModelAllowance(billing,primaryCustody);
+    this.entitlements.assertManagedModelAllowance(billing,primaryCustody);
     // Free models cost nothing, so a token counter must not block them. Priced models are
     // checked against the plan's dollar credit balance instead of a flat token allowance.
     const freeModel = isFreeModel(models.primary);

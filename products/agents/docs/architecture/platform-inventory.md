@@ -97,7 +97,7 @@ decisions behind it to `platform/`.
 | Agent management routes | Handlers moved to `platform/agents/http.ts`; composition passes the store, creation operations and product defaults as ports | Move the store and creation operations behind the same module, then delete the port wiring | `products/agents/web/src/platform`, inbound MCP |
 | Application DTOs | Inline shapes in `integrations/http/application-routes.ts` | Move consumer schemas to `packages/contracts` | One shared DTO set | `applications-settings.tsx`, external applications |
 | Task and conversation routes | All task and conversation routes except archive and restore now live in `platform/runs/http.ts` | Resolve the archive/restore conflict, which needs separate archive state or removal of restore | Same paths | `products/agents/web/src/platform/assistant-launcher.tsx` |
-| Billing entitlement read in `execution/admission/admission-store.ts` | Direct import from `product/billing` | Replace with an admission port provided by composition | Port in `contracts/` with the billing implementation injected | Internal only; recorded as accepted boundary debt |
+| Billing entitlement read in `execution/admission/admission-store.ts` | Entitlement port, injected by `PlatformStore` | None; the port is in place | `execution/admission/entitlements.ts` with the adapter in `product/billing/billing.ts` | Internal only |
 | `POST /deliveries` | Acceptance harness receiver | Keep out of the API process | None | Evaluation harness |
 
 Not targeted: `/health`, `/ready`, `/internal/operations/signals`, website widget and visitor

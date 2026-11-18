@@ -1374,14 +1374,16 @@ reach product implementations. `product` may use platform. Unsupported computed 
 loading fails the check. Negative fixtures prove these checks reject forbidden edges
 and cycles. Cross-product checks remain separate.
 
-Three edges predate these rules and are listed with a reason in
+Two edges predate these rules and are listed with a reason in
 `scripts/check-agents-boundaries.mjs`. The command reports them as accepted debt, still
 fails the same edge from any other file, and reports a recorded edge that no longer
 occurs as stale so it can be deleted. Workspace permissions moved to
 `platform/access/permissions.ts`; product routes and integrations require them from
 there. The serialized-payload token estimate moved to `contracts/serialized-tokens.ts`
 and identity prompt composition to `execution/context/agent-identity.ts`; product
-identity defaults remain in `product/agents/identity.ts`.
+identity defaults remain in `product/agents/identity.ts`. Admission reads billing
+entitlements through `execution/admission/entitlements.ts`; the Agents adapter lives in
+`product/billing/billing.ts` and `PlatformStore` injects it.
 
 Agent management HTTP handlers moved from composition to `platform/agents/http.ts`.
 Composition passes the product store, creation operations, offerings data and the

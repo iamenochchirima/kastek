@@ -1,3 +1,4 @@
+import { agentsAdmissionEntitlements } from "../billing/billing";
 import type { Pool } from "pg";
 import { AdmissionStore } from "../../execution/admission/admission-store";
 import { DeploymentStore } from "../deployments/deployment-store";
@@ -14,7 +15,7 @@ export class PlatformStore {
     this.identityStore=new IdentityStore(pool);
     this.agentStore=new AgentStore(pool);
     this.deploymentStore=new DeploymentStore(pool);
-    this.admissionStore=new AdmissionStore(pool);
+    this.admissionStore=new AdmissionStore(pool, agentsAdmissionEntitlements(pool));
   }
   requireMembership=(...args:Parameters<IdentityStore["requireMembership"]>)=>this.identityStore.requireMembership(...args);
   ensureAccount=(...args:Parameters<IdentityStore["ensureAccount"]>)=>this.identityStore.ensureAccount(...args);

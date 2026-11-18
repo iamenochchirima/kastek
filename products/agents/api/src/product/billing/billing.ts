@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { BillingClient } from "@kasitek-labs/server-support/billing-client";
 import type { BillingEntitlementSnapshot } from "@kasitek-labs/contracts";
 import { PlatformError } from "../../contracts/contracts";
+import type { AdmissionEntitlements } from "../../execution/admission/entitlements";
 
 /** Plans without a paid entitlement. They keep free managed models only. */
 export const freePlanKeys: ReadonlySet<string> = new Set([
@@ -235,4 +236,13 @@ export async function assertAgentsPaidPlan(
       403,
       "Bringing your own model provider is available on a paid plan",
     );
+}
+
+/** Admission checks backed by the Agents billing service. Composition injects this port. */
+export function agentsAdmissionEntitlements(pool: Pool): AdmissionEntitlements {
+  return {
+    snapshot: organizationId => assertAgentsBillingAccess(pool, organizationId),
+    paidPlan: snapshot => billingPaidPlan(snapshot),
+    assertManagedModelAllowance: (snapshot, custody) => assertManagedModelAllowance(snapshot, custody),
+  };
 }
