@@ -22,6 +22,10 @@ Post-release review date: after the owner approves and completes a production ro
 - The 100-root/2-replica mixed load met its declared targets under both a worker restart and a
   provider limit; physical-call attribution matched every native operation. The measured
   limiting resource was API CPU, not the provider.
+- Growth's core conversation and run path now uses the signed product agent gateway
+  `/internal/v1/products/growth/agent-gateway`; the old command route is retired and only the
+  Growth-owned extensions route remains. Provisioning composition and the internal Growth
+  command adapter are follow-up work; Agency still uses its own product path.
 - Archive and restore remains an owner functionality decision; it is not a cutover prerequisite
   in this inventory.
 - Consumer cutover and deletion of retired routes are follow-on work; see
