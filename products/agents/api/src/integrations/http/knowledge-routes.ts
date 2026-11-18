@@ -4,9 +4,10 @@ import type { DocumentRuntime } from "../../capabilities/knowledge/document-runt
 import { KnowledgeStore,requireKnowledgeMember,type KnowledgeScope } from "../../capabilities/knowledge/knowledge";
 import { KnowledgeRetrieval } from "../../capabilities/knowledge/retrieval";
 import { agentConfigurationSchema, PlatformError } from "../../contracts/contracts";
+import { knowledgeCapability } from "../../platform/knowledge/capability";
 
 export function registerKnowledgeRoutes(app: FastifyInstance, options: { knowledge: KnowledgeStore; runtime?: Pick<DocumentRuntime,"available"|"profile">; resolveScope(request: FastifyRequest): Promise<KnowledgeScope> }) {
-  const organizationBase = "/api/organizations/:organizationId", base = `${organizationBase}/knowledge`, params = (request: FastifyRequest) => request.params as Record<string, string>;
+  const organizationBase = "/api/organizations/:organizationId", base = knowledgeCapability.basePath, params = (request: FastifyRequest) => request.params as Record<string, string>;
   app.get(`${base}/sources`, async request => {
     const scope = await options.resolveScope(request);
     const [sources, imports, role, usage] = await Promise.all([options.knowledge.list(scope), options.knowledge.listImports(scope), requireKnowledgeMember(options.knowledge.pool, scope),

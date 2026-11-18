@@ -10,7 +10,7 @@ const allowed={
  capabilities:['contracts','infrastructure','execution','capabilities','adapters','observability'],
  workflows:['contracts','infrastructure','execution','capabilities','adapters','workflows','observability'],
  platform:['contracts','infrastructure','execution','platform','observability'],
- integrations:['contracts','infrastructure','execution','platform','integrations','observability'],
+ integrations:['contracts','infrastructure','execution','capabilities','platform','integrations','observability'],
  product:['contracts','infrastructure','execution','capabilities','adapters','workflows','programs','product','platform','observability'],
  programs:['contracts','execution','capabilities','workflows','programs'],
  observability:['contracts','infrastructure','observability'],composition:null,

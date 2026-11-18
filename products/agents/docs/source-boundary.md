@@ -1367,7 +1367,7 @@ so authority checks do not depend cyclically on storage.
 `pnpm verify:agents-modules` checks static imports, type imports, re-exports,
 string-literal dynamic imports/requires, forbidden dependency directions and file
 cycles. Contracts and infrastructure cannot import product routes or programs;
-capability/workflow/runtime modules cannot import product implementations. `platform`
+capability/workflow/runtime modules cannot import product implementations. `integrations` may call capability stores for the HTTP surface. `platform`
 may use contracts, infrastructure, execution and observability, and cannot reach
 product or integration implementations. `integrations` may use platform, and cannot
 reach product implementations. `product` may use platform. Unsupported computed module
@@ -1395,6 +1395,11 @@ the fallback for callers that do not inject a reader. KnowledgeRuntime and Memor
 implement the knowledge and memory readers, and context assembly prefers the injected
 readers over constructing stores directly. PlatformRunStateReader is injected and has
 no consumer yet.
+
+Knowledge HTTP routes moved to `integrations/http/knowledge-routes.ts`, and
+`platform/knowledge/capability.ts` carries the optional capability descriptor and
+readiness helper. The knowledge store and runtime remain in `capabilities/knowledge`
+because execution consumes the runtime and cannot depend on platform.
 
 Agent management HTTP handlers moved from composition to `platform/agents/http.ts`.
 Composition passes the product store, creation operations, offerings data and the

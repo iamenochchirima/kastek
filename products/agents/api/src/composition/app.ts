@@ -50,7 +50,7 @@ import type { PlatformConfig } from "../infrastructure/config";
 import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 import { pageQuery, cursorKeysFromEnvironment, readPageCursor, finishPage } from "../infrastructure/read-pages";
 import { PlatformDiscovery } from "../product/agents/discovery";
-import { registerKnowledgeRoutes } from "../product/agents/knowledge-routes";
+import { registerKnowledgeRoutes } from "../integrations/http/knowledge-routes";
 import { AgentTransferStore } from "../product/agents/transfer-store";
 import { registerAgentTransferRoutes } from "../product/agents/transfer-routes";
 import type { TransferEmail } from "../product/agents/transfer-store";

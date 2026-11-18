@@ -38,7 +38,7 @@ entry point registers.
 | `integrations/http/application-routes.ts` | 13 | `/api/organizations/:organizationId/applications`, `/v1/agents`, `/v1/runs` |
 | `product/connections/provider-routes.ts` | 13 | `/api/organizations/:organizationId/providers/:providerId` |
 | `product/model-providers/routes.ts` | 13 | `/api/organizations/:organizationId/model-providers` |
-| `product/agents/knowledge-routes.ts` | 11 | `/api/organizations/:organizationId/agents/:agentId/knowledge` |
+| `integrations/http/knowledge-routes.ts` | 11 | `/api/organizations/:organizationId/knowledge` |
 | `product/agents/memory-routes.ts` | 11 | `/api/organizations/:organizationId/agents/:agentId/memory` |
 | `product/agents/skill-package-routes.ts` | 11 | `/api/organizations/:organizationId/agents/:agentId/skills` |
 | `product/customer-records/routes.ts` | 11 | `/api/organizations/:organizationId/customer-records` |
