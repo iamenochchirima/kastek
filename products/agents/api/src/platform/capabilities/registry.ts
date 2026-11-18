@@ -1,8 +1,8 @@
 import { knowledgeCapability } from "../knowledge/capability";
 import { memoryCapability } from "../memory/capability";
 
-export type CapabilityId = "tools" | "knowledge" | "memory" | "handoff" | "delegation" | "workflows" | "skills"
-  | "schedules" | "code" | "browser";
+import { deferredCapabilities, capabilityForOperation, type CapabilityId } from "../../contracts/capabilities";
+export type { CapabilityId } from "../../contracts/capabilities";
 
 export interface CapabilityDefinition {
   id: CapabilityId;
@@ -36,4 +36,8 @@ export function capability(id: CapabilityId): CapabilityDefinition {
   const found = capabilityRegistry.find(entry => entry.id === id);
   if (!found) throw new Error(`Unknown capability: ${id}`);
   return found;
+}
+
+export function capabilityForTool(name: string): CapabilityDefinition {
+  return capability(capabilityForOperation(name));
 }

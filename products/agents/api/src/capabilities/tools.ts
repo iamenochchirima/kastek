@@ -8,6 +8,7 @@ import { loadExecution } from "../execution/lifecycle/execution";
 import { channelPorts } from "../infrastructure/channel-ports";
 import { transaction } from "../infrastructure/database";
 import { builtinToolEnabled } from "./tool-definitions";
+import { operationCapabilityDeferred } from "../contracts/capabilities";
 import { executeRecordTool } from "./enquiries/record-tools";
 import { EnquiryStore } from "./enquiries/enquiries";
 import { executeSkillTool, type SkillLoadResult } from "./skills/runtime";
@@ -57,6 +58,7 @@ export async function executeTool(pool: Pool, memoryStore: MemoryStorePort, task
       return await transaction(pool, db => channelPorts(db).requestHandoff(db, execution.task.channel_binding!, taskId, brief));
     }
     if (name.startsWith("knowledge.")) throw new PlatformError("KNOWLEDGE_RUNTIME_UNAVAILABLE", 503, "Grounded knowledge runtime is unavailable");
+    if (operationCapabilityDeferred(name)) throw new PlatformError("CAPABILITY_UNAVAILABLE", 403, "This capability is not available");
     if (name === "memory.search" || name === "memory.read" || name === "memory.propose") return await executeMemoryTool(pool, memoryStore, taskId, operationId, name, input);
     throw new PlatformError("TOOL_DENIED", 403, "Tool is unavailable");
   } catch (error) {

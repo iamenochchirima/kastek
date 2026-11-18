@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capability, capabilityRegistry } from "../src/platform/capabilities/registry";
+import { capability, capabilityForTool, capabilityRegistry } from "../src/platform/capabilities/registry";
 
 describe("agent capability registry", () => {
   it("lists available capabilities and keeps deferred ones unconfigurable", () => {
@@ -11,5 +11,14 @@ describe("agent capability registry", () => {
     expect(capability("knowledge").setup).toContain("/knowledge");
     expect(capability("memory").setup).toContain("/memory");
     expect(capability("tools").setup).toBeUndefined();
+  });
+});
+
+describe("capability dispatch", () => {
+  it("maps operations to their owning capability", () => {
+    expect(capabilityForTool("knowledge.search").id).toBe("knowledge");
+    expect(capabilityForTool("memory.propose").id).toBe("memory");
+    expect(capabilityForTool("agents.discover").id).toBe("delegation");
+    expect(capabilityForTool("read_file").id).toBe("tools");
   });
 });
