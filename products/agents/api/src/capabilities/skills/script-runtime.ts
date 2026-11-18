@@ -2,7 +2,7 @@ import { skillPackageCodec } from "./package";
 import type {PoolClient} from "pg";
 import {PlatformError} from "../../contracts/contracts";
 import {loadExecution,assertCurrentAuthority} from "../../execution/lifecycle/execution";
-import {loadSkillRevisions} from "../../execution/memory/memory";
+import {loadSkillRevisions} from "../../execution/memory/skills";
 import {readSkillPackageFile,type SkillFileEvidence} from "./package";
 
 export interface SkillScriptReference {skillId:string;revision:number;path:string;packageDigest:string;contentDigest:string}

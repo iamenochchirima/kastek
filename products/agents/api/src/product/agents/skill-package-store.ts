@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
-import { requireMemoryAccess } from "../../execution/memory/memory";
+import { requireMemoryAccess } from "../../execution/memory/access";
 import { transaction } from "../../infrastructure/database";
 import { parseSkillPackage, readSkillPackageFile, type SkillPackage } from "../../capabilities/skills/package";
 import { CURATED_SKILL_PUBLISHER, curatedSkillCatalog, curatedSkillPackage } from "../../capabilities/skills/curated";

@@ -28,7 +28,7 @@ import { publishedToolBindings } from "../../capabilities/tools";
 import type { Account,AgentRecord,VersionRecord,WebsiteDeployment } from "../../contracts/records";
 import { DeploymentStore } from "../deployments/deployment-store";
 import { AuthorityStore } from "../../execution/admission/authority-store";
-import { loadSkillRevisions } from "../../execution/memory/memory";
+import { loadSkillRevisions } from "../../execution/memory/skills";
 import { assertAgentsBillingFeature, assertAgentsBillingLimit } from "../billing/billing";
 import { requirePermission } from "../../platform/access/permissions";
 

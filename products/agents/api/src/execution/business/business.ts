@@ -49,7 +49,8 @@ type Execution,
 type MemoryFence,
 type TaskOutcome
 } from "../lifecycle/execution";
-import { MemoryStore, loadSkillRevisions } from "../memory/memory";
+import { MemoryStore } from "../memory/memory";
+import { loadSkillRevisions } from "../memory/skills";
 import { executeMemoryTool } from "../../capabilities/memory-tools";
 import {
 ModelOperationError,

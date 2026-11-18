@@ -1,7 +1,7 @@
 import { skillPackageCodec } from "../skills/package";
 import type { Pool, PoolClient } from "pg";
 import { PlatformError, sourceAuthorityIds, type AgentConfiguration } from "../../contracts/contracts";
-import { loadSkillRevisions } from "../../execution/memory/memory";
+import { loadSkillRevisions } from "../../execution/memory/skills";
 import { assertSkillRequirements, configurationSkillAuthority } from "../skills/requirement-authority";
 import { requireProductResourceAccess, resourceMatchesScope, type ProductResourceScope } from "../../contracts/resource-scope";
 

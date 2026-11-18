@@ -4,7 +4,7 @@ import type { AgentConfiguration } from "../../contracts/contracts";
 import type { CapabilityBinding } from "../../contracts/capability-catalog";
 import { assertCurrentSkillPolicy } from "../../capabilities/skills/current-policy";
 import { configurationSkillAuthority } from "../../capabilities/skills/requirement-authority";
-import { loadSkillRevisions } from "../memory/memory";
+import { loadSkillRevisions } from "../memory/skills";
 
 /** A pinned specialist authorizes its own reviewed skills, constrained by its delegated tools/resources. */
 export async function delegatedSkills(db:Pool|PoolClient,input:{organizationId:string;agentId:string;configuration:AgentConfiguration;connectedBindings:CapabilityBinding[]}){
