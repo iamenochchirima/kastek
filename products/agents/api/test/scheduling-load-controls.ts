@@ -16,7 +16,7 @@ export async function exerciseOwnershipControls(pool:Pool,endpoints:string[],ten
   }
   try{
    visitorToken=(await call(website+'/session',{})).token;
-   const {conversation}=await call(website+'/customer-conversations',{}),path=`${website}/customer-conversations/${conversation.id}/messages`,staffPath=`/api/organizations/${tenant.organizationId}/inbox/${conversation.id}`;
+   const started=await call(website+'/customer-conversations/messages',{requestKey:randomUUID(),body:'opening hours'}),conversation=started.conversation,path=`${website}/customer-conversations/${conversation.id}/messages`,staffPath=`/api/organizations/${tenant.organizationId}/inbox/${conversation.id}`;
    measured.conversationId=conversation.id;
    const first={requestKey:randomUUID(),body:'opening hours'};
    const [sent,replayed]=await Promise.all([call(path,first),call(path,first,false,other)]);if(sent.message.id!==replayed.message.id)result.duplicateMessages++;
