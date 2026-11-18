@@ -3,10 +3,17 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
 import { Applications } from "../../platform/access/applications";
+import type { TaskRecord } from "../../contracts/records";
 import { requirePermission } from "../../product/members/permissions";
 
 export function registerApplicationRoutes(app: FastifyInstance, options: {
   pool: Pool; resolveScope(request: FastifyRequest): Promise<{ accountId: string; organizationId: string }>;
+  runs?: {
+    start(input: { organizationId: string; applicationId: string; credentialId: string; agentId: string; message: string; requestId: string; conversationId?: string }): Promise<{ task: TaskRecord; replayed: boolean }>;
+    read(task: TaskRecord): Promise<unknown>;
+    steer(task: TaskRecord, input: { instruction: string; requestKey: string }): Promise<unknown>;
+    cancel(task: TaskRecord): Promise<unknown>;
+  };
 }) {
   const applications = new Applications(options.pool, async (db, owner) => {
     const membership = await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE", [owner.organizationId, owner.accountId]);
@@ -32,5 +39,44 @@ export function registerApplicationRoutes(app: FastifyInstance, options: {
     const match = /^Bearer ([^\s]+)$/.exec(request.headers.authorization ?? "");
     if (!match) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
     return reply.header("cache-control", "private, no-store").send({ agents: await applications.listAgents(match[1]!) });
+  });
+  if (!options.runs) return;
+  const runs = options.runs;
+  function bearer(request: FastifyRequest): string {
+    const match = /^Bearer ([^\s]+)$/.exec(request.headers.authorization ?? "");
+    if (!match) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
+    return match[1]!;
+  }
+  async function accessRun(request: FastifyRequest, scope: "runs:read" | "runs:control") {
+    const caller = await applications.authenticate(bearer(request), scope);
+    const { taskId } = z.strictObject({ taskId: z.uuid() }).parse(request.params);
+    const task = (await options.pool.query<TaskRecord>(`SELECT t.* FROM agents_platform.tasks t
+      JOIN agents_platform.applications a ON a.id=$2 AND a.organization_id=t.organization_id AND a.revoked_at IS NULL
+      JOIN agents_platform.application_credentials k ON k.id=$3 AND k.application_id=a.id AND k.organization_id=a.organization_id AND k.revoked_at IS NULL
+      JOIN agents_platform.agents agent ON agent.id::text=t.resource_id AND agent.organization_id=t.organization_id AND agent.deleted_at IS NULL
+      JOIN agents_platform.conversations c ON c.id=t.conversation_id AND c.deleted_at IS NULL
+      WHERE t.id=$1 AND t.organization_id=$4 AND t.parent_task_id IS NULL AND t.principal->>'kind'='application'
+        AND t.principal->>'applicationId'=a.id::text AND agent.id=ANY(a.agent_ids) AND $5=ANY(k.scopes)`,
+    [taskId, caller.applicationId, caller.credentialId, caller.organizationId, scope])).rows[0];
+    if (!task) throw new PlatformError("NOT_FOUND", 404, "Run not found");
+    return task;
+  }
+  app.post("/v1/runs", async (request, reply) => {
+    const caller = await applications.authenticate(bearer(request), "runs:start");
+    const input = z.strictObject({ agentId: z.uuid(), message: z.string().trim().min(1).max(65536),
+      requestId: z.uuid(), conversationId: z.uuid().optional() }).parse(request.body);
+    const result = await runs.start({ ...caller, ...input });
+    return reply.code(result.replayed ? 200 : 202).header("cache-control", "no-store").send({
+      taskId: result.task.id, conversationId: result.task.conversation_id, state: result.task.state, replayed: result.replayed });
+  });
+  app.get("/v1/runs/:taskId", async (request, reply) => reply.header("cache-control", "private, no-store").send(await runs.read(await accessRun(request, "runs:read"))));
+  app.post("/v1/runs/:taskId/instructions", async request => {
+    const task = await accessRun(request, "runs:control");
+    const input = z.strictObject({ instruction: z.string().trim().min(1).max(4000), requestKey: z.uuid() }).parse(request.body);
+    return runs.steer(task, input);
+  });
+  app.post("/v1/runs/:taskId/cancel", async request => {
+    z.strictObject({}).parse(request.body ?? {});
+    return runs.cancel(await accessRun(request, "runs:control"));
   });
 }

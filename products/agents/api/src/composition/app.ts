@@ -143,6 +143,7 @@ import { GrowthProductRuntime } from "../execution/products/growth-runtime";
 import { createConfiguredProductRuntime } from "../execution/products/configured-runtime";
 import { registerAgencyProductRoutes, agencyServiceTrustFromEnvironment } from "../product/integrations/agency-routes";
 import { admitMemberRun } from "../platform/runs/member-admission";
+import { admitApplicationRun } from "../platform/runs/application-admission";
 import { registerApplicationRoutes } from "../integrations/http/application-routes";
 const uuid = z.uuid();
 const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1),
@@ -277,7 +278,9 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
         request.url.split("?")[0] !== "/internal/v1/products/growth/commands" && request.url.split("?")[0] !== "/internal/v1/products/growth/provision" && request.url.split("?")[0] !== "/internal/v1/products/growth/usage" && request.url.split("?")[0] !== "/internal/v1/products/growth/channels" && request.url.split("?")[0] !== "/internal/agents/channel-events" &&
         ![AGENCY_AGENT_COMMAND_PATH, AGENCY_AGENT_MODEL_PATH].includes(request.url.split("?")[0]!) &&
-        !["/mcp","/oauth/token","/oauth/register","/oauth/revoke"].includes(request.url.split("?")[0]!) && !request.url.startsWith("/api/website/") && !request.url.startsWith("/api/automation-events/") && !request.url.startsWith("/api/channel-webhooks/") && request.url.split("?")[0] !== "/api/auth/backchannel-logout" && request.headers.origin !== origin) {
+        !["/mcp","/oauth/token","/oauth/register","/oauth/revoke"].includes(request.url.split("?")[0]!) &&
+        !/^\/v1\/runs(?:\/[0-9a-f-]+\/(?:instructions|cancel))?$/.test(request.url.split("?")[0]!) &&
+        !request.url.startsWith("/api/website/") && !request.url.startsWith("/api/automation-events/") && !request.url.startsWith("/api/channel-webhooks/") && request.url.split("?")[0] !== "/api/auth/backchannel-logout" && request.headers.origin !== origin) {
       throw new PlatformError("ORIGIN_DENIED", 403, "Request origin is not allowed");
     }
   });
@@ -353,7 +356,13 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if (result.state !== "accepted") throw new PlatformError("INVITATION_EMAIL_FAILED", 502, "Invitation email could not be sent");
   }
   registerMemberRoutes(app, { store: members, resolveScope, account, sendInvitation: sendInvitationEmail });
-  registerApplicationRoutes(app, { pool, resolveScope });
+  registerApplicationRoutes(app, { pool, resolveScope, runs: {
+    start: input => admitApplicationRun({ pool, store, assertServices, grantOperations }, input),
+    read: async task => ({ taskId: task.id, conversationId: task.conversation_id, state: task.state,
+      errorCode: task.error_code, ...await readableOutput(task.id, task.output), ...await readPublicAgentUpdates(pool, task.id) }),
+    steer: (task, input) => queueOrchestrationInstruction(pool, task.id, input),
+    cancel: async task => { if (!terminalTaskStates.has(task.state)) await requestTreeCancellation(pool, task.id); return { taskId: task.id, accepted: true }; },
+  } });
   const transfers = new AgentTransferStore(pool, new PostgresKnowledgeObjectStore(pool));
   async function sendTransferEmail(input: TransferEmail): Promise<void> {
     if (!invitationSender) throw new PlatformError("TRANSFER_EMAIL_UNAVAILABLE", 503, "Transfer email is unavailable");

@@ -4,7 +4,9 @@ import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
 import { transaction } from "../../infrastructure/database";
 
-const scopeSchema = z.enum(["agents:read"]);
+export const applicationScopeSchema = z.enum(["agents:read", "runs:start", "runs:read", "runs:control"]);
+export type ApplicationScope = z.infer<typeof applicationScopeSchema>;
+const scopeSchema = applicationScopeSchema;
 const createSchema = z.strictObject({ name: z.string().trim().min(1).max(120),
   agentIds: z.array(z.uuid()).min(1).max(100).refine(ids => new Set(ids).size === ids.length),
   scopes: z.array(scopeSchema).min(1).refine(scopes => new Set(scopes).size === scopes.length) });
@@ -84,5 +86,16 @@ export class Applications {
       ORDER BY a.name,a.id`, [hash(secret)])).rows;
     if (!rows.length) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
     return rows.filter(row => row.id !== null).map(row => ({ id: row.id, name: row.name }));
+  }
+
+  async authenticate(secret: string, scope: ApplicationScope) {
+    if (!/^kat_[A-Za-z0-9_-]{43}$/.test(secret)) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
+    const result = await this.pool.query<{ organization_id: string; application_id: string; credential_id: string }>(`SELECT k.organization_id,k.application_id,k.id credential_id
+      FROM agents_platform.application_credentials k JOIN agents_platform.applications app
+        ON app.id=k.application_id AND app.organization_id=k.organization_id
+      WHERE k.secret_hash=$1 AND k.revoked_at IS NULL AND app.revoked_at IS NULL AND $2=ANY(k.scopes)`, [hash(secret), scope]);
+    const row = result.rows[0];
+    if (!row) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
+    return { organizationId: row.organization_id, applicationId: row.application_id, credentialId: row.credential_id };
   }
 }
