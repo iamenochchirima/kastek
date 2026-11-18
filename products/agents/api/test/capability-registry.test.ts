@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capability, capabilityForTool, capabilityRegistry } from "../src/platform/capabilities/registry";
+import { capability, capabilityForTool, capabilityPrerequisitesMet, capabilityRegistry } from "../src/platform/capabilities/registry";
 
 describe("agent capability registry", () => {
   it("lists available capabilities and keeps deferred ones unconfigurable", () => {
@@ -20,5 +20,14 @@ describe("capability dispatch", () => {
     expect(capabilityForTool("memory.propose").id).toBe("memory");
     expect(capabilityForTool("agents.discover").id).toBe("delegation");
     expect(capabilityForTool("read_file").id).toBe("tools");
+  });
+});
+
+describe("capability prerequisites", () => {
+  it("requires tools before workflows and no prerequisites for skills or delegation", () => {
+    expect(capabilityPrerequisitesMet("workflows", ["tools"])).toBe(true);
+    expect(capabilityPrerequisitesMet("workflows", [])).toBe(false);
+    expect(capabilityPrerequisitesMet("skills", [])).toBe(true);
+    expect(capabilityPrerequisitesMet("delegation", [])).toBe(true);
   });
 });

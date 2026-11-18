@@ -41,3 +41,20 @@ export function capability(id: CapabilityId): CapabilityDefinition {
 export function capabilityForTool(name: string): CapabilityDefinition {
   return capability(capabilityForOperation(name));
 }
+
+/** Operations each capability contributes to the tool catalogue. */
+export const capabilityOperations: Readonly<Record<CapabilityId, readonly string[]>> = {
+  tools: ["tools.invoke"], knowledge: ["knowledge.search", "knowledge.read"],
+  memory: ["memory.search", "memory.read", "memory.propose"], handoff: ["channel.request_handoff"],
+  delegation: ["agents.discover", "agents.delegate"], workflows: ["workflow.run"],
+  skills: ["skills.activate", "skills.read"], schedules: [], code: [], browser: [],
+};
+
+/** Capabilities that must be enabled before another capability can run. */
+export const capabilityPrerequisites: Readonly<Partial<Record<CapabilityId, readonly CapabilityId[]>>> = {
+  workflows: ["tools"],
+};
+
+export function capabilityPrerequisitesMet(id: CapabilityId, enabled: readonly CapabilityId[]): boolean {
+  return (capabilityPrerequisites[id] ?? []).every(dependency => enabled.includes(dependency));
+}
