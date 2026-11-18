@@ -75,7 +75,7 @@ export function McpConsent() {
             {details.organizations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </label>
-        <div><h2 className="text-sm font-medium">Access requested</h2><ul className="mt-2 list-inside list-disc text-sm">{details.request.scopes.map(scope => <li key={scope}>{scope === "agents:read" ? "View agents and configuration" : scope === "agents:manage" ? "Create and manage agents" : scope === "runs:start" ? "Start agent runs" : scope === "runs:read" ? "View agent runs" : scope}</li>)}</ul></div>
+        <div><h2 className="text-sm font-medium">Access requested</h2><ul className="mt-2 list-inside list-disc text-sm">{details.request.scopes.map(scope => <li key={scope}>{scope === "agents:read" ? "View agents and configuration" : scope === "agents:manage" ? "Create and manage agents" : scope === "runs:start" ? "Start agent runs" : scope === "runs:read" ? "View agent runs" : scope === "runs:control" ? "Steer and stop agent runs" : scope}</li>)}</ul></div>
         {needsAgents && organization ? <fieldset disabled={busy} className="space-y-2"><legend className="text-sm font-medium">Agents</legend>
           {!agents ? <p role="status" className="text-sm text-muted-foreground">Loading agents…</p> : agents.length ? agents.map(agent => <label key={agent.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={selectedAgents.includes(agent.id)} onChange={event => setSelectedAgents(current => event.target.checked ? [...current, agent.id] : current.filter(id => id !== agent.id))} />{agent.name}</label>) : <p className="text-sm text-muted-foreground">No agents available</p>}
         </fieldset> : null}

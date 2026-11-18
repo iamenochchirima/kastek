@@ -607,8 +607,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
         requestKey: `mcp:${scope.connectionId}:${input.requestId}`, conversationId: input.conversationId });
       return { taskId: result.task.id, conversationId: result.task.conversation_id, state: result.task.state, replayed: result.replayed };
     }
-    async function getMcpRun(scope: McpRunScope, raw: unknown) {
-      const { taskId } = z.strictObject({ taskId: z.uuid() }).parse(raw);
+    async function authorizedMcpRun(scope: McpRunScope, taskId: string) {
       const task = (await pool.query<TaskRecord>(`SELECT t.* FROM agents_platform.tasks t
         JOIN agents_platform.mcp_run_provenance p ON p.task_id=t.id
         JOIN agents_platform.conversations c ON c.id=t.conversation_id AND c.deleted_at IS NULL
@@ -617,6 +616,11 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
           AND t.execution_purpose<>'private_preview_v1'`, [taskId, scope.connectionId, scope.accountId, scope.organizationId])).rows[0];
       if (!task) throw new PlatformError("NOT_FOUND", 404, "Run not found");
       await assertMcpTaskAuthority(pool, task.id);
+      return task;
+    }
+    async function getMcpRun(scope: McpRunScope, raw: unknown) {
+      const { taskId } = z.strictObject({ taskId: z.uuid() }).parse(raw);
+      const task = await authorizedMcpRun(scope, taskId);
       return { taskId: task.id, conversationId: task.conversation_id, state: task.state,
         errorCode: task.error_code, ...await readableOutput(task.id, task.output), ...await readPublicAgentUpdates(pool, task.id) };
     }
@@ -637,6 +641,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
        { name: "list_agents", description: "List agents in the authorized organization.", scope: "agents:read", inputSchema: {type:"object",additionalProperties:false}, run: async scope => ({ agents: (await creationOperations.list(scope)).map(agent => ({ id: agent.id, name: agent.name })) }) },
        { name: "start_agent_run", description: "Start a run with the agent's assigned capabilities. Reuse requestId for a safe retry.", scope: "runs:start", idempotent: true, openWorld: true, inputSchema: { type: "object", properties: { agentId: { type: "string", format: "uuid" }, message: { type: "string" }, requestId: { type: "string", format: "uuid" }, conversationId: { type: "string", format: "uuid" } }, required: ["agentId", "message", "requestId"], additionalProperties: false }, run: startMcpRun },
        { name: "get_agent_run", description: "Read the state, public activity and result of a run started by this connection.", scope: "runs:read", inputSchema: { type: "object", properties: { taskId: { type: "string", format: "uuid" } }, required: ["taskId"], additionalProperties: false }, run: getMcpRun },
+       { name: "steer_agent_run", description: "Add instructions to an active run. Reuse requestKey for a safe retry.", scope: "runs:control", idempotent: true, inputSchema: { type: "object", properties: { taskId: { type: "string", format: "uuid" }, instruction: { type: "string" }, requestKey: { type: "string", format: "uuid" } }, required: ["taskId", "instruction", "requestKey"], additionalProperties: false }, run: async (scope,args) => { const input=z.strictObject({taskId:z.uuid(),instruction:z.string().trim().min(1).max(4000),requestKey:z.uuid()}).parse(args);const task=await authorizedMcpRun(scope,input.taskId);return queueOrchestrationInstruction(pool,task.id,{instruction:input.instruction,requestKey:input.requestKey}); } },
+       { name: "cancel_agent_run", description: "Stop an active run and its child work.", scope: "runs:control", idempotent: true, inputSchema: { type: "object", properties: { taskId: { type: "string", format: "uuid" } }, required: ["taskId"], additionalProperties: false }, run: async (scope,args) => { const {taskId}=z.strictObject({taskId:z.uuid()}).parse(args);const task=await authorizedMcpRun(scope,taskId);if(!terminalTaskStates.has(task.state))await requestTreeCancellation(pool,task.id);return {taskId:task.id,accepted:true}; } },
        { name: "agent_readiness", description: "Check the setup readiness of an agent.", scope: "agents:read", inputSchema: {type:"object", properties:{agentId:{type:"string",format:"uuid"}},required:["agentId"],additionalProperties:false}, run: async (scope, args) => creationOperations.readiness(scope, identifier.parse(args).agentId) },
        { name: "get_agent", description: "Read an agent's name, instructions and configuration revision.", scope: "agents:read", inputSchema: {type:"object",properties:agentProperty,required:["agentId"],additionalProperties:false}, run: async (scope,args) => { const agent=await creationOperations.get(scope,identifier.parse(args).agentId); return {id:agent.id,name:agent.name,instructions:agent.draft.instructions,revision:agent.draft_revision}; } },
        { name: "get_agent_setup", description: "Read the business details and setup preferences for an agent.", scope: "agents:read", inputSchema: {type:"object",properties:agentProperty,required:["agentId"],additionalProperties:false}, run: async (scope,args) => { const agent=await creationOperations.get(scope,identifier.parse(args).agentId); return {id:agent.id,name:agent.name,setup:agent.setup,revision:agent.draft_revision}; } },

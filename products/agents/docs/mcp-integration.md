@@ -48,6 +48,8 @@ originating OAuth connection with the run. `get_agent_run` returns that connecti
 public updates and result. Assigned tools use the ordinary runtime policy. MCP uses `runs:start`
 and `runs:read` independently of agent-management scopes. Separate application credentials
 still require implementation.
+With `runs:control`, the originating connection can add instructions or cancel its run and child
+work. The connection and selected-agent grant are checked again for these operations.
 Consent for `runs:start` requires choosing workspace agents. The connection can start only those
 agents, and the runtime rechecks the selection while work continues. A connection created before
 agent selection has no runnable agents and must be reauthorized.
