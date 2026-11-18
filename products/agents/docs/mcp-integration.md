@@ -546,3 +546,25 @@ published grants, each physical receipt and replay without a second send;
 [api-connections.spec.ts](../web/test/api-connections.spec.ts) covers the structured editor
 and explicit read selection at 1440, 768 and 390 pixels using a mocked API transport.
 These checks do not establish a real provider's pagination or mutation semantics.
+
+## Agents MCP operation surface
+
+The MCP server exposes the same scoped operations as the application HTTP API where the
+transport supports them. OAuth scopes are `agents:read`, `agents:manage`, `agents:publish`,
+`runs:read`, `runs:start`, `runs:control` and `reviews:decide`.
+
+| Area | Operations | Scope |
+| --- | --- | --- |
+| Agent management | `list_agents`, `get_agent`, `get_agent_setup`, `agent_readiness`, `list_available_tools`, `list_available_skills` | `agents:read` |
+| Agent management | `create_agent`, `update_agent_instructions`, `update_agent_setup`, `configure_agent_capabilities`, `select_agent_model`, `attach_knowledge`, review requests | `agents:manage` |
+| Publication | `publish_agent_version`, `bind_agent_deployment` | `agents:publish` |
+| Conversations | `list_conversations`, `get_conversation` | `runs:read` |
+| Runs | `start_agent_run` | `runs:start` |
+| Runs | `get_agent_run`, `get_run_activity`, `get_pending_reviews` | `runs:read` |
+| Runs | `steer_agent_run`, `cancel_agent_run` | `runs:control` |
+| Reviews | `decide_tool_review` | `reviews:decide` |
+
+Publication and review operations recheck the OAuth connection's scopes and current
+membership in the same transaction as the operation. Run and conversation operations are
+limited to runs started by the calling connection. Error codes, idempotency keys and cursor
+semantics match the HTTP application API.

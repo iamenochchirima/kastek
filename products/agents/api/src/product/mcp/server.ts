@@ -9,13 +9,13 @@ import { PlatformError } from "../../contracts/contracts";
 import { resolveAgentsOAuthToken } from "./oauth";
 import { containsConnectorCredential } from "../../infrastructure/credential-reflection";
 import { projectMcpReferences, referenceAwareSchema, resolveMcpReferences } from "./references";
-export type McpOperation = { name: string; description: string; scope: "agents:read" | "agents:manage" | "runs:read" | "runs:start" | "runs:control"; inputSchema: { type: "object"; properties?: Record<string, unknown>; required?: string[]; additionalProperties?: boolean }; idempotent?: boolean; openWorld?: boolean; run(scope: { accountId: string; organizationId: string; connectionId: string }, args: Record<string, unknown>): Promise<unknown> };
+export type McpOperation = { name: string; description: string; scope: "agents:read" | "agents:manage" | "agents:publish" | "runs:read" | "runs:start" | "runs:control" | "reviews:decide"; inputSchema: { type: "object"; properties?: Record<string, unknown>; required?: string[]; additionalProperties?: boolean }; idempotent?: boolean; openWorld?: boolean; run(scope: { accountId: string; organizationId: string; connectionId: string }, args: Record<string, unknown>): Promise<unknown> };
 
 /** Each request resolves a revocable product-owned OAuth connection and current membership. */
 export function registerAgentsMcp(app: FastifyInstance, options: { pool: Pool; publicUrl: string; operations: McpOperation[]; allowedOrigins: string[]; allowedHosts?: string[] }) {
  const resource = new URL("/mcp", options.publicUrl).toString();
  const hosts = new Set([new URL(options.publicUrl).host,...(options.allowedHosts??[])].map(host=>host.toLowerCase()));
- const metadata = () => ({ resource, authorization_servers: [new URL(options.publicUrl).origin], scopes_supported: ["agents:read", "agents:manage", "runs:read", "runs:start", "runs:control"], bearer_methods_supported: ["header"] });
+ const metadata = () => ({ resource, authorization_servers: [new URL(options.publicUrl).origin], scopes_supported: ["agents:read", "agents:manage", "agents:publish", "runs:read", "runs:start", "runs:control", "reviews:decide"], bearer_methods_supported: ["header"] });
  app.get("/.well-known/oauth-protected-resource", metadata);
  app.get("/.well-known/oauth-protected-resource/mcp", metadata);
  app.post("/mcp", { bodyLimit: 262144 }, async (request, reply) => {

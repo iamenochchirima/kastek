@@ -156,7 +156,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   try {
    const registration=await app.inject({method:"POST",url:"/oauth/register",payload:{client_name:"Test assistant",redirect_uris:["https://client.test/callback"]}});expect(registration.statusCode).toBe(201);
    const clientId=registration.json().client_id,verifier=randomBytes(32).toString("base64url"),resource="http://localhost:3100/mcp";
-   const query=new URLSearchParams({response_type:"code",client_id:clientId,redirect_uri:"https://client.test/callback",resource,scope:"agents:read agents:manage runs:start runs:read runs:control",state:"test",code_challenge:createHash("sha256").update(verifier).digest("base64url"),code_challenge_method:"S256"});
+   const query=new URLSearchParams({response_type:"code",client_id:clientId,redirect_uri:"https://client.test/callback",resource,scope:"agents:read agents:manage agents:publish runs:start runs:read runs:control reviews:decide",state:"test",code_challenge:createHash("sha256").update(verifier).digest("base64url"),code_challenge_method:"S256"});
    const start=await app.inject({method:"GET",url:`/oauth/authorize?${query}`});expect(start.statusCode).toBe(302);
    const nonce=new URL(start.headers.location!,"http://localhost:3100").searchParams.get("request"),cookie=`agents_session=${session.token}`;
    expect((await app.inject({method:"GET",url:`/api/mcp/oauth/requests/${nonce}`,headers:{cookie}})).statusCode).toBe(200);
@@ -167,7 +167,8 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
    await app.listen({host:"127.0.0.1",port:actualPort});
    const client=new Client({name:"fixture-assistant",version:"1"});
    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${actualPort}/mcp`),{requestInit:{headers:{authorization:`Bearer ${token}`}}}));
-   try{const tools=(await client.listTools()).tools;expect(tools.some(item=>item.name==="create_agent")).toBe(true);expect(tools.find(item=>item.name==="create_agent")?.annotations?.idempotentHint).toBe(true);}finally{await client.close();}
+   try{const tools=(await client.listTools()).tools;expect(tools.some(item=>item.name==="create_agent")).toBe(true);expect(tools.find(item=>item.name==="create_agent")?.annotations?.idempotentHint).toBe(true);
+    for(const name of ["publish_agent_version","bind_agent_deployment","list_conversations","get_conversation","get_run_activity","get_pending_reviews","decide_tool_review"]) expect(tools.some(item=>item.name===name)).toBe(true);}finally{await client.close();}
    const call=async(name:string,args:unknown)=>app.inject({method:"POST",url:"/mcp",headers:{host:"localhost:3100",authorization:`Bearer ${token}`,accept:"application/json, text/event-stream"},payload:{jsonrpc:"2.0",id:1,method:"tools/call",params:{name,arguments:args}}});
    const created=await call("create_agent",{name:"Bike support",operationId:randomUUID()});
    const capabilities=await call("get_capabilities",{});expect(capabilities.statusCode).toBe(200);const capabilityData=JSON.parse(capabilities.json().result.content[0].text);expect(capabilityData.knowledge.sourceLimit).toBeGreaterThan(0);expect(capabilityData.websiteTextImport).toMatchObject({available:false,maxBytes:262144,retrieval:"lexical-v1"});expect(capabilityData.documentImport).toBe(false);
@@ -178,6 +179,10 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
    const startedRun=started.json().result.structuredContent;expect(startedRun.state).toBe("accepted");expect(startedRun.taskId).toMatch(/^ref_/);
    const replay=await call("start_agent_run",runRequest);expect(replay.json().result.structuredContent).toMatchObject({taskId:startedRun.taskId,replayed:true});
    const readRun=await call("get_agent_run",{taskId:startedRun.taskId});expect(readRun.json().result.structuredContent).toMatchObject({taskId:startedRun.taskId,state:"accepted"});
+   const conversations=await call("list_conversations",{agentId:runAgent.agent.id});expect(conversations.json().result.isError).not.toBe(true);expect(conversations.json().result.structuredContent.conversations.length).toBeGreaterThanOrEqual(1);
+   const conversation=await call("get_conversation",{conversationId:startedRun.conversationId});expect(conversation.json().result.isError).not.toBe(true);expect(conversation.json().result.structuredContent.turns.length).toBeGreaterThanOrEqual(1);
+   const activity=await call("get_run_activity",{taskId:startedRun.taskId});expect(activity.json().result.isError).not.toBe(true);expect(Array.isArray(activity.json().result.structuredContent.events)).toBe(true);
+   const pendingReviews=await call("get_pending_reviews",{taskId:startedRun.taskId});expect(pendingReviews.json().result.isError).not.toBe(true);expect(Array.isArray(pendingReviews.json().result.structuredContent.pending)).toBe(true);
    const steering={taskId:startedRun.taskId,instruction:"Keep it brief.",requestKey:randomUUID()};
    expect((await call("steer_agent_run",steering)).json().result.structuredContent).toMatchObject({accepted:true});
    expect((await call("steer_agent_run",steering)).json().result.structuredContent).toMatchObject({accepted:true});
@@ -201,6 +206,8 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
      VALUES($1,$2,$3,$4,$5,ARRAY['runs:start','runs:read'],$6,$7,now()+interval '1 hour')`,[limitedConnection,clientId,account.id,org.id,resource,createHash("sha256").update(limitedToken).digest("hex"),[runAgent.agent.id]]);
    const limitedCall=async(name:string,args:unknown)=>app.inject({method:"POST",url:"/mcp",headers:{host:"localhost:3100",authorization:`Bearer ${limitedToken}`,accept:"application/json, text/event-stream"},payload:{jsonrpc:"2.0",id:1,method:"tools/call",params:{name,arguments:args}}});
    expect((await limitedCall("create_agent",{name:"Denied",operationId:randomUUID()})).json().result.isError).toBe(true);
+   expect((await limitedCall("publish_agent_version",{agentId:runAgent.agent.id,expectedRevision:1})).json().result.isError).toBe(true);
+   expect((await limitedCall("decide_tool_review",{reviewId:randomUUID(),decision:"approve",requestDigest:"0".repeat(64)})).json().result.isError).toBe(true);
    const nativeAgentId=runAgent.agent.id;
    const limitedRun=await limitedCall("start_agent_run",{agentId:nativeAgentId,message:"Hello",requestId:randomUUID()});expect(limitedRun.json().result.isError).not.toBe(true);
    const limitedRunRef=limitedRun.json().result.structuredContent.taskId;
@@ -211,6 +218,9 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
    const readiness=await call("agent_readiness",{agentId});expect(readiness.statusCode).toBe(200);expect(readiness.json().result.isError).not.toBe(true);
    const agent=JSON.parse((await call("get_agent",{agentId})).json().result.content[0].text);
    const configured=await call("update_agent_instructions",{agentId,expectedRevision:agent.revision,instructions:"Answer clearly using approved knowledge."});expect(configured.json().result.isError).not.toBe(true);
+   const published=await call("publish_agent_version",{agentId,expectedRevision:configured.json().result.structuredContent.revision});expect(published.json().result.isError).not.toBe(true);const publishedVersion=published.json().result.structuredContent;expect(publishedVersion.versionId).toBeTruthy();
+   const deployment=await call("bind_agent_deployment",{agentId,versionId:publishedVersion.versionId,allowedOrigins:["https://example.test"]});expect(deployment.json().result.isError).not.toBe(true);expect(deployment.json().result.structuredContent.deploymentId).toBeTruthy();
+   expect((await call("decide_tool_review",{reviewId:randomUUID(),decision:"approve",requestDigest:"0".repeat(64)})).json().result.isError).toBe(true);
    const preview=await call("start_private_preview",{agentId,message:"When are you open?",requestId:randomUUID()});expect(preview.json().result.isError).not.toBe(true);
    if(process.env.AGENTS_TEST_RESTATE_BINARY){const taskId=JSON.parse(preview.json().result.content[0].text).id;const nativeTask=(await pool.query("SELECT target FROM agents_platform.mcp_references WHERE id=$1",[taskId.slice(4)])).rows[0].target;expect(await completePreview(pool,model.store,nativeTask)).toEqual({state:"completed",calls:1});const result=JSON.parse((await call("get_private_preview",{taskId})).json().result.content[0].text);expect(result.output).toBe("The opening hours are not available yet.");}
    const support=await store.createConfiguredAgent({accountId:account.id,organizationId:org.id,name:"Website support",offering:"customer-service"});
