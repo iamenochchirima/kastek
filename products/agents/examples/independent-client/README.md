@@ -18,8 +18,8 @@ snapshot.
 
    Store the returned `credential.secret`; it is shown once.
 2. Create a fixture tool. Import a small OpenAPI document, select one read operation and keep
-   the resulting `bindingId`. The fixture can be any reachable API, including a local test
-   server.
+   the resulting `bindingId`, or use a builtin tool such as `artifact.create`. The connected
+   fixture can be any reachable API, including a local test server.
 3. Assign the application to the agents it may manage with
    `PUT /api/organizations/:organizationId/applications/:applicationId/agents`.
 
@@ -38,6 +38,7 @@ Optional environment variables:
 
 | Variable | Meaning |
 | --- | --- |
+| `AGENTS_FIXTURE_TOOL` | Builtin tool to assign instead of a connected binding, e.g. `artifact.create` |
 | `AGENTS_ALLOWED_ORIGINS` | Comma-separated deployment origins, default `https://client.example` |
 | `AGENTS_CONFIGURATION_PATH` | Alternate generic configuration JSON |
 | `AGENTS_DELEGATED_SUBJECT` | End-user subject to assert |

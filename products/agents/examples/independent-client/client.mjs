@@ -60,7 +60,10 @@ export async function runIndependentClient(options) {
   const created = await request("POST", "/v1/agents", { name: options.agentName, purpose: options.purpose,
     instructions: options.instructions, operationId: randomUUID() });
   const agentId = created.agent.id;
-  const assigned = { ...configuration, connectedToolBindingIds: [options.fixtureBindingId] };
+  if (!options.fixtureBindingId && !options.fixtureTool) throw new Error("fixtureBindingId or fixtureTool is required");
+  const assigned = { ...configuration, ...(options.fixtureBindingId
+    ? { connectedToolBindingIds: [options.fixtureBindingId] }
+    : { tools: [...new Set([...(configuration.tools ?? []), options.fixtureTool])] }) };
   const updated = await request("PATCH", `/v1/agents/${agentId}`, { configuration: assigned, expectedRevision: 1 });
   const preview = await request("POST", `/v1/agents/${agentId}/preview`, { configuration: assigned });
   if (!preview.ready) throw new Error(`Configuration is not ready: ${JSON.stringify(preview.errors)}`);
@@ -90,7 +93,7 @@ export async function runIndependentClient(options) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const values = process.env;
   const result = await runIndependentClient({ baseUrl: values.AGENTS_URL, credential: values.AGENTS_APPLICATION_CREDENTIAL,
-    fixtureBindingId: values.AGENTS_FIXTURE_TOOL_BINDING, agentName: values.AGENTS_AGENT_NAME ?? "Independent client agent",
+    fixtureBindingId: values.AGENTS_FIXTURE_TOOL_BINDING, fixtureTool: values.AGENTS_FIXTURE_TOOL, agentName: values.AGENTS_AGENT_NAME ?? "Independent client agent",
     purpose: values.AGENTS_AGENT_PURPOSE ?? "Answer questions with the assigned fixture tool.",
     instructions: values.AGENTS_AGENT_INSTRUCTIONS, message: values.AGENTS_MESSAGE ?? "Use the fixture tool and report the result.",
     allowedOrigins: (values.AGENTS_ALLOWED_ORIGINS ?? "https://client.example").split(",").map(value => value.trim()),
