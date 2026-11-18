@@ -1,4 +1,4 @@
-import type { IngestionJobDTO } from "../../capabilities/knowledge/knowledge";
+import type { IngestionJobDTO } from "../../platform/knowledge/knowledge";
 import type { WebsiteCrawlStore } from "../agents/website-crawls";
 import type { ProviderConnection } from "../../contracts/model-providers";
 

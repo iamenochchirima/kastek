@@ -1396,10 +1396,12 @@ implement the knowledge and memory readers, and context assembly prefers the inj
 readers over constructing stores directly. PlatformRunStateReader is injected and has
 no consumer yet.
 
-Knowledge HTTP routes moved to `integrations/http/knowledge-routes.ts`, and
-`platform/knowledge/capability.ts` carries the optional capability descriptor and
-readiness helper. The knowledge store and runtime remain in `capabilities/knowledge`
-because execution consumes the runtime and cannot depend on platform.
+Knowledge HTTP routes moved to `integrations/http/knowledge-routes.ts`. The knowledge
+store, runtime, ingestion, retrieval and object store now live under
+`platform/knowledge/`, with `capability.ts` carrying the optional capability
+descriptor and readiness helper. Execution depends on `contracts/knowledge.ts`, which
+defines the retrieval port and observation types, so it no longer imports platform
+code.
 
 Agent management HTTP handlers moved from composition to `platform/agents/http.ts`.
 Composition passes the product store, creation operations, offerings data and the

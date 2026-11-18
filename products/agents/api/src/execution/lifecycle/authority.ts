@@ -22,7 +22,7 @@ import { channelBindingSchema } from "../../contracts/channel";
 import { channelPorts } from "../../infrastructure/channel-ports";
 import { assertProductAuthority } from "../admission/product-authority";
 import { assertApplicationAuthority } from "../admission/application-authority";
-import { assertProductNativeTaskAccess } from "../../capabilities/products/resource-scope";
+import { assertProductNativeTaskAccess } from "../../contracts/resource-scope";
 import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
 import { currentVisitorLineageAllowed } from "../context/visitor-lineage";
 import { HANDOFF_HARNESS_RELEASE } from "../../contracts/execution";

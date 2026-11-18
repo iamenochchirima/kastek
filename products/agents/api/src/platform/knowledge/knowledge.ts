@@ -11,7 +11,7 @@ import { buildSections } from "./sections";
 import type { SectionPart } from "./sections";
 import { assertMcpJobAuthority } from "../../infrastructure/mcp-job-authority";
 import { isProductResourceScope, requireProductResourceAccess, resourceAccountId, resourceService, resourceOwnership, resourceMatchesScope,
-  knowledgeJobScope, type PersonalResourceScope, type ProductResourceScope } from "../products/resource-scope";
+  knowledgeJobScope, type PersonalResourceScope, type ProductResourceScope } from "../../contracts/resource-scope";
 import { fitUtf8 } from "../../infrastructure/utf8";
 
 export type KnowledgeScope = PersonalResourceScope | ProductResourceScope;

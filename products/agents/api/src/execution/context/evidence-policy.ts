@@ -20,7 +20,7 @@ import { currentVisitorLineageAllowed,historyPrincipalAllowed } from "./visitor-
 import { assertParentEdge, delegationAncestors } from "../delegation/scope";
 import { continuationChildAllowed } from "./work-lineage";
 import { memoryScopeMatchesExecution } from "../memory/scope";
-import { assertProductNativeTaskAccess } from "../../capabilities/products/resource-scope";
+import { assertProductNativeTaskAccess } from "../../contracts/resource-scope";
 import { assertAcceptedProductMemoryTransition } from "../products/product-information";
 import { assertProductReadCustody } from "../products/product-read-custody";
 import { assertMcpTaskAuthority } from "../../infrastructure/mcp-job-authority";

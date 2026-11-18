@@ -1,4 +1,5 @@
 import type { KnowledgeContextReader } from "../../execution/context/readers";
+import type { KnowledgeObservation, KnowledgeRuntimePort } from "../../contracts/knowledge";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
@@ -10,7 +11,7 @@ import { KnowledgeRetrieval,type RetrievalHit } from "./retrieval";
 export interface EvidenceSnippet { evidenceId: string; label: string; citation: string; sourceId: string | null; revisionId: string | null;
   title: string; page: number | null; acquiredAt: string; start: number; end: number; text: string;
   sectionId?: string; headingPath?: string; sectionPart?: number }
-export interface KnowledgeObservation { profile: "lexical-v1" | "hybrid-v1"; passages: EvidenceSnippet[]; omitted: number }
+export type { KnowledgeObservation } from "../../contracts/knowledge";
 export const snippetDTO = (passage: EvidencePassage): EvidenceSnippet => ({ evidenceId: passage.reference.id, label: passage.label, citation: `[${passage.label}]`,
   sourceId: passage.reference.sourceId, revisionId: passage.reference.revisionId, title: fit(passage.title, 120), page: passage.page,
   acquiredAt: passage.reference.acquiredAt, start: passage.reference.start, end: passage.reference.end, text: passage.text });
@@ -32,7 +33,7 @@ function relevantSpan(hit: RetrievalHit, query: string, bytes: number) {
   return { start: hit.start + start, end: hit.start + start + text.length };
 }
 
-export class KnowledgeRuntime implements KnowledgeContextReader {
+export class KnowledgeRuntime implements KnowledgeContextReader, KnowledgeRuntimePort {
   readonly retrieval: KnowledgeRetrieval;
   constructor(readonly pool: Pool, readonly evidence: EvidenceStore, readonly embeddings?: QueryEmbeddingService) { this.retrieval = new KnowledgeRetrieval(pool); }
 

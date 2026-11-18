@@ -11,7 +11,7 @@ import { buildSections,embeddingText } from "./sections";
 import { KnowledgeStore,requireKnowledgeMember } from "./knowledge";
 import { acquirePublicSource,SourceAcquisitionError } from "./source-acquisition";
 import { writeSourceObject } from "./source-objects";
-import { knowledgeJobScope } from "../products/resource-scope";
+import { knowledgeJobScope } from "../../contracts/resource-scope";
 import { assertMcpJobAuthority } from "../../infrastructure/mcp-job-authority";
 
 export const INGESTION_WORKFLOW = "AgentsKnowledgeImportV1";

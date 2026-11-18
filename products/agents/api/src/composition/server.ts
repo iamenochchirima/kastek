@@ -1,5 +1,5 @@
-import { assertKnowledgeBackfilled } from "../capabilities/knowledge/cutover";
-import { startSectionBackfill } from "../capabilities/knowledge/backfill-sections";
+import { assertKnowledgeBackfilled } from "../platform/knowledge/cutover";
+import { startSectionBackfill } from "../platform/knowledge/backfill-sections";
 import { startNativeAnalyticsPublisher } from "../product/reporting/native-analytics";
 import { Pool } from "pg";
 import { loadPlatformConfig } from "../infrastructure/config";

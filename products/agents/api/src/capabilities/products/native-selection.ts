@@ -2,7 +2,7 @@ import type { Pool, PoolClient } from "pg";
 import { PlatformError, sourceAuthorityIds, type AgentConfiguration } from "../../contracts/contracts";
 import { loadSkillRevisions } from "../../execution/memory/memory";
 import { assertSkillRequirements, configurationSkillAuthority } from "../skills/requirement-authority";
-import { requireProductResourceAccess, resourceMatchesScope, type ProductResourceScope } from "./resource-scope";
+import { requireProductResourceAccess, resourceMatchesScope, type ProductResourceScope } from "../../contracts/resource-scope";
 
 export async function validateProductNativeSelection(db: Pool | PoolClient, scope: ProductResourceScope, configuration: AgentConfiguration, manage = true) {
   await requireProductResourceAccess(db, scope, manage);

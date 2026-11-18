@@ -16,7 +16,7 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import type { ConnectedExecutor,ConnectedObservation } from "../../capabilities/connected-tools/connected-executor";
 import { connectedModelView } from "../../capabilities/connected-tools/connected-model-view";
-import type { KnowledgeObservation,KnowledgeRuntime } from "../../capabilities/knowledge/knowledge-runtime";
+import type { KnowledgeObservation, KnowledgeRuntimePort } from "../../contracts/knowledge";
 import { toolDescriptor, toolDescriptorPresentation } from "../../capabilities/tool-descriptors";
 import { capabilityBindingPresentation } from "../../capabilities/tool-presentation";
 import { capabilityDirectory, capabilityExposure } from "../context/capability-directory";
@@ -115,7 +115,7 @@ export interface BusinessOptions {
   evidence?: EvidenceStore;
   readRetainedArtifact?: RetainedArtifactReader;
   artifacts?: import("../artifacts/task-artifacts").TaskArtifactStore;
-  knowledgeRuntime?: KnowledgeRuntime;
+  knowledgeRuntime?: KnowledgeRuntimePort;
   connected?: ConnectedExecutor;
   toolReviews?: ToolReviewStore;
   bookings?:BookingService;
@@ -846,7 +846,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
         if (accepted.sourceRevisionIds.length && accepted.mode !== "none") {
           if (!knowledge || !options.evidence) throw new PlatformError("KNOWLEDGE_RUNTIME_UNAVAILABLE", 503, "Knowledge retrieval is unavailable");
           if (accepted.mode === "pinned") {
-            const sections = await guardedRun(ctx,"initial-knowledge-pinned",() => knowledge!.pinnedSources(taskId)) as Awaited<ReturnType<KnowledgeRuntime["pinnedSources"]>>;
+            const sections = await guardedRun(ctx,"initial-knowledge-pinned",() => knowledge!.pinnedSources(taskId)) as Awaited<ReturnType<KnowledgeRuntimePort["pinnedSources"]>>;
             pinnedKnowledge = sections.map(section => ({ id: section.id, revision: section.revisionId, kind: "knowledge" as const,
               content: `[${section.title} / ${section.headingPath}]\n${section.content}` }));
           } else {

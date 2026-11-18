@@ -1,8 +1,8 @@
 import { databasePoolOptions } from "../infrastructure/pool-policy";
 import { Pool } from "pg";
 import { resourceBackends } from "./resource-backends";
-import { reapDocumentResources } from "../capabilities/knowledge/ingestion-runtime";
-import { reapQueryEmbeddingResources } from "../capabilities/knowledge/query-embedding";
+import { reapDocumentResources } from "../platform/knowledge/ingestion-runtime";
+import { reapQueryEmbeddingResources } from "../platform/knowledge/query-embedding";
 import { reconcilePendingRoots } from "../execution/lifecycle/execution";
 
 export async function runDocumentReaper(pool: Pool, signal: AbortSignal, intervalMs = 1000): Promise<void> {

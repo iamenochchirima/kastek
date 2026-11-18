@@ -9,7 +9,7 @@ import { CURATED_SKILL_PUBLISHER, curatedSkillCatalog, curatedSkillPackage } fro
 import { acquireSkillRepository,type SkillRepositoryOptions,type SkillRepositorySource } from "../../capabilities/skills/repository";
 import { skillFamilyId } from "../../capabilities/skills/family";
 import type { SkillRequirements } from "../../capabilities/skills/requirements";
-import { isProductResourceScope, requireProductResourceAccess, resourceAccountId, resourceService, resourceMatchesScope, type AgentResourceScope } from "../../capabilities/products/resource-scope";
+import { isProductResourceScope, requireProductResourceAccess, resourceAccountId, resourceService, resourceMatchesScope, type AgentResourceScope } from "../../contracts/resource-scope";
 
 async function requireSkillAccess(db: PoolClient, scope: AgentResourceScope, owner = false) {
   if (isProductResourceScope(scope)) return requireProductResourceAccess(db, scope, owner);

@@ -42,7 +42,7 @@ import type { GrowthProductRuntime } from "../../execution/products/growth-runti
 import { isGrowthResourceOperation } from "@kasitek-labs/contracts";
 import { GrowthResourceService } from "./growth-resources";
 import { validateProductNativeSelection, pinProductCompositionSources } from "../../capabilities/products/native-selection";
-import type { ProductResourceScope } from "../../capabilities/products/resource-scope";
+import type { ProductResourceScope } from "../../contracts/resource-scope";
 import { SHARED_HARNESS_RELEASE } from "../../contracts/execution";
 type Db=Pool|PoolClient;
 const absent=():never=>{throw new PlatformError("NOT_FOUND",404,"Conversation or task not found");};

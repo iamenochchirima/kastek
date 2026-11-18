@@ -1,8 +1,8 @@
 import type { FastifyInstance,FastifyRequest } from "fastify";
 import { z } from "zod";
-import type { DocumentRuntime } from "../../capabilities/knowledge/document-runtime";
-import { KnowledgeStore,requireKnowledgeMember,type KnowledgeScope } from "../../capabilities/knowledge/knowledge";
-import { KnowledgeRetrieval } from "../../capabilities/knowledge/retrieval";
+import type { DocumentRuntime } from "../../platform/knowledge/document-runtime";
+import { KnowledgeStore,requireKnowledgeMember,type KnowledgeScope } from "../../platform/knowledge/knowledge";
+import { KnowledgeRetrieval } from "../../platform/knowledge/retrieval";
 import { agentConfigurationSchema, PlatformError } from "../../contracts/contracts";
 import { knowledgeCapability } from "../../platform/knowledge/capability";
 

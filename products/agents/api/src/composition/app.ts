@@ -8,7 +8,7 @@ import { readWorkProgress, queueOrchestrationInstruction, authorizeOrchestration
 import { specialistCatalogue } from "../product/assistant/specialists";
 import { OrganizationAssistantStore } from "../product/agents/organization-assistant";
 import { MemberChannels } from "../product/assistant/member-channels";
-import { PostgresKnowledgeObjectStore } from "../capabilities/knowledge/postgres-object-store";
+import { PostgresKnowledgeObjectStore } from "../platform/knowledge/postgres-object-store";
 import { registerCustomerRecordRoutes } from "../product/customer-records/routes";
 import { registerOverviewRoutes } from "../product/overview/routes";
 import { registerInboxAnalyticsRoutes } from "../product/analytics/routes";
@@ -30,7 +30,7 @@ import { websiteAppearanceSchema } from "../adapters/channels/website/appearance
 import { registerWebsiteAppearanceRoutes } from "../product/deployments/appearance-routes";
 import { ConnectedExecutor } from "../capabilities/connected-tools/connected-executor";
 import { assertConnectedBindingDependencies } from "../capabilities/connected-tools/connected-tool-schema";
-import { KnowledgeStore } from "../capabilities/knowledge/knowledge";
+import { KnowledgeStore } from "../platform/knowledge/knowledge";
 import { resourceBackends } from "./resource-backends";
 import { capabilityBindingSchema } from "../contracts/capability-catalog";
 import {

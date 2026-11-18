@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { documentRuntimeFromEnvironment } from "../capabilities/knowledge/document-runtime";
+import { documentRuntimeFromEnvironment } from "../platform/knowledge/document-runtime";
 import { sandboxManagerFromEnvironment } from "../capabilities/sandbox/sandbox";
 import { executorRoutes } from "../adapters/executors/executor-client";
 import { routedExecutor, type DocumentBackend, type SandboxBackend } from "./routed-resources";

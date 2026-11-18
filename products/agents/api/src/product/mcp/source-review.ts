@@ -2,7 +2,7 @@ import {randomUUID} from "node:crypto";
 import type {Pool,PoolClient} from "pg";
 import {z} from "zod";
 import {PlatformError} from "../../contracts/contracts";
-import {KnowledgeStore,requireKnowledgeMember} from "../../capabilities/knowledge/knowledge";
+import {KnowledgeStore,requireKnowledgeMember} from "../../platform/knowledge/knowledge";
 import {transaction} from "../../infrastructure/database";
 
 type Scope={accountId:string;organizationId:string;connectionId:string};

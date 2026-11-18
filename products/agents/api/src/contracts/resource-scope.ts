@@ -1,7 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
-import { PlatformError, requestDigest } from "../../contracts/contracts";
-import type { Execution } from "../../contracts/execution";
+import { PlatformError, requestDigest } from "./contracts";
+import type { Execution } from "./execution";
 
 export interface ProductResourceScope {
   kind: "product_feature"; product: "growth"; tenantId: string; organizationId: string; agentId: string;
