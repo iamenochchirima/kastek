@@ -48,6 +48,9 @@ originating OAuth connection with the run. `get_agent_run` returns that connecti
 public updates and result. Assigned tools use the ordinary runtime policy. MCP uses `runs:start`
 and `runs:read` independently of agent-management scopes. Separate application credentials
 still require implementation.
+Consent for `runs:start` requires choosing workspace agents. The connection can start only those
+agents, and the runtime rechecks the selection while work continues. A connection created before
+agent selection has no runnable agents and must be reauthorized.
 The operation ceiling used when issuing execution grants is shared under
 `platform/access/grant-operations.ts`. The repository boundary check rejects imports from
 `platform/` into Agents product or integration modules as those platform modules are migrated.

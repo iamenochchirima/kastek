@@ -596,7 +596,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       const authority = humanAuthority(user, scope.organizationId, input.agentId);
       const result = await admitMemberRun({ pool, store, assertServices, grantOperations,
         onAdmitted: async (db, admitted) => {
-          await assertMcpJobAuthority(db, { mcp_connection_id: scope.connectionId, organization_id: scope.organizationId, account_id: scope.accountId, required_scope: "runs:start" });
+          await assertMcpJobAuthority(db, { mcp_connection_id: scope.connectionId, organization_id: scope.organizationId, account_id: scope.accountId, required_scope: "runs:start", agent_id: input.agentId });
           if (admitted.replayed) {
             const origin = (await db.query("SELECT connection_id FROM agents_platform.mcp_run_provenance WHERE task_id=$1", [admitted.task.id])).rows[0];
             if (origin?.connection_id !== scope.connectionId) throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "Request belongs to another connection");
