@@ -46,6 +46,10 @@ An opt-in Agents MCP server lets authorized external assistants create and confi
 website knowledge, preview privately, customize a widget, and request signed-in review before
 activation. It uses Agents organization grants; Growth's operation catalogue and permissions remain
 separate.
+The generic capability page links to the existing tools, knowledge, memory, handoff, delegation,
+workflow and skills configuration. Schedules, code execution and browser use are listed as
+unavailable in the new setup. Delegation currently requires assigned published agents; temporary
+general-purpose children are not yet supported by this interface.
 Deploy on an Agent starts and manages that Agent's social channel connections. The global
 Connections page reflects connected provider accounts. Website installation and appearance are
 managed under Chat widget.

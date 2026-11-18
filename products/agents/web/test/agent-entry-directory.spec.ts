@@ -90,6 +90,20 @@ test("creates a generic agent and opens its configuration", async ({ page }) => 
   expect(submitted).not.toHaveProperty("offering");
 });
 
+test("shows generic capabilities and unavailable future capabilities", async ({ page }) => {
+  await fixture(page);
+  await page.goto(`/app/agents/${secondId}?section=capabilities`);
+  await expect(page.getByRole("heading", { name: "Knowledge", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Memory", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Delegation", exact: true })).toBeVisible();
+  const browser = page.locator("article").filter({ has: page.getByRole("heading", { name: "Browser use" }) });
+  await expect(browser.getByText("Unavailable")).toBeVisible();
+  await expect(browser.getByRole("button")).toHaveCount(0);
+  const knowledge = page.locator("article").filter({ has: page.getByRole("heading", { name: "Knowledge", exact: true }) });
+  await knowledge.getByRole("button", { name: "Configure" }).click();
+  await expect(page).toHaveURL(new RegExp(`/app/agents/${secondId}\\?section=knowledge`));
+});
+
 test("editing an agent updates only its name and avatar", async ({ page }) => {
   const { profileUpdates } = await fixture(page);
   await page.goto("/app/agents");
