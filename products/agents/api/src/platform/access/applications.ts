@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, createPublicKey, randomBytes, randomUUID, verify } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
@@ -11,6 +11,8 @@ export const applicationScopeSchema = z.enum(["agents:read", "agents:manage", "a
   "connections:manage", "runs:start", "runs:read", "runs:control", "reviews:decide"]);
 export type ApplicationScope = z.infer<typeof applicationScopeSchema>;
 const scopeSchema = applicationScopeSchema;
+const assertionSchema = z.strictObject({ applicationId: z.uuid(), organizationId: z.uuid(), subject: z.string().min(1).max(256),
+  audience: z.string().min(1).max(2048), issuedAt: z.iso.datetime(), expiresAt: z.iso.datetime() });
 const createSchema = z.strictObject({ name: z.string().trim().min(1).max(120),
   agentIds: z.array(z.uuid()).min(1).max(100).refine(ids => new Set(ids).size === ids.length),
   scopes: z.array(scopeSchema).min(1).refine(scopes => new Set(scopes).size === scopes.length) });
@@ -25,7 +27,7 @@ export async function authorizeApplicationManager(db: PoolClient, owner: Owner):
 }
 
 export class Applications {
-  constructor(private readonly pool: Pool, private readonly authorize: Authorize) {}
+  constructor(private readonly pool: Pool, private readonly authorize: Authorize, private readonly options: { publicUrl?: string } = {}) {}
 
   async create(owner: Owner, raw: unknown): Promise<ApplicationCreateResponse> {
     const input = createSchema.parse(raw);
@@ -128,6 +130,51 @@ export class Applications {
     return { id: row.id, name: row.name, version: { id: row.version_id, number: row.version_number, createdAt: row.version_created_at } };
   }
 
+
+  async registerKey(owner: Owner, applicationId: string, raw: unknown) {
+    z.uuid().parse(applicationId);
+    const input = z.strictObject({ operationId: z.uuid(), publicKey: z.string().min(32).max(4096) }).parse(raw);
+    let key;
+    try { key = createPublicKey(input.publicKey); } catch { key = null; }
+    if (!key || key.asymmetricKeyType !== "ed25519") throw new PlatformError("INVALID_PUBLIC_KEY", 400, "Use an Ed25519 public key in PEM form");
+    return transaction(this.pool, async db => {
+      await this.authorize(db, owner);
+      const application = await db.query("SELECT id FROM agents_platform.applications WHERE organization_id=$1 AND id=$2 AND revoked_at IS NULL FOR SHARE", [owner.organizationId, applicationId]);
+      if (!application.rowCount) throw new PlatformError("NOT_FOUND", 404, "Application not found");
+      await db.query(`INSERT INTO agents_platform.application_signing_keys(id,organization_id,application_id,public_key,algorithm,created_by)
+        VALUES($1,$2,$3,$4,'ed25519',$5) ON CONFLICT (id) DO NOTHING`, [input.operationId, owner.organizationId, applicationId, input.publicKey, owner.accountId]);
+      return { key: { id: input.operationId, algorithm: "ed25519" } };
+    });
+  }
+
+  async revokeKey(owner: Owner, applicationId: string, keyId: string) {
+    z.uuid().parse(applicationId); z.uuid().parse(keyId);
+    return transaction(this.pool, async db => {
+      await this.authorize(db, owner);
+      const result = await db.query("UPDATE agents_platform.application_signing_keys SET revoked_at=COALESCE(revoked_at,now()) WHERE organization_id=$1 AND application_id=$2 AND id=$3 RETURNING id", [owner.organizationId, applicationId, keyId]);
+      if (!result.rowCount) throw new PlatformError("NOT_FOUND", 404, "Key not found");
+      return { id: keyId };
+    });
+  }
+
+  async verifyAssertion(secret: string, assertion: string) {
+    const caller = await this.authenticate(secret, "runs:start");
+    const match = /^([A-Za-z0-9_-]{1,8192})\.([A-Za-z0-9_-]{1,1024})$/.exec(assertion);
+    const invalid = () => new PlatformError("INVALID_ASSERTION", 401, "Delegated assertion is invalid");
+    if (!match) throw invalid();
+    const payloadPart = match[1]!, signature = Buffer.from(match[2]!, "base64url");
+    let parsed;
+    try { parsed = assertionSchema.parse(JSON.parse(Buffer.from(payloadPart, "base64url").toString("utf8"))); } catch { throw invalid(); }
+    if (parsed.applicationId !== caller.applicationId || parsed.organizationId !== caller.organizationId) throw new PlatformError("ASSERTION_SCOPE_DENIED", 403, "Assertion is for another application or workspace");
+    if (this.options.publicUrl && parsed.audience !== this.options.publicUrl) throw new PlatformError("ASSERTION_SCOPE_DENIED", 403, "Assertion audience does not match this platform");
+    const now = Date.now(), issued = Date.parse(parsed.issuedAt), expires = Date.parse(parsed.expiresAt);
+    if (!Number.isFinite(issued) || !Number.isFinite(expires) || expires <= now || issued > now + 60_000 || expires - issued > 300_000) throw invalid();
+    const keys = (await this.pool.query("SELECT public_key FROM agents_platform.application_signing_keys WHERE organization_id=$1 AND application_id=$2 AND revoked_at IS NULL", [caller.organizationId, caller.applicationId])).rows;
+    const signed = Buffer.from(payloadPart);
+    if (!keys.some(row => { try { return verify(null, signed, createPublicKey(row.public_key), signature); } catch { return false; } })) throw invalid();
+    return { ...caller, subject: parsed.subject, assertionDigest: createHash("sha256").update(signed).digest("hex"), issuedAt: parsed.issuedAt, expiresAt: parsed.expiresAt };
+  }
+
   async authenticate(secret: string, scope: ApplicationScope) {
     if (!/^kat_[A-Za-z0-9_-]{43}$/.test(secret)) throw new PlatformError("INVALID_CREDENTIAL", 401, "Invalid application credential");
     const result = await this.pool.query<{ organization_id: string; application_id: string; credential_id: string }>(`SELECT k.organization_id,k.application_id,k.id credential_id
@@ -157,4 +204,4 @@ export class Applications {
 
 /** Public operations consumed by protocol adapters; storage remains owned by this module. */
 export type ApplicationAccess = Pick<Applications, "create" | "list" | "revoke" | "assignAgents" | "issueCredential" |
-  "revokeCredential" | "listAgents" | "inspectAgent" | "authenticate" | "authorizedRun">;
+  "revokeCredential" | "listAgents" | "inspectAgent" | "authenticate" | "authorizedRun" | "registerKey" | "revokeKey" | "verifyAssertion">;

@@ -16,7 +16,8 @@ export async function admitApplicationRun(options: { pool: Pool; store: Port;
   assertServices(configuration: AgentConfiguration): Promise<void>;
   grantOperations(configuration: AgentConfiguration): ExecutionGrant["operations"];
 }, input: { organizationId: string; applicationId: string; credentialId: string; agentId: string;
-  message: string; requestId: string; conversationId?: string }): Promise<{ task: TaskRecord; replayed: boolean }> {
+  message: string; requestId: string; conversationId?: string;
+  delegated?: { subject: string; assertionDigest: string; issuedAt: string; expiresAt: string } }): Promise<{ task: TaskRecord; replayed: boolean }> {
   const authority: AdmissionAuthority = { product: "agents", organizationId: input.organizationId,
     resourceId: input.agentId, callerClientId: "agents-application",
     principal: { kind: "application", applicationId: input.applicationId } };
@@ -49,7 +50,17 @@ export async function admitApplicationRun(options: { pool: Pool; store: Port;
       maxOutputTokens: version.configuration.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(version.configuration),
       expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), revokedAt: null });
     await options.store.createApplicationGrantInTransaction(db, { grant });
-    return options.store.admitTaskInTransaction(db, { authority, grantId: grant.id, versionId: version.id, input: input.message,
+    const admitted = await options.store.admitTaskInTransaction(db, { authority, grantId: grant.id, versionId: version.id, input: input.message,
       requestKey, conversationId: input.conversationId, configurationMode: "current" });
+    if (input.delegated) {
+      const existing = (await db.query<{ subject: string; assertion_digest: string }>("SELECT subject,assertion_digest FROM agents_platform.application_delegations WHERE task_id=$1", [admitted.task.id])).rows[0];
+      if (existing) {
+        if (existing.subject !== input.delegated.subject || existing.assertion_digest !== input.delegated.assertionDigest)
+          throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "The request key was used for a different delegated user");
+      } else await db.query(`INSERT INTO agents_platform.application_delegations(task_id,organization_id,application_id,credential_id,subject,assertion_digest,issued_at,expires_at)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, [admitted.task.id, input.organizationId, input.applicationId, input.credentialId,
+        input.delegated.subject, input.delegated.assertionDigest, input.delegated.issuedAt, input.delegated.expiresAt]);
+    }
+    return admitted;
   });
 }

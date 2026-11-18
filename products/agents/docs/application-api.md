@@ -42,3 +42,22 @@ execution and access for its existing application runs.
 The agent and version identity is available through `agents:read`. The agent's full
 configuration and per-plan API entitlement are not yet implemented.
 MCP OAuth permissions are separate from these credentials.
+
+## Delegated users
+
+An application can act for one of its own end users without giving that user a workspace
+account. Register an Ed25519 public key with
+`POST /api/organizations/:organizationId/applications/:applicationId/keys` and
+`{ "operationId": "<uuid>", "publicKey": "<SPKI PEM>" }`. Revoke it at
+`POST /api/organizations/:organizationId/applications/:applicationId/keys/:keyId/revoke`.
+The private key stays with the application.
+
+Sign a payload containing `applicationId`, `organizationId`, `subject`, `audience`,
+`issuedAt` and `expiresAt`, encode it as base64url, sign the encoded string, and send
+`<encoded>.<signature>` as `assertion` on `POST /v1/runs`. The assertion must match the
+calling application and workspace, name this platform as its audience, and live at most
+five minutes.
+
+The run keeps the application as its principal and records the delegated subject in
+`application_delegations` for attribution. The assertion grants no workspace membership
+and no additional tool or agent access.
