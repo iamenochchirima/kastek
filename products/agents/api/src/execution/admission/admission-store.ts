@@ -56,6 +56,14 @@ function grantFromRow(row: Record<string, unknown>): ExecutionGrant {
 
 
 export class AdmissionStore extends AuthorityStore {
+  async createApplicationGrantInTransaction(db: PoolClient, input: { grant: ExecutionGrant }): Promise<ExecutionGrant> {
+    const grant = executionGrantSchema.parse(input.grant);
+    if (grant.principal.kind !== "application" || new Date(grant.expiresAt).getTime() > Date.now() + 30 * 60_000) denied();
+    const version = await this.version(db, grant.organizationId, grant.versionId);
+    await this.assertPrincipal(db, grant, version);
+    assertGrantAuthority(grant, grant, version.id, version.configuration);
+    return this.insertGrant(db, grant);
+  }
   async admitTask(input:AdmitTaskInput):Promise<{task:TaskRecord;replayed:boolean}> {
     return this.transaction(db=>this.admitTaskInTransaction(db,input));
   }
@@ -73,6 +81,8 @@ export class AdmissionStore extends AuthorityStore {
   }
   private async admitForPurpose(db:PoolClient,input:AdmitTaskInput,episodeCommandId?:string,privatePreview=false):Promise<{task:TaskRecord;replayed:boolean}> {
     assertCustomerChannelRecipient(input.authority.product, input.authority.principal, input.channelBinding);
+    if (input.authority.principal.kind === "application" &&
+        (input.configurationMode !== "current" || input.channelBinding || input.evaluationTrialId || input.continuationOf || episodeCommandId || privatePreview)) denied();
     let billing: BillingEntitlementSnapshot | null = null;
     if (input.authority.product === "agents") billing = await assertAgentsBillingAccess(this.pool, input.authority.organizationId);
     const policy=schedulingPolicyFromEnvironment();
@@ -96,8 +106,8 @@ export class AdmissionStore extends AuthorityStore {
     if (input.authority.principal.kind === "channel_customer" && (!input.channelBinding ||
       channelBindingSchema.parse(input.channelBinding).customerConversationId !== input.authority.principal.participantId)) denied();
     if (input.configurationMode === "current") {
-      if (input.evaluationTrialId || !["human", "visitor", "channel_customer"].includes(input.authority.principal.kind) || input.authority.product !== "agents" && input.authority.principal.kind !== "human") denied();
-      if (input.authority.principal.kind === "human") {
+      if (input.evaluationTrialId || !["human", "application", "visitor", "channel_customer"].includes(input.authority.principal.kind) || input.authority.product !== "agents" && input.authority.principal.kind !== "human") denied();
+      if (input.authority.principal.kind === "human" || input.authority.principal.kind === "application") {
         const latest = (await db.query("SELECT id FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC LIMIT 1", [input.authority.organizationId, version.agent_id])).rows[0];
         if (latest?.id !== version.id) throw new PlatformError("CONFIGURATION_CHANGED",409,"Agent settings changed. Try again.");
       }

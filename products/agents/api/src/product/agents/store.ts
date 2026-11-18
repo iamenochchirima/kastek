@@ -40,6 +40,7 @@ export class PlatformStore {
   getVersion=(...args:Parameters<AgentStore["getVersion"]>)=>this.agentStore.getVersion(...args);
   createGrant=(...args:Parameters<AgentStore["createGrant"]>)=>this.agentStore.createGrant(...args);
   createGrantInTransaction=(...args:Parameters<AgentStore["createGrantInTransaction"]>)=>this.agentStore.createGrantInTransaction(...args);
+  createApplicationGrantInTransaction=(...args:Parameters<AdmissionStore["createApplicationGrantInTransaction"]>)=>this.admissionStore.createApplicationGrantInTransaction(...args);
   revokeGrant=(...args:Parameters<AgentStore["revokeGrant"]>)=>this.agentStore.revokeGrant(...args);
   listDeployments=(...args:Parameters<DeploymentStore["listDeployments"]>)=>this.deploymentStore.listDeployments(...args);
   publishWebsite=(...args:Parameters<DeploymentStore["publishWebsite"]>)=>this.deploymentStore.publishWebsite(...args);

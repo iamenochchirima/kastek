@@ -21,6 +21,7 @@ import { assertEvaluationTrial } from "../admission/trial-authority";
 import { channelBindingSchema } from "../../contracts/channel";
 import { channelPorts } from "../../infrastructure/channel-ports";
 import { assertProductAuthority } from "../admission/product-authority";
+import { assertApplicationAuthority } from "../admission/application-authority";
 import { assertProductNativeTaskAccess } from "../../capabilities/products/resource-scope";
 import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
 import { currentVisitorLineageAllowed } from "../context/visitor-lineage";
@@ -87,6 +88,10 @@ async function assertBaseAuthorityForPurpose(db: Pool | PoolClient, execution: E
         throw new PlatformError("MEMBER_CHANNEL_REVOKED",403,"Private messaging access was revoked");
     }
 
+  } else if (task.principal.kind === "application") {
+    // Delegated runs inherit their parent's authority, checked recursively above.
+    if (!task.parent_task_id) await assertApplicationAuthority(db, { product: task.product, organizationId: task.organization_id,
+      resourceId: task.resource_id, callerClientId: task.caller_client_id, principal: task.principal }, agentId);
   } else if (task.principal.kind === "visitor" && !task.parent_task_id) {
     if (!await currentVisitorLineageAllowed(db,execution)) throw new PlatformError("DEPLOYMENT_SCOPE_DENIED",403,"Website return access is unavailable");
     const allowed = await db.query(`SELECT 1 FROM agents_platform.website_deployments d JOIN agents_platform.website_sessions s ON s.deployment_id=d.id

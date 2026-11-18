@@ -11,6 +11,7 @@ import { transaction } from "../../infrastructure/database";
 import { assertAutomationAdmission } from "../lifecycle/automation-authority";
 import { assertChannelCustomerAuthority } from "./channel-authority";
 import { assertProductAuthority } from "./product-authority";
+import { assertApplicationAuthority } from "./application-authority";
 
 import type { Account,VersionRecord,WebsiteDeployment } from "../../contracts/records";
 
@@ -59,6 +60,8 @@ export class AuthorityStore {
       const account = (await db.query<Account>("SELECT * FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2", [authority.principal.issuer, authority.principal.subject])).rows[0];
       if (!account) denied();
       await this.membership(db, account.id, authority.organizationId);
+    } else if (authority.principal.kind === "application") {
+      await assertApplicationAuthority(db, authority, version.agent_id);
     } else if (authority.principal.kind === "visitor") {
       if (authority.callerClientId !== "agents-website" || authority.resourceId !== authority.principal.deploymentId) denied();
       const deployment = (await db.query<WebsiteDeployment>("SELECT * FROM agents_platform.website_deployments WHERE organization_id=$1 AND id=$2 AND revoked_at IS NULL AND paused=false FOR SHARE", [authority.organizationId, authority.principal.deploymentId])).rows[0];

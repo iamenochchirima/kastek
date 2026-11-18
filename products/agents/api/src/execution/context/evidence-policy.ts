@@ -12,6 +12,7 @@ import { loadExecution } from "../lifecycle/state";
 import { assertEvaluationTrial } from "../admission/trial-authority";
 import { assertChannelCustomerAuthority } from "../admission/channel-authority";
 import { assertProductAuthority } from "../admission/product-authority";
+import { assertApplicationAuthority } from "../admission/application-authority";
 import { productPorts } from "../../infrastructure/product-ports";
 import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
 import { currentVisitorLineageAllowed,historyPrincipalAllowed } from "./visitor-lineage";
@@ -43,7 +44,7 @@ export function dto(row: Record<string, any>): EvidenceReference { return eviden
 export function nodeDto(row: Record<string, any>): EvidenceNode { return { id: row.id, taskId: row.task_id, kind: row.kind, ownerId: row.owner_id, evidenceIds: row.evidence_ids, parents: row.parents, manifest: assertDependencyManifest(row.manifest) }; }
 export async function owner(db: Db, execution: Execution): Promise<string | null> {
   const principal = execution.task.principal;
-  if (isCustomerPrincipal(principal)) return null;
+  if (isCustomerPrincipal(principal) || principal.kind === "application") return null;
   if (principal.kind === "automation") return principal.ownerAccountId;
   return (await db.query("SELECT id FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2", [principal.issuer, principal.subject])).rows[0]?.id ?? null;
 }
@@ -74,6 +75,9 @@ export async function inspectionAuthority(db: Db, execution: Execution): Promise
       callerClientId:execution.task.caller_client_id,principal:execution.task.principal},execution.task.version_id);
   } else if (accountId) {
     if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE", [root.task.organization_id, accountId])).rowCount) throw unavailable();
+  } else if (root.task.principal.kind === "application") {
+    await assertApplicationAuthority(db, { product: root.task.product, organizationId: root.task.organization_id,
+      resourceId: root.task.resource_id, callerClientId: root.task.caller_client_id, principal: root.task.principal }, root.agentId);
   } else if (root.task.principal.kind === "visitor") {
     if (!await currentVisitorLineageAllowed(db,root)) throw unavailable();
     if (!(await db.query(`SELECT 1 FROM agents_platform.website_deployments d JOIN agents_platform.website_sessions s ON s.deployment_id=d.id
