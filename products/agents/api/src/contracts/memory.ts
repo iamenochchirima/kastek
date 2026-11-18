@@ -22,3 +22,18 @@ export interface MemoryAccessPort {
 export interface SkillRevisionReader {
   loadSkillRevisions(db: Pool | PoolClient, organizationId: string, agentId: string, skillIds: string[], codec: SkillPackageCodec): Promise<SkillRevision[]>;
 }
+
+export interface MemoryRecord {
+  id: string; kind: "semantic" | "episodic"; content: string;
+  status: "candidate" | "accepted" | "forgotten"; revision: number; sourceTaskId: string | null;
+  expiresAt: string | null; createdAt: string; updatedAt: string;
+  origin: "user_supplied" | "model_candidate"; assertion: MemoryAssertion; verified: false;
+}
+/** The memory tool surface, so the tool gateway does not construct the store. */
+export interface MemoryStorePort {
+  read(scope: MemoryScope, query?: string, page?: { offset?: number; limit?: number }):
+    Promise<{ generation: number; memories: MemoryRecord[]; nextOffset?: number }>;
+  readOne(scope: MemoryScope, memoryId: string): Promise<{ generation: number; memory: MemoryRecord }>;
+  propose(scope: MemoryScope, input: { operationId: string; kind: "semantic" | "episodic"; content: string;
+    sourceTaskId?: string; expiresAt?: string; assertion?: MemoryAssertion }): Promise<{ id: string }>;
+}
