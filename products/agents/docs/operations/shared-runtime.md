@@ -430,8 +430,24 @@ worker at a time; Restate keeps in-flight invocations on the old deployment unti
 ### Measured capacity
 
 The controlled harness (`products/agents/api/test/scheduling-load.ts`) records a JSON report
-under `.audit/agents-load-*.json`. A 100-root, one-replica run with worker-loss selected
-measured 100 admitted, 98 completed, 2 uncertain, peak 66 running roots, 139 physical model
-calls and 10 child runs. The observed limiting resource was model-call concurrency and host CPU
-at that concurrency. Acceptance remains unmet on physical-call attribution and fault injection;
-treat those reports as measurement, not capacity certification.
+under `.audit/agents-load-*.json`. The same `full-mixed-v3` workload was run at 100 roots and
+2 replicas under each required fault; both runs met the declared targets.
+
+| Variant | Result | Admission p95 | Dispatch p95 | Child activation p95 | Recovery | Model calls |
+| --- | --- | --- | --- | --- | --- | --- |
+| worker-loss | 99 completed, 1 truthful uncertain | 1.26s | 1.43s | 10.7s | 0.58s | 150 |
+| provider-throttle | 95 completed, 5 rejected `MODEL_RATE_LIMITED` | 1.08s | 1.27s | 10.4s | 2.28s | 149 |
+
+Declared targets are 5s interactive p95 and 30s queue/child-activation p95. The worker-loss run
+peaked at 40 running roots and 4 concurrent provider calls, injected the kill into an active
+provider call, restarted the worker and reconciled through the surviving replica. The throttle
+run rejected 5 physical calls with HTTP 429 and settled those roots as failed rather than
+retrying them. Physical-call attribution matched 150/150 and 149/149 native operations; there
+were no lost roots, duplicate effects, cross-tenant leaks or incorrect settlements.
+
+The limiting resource at this profile is API CPU: each API process peaked near 4.4 cores of the
+12 available while workers peaked near 1.4 cores. Model-call concurrency peaked at 4 (worker-loss)
+and 9 (provider-throttle), so the provider is not the binding constraint before API CPU is.
+
+The harness accepts one selected fault per run. Run the workload once per fault; do not treat a
+single fault report as covering the others.

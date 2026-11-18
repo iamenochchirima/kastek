@@ -11,7 +11,7 @@ Feature flag or rollout method: worker roles and pool labels; no production roll
 Analytics events and success metrics: not applicable (no new product analytics events)
 Logs, metrics, dashboards, and alerts: agents.worker.invocations, agents.usage.tokens by tenant, connected provider attempts and throttling, capacity/dispatch queue age, database lock waiters
 User, API, internal, and operational documentation: application-api.md, mcp-integration.md, shared-runtime.md, consumer-retirement.md
-Validation evidence: API typecheck; 516-file boundary check; API build and web production build pass; focused API/MCP/context/capacity suites; live Restate restart and context runs; independent client and browser task-activity proof; load measurement recorded separately
+Validation evidence: API typecheck; 516-file boundary check; API build and web production build pass; focused API/MCP/context/capacity suites; live Restate restart and context runs; independent client and browser task-activity proof; 100-root/2-replica mixed load accepted under worker-loss and provider-throttle
 Rollback or disable plan: deploy the previous commit; migrations are additive and no destructive reset was applied; disable MCP with AGENTS_MCP_ENABLED=false
 Post-release review date: after the owner approves and completes a production rollout
 ```
@@ -19,8 +19,9 @@ Post-release review date: after the owner approves and completes a production ro
 ## Release decisions
 
 - Production release, production migration and push are **not authorized** by this record.
-- The load acceptance (9.4) remains unmet on physical-call attribution and worker-loss
-  injection; measured capacity is recorded but is not a certification.
+- The 100-root/2-replica mixed load met its declared targets under both a worker restart and a
+  provider limit; physical-call attribution matched every native operation. The measured
+  limiting resource was API CPU, not the provider.
 - Archive and restore remains an owner functionality decision; it is not a cutover prerequisite
   in this inventory.
 - Consumer cutover and deletion of retired routes are follow-on work; see
