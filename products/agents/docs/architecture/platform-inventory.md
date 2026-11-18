@@ -334,3 +334,14 @@ built-in procedures. Agents assign revisions through `procedures` references; pu
 validates the reference against the stored revision and pins its digest in the effective
 composition. Runtime procedure discovery, load and start resolve the stored definition, and
 procedure progress completes only on validated receipt kinds.
+
+## Delegation roster
+
+`capabilities.delegation.enabled` is the only required setting. Saved `bindings` are optional
+defaults and, with `roster: "restricted"`, the eligible set. On an open roster the coordinator
+may also start a temporary general-purpose child with the selector `general` or a named
+workspace agent with `named-<agentId>`; both use the agent's latest published version, are
+narrowed to the parent's own sources and connections, and remain subject to `maxChildren`,
+`maxDepth`, task-tree and shared model/token limits. `agents.discover` lists named agents only
+on an open roster. The request schema keeps `bindingId` as the selector, so published tool
+contracts do not change.

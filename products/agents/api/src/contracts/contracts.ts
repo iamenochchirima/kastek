@@ -46,7 +46,8 @@ export const delegationBindingSchema = z.strictObject({
 });
 export const businessCapabilitiesSchema = z.strictObject({
   delegation: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({ enabled: z.literal(true),
-    bindings: z.array(delegationBindingSchema).min(1).max(32).refine(bindings => new Set(bindings.map(binding => binding.id)).size === bindings.length, "Duplicate specialist binding"),
+    bindings: z.array(delegationBindingSchema).max(32).refine(bindings => new Set(bindings.map(binding => binding.id)).size === bindings.length, "Duplicate specialist binding"),
+    roster: z.enum(["open", "restricted"]).optional(),
     maxChildren: z.number().int().min(1).max(8), maxDepth: z.number().int().positive().max(2147483647).nullable(), policy: orchestrationPolicySchema.optional() })]),
   sandbox: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({ enabled: z.literal(true), profileId: z.literal("python-analysis-v1") })]),
   businessActions: z.discriminatedUnion("enabled",[unavailableCapability,z.strictObject({enabled:z.literal(true),profileId:z.literal("calendar-booking-v1"),permittedOperations:calendarOperationsSchema,policyId:z.uuid(),policyDigest:z.string().regex(/^[a-f0-9]{64}$/)})]),
