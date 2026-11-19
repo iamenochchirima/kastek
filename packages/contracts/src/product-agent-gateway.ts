@@ -82,3 +82,53 @@ export const PRODUCT_AGENT_GATEWAY_PATH = "/internal/v1/products";
 export function productAgentGatewayPath(product: "growth" | "agencies"): string {
   return `${PRODUCT_AGENT_GATEWAY_PATH}/${product}/agent-gateway`;
 }
+
+/**
+ * Lifecycle operations for product-owned provisioning. A product supplies the target and
+ * configuration; the platform owns admission, versions and deployment. These are defined
+ * here so provisioning can move off product-specific publication requests without changing
+ * the run contract.
+ */
+export const productAgentLifecycleInputSchemas = {
+  "agents.create": z.strictObject({ target: productAgentTargetSchema, name: z.string().trim().min(1).max(120),
+    purpose: z.string().trim().min(1).max(600).optional(), instructions: z.string().trim().min(1).max(8000).optional(),
+    operationId: z.string().min(1).max(128) }),
+  "agents.get": z.strictObject({ target: productAgentTargetSchema }),
+  "agents.configure": z.strictObject({ target: productAgentTargetSchema, configuration: z.unknown(),
+    expectedRevision: z.number().int().positive() }),
+  "agents.publish": z.strictObject({ target: productAgentTargetSchema, expectedRevision: z.number().int().positive() }),
+  "agents.deploy": z.strictObject({ target: productAgentTargetSchema, versionId: id.optional(),
+    allowedOrigins: z.array(z.string().min(1).max(2048)).min(1).max(10) }),
+} as const;
+
+export type ProductAgentLifecycleInputs = {
+  [K in keyof typeof productAgentLifecycleInputSchemas]: z.infer<(typeof productAgentLifecycleInputSchemas)[K]>;
+};
+export type ProductAgentLifecycleOperation = keyof ProductAgentLifecycleInputs;
+export const productAgentLifecycleOperations = Object.keys(productAgentLifecycleInputSchemas) as ProductAgentLifecycleOperation[];
+
+export type ProductAgentLifecycleCommand<K extends ProductAgentLifecycleOperation = ProductAgentLifecycleOperation> =
+  K extends ProductAgentLifecycleOperation ? {
+    version: "1"; requestId: string; product: "growth" | "agencies"; tenantId: string;
+    actor: { issuer: string; subject: string }; operation: K; input: ProductAgentLifecycleInputs[K];
+  } : never;
+
+/** Signed envelope for product-owned extension operations that are not part of the run contract. */
+export const productAgentExtensionSchema = z.strictObject({
+  version: z.literal("1"),
+  requestId: z.string().min(1).max(128),
+  product: z.enum(["growth", "agencies"]),
+  tenantId: z.string().min(1).max(128),
+  actor: z.strictObject({ issuer: z.string().min(1).max(512), subject: z.string().min(1).max(512) }),
+  operation: z.string().min(1).max(128).regex(/^(growth|agencies)\.[a-z0-9.]+$/),
+  input: z.unknown(),
+});
+export type ProductAgentExtensionCommand = z.infer<typeof productAgentExtensionSchema>;
+
+export function parseProductAgentExtension(value: unknown): ProductAgentExtensionCommand {
+  try { return productAgentExtensionSchema.parse(value); }
+  catch (error) {
+    if (error instanceof z.ZodError) throw new ProductAgentContractError("Invalid product agent extension command");
+    throw error;
+  }
+}

@@ -3,6 +3,7 @@ import { generateKeyPair, exportSPKI, exportPKCS8, SignJWT } from "jose";
 import Fastify from "fastify";
 import { describe, expect, it, vi } from "vitest";
 import { requestDigest } from "../src/contracts/contracts";
+import { parseProductAgentExtension, productAgentLifecycleInputSchemas } from "@kasitek-labs/contracts";
 import { registerProductAgentGateway } from "../src/product/integrations/product-agent-gateway";
 import type { GrowthExecutionService } from "../src/product/integrations/growth-execution";
 import type { GrowthServiceTrust } from "../src/adapters/products/growth-service-auth";
@@ -39,6 +40,25 @@ async function fixture() {
   };
   return { app, keys, trust, execute, signed, post };
 }
+
+describe("product agent contracts", () => {
+  it("validates lifecycle operations and namespaced extension envelopes", () => {
+    const target = { kind: "product_feature", featureId: "assistant" } as const;
+    expect(productAgentLifecycleInputSchemas["agents.create"].parse({ target, name: "Assistant", operationId: "create-assistant", instructions: "Answer briefly." }))
+      .toMatchObject({ target, name: "Assistant" });
+    expect(productAgentLifecycleInputSchemas["agents.configure"].parse({ target, configuration: {}, expectedRevision: 1 }))
+      .toMatchObject({ expectedRevision: 1 });
+    expect(() => productAgentLifecycleInputSchemas["agents.deploy"].parse({ target, allowedOrigins: [] })).toThrow();
+    expect(() => productAgentLifecycleInputSchemas["agents.publish"].parse({ target, expectedRevision: 0 })).toThrow();
+
+    const extension = { version: "1", requestId: "ext-1", product: "growth", tenantId: "business",
+      actor: { issuer: "https://growth.test", subject: "member" }, operation: "growth.features.list", input: {} };
+    expect(parseProductAgentExtension(extension).operation).toBe("growth.features.list");
+    expect(() => parseProductAgentExtension({ ...extension, operation: "other.features.list" })).toThrow();
+    expect(() => parseProductAgentExtension({ ...extension, operation: "features.list" })).toThrow();
+    expect(() => parseProductAgentExtension({ ...extension, extra: true })).toThrow();
+  });
+});
 
 describe("product agent gateway", () => {
   it("accepts a signed shared command and maps it to the Growth run service", async () => {
