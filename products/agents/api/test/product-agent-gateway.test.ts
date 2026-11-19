@@ -49,7 +49,7 @@ describe("product agent gateway", () => {
       const result = await f.post(command);
       expect(result.status).toBe(200);
       expect(f.execute).toHaveBeenCalledTimes(1);
-      expect(f.execute.mock.calls[0]![0]).toMatchObject({ operation: "turns.submit", input: { text: "Hello" } });
+      expect(f.execute.mock.calls[0]![0]).toMatchObject({ operation: "runs.start", input: { message: "Hello" } });
     } finally { await f.app.close(); }
   });
 

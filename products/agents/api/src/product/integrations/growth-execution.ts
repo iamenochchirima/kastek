@@ -14,7 +14,7 @@ import type {ModelDescriptor} from "../../contracts/model-providers";
 import { exportProductExecutionCapture } from "../evaluation/product-capture";
 import { randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
-import type { GrowthAgentCommand,GrowthAgentConversation,GrowthAgentFeatureId,GrowthAgentTask,GrowthAgentTaskState,GrowthAgentResult,GrowthAgentContext,GrowthAgentContextEvidence,GrowthAgentPublication,GrowthAgentSpecialist } from "@kasitek-labs/contracts";
+import type { GrowthAgentCommand,ProductAgentCommand,GrowthAgentConversation,GrowthAgentFeatureId,GrowthAgentTask,GrowthAgentTaskState,GrowthAgentResult,GrowthAgentContext,GrowthAgentContextEvidence,GrowthAgentPublication,GrowthAgentSpecialist } from "@kasitek-labs/contracts";
 import { agentConfigurationSchema,modelSchema,canonicalJson,executionGrantSchema,PlatformError,requestDigest,terminalTaskStates,sourceAuthorityIds,connectedToolAuthorityIds,type AdmissionAuthority } from "../../contracts/contracts";
 import { capabilityBindingSchema } from "../../contracts/capability-catalog";
 import type { TaskRecord,VersionRecord } from "../../contracts/records";
@@ -253,7 +253,7 @@ export class GrowthExecutionService {
       await this.tenant(db,command);
       await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",["growth-command:"+command.tenantId+":"+command.requestId]);
       const digest=requestDigest(command),old=(await db.query("SELECT * FROM agents_platform.product_command_receipts WHERE product='growth' AND tenant_id=$1 AND request_id=$2",[command.tenantId,command.requestId])).rows[0];
-      if(old){if(old.request_digest!==digest)throw new PlatformError("IDEMPOTENCY_CONFLICT",409,"The request identity was used for different input");return command.operation==="turns.submit"?{...old.response,replayed:true}:old.response;}
+      if(old){if(old.request_digest!==digest)throw new PlatformError("IDEMPOTENCY_CONFLICT",409,"The request identity was used for different input");return ["turns.submit","runs.start"].includes(command.operation)?{...old.response,replayed:true}:old.response;}
       const response=await perform(db);
       await db.query("INSERT INTO agents_platform.product_command_receipts(product,tenant_id,request_id,request_digest,response) VALUES('growth',$1,$2,$3,$4)",[command.tenantId,command.requestId,digest,response]);
       return response;
@@ -321,9 +321,12 @@ export class GrowthExecutionService {
     await db.query("UPDATE agents_platform.product_conversations SET context_display=$2 WHERE conversation_id=$1",[conversation.conversation_id,snapshot.sources[0]?{title:snapshot.sources[0].title,route:snapshot.sources[0].route}:null]);
     return {task:{id:admitted.task.id,conversationId:admitted.task.conversation_id,featureId:feature.feature_id,state:state(admitted.task.state),input:admitted.task.input,output:null,errorCode:null,createdAt:iso(admitted.task.created_at),updatedAt:iso(admitted.task.updated_at)},replayed:false};
   }
-  async execute(command:GrowthAgentCommand):Promise<unknown> {
+  async execute(raw:GrowthAgentCommand|ProductAgentCommand):Promise<unknown> {
+    const command=raw as any,sharedInput=command.input as Record<string,any>;
+    if(sharedInput?.target?.kind==="product_feature")sharedInput.featureId=sharedInput.target.featureId;
+    if(sharedInput?.message!==undefined&&sharedInput.text===undefined)sharedInput.text=sharedInput.message;
     await this.tenant(this.pool,command);
-    if(["features.list","conversations.create","turns.submit"].includes(command.operation))
+    if(["features.list","conversations.create","turns.submit","runs.start"].includes(command.operation))
       await this.ensureTenant({tenantId:command.tenantId,upgradeRuntime:true,
         ...(command.operation==="features.list"&&command.input.publication?{publication:command.input.publication}:{})});
     if(command.operation==="features.upgrade.preview"||command.operation==="features.upgrade.apply") {
@@ -481,7 +484,7 @@ export class GrowthExecutionService {
         const prior=await this.conversation(db,command,command.input.conversationId);
         return this.createConversation(db,command,{featureId:prior.feature_id,context:command.input.context});
       });
-      case "turns.submit": {
+      case "runs.start": {
         const conversation=await this.conversation(this.pool,command,command.input.conversationId),taskId=randomUUID();
         const snapshot=await this.authorizeConversation(command,conversation,"context.read",taskId) as GrowthAgentContextEvidence;
         return this.withReceipt(command,db=>this.submit(db,command,snapshot,taskId));
@@ -524,15 +527,15 @@ export class GrowthExecutionService {
           await this.runtime!.authorizeTask(id);
         });
       }
-      case "tasks.observe":return observeGrowthTask(this,command);
-      case "tasks.get":return {task:await this.taskDto(await this.task(command,command.input.taskId))};
-      case "tasks.instructions": {
+      case "runs.activity":return observeGrowthTask(this,command as never);
+      case "runs.get":return {task:await this.taskDto(await this.task(command,command.input.taskId))};
+      case "runs.steer": {
         const task=await this.task(command,command.input.taskId,true);
         const digest=requestDigest({tenantId:command.tenantId,requestId:command.requestId});
         const requestKey=`${digest.slice(0,8)}-${digest.slice(8,12)}-4${digest.slice(13,16)}-8${digest.slice(17,20)}-${digest.slice(20,32)}`;
         return this.withReceipt(command,db=>queueOrchestrationInstructionInTransaction(db,task.id,{instruction:command.input.instruction,requestKey}));
       }
-      case "tasks.continue": {
+      case "runs.continue": {
         const task=await this.task(command,command.input.taskId,true);
         const nextId=randomUUID(),terminal=["incomplete","failed"].includes(task.state);
         const snapshot=terminal?await this.authorizeConversation(command,{...(await this.conversation(this.pool,command,task.conversation_id)),context:task.task_context},"context.read",nextId) as GrowthAgentContextEvidence:undefined;
@@ -562,14 +565,14 @@ export class GrowthExecutionService {
         if(result.taskId===task.id)await queueChildContinuations(this.pool,task.id);
         return {task:await this.taskDto(await this.task(command,result.taskId))};
       }
-      case "tasks.cancel": {
+      case "runs.cancel": {
         const task=await this.task(command,command.input.taskId,true);
         if(!terminalTaskStates.has(task.state))await requestTreeCancellation(this.pool,task.id);
         const current=await this.task(command,task.id,true);
         return {task:{id:current.id,conversationId:current.conversation_id,featureId:current.feature_id,state:state(current.state),input:"",output:null,errorCode:null,
           createdAt:iso(current.created_at),updatedAt:iso(current.updated_at),reviewIds:[],sources:[],results:[]}};
       }
-      case "tasks.list": {
+      case "runs.list": {
         const input=command.input,scope={kind:"growth-tasks",tenant:command.tenantId,actor:command.actor,...input,cursor:undefined};
         delete scope.cursor;
         const page=pageQuery.parse(input),cursor=readPageCursor(page.cursor,scope),active=input.state==="active",filter=input.state==="working"?["running","waiting_children","reconciling"]:input.state?[input.state]:null;
@@ -581,7 +584,7 @@ export class GrowthExecutionService {
         });
         return {tasks:tasks.filter((task):task is GrowthAgentTask=>task!==null),nextCursor:result.nextCursor};
       }
-      case "tasks.events": {
+      case "runs.events": {
         const task=await this.task(command,command.input.taskId),scope={kind:"growth-events",tenant:command.tenantId,actor:command.actor,task:task.id};
         const page=pageQuery.parse(command.input),cursor=readPageCursor(page.cursor,scope);
         if(cursor.position&&!/^[0-9]{1,19}$/.test(cursor.position))throw new PlatformError("INVALID_CURSOR",400,"Invalid event cursor");
