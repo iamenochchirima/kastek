@@ -37,7 +37,20 @@ it("current Growth publication reaches provisioning authentication within the bo
     const accepted=await app.inject({method:"POST",url:GROWTH_AGENT_PROVISION_PATH,payload:input});
     expect(accepted.statusCode).toBe(503);
     expect(accepted.json().message).toBe("Growth provisioning is not configured");
-    const oversized=await app.inject({method:"POST",url:GROWTH_AGENT_PROVISION_PATH,payload:{...input,padding:"x".repeat(GROWTH_AGENT_PUBLICATION_MAX_BYTES)}});
+    const oversized=await app.inject({method:"POST",url:GROWTH_AGENT_PROVISION_PATH,payload:{...input,padding:"x".repeat(GROWTH_AGENT_PUBLICATION_MAX_BYTES+200_000)}});
+    expect(oversized.statusCode).toBe(413);
+  } finally { await app.close(); }
+});
+it("product lifecycle route is registered, bounded and unconfigured without trust",async()=>{
+  const app=Fastify({bodyLimit:128_000});
+  registerGrowthProvisionRoute(app,{} as Pool,undefined,{});
+  try {
+    const envelope={version:"1",requestId:randomUUID(),product:"growth",tenantId:"org",actor:{issuer,subject:"growth-provisioner"},
+      operation:"agents.applyPublication",input:{defaultsRevision:"1",modelProfileId:profile.id,modelProfileRevision:profile.revision}};
+    const response=await app.inject({method:"POST",url:"/internal/v1/products/growth/lifecycle",payload:envelope});
+    expect(response.statusCode).toBe(503);
+    expect(response.json().message).toBe("Product lifecycle is not configured");
+    const oversized=await app.inject({method:"POST",url:"/internal/v1/products/growth/lifecycle",payload:{...envelope,padding:"x".repeat(GROWTH_AGENT_PUBLICATION_MAX_BYTES+200_000)}});
     expect(oversized.statusCode).toBe(413);
   } finally { await app.close(); }
 });
