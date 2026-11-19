@@ -99,6 +99,9 @@ export const productAgentLifecycleInputSchemas = {
   "agents.publish": z.strictObject({ target: productAgentTargetSchema, expectedRevision: z.number().int().positive() }),
   "agents.deploy": z.strictObject({ target: productAgentTargetSchema, versionId: id.optional(),
     allowedOrigins: z.array(z.string().min(1).max(2048)).min(1).max(10) }),
+  "agents.applyPublication": z.strictObject({ defaultsRevision: z.string().min(1).max(128),
+    modelProfileId: z.string().min(1).max(128), modelProfileRevision: z.string().min(1).max(128),
+    publication: z.unknown().optional(), upgradeDefaults: z.boolean().optional() }),
 } as const;
 
 export type ProductAgentLifecycleInputs = {
@@ -112,6 +115,23 @@ export type ProductAgentLifecycleCommand<K extends ProductAgentLifecycleOperatio
     version: "1"; requestId: string; product: "growth" | "agencies"; tenantId: string;
     actor: { issuer: string; subject: string }; operation: K; input: ProductAgentLifecycleInputs[K];
   } : never;
+
+const lifecycleEnvelopeSchema = z.strictObject({
+  version: z.literal("1"), requestId: z.string().min(1).max(128), product: z.enum(["growth", "agencies"]),
+  tenantId: z.string().min(1).max(128), actor: z.strictObject({ issuer: z.string().min(1).max(512), subject: z.string().min(1).max(512) }),
+  operation: z.enum(productAgentLifecycleOperations as [ProductAgentLifecycleOperation, ...ProductAgentLifecycleOperation[]]),
+  input: z.unknown(),
+});
+
+export function parseProductAgentLifecycleCommand(value: unknown): ProductAgentLifecycleCommand {
+  try {
+    const root = lifecycleEnvelopeSchema.parse(value);
+    return { ...root, input: productAgentLifecycleInputSchemas[root.operation].parse(root.input) } as ProductAgentLifecycleCommand;
+  } catch (error) {
+    if (error instanceof z.ZodError) throw new ProductAgentContractError("Invalid product lifecycle command");
+    throw error;
+  }
+}
 
 /** Signed envelope for product-owned extension operations that are not part of the run contract. */
 export const productAgentExtensionSchema = z.strictObject({
