@@ -72,14 +72,43 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     const end=Date.now()+timeout;while(Date.now()<end){const value=await fn();if(value)return value;await new Promise(resolve=>setTimeout(resolve,50));}throw Error("Bounded Growth integration wait expired");
   }
   async function listen(server:ReturnType<typeof httpServer>){await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));return "http://127.0.0.1:"+(server.address() as {port:number}).port;}
-  async function signed(command:GrowthAgentCommand,isControl=false){
+  function sharedCommand(command:GrowthAgentCommand):Record<string,unknown>|null{
+    const base={version:"1",requestId:command.requestId,product:"growth",tenantId:command.tenantId,actor:command.actor};
+    const target=(featureId:string)=>({target:{kind:"product_feature",featureId}});
+    switch(command.operation){
+      case "conversations.create":return{...base,operation:"conversations.create",input:{...target(command.input.featureId),...(command.input.title?{title:command.input.title}:{}),context:command.input.context??null}};
+      case "conversations.get":return{...base,operation:"conversations.get",input:{conversationId:command.input.conversationId,...(command.input.cursor?{cursor:command.input.cursor}:{}),...(command.input.limit?{limit:command.input.limit}:{})}};
+      case "conversations.list":return{...base,operation:"conversations.list",input:{...(command.input.featureId?target(command.input.featureId):{}),...(command.input.search?{search:command.input.search}:{}),...(command.input.cursor?{cursor:command.input.cursor}:{}),...(command.input.limit?{limit:command.input.limit}:{})}};
+      case "conversations.context":return{...base,operation:"conversations.context",input:{conversationId:command.input.conversationId,context:command.input.context}};
+      case "turns.submit":return{...base,operation:"runs.start",input:{conversationId:command.input.conversationId,message:command.input.text,...(command.input.context!==undefined?{context:command.input.context}:{})}};
+      case "tasks.get":return{...base,operation:"runs.get",input:{taskId:command.input.taskId}};
+      case "tasks.list":return{...base,operation:"runs.list",input:{...(command.input.conversationId?{conversationId:command.input.conversationId}:{}),...(command.input.state?{state:command.input.state}:{}),...(command.input.search?{search:command.input.search}:{}),...(command.input.cursor?{cursor:command.input.cursor}:{}),...(command.input.limit?{limit:command.input.limit}:{})}};
+      case "tasks.observe":return{...base,operation:"runs.activity",input:{taskId:command.input.taskId,...(command.input.childTaskId?{childTaskId:command.input.childTaskId}:{}),...(command.input.cursor?{cursor:command.input.cursor}:{}),...(command.input.operationCursor?{operationCursor:command.input.operationCursor}:{}),...(command.input.limit?{limit:command.input.limit}:{})}};
+      case "tasks.events":return{...base,operation:"runs.events",input:{taskId:command.input.taskId,...(command.input.cursor?{cursor:command.input.cursor}:{}),...(command.input.limit?{limit:command.input.limit}:{})}};
+      case "tasks.instructions":return{...base,operation:"runs.steer",input:{taskId:command.input.taskId,instruction:command.input.instruction}};
+      case "tasks.cancel":return{...base,operation:"runs.cancel",input:{taskId:command.input.taskId}};
+      case "tasks.continue":return{...base,operation:"runs.continue",input:{taskId:command.input.taskId}};
+      case "reviews.list":return{...base,operation:"reviews.list",input:{taskId:command.input.taskId}};
+      case "reviews.decide":return{...base,operation:"reviews.decide",input:{taskId:command.input.taskId,reviewId:command.input.reviewId,payloadDigest:command.input.payloadDigest,decision:command.input.decision}};
+      case "artifacts.list":return{...base,operation:"artifacts.list",input:{taskId:command.input.taskId,...(command.input.childTaskId?{childTaskId:command.input.childTaskId}:{})}};
+      case "artifacts.get":return{...base,operation:"artifacts.get",input:{taskId:command.input.taskId,artifactId:command.input.artifactId,...(command.input.childTaskId?{childTaskId:command.input.childTaskId}:{}),...(command.input.offset!==undefined?{offset:command.input.offset}:{})}};
+      case "tasks.export":return{...base,operation:"tasks.export",input:{taskId:command.input.taskId}};
+      case "models.list":return{...base,operation:"models.list",input:target(command.input.featureId)};
+      case "models.select":return{...base,operation:"models.select",input:{...target(command.input.featureId),expectedRevision:command.input.expectedRevision,selection:command.input.selection}};
+      default:return null;
+    }
+  }
+  async function signed(command:unknown,isControl=false){
     const now=Math.floor(Date.now()/1000);
     return new SignJWT({product:"growth",requestDigest:requestDigest(command)}).setProtectedHeader({alg:"RS256",kid:isControl?"control":"growth-v1"})
       .setIssuer(issuer).setSubject(isControl?"growth-control":"growth-api").setAudience("agents-product-api")
       .setJti(randomUUID()).setIssuedAt(now).setExpirationTime(now+60).sign((isControl?control:keys).privateKey);
   }
   async function send(command:GrowthAgentCommand,isControl=false) {
-    return fetch(origin+"/internal/v1/products/growth/commands",{method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+await signed(command,isControl)},body:JSON.stringify(command)});
+    const shared=sharedCommand(command);
+    const path=shared?"/internal/v1/products/growth/agent-gateway":"/internal/v1/products/growth/extensions";
+    const body=shared??command;
+    return fetch(origin+path,{method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+await signed(body,isControl)},body:JSON.stringify(body)});
   }
   function command<K extends GrowthAgentCommand["operation"]>(operation:K,input:Extract<GrowthAgentCommand,{operation:K}>["input"],extra:Partial<GrowthAgentCommand>={}):GrowthAgentCommand{
     return {version:"1",requestId:randomUUID(),tenantId,actor,operation,input,...extra} as GrowthAgentCommand;

@@ -3,7 +3,6 @@ import { isMemoryAssertion, type MemoryAssertion } from "./agent-memory.js";
 import { GROWTH_RESOURCE_FIELDS, isGrowthResourceOperation, validGrowthResourceInput, type GrowthAgentResourceInputs, type GrowthAgentResourceOutputs } from "./growth-agent-resources.js";
 /** Growth product contracts. No standalone Agents membership or installation is implied. */
 export const GROWTH_AGENT_CONTRACT_VERSION = "1" as const;
-export const GROWTH_AGENT_COMMAND_PATH = "/internal/v1/products/growth/commands";
 /** Growth-owned extensions that are not part of the shared agent gateway. */
 export const GROWTH_AGENT_EXTENSIONS_PATH = "/internal/v1/products/growth/extensions";
 export const GROWTH_AGENT_ACTION_PATH = "/internal/agents/actions";
