@@ -1106,7 +1106,7 @@ this product adapter until their resource contracts exist. These constraints do 
 shared harness acceptance fixtures. Agency's separate client-scoped ingress is described below;
 production deployment remains separate.
 
-Growth uses `product/integrations/growth-execution.ts` for private product conversations,
+Growth uses `product/integrations/product-agent-execution.ts` for shared conversations, runs, reviews, artifacts and model operations, and `product/integrations/growth-execution.ts` for Growth-owned extensions. Private product conversations,
 configuration, tasks, review UI and exports. Its product-owned manifest and four presets live in
 Growth API `src/agents/manifest.ts`. Managed revision 5 publishes a `tool-directed@4` assistant
 with three pinned same-business `tool-directed@3` specialists. Both compile immutable product bindings;

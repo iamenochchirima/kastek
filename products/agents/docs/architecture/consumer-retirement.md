@@ -25,7 +25,7 @@ identifies the current caller; it does not assert that the replacement already e
 
 | Current surface | Last known caller | Intended replacement or review |
 | --- | --- | --- |
-| `packages/contracts/src/growth-agents.ts` command, conversation, task and result types | Growth `api/src/agents/client.ts` and Agents `product/integrations/growth-routes.ts`, `growth-execution.ts` | Shared platform agent, conversation and run operations at consumer cutover. |
+| `packages/contracts/src/growth-agents.ts` extension command types | Growth `api/src/agents/client.ts` and Agents `product/integrations/growth-routes.ts`, `growth-execution.ts` | Growth-owned extensions only; core conversations and runs use the shared product gateway. |
 | `packages/contracts/src/growth-agent-runtime.ts` runtime and activity types | Agents `product/integrations/growth-runtime-reporting.ts`, `growth-observation.ts` and `composition/app.ts`; Growth and Agency consumers | Product-neutral run activity and timing contract; preserve the information consumed by each UI. |
 | `packages/contracts/src/growth-agent-provisioning.ts` | Growth `api/src/agents/provisioning-client.ts` and Agents `product/integrations/growth-provisioning.ts` | Generic platform agent configuration and publication. |
 | `packages/contracts/src/agency-agents.ts` command, conversation and model shapes | Agency `api/src/capabilities/execution-client.ts` and Agents `product/integrations/agency-routes.ts`, `agency-execution.ts` | Shared platform agent, conversation, run and model operations. |
@@ -104,7 +104,7 @@ has been authorized.
 | Standalone Agents UI | `/api/organizations/*` member routes | Serving; same API for application-run audit | None for this upgrade |
 | Independent application client | `/v1` HTTP with application credentials | Proven end to end | Keep the documented contract stable |
 | External MCP assistants | `/mcp` OAuth | Proven, including denied unassigned agents | Keep operation/scope table current |
-| Growth | Product-specific endpoints and `growth-execution` | Not migrated | Separate Growth change: move to `/v1` or MCP, verify one normal and one denied journey |
+| Growth | Core uses the signed product gateway; extensions use the namespaced envelope; provisioning uses the lifecycle publication | Core migrated, extensions remain | Finish the feature-mapping and extension cleanup in KAS-316 |
 | Agency | Agency product runtime/client | Not migrated | Separate Agency change with the same verification |
 | Website widgets and channels | Platform website/channel routes | Serving | No change required by this upgrade |
 | Product tool bundles | Growth/Agency capability manifests | Tracked as follow-on | Migrate after each consumer cutover; keep pinned revisions for accepted work |
