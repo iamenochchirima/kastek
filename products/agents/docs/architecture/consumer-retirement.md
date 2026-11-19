@@ -84,6 +84,26 @@ Deletion boundary: Agency imports `GrowthAgentTask`, `GrowthAgentObservation` an
 `GrowthAgentMessage`. Move those to a neutral contract module before deleting Growth-only
 contracts. Keep shared product tables and v11-v14 registrations until the Agency cutover.
 
+## Product-context identity decision
+
+Growth features (`assistant`, `research`, `content`, `campaigns`) remain the stable product
+resource identity in Agents product context. The `feature_id` is stored on product
+conversations, task contexts, receipts and execution grants. The generated `agent_id` is an
+implementation identity that can change when an agent is recreated or migrated, so it is not
+a stable external key.
+
+Growth owns the publication: presets, instructions, model policy and feature composition.
+Agents stores the feature-to-agent mapping as part of applying that publication. Moving the
+mapping into Growth would duplicate it and risk divergence from the rows that carry run
+authority. A future product may use the gateway's `agent` target when it has a stable agent
+identity; Growth keeps the `product_feature` target.
+
+The provisioning publication is the same boundary under option B: Growth owns the
+publication and sends `agents.applyPublication` through the lifecycle contract. Agents
+applies it with the existing managed-setup service. The service is the platform implementation,
+not a Growth-specific wire contract, and it stays until a product sends full agent
+configurations instead.
+
 Status: the Growth core run path now uses the shared product gateway
 (`/internal/v1/products/growth/agent-gateway`). Growth-owned extensions sign a
 product-prefixed envelope and use `/internal/v1/products/growth/extensions`; the old
