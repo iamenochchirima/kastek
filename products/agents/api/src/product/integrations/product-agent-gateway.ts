@@ -5,11 +5,11 @@ import { ProductAgentContractError, parseProductAgentCommand } from "@kasitek-la
 import { PlatformError } from "../../contracts/contracts";
 import { GrowthServiceAuth, type GrowthServiceTrust } from "../../adapters/products/growth-service-auth";
 import type { GrowthProductRuntime } from "../../execution/products/growth-runtime";
-import { GrowthExecutionService } from "./growth-execution";
+import { ProductAgentExecutionService } from "./product-agent-execution";
 import { recordProductServiceAssertion } from "./product-service-receipt";
 
 export class ProductAgentGateway {
-  constructor(private readonly execution: GrowthExecutionService) {}
+  constructor(private readonly execution: ProductAgentExecutionService) {}
   async execute(command: ProductAgentCommand): Promise<unknown> {
     return this.execution.execute(command);
   }
@@ -19,10 +19,10 @@ export function registerProductAgentGateway(app: FastifyInstance, options: {
   pool: Pool;
   trust?: GrowthServiceTrust;
   runtime?: GrowthProductRuntime;
-  execution?: GrowthExecutionService;
+  execution?: ProductAgentExecutionService;
 }): void {
   const auth = options.trust ? new GrowthServiceAuth(options.trust) : undefined;
-  const gateway = options.trust ? new ProductAgentGateway(options.execution ?? new GrowthExecutionService(options.pool, options.trust, options.runtime)) : undefined;
+  const gateway = options.trust ? new ProductAgentGateway(options.execution ?? new ProductAgentExecutionService(options.pool, options.trust, options.runtime)) : undefined;
   app.post("/internal/v1/products/:product/agent-gateway", { bodyLimit: 4_194_304 }, async request => {
     const product = (request.params as { product?: string }).product;
     if (product !== "growth" || !auth || !gateway) {

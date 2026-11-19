@@ -175,7 +175,7 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     await recordAgentTaskUsage(core, auth.tenantId, result);
     return result;
   }
-  const sharedAnalytics: Partial<Record<SharedAgentOperation, GrowthAgentCommandOperation>> = {
+  const sharedAnalytics: Partial<Record<SharedAgentOperation, string>> = {
     "conversations.create": "conversations.create",
     "runs.start": "turns.submit",
     "runs.continue": "tasks.continue",
@@ -265,7 +265,7 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     const auth=await scope(request);await requireAdmin(core.pool,auth.tenantId,auth.actor.subject);
     const input=body(request);strict(input,["requestId","expectedRevision","selection"]);
     return invokeShared(request,"models.select",{target:{kind:"product_feature",featureId:id(request,"featureId") as GrowthAgentFeatureId},
-      expectedRevision:Number(input.expectedRevision),selection:input.selection as GrowthAgentCommandInputs["models.select"]["selection"]},string(input.requestId));
+      expectedRevision:Number(input.expectedRevision),selection:input.selection as ProductAgentInputs["models.select"]["selection"]},string(input.requestId));
   });
   app.get("/api/agents/features/:featureId/memory",request=>{
     const query=request.query as Record<string,unknown>??{};strict(query,["offset","limit"]);

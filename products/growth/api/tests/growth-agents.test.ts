@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { exportPKCS8, exportSPKI, generateKeyPair, jwtVerify, SignJWT } from "jose";
-import { parseGrowthAgentAction, parseGrowthAgentCommand, parseGrowthAgentContext, parseGrowthDraftProposal, parseProductAgentExtension } from "@kasitek-labs/contracts";
+import { parseGrowthAgentAction, parseGrowthAgentExtensionCommand, parseGrowthAgentContext, parseGrowthDraftProposal, parseProductAgentExtension } from "@kasitek-labs/contracts";
 import { readConfig } from "../src/config.js";
 import { buildApp } from "../src/app.js";
 import { GrowthAgentClient } from "../src/agents/client.js";
@@ -18,7 +18,7 @@ test("Growth synchronizes its current publication before direct resource calls a
   const settings=config({AGENTS_PRODUCT_API_URL:"https://agents.example.test",GROWTH_AGENTS_SIGNING_PRIVATE_KEY:privateKey});
   const client=new GrowthAgentClient(settings,{fetch:(async(_url,init)=>{
     const envelope=parseProductAgentExtension(JSON.parse(String(init?.body)));
-    const command=parseGrowthAgentCommand({version:"1",requestId:envelope.requestId,tenantId:envelope.tenantId,actor:envelope.actor,
+    const command=parseGrowthAgentExtensionCommand({version:"1",requestId:envelope.requestId,tenantId:envelope.tenantId,actor:envelope.actor,
       operation:envelope.operation.slice("growth.".length),input:envelope.input});operations.push(command.operation);
     if(command.operation==="features.list"){
       assert.equal(command.input.publication?.manifest.revision,"15");assert.equal(command.input.publication?.policy.optionalCapabilities.knowledge,true);

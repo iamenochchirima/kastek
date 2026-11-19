@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { Pool } from "pg";
 import { z } from "zod";
-import { GROWTH_AGENT_EXTENSIONS_PATH,GrowthAgentContractError,parseGrowthAgentCommand,parseProductAgentExtension,type GrowthAgentCommand,type GrowthAgentCommandOperation } from "@kasitek-labs/contracts";
+import { GROWTH_AGENT_EXTENSIONS_PATH,GrowthAgentContractError,parseGrowthAgentExtensionCommand,parseProductAgentExtension,type GrowthAgentCommand,type GrowthAgentCommandOperation } from "@kasitek-labs/contracts";
 import { PlatformError } from "../../contracts/contracts";
 import { recordProductServiceAssertion } from "./product-service-receipt";
 import { GrowthExecutionService } from "./growth-execution";
@@ -29,7 +29,7 @@ export function registerGrowthProductRoutes(app:FastifyInstance,options:{pool:Po
     if(envelope.product!=="growth"||!envelope.operation.startsWith("growth."))throw new PlatformError("INVALID_PRODUCT_COMMAND",400,"Check the command fields");
     const operation=envelope.operation.slice("growth.".length) as GrowthAgentCommandOperation;
     let command:GrowthAgentCommand;
-    try {command=parseGrowthAgentCommand({version:"1",requestId:envelope.requestId,tenantId:envelope.tenantId,actor:envelope.actor,operation,input:envelope.input});}
+    try {command=parseGrowthAgentExtensionCommand({version:"1",requestId:envelope.requestId,tenantId:envelope.tenantId,actor:envelope.actor,operation,input:envelope.input});}
     catch(error){if(error instanceof GrowthAgentContractError)throw new PlatformError("INVALID_PRODUCT_COMMAND",400,"Check the command fields");throw error;}
     const bearer=request.headers.authorization?.match(/^Bearer ([A-Za-z0-9_.-]+)$/)?.[1];
     if(!bearer)throw new PlatformError("PRODUCT_SERVICE_DENIED",401,"Product service authentication is required");

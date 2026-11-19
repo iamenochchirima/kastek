@@ -128,8 +128,6 @@ export interface GrowthAgentModelOption {
 }
 export type GrowthAgentModelSelection = { kind: "organization_default" } | { kind: "connection"; connectionId: string; modelId: string };
 export interface GrowthAgentCommandInputs extends GrowthAgentResourceInputs {
-  "models.list": { featureId: GrowthAgentFeatureId };
-  "models.select": { featureId: GrowthAgentFeatureId; expectedRevision: number; selection: GrowthAgentModelSelection };
   "memory.list": { featureId: GrowthAgentFeatureId; offset?: number; limit?: number };
   "memory.mutate": { featureId: GrowthAgentFeatureId; memoryId: string; expectedRevision: number; action: "accept" | "correct" | "forget"; content?: string; assertion?: MemoryAssertion };
   "memory.configure": { featureId: GrowthAgentFeatureId; expectedRevision: number; enabled: boolean };
@@ -138,23 +136,6 @@ export interface GrowthAgentCommandInputs extends GrowthAgentResourceInputs {
   "features.upgrade.apply": GrowthAgentCapabilityUpgradeApply & { featureId: GrowthAgentFeatureId; publication: import("./growth-agent-provisioning.js").GrowthAgentPublication };
   "features.configure": { featureId: GrowthAgentFeatureId; configuration: Record<string, unknown> };
   "features.profile": { featureId: GrowthAgentFeatureId; name: string; avatar: string };
-  "conversations.create": { featureId: GrowthAgentFeatureId; title?: string; context?: GrowthAgentContext | null };
-  "conversations.list": { featureId?: GrowthAgentFeatureId; search?: string; cursor?: string; limit?: number };
-  "conversations.get": { conversationId: string; cursor?: string; limit?: number };
-  "conversations.context": { conversationId: string; context: GrowthAgentContext | null };
-  "turns.submit": { conversationId: string; text: string; context?: GrowthAgentContext | null };
-  "tasks.list": { conversationId?: string; state?: string; search?: string; cursor?: string; limit?: number };
-  "tasks.get": { taskId: string };
-  "tasks.export": { taskId: string };
-  "tasks.observe": { taskId: string; childTaskId?: string; cursor?: string; operationCursor?: string; limit?: number };
-  "tasks.events": { taskId: string; cursor?: string; limit?: number };
-  "tasks.cancel": { taskId: string };
-  "tasks.instructions": { taskId: string; instruction: string };
-  "tasks.continue": { taskId: string };
-  "reviews.list": { taskId: string };
-  "reviews.decide": { taskId: string; reviewId: string; payloadDigest: string; decision: "approve" | "reject" };
-  "artifacts.list": { taskId: string; childTaskId?: string };
-  "artifacts.get": { taskId: string; artifactId: string; childTaskId?: string; offset?: number };
 }
 export type GrowthAgentCommandOperation = keyof GrowthAgentCommandInputs;
 export type GrowthAgentCommand<K extends GrowthAgentCommandOperation = GrowthAgentCommandOperation> = {
@@ -291,18 +272,11 @@ export function parseGrowthAgentCommand(value: unknown): GrowthAgentCommand {
     return item as unknown as GrowthAgentCommand;
   }
   const operations: Partial<Record<GrowthAgentCommandOperation, readonly string[]>> = {
-    "models.list": ["featureId"], "models.select": ["featureId", "expectedRevision", "selection"],
     "memory.list": ["featureId", "offset", "limit"],
     "memory.mutate": ["featureId", "memoryId", "expectedRevision", "action", "content", "assertion"],
     "memory.configure": ["featureId", "expectedRevision", "enabled"],
     "features.upgrade.preview": ["featureId", "publication"], "features.upgrade.apply": ["featureId", "publication", "targetPublicationDigest", "diffDigest", "expectedRevisions", "resolutions"],
     "features.list": ["publication"], "features.configure": ["featureId", "configuration"], "features.profile": ["featureId", "name", "avatar"],
-    "conversations.create": ["featureId", "title", "context"], "conversations.list": ["featureId", "search", "cursor", "limit"],
-    "conversations.get": ["conversationId", "cursor", "limit"], "conversations.context": ["conversationId", "context"],
-    "turns.submit": ["conversationId", "text", "context"], "tasks.list": ["conversationId", "state", "search", "cursor", "limit"],
-    "tasks.get": ["taskId"], "tasks.export": ["taskId"], "tasks.observe": ["taskId", "childTaskId", "cursor", "operationCursor", "limit"], "tasks.events": ["taskId", "cursor", "limit"], "tasks.cancel": ["taskId"], "tasks.instructions": ["taskId", "instruction"], "tasks.continue": ["taskId"],
-    "reviews.list": ["taskId"], "reviews.decide": ["taskId", "reviewId", "payloadDigest", "decision"],
-    "artifacts.list": ["taskId", "childTaskId"], "artifacts.get": ["taskId", "artifactId", "childTaskId", "offset"],
   };
   const fields = Object.hasOwn(operations, String(item.operation)) ? operations[item.operation as GrowthAgentCommandOperation] : undefined; if (!fields) return invalidGrowthContract();
   const input = growthObject(item.input, fields);
@@ -311,15 +285,9 @@ export function parseGrowthAgentCommand(value: unknown): GrowthAgentCommand {
     growthString(value, key === "text" ? 131072 : key === "content" ? 8192 : key === "instruction" ? 4000 : key === "search" ? 200 : ["cursor", "operationCursor"].includes(key) ? 2048 : 256);
   }
   const required: Partial<Record<GrowthAgentCommandOperation, string[]>> = {
-    "models.list": ["featureId"], "models.select": ["featureId", "expectedRevision", "selection"],
     "memory.list": ["featureId"], "memory.mutate": ["featureId", "memoryId", "expectedRevision", "action"], "memory.configure": ["featureId", "expectedRevision", "enabled"],
     "features.upgrade.preview": ["featureId", "publication"], "features.upgrade.apply": ["featureId", "publication", "targetPublicationDigest", "diffDigest", "expectedRevisions", "resolutions"],
-    "features.configure": ["featureId", "configuration"], "features.profile": ["featureId", "name", "avatar"], "conversations.create": ["featureId"],
-    "conversations.get": ["conversationId"], "conversations.context": ["conversationId", "context"],
-    "turns.submit": ["conversationId", "text"], "tasks.get": ["taskId"], "tasks.export": ["taskId"], "tasks.observe": ["taskId"], "tasks.events": ["taskId"],
-    "tasks.cancel": ["taskId"], "tasks.instructions": ["taskId", "instruction"], "tasks.continue": ["taskId"], "reviews.list": ["taskId"],
-    "reviews.decide": ["taskId", "reviewId", "payloadDigest", "decision"],
-    "artifacts.list": ["taskId"], "artifacts.get": ["taskId", "artifactId"],
+    "features.configure": ["featureId", "configuration"], "features.profile": ["featureId", "name", "avatar"],
   };
   for (const key of required[item.operation as GrowthAgentCommandOperation] ?? []) if (input[key] === undefined) return invalidGrowthContract();
   if (item.operation === "features.profile" && (typeof input.name !== "string" || !input.name.trim() || input.name.length > 120 || !["atlas", "scout", "muse", "orbit", "nova", "pixel", "echo", "ember", "bolt", "moss"].includes(String(input.avatar)))) return invalidGrowthContract();
@@ -333,14 +301,6 @@ export function parseGrowthAgentCommand(value: unknown): GrowthAgentCommand {
     if (!Object.keys(revisions).length || Object.values(revisions).some(value => !Number.isSafeInteger(value) || Number(value)<1)) return invalidGrowthContract();
     if (!input.resolutions || typeof input.resolutions !== "object" || Array.isArray(input.resolutions) || Object.keys(input.resolutions).length>256 || Object.entries(input.resolutions).some(([key,value])=>key.length>256 || !["keep_current","use_update"].includes(String(value)))) return invalidGrowthContract();
   }
-  if (item.operation === "models.select") {
-    const selection = growthObject(input.selection, ["kind", "connectionId", "modelId"]);
-    if (selection.kind === "organization_default") { if (Object.keys(selection).length !== 1) return invalidGrowthContract(); }
-    else if (selection.kind === "connection") {
-      if (typeof selection.connectionId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(selection.connectionId)) return invalidGrowthContract();
-      growthString(selection.modelId, 512);
-    } else return invalidGrowthContract();
-  }
   if (item.operation === "memory.configure" && typeof input.enabled !== "boolean") return invalidGrowthContract();
   if (item.operation === "memory.mutate" && (!["accept", "correct", "forget"].includes(String(input.action)) ||
     !/^[0-9a-f-]{36}$/i.test(String(input.memoryId)) || input.action === "correct" && (typeof input.content !== "string" || !input.content.trim()))) return invalidGrowthContract();
@@ -351,13 +311,18 @@ export function parseGrowthAgentCommand(value: unknown): GrowthAgentCommand {
     if(!publication.manifest||!publication.policy||!Array.isArray(publication.presets)||publication.presets.length!==4||new TextEncoder().encode(JSON.stringify(publication)).byteLength>GROWTH_AGENT_PUBLICATION_MAX_BYTES)return invalidGrowthContract();
   }
   if (input.featureId !== undefined && !GROWTH_AGENT_FEATURE_IDS.includes(input.featureId as GrowthAgentFeatureId)) return invalidGrowthContract();
-  if (["conversations.create", "features.configure"].includes(String(item.operation)) && input.featureId === undefined) return invalidGrowthContract();
-  if (item.operation === "conversations.context" && input.context === undefined) return invalidGrowthContract();
-  if (item.operation === "reviews.decide" && !["approve", "reject"].includes(String(input.decision))) return invalidGrowthContract();
+  if (item.operation === "features.configure" && input.featureId === undefined) return invalidGrowthContract();
   if (item.operation === "features.configure") {
     if (!input.configuration || typeof input.configuration !== "object" || Array.isArray(input.configuration)) return invalidGrowthContract();
   }
   return item as unknown as GrowthAgentCommand;
+}
+/** Growth-owned extensions accepted on the namespaced extension route. Core operations use the product gateway. */
+export function parseGrowthAgentExtensionCommand(value: unknown): GrowthAgentCommand {
+  const command = parseGrowthAgentCommand(value);
+  const operation = String(command.operation);
+  if (!(operation.startsWith("features.") || operation.startsWith("memory.") || isGrowthResourceOperation(operation as never))) return invalidGrowthContract();
+  return command;
 }
 export function parseGrowthAgentAction(value: unknown): GrowthAgentAction {
   const item = growthObject(value, ["version", "requestId", "tenantId", "actor", "taskId", "conversationId", "featureId", "operationId", "context", "contextRevision", "operation", "input"]);
