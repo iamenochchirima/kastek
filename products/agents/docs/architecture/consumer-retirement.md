@@ -85,9 +85,11 @@ Deletion boundary: Agency imports `GrowthAgentTask`, `GrowthAgentObservation` an
 contracts. Keep shared product tables and v11-v14 registrations until the Agency cutover.
 
 Status: the Growth core run path now uses the shared product gateway
-(`/internal/v1/products/growth/agent-gateway`). The old command route rejects the migrated
-operations with `PRODUCT_COMMAND_MOVED`; it remains for Growth-owned extensions (features,
-memory, resources, models, artifacts and export) until those move or are retired.
+(`/internal/v1/products/growth/agent-gateway`). Growth-owned extensions sign a
+product-prefixed envelope and use `/internal/v1/products/growth/extensions`; the old
+`/commands` path is retired. Shared lifecycle schemas and the extension envelope are defined
+in `packages/contracts/src/product-agent-gateway.ts`. Lifecycle implementation and the
+feature-to-agent composition move remain in KAS-316.
 
 ## Consumer migration tracking
 
