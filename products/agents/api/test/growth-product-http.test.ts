@@ -149,7 +149,7 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
       if(loseCommitAcknowledgement&&body.control==="commit"&&response.ok){loseCommitAcknowledgement=false;lostCommitAcknowledgements++;await response.arrayBuffer();throw Error("Controlled lost commit acknowledgement");}
       return response;
     }}));
-    await new GrowthExecutionService(pool,{issuer,actorIssuer:actor.issuer,keys:{fixture:await exportSPKI(keys.publicKey)}}).ensureTenant({tenantId,publication:ready.publication});
+    await new GrowthExecutionService(pool,{issuer,actorIssuer:actor.issuer,keys:{fixture:await exportSPKI(keys.publicKey)}}).ensureTenant({tenantId,publication:ready.canonicalPublication});
     app=await buildPlatformApp({pool,logging:false,config:loadPlatformConfig({NODE_ENV:"test",AGENTS_DATABASE_URL:target.href,AGENTS_PUBLIC_URL:"http://localhost:3100",AGENTS_OIDC_CLIENT_SECRET:"isolated-growth-product-cursor-secret"})});
     origin=await app.listen({port:0,host:"127.0.0.1"});
     await controlFixture({type:"configure",agentsOrigin:origin},"configured");
