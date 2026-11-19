@@ -253,7 +253,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     reply.header("cache-control", "no-store");
     reply.header("x-content-type-options", "nosniff");
     if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
-        request.url.split("?")[0] !== "/internal/v1/products/growth/commands" && request.url.split("?")[0] !== "/internal/v1/products/growth/provision" && request.url.split("?")[0] !== "/internal/v1/products/growth/usage" && request.url.split("?")[0] !== "/internal/v1/products/growth/channels" && request.url.split("?")[0] !== "/internal/agents/channel-events" &&
+        !request.url.startsWith("/internal/v1/products/") && request.url.split("?")[0] !== "/internal/agents/channel-events" &&
         ![AGENCY_AGENT_COMMAND_PATH, AGENCY_AGENT_MODEL_PATH].includes(request.url.split("?")[0]!) &&
         !["/mcp","/oauth/token","/oauth/register","/oauth/revoke"].includes(request.url.split("?")[0]!) &&
         !request.url.startsWith("/v1/") &&

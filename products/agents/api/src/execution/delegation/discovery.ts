@@ -24,7 +24,7 @@ export async function discoverSpecialists(pool: Pool, taskId: string, input: unk
       const rows = (await db.query(`SELECT DISTINCT ON (a.id) a.id,a.name,v.id AS version_id,v.configuration
         FROM agents_platform.agents a JOIN agents_platform.agent_versions v ON v.agent_id=a.id AND v.organization_id=a.organization_id
         WHERE a.organization_id=$1 AND a.deleted_at IS NULL AND a.id<>$2
-        ORDER BY a.id, v.number DESC`, [execution.task.organization_id, execution.task.resource_id])).rows;
+        ORDER BY a.id, v.number DESC`, [execution.task.organization_id, execution.agentId])).rows;
       const sources = execution.configuration.sourceRevisionIds, connections = execution.configuration.connectedToolBindingIds;
       for (const row of rows) {
         if (selected.some(binding => binding.versionId === row.version_id)) continue;
