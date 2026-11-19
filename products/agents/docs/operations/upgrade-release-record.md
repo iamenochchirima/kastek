@@ -25,9 +25,10 @@ Post-release review date: after the owner approves and completes a production ro
 - Growth's core conversation and run path now uses the signed product agent gateway
   `/internal/v1/products/growth/agent-gateway`; Growth-owned extensions use the namespaced
   envelope at `/internal/v1/products/growth/extensions`. The gateway no longer translates
-  shared commands into the Growth command DTO. Shared lifecycle schemas are defined;
-  lifecycle implementation and provisioning composition remain in KAS-316. Agency still uses
-  its own product path.
+  shared commands into the Growth command DTO. Growth provisioning sends
+  `agents.applyPublication` through `/internal/v1/products/:product/lifecycle`; a fresh
+  isolated PostgreSQL run exercised the authenticated lifecycle endpoint. Internal adapter
+  and feature-to-agent cleanup remain in KAS-316. Agency still uses its own product path.
 - Archive and restore remains an owner functionality decision; it is not a cutover prerequisite
   in this inventory.
 - Consumer cutover and deletion of retired routes are follow-on work; see
