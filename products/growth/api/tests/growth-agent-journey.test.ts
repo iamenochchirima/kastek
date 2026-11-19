@@ -85,7 +85,7 @@ test("Growth journey preserves its public API while recording the signed command
     assert.equal((await call("POST", `/api/agents/tasks/${taskId}/continue`, { requestId: "journey-continue" })).status, 200);
 
     assert.deepEqual(commands.map(command => command.operation), [
-      "features.list", "conversations.create", "runs.start", "runs.get", "runs.activity", "reviews.list",
+      "growth.features.list", "conversations.create", "runs.start", "runs.get", "runs.activity", "reviews.list",
       "runs.steer", "runs.cancel", "runs.continue",
     ]);
     for (const command of commands) {

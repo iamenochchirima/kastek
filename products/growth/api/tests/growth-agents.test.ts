@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { exportPKCS8, exportSPKI, generateKeyPair, jwtVerify, SignJWT } from "jose";
-import { parseGrowthAgentAction, parseGrowthAgentCommand, parseGrowthAgentContext, parseGrowthDraftProposal } from "@kasitek-labs/contracts";
+import { parseGrowthAgentAction, parseGrowthAgentCommand, parseGrowthAgentContext, parseGrowthDraftProposal, parseProductAgentExtension } from "@kasitek-labs/contracts";
 import { readConfig } from "../src/config.js";
 import { buildApp } from "../src/app.js";
 import { GrowthAgentClient } from "../src/agents/client.js";
@@ -17,7 +17,9 @@ test("Growth synchronizes its current publication before direct resource calls a
   const keys=await generateKeyPair("RS256",{extractable:true}),privateKey=await exportPKCS8(keys.privateKey),operations:string[]=[];
   const settings=config({AGENTS_PRODUCT_API_URL:"https://agents.example.test",GROWTH_AGENTS_SIGNING_PRIVATE_KEY:privateKey});
   const client=new GrowthAgentClient(settings,{fetch:(async(_url,init)=>{
-    const command=parseGrowthAgentCommand(JSON.parse(String(init?.body)));operations.push(command.operation);
+    const envelope=parseProductAgentExtension(JSON.parse(String(init?.body)));
+    const command=parseGrowthAgentCommand({version:"1",requestId:envelope.requestId,tenantId:envelope.tenantId,actor:envelope.actor,
+      operation:envelope.operation.slice("growth.".length),input:envelope.input});operations.push(command.operation);
     if(command.operation==="features.list"){
       assert.equal(command.input.publication?.manifest.revision,"15");assert.equal(command.input.publication?.policy.optionalCapabilities.knowledge,true);
       return Response.json({features:[],model:null});
@@ -28,7 +30,7 @@ test("Growth synchronizes its current publication before direct resource calls a
   await client.command({tenantId:"org",actor},"resources.list",{featureId:"assistant"},"next-resource-request");
   assert.deepEqual(operations,["features.list","resources.list","resources.list"]);
   const conflict=new GrowthAgentClient(settings,{fetch:(async()=>Response.json({error:{code:"SOURCE_SCOPE_DENIED",message:"Select an approved source revision"}},{status:409})) as typeof fetch});
-  await assert.rejects(conflict.command({tenantId:"org",actor},"tasks.list",{},"conflict"),error=>error instanceof ApiError&&error.code==="SOURCE_SCOPE_DENIED"&&error.message==="Select an approved source revision");
+  await assert.rejects(conflict.shared({tenantId:"org",actor},"runs.list",{},"conflict"),error=>error instanceof ApiError&&error.code==="SOURCE_SCOPE_DENIED"&&error.message==="Select an approved source revision");
 });
 test("Growth contracts reject malformed context and hidden mutation authority", () => {
   assert.throws(() => parseGrowthAgentContext({ kind: "content_post" }));

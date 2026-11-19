@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { GROWTH_AGENT_EXTENSIONS_PATH, isGrowthResourceOperation, parseGrowthAgentCommand, parseProductAgentCommand,
-  productAgentGatewayPath, type GrowthAgentActor, type GrowthAgentCommand, type GrowthAgentCommandInputs,
+  productAgentGatewayPath, parseProductAgentExtension, type GrowthAgentActor, type GrowthAgentCommand, type GrowthAgentCommandInputs,
   type GrowthAgentCommandOperation, type GrowthAgentCommandOutputs, type ProductAgentInputs, type ProductAgentOperation } from "@kasitek-labs/contracts";
 import type { CoreConfig } from "../config.js";
 import { ApiError } from "../error.js";
@@ -62,7 +62,9 @@ export class GrowthAgentClient {
     try{await published;}catch(error){if(this.publications.get(scope.tenantId)===published)this.publications.delete(scope.tenantId);throw error;}
   }
   private async send<K extends GrowthAgentCommandOperation>(scope:{tenantId:string;actor:GrowthAgentActor},operation:K,input:GrowthAgentCommandInputs[K],requestId:string):Promise<GrowthAgentCommandOutputs[K]>{
-    const body = parseGrowthAgentCommand(JSON.parse(JSON.stringify({ version: "1", requestId, ...scope, operation, input }))) as GrowthAgentCommand;
+    const command = parseGrowthAgentCommand(JSON.parse(JSON.stringify({ version: "1", requestId, ...scope, operation, input }))) as GrowthAgentCommand;
+    const body = parseProductAgentExtension({ version: "1", requestId, product: "growth", tenantId: scope.tenantId, actor: scope.actor,
+      operation: `growth.${operation}`, input: command.input });
     return await this.request(GROWTH_AGENT_EXTENSIONS_PATH,body,requestId) as GrowthAgentCommandOutputs[K];
   }
   private async request(path:string,body:unknown,requestId:string):Promise<unknown>{

@@ -107,7 +107,8 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
   async function send(command:GrowthAgentCommand,isControl=false) {
     const shared=sharedCommand(command);
     const path=shared?"/internal/v1/products/growth/agent-gateway":"/internal/v1/products/growth/extensions";
-    const body=shared??command;
+    const body=shared??{version:"1",requestId:command.requestId,product:"growth",tenantId:command.tenantId,actor:command.actor,
+      operation:`growth.${command.operation}`,input:command.input};
     return fetch(origin+path,{method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+await signed(body,isControl)},body:JSON.stringify(body)});
   }
   function command<K extends GrowthAgentCommand["operation"]>(operation:K,input:Extract<GrowthAgentCommand,{operation:K}>["input"],extra:Partial<GrowthAgentCommand>={}):GrowthAgentCommand{
