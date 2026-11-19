@@ -125,10 +125,11 @@ has been authorized.
 | Independent application client | `/v1` HTTP with application credentials | Proven end to end | Keep the documented contract stable |
 | External MCP assistants | `/mcp` OAuth | Proven, including denied unassigned agents | Keep operation/scope table current |
 | Growth | Core uses the signed product gateway; extensions use the namespaced envelope; provisioning uses the lifecycle publication | Core migrated, extensions remain | Finish the feature-mapping and extension cleanup in KAS-316 |
-| Agency | Agency product runtime/client | Not migrated | Separate Agency change with the same verification |
+| Agency | Agency product runtime/client | Deferred by owner (2026-11-19) | Not in the current Growth plan; revisit as a separate change |
 | Website widgets and channels | Platform website/channel routes | Serving | No change required by this upgrade |
 | Product tool bundles | Growth/Agency capability manifests | Tracked as follow-on | Migrate after each consumer cutover; keep pinned revisions for accepted work |
 
-Migration order: Growth, then Agency, then external callers identified from the serving
-inventory. Each cutover needs an owner-approved change, a normal journey, a denied-authority
-journey, an outstanding-run decision and a rollback point. Tool bundles follow their consumer.
+Migration order: Growth is complete. Agency and external callers identified from the serving
+inventory are deferred; the owner deferred Agency on 2026-11-19. Each future cutover needs an
+owner-approved change, a normal journey, a denied-authority journey, an outstanding-run
+decision and a rollback point. Tool bundles follow their consumer.

@@ -28,7 +28,7 @@ Post-release review date: after the owner approves and completes a production ro
   shared commands into the Growth command DTO. Growth provisioning sends
   `agents.applyPublication` through `/internal/v1/products/:product/lifecycle`; a fresh
   isolated PostgreSQL run exercised the authenticated lifecycle endpoint. Internal adapter
-  and feature-to-agent cleanup remain in KAS-316. Agency still uses its own product path.
+  and feature-to-agent cleanup remain in KAS-316. Agency is deferred by owner decision and is not part of this plan.
 - Archive and restore remains an owner functionality decision; it is not a cutover prerequisite
   in this inventory.
 - Consumer cutover and deletion of retired routes are follow-on work; see
