@@ -59,7 +59,7 @@ export function CreateAgentDialog({ open, onOpenChange, organizationId, onCreate
       setCustom([...jobs]);
       setKnowledgeAdded(Boolean(saved.draft.sourceRevisionIds?.length));
       setCustomKnowledge(!needsKnowledge(jobs) && saved.setupStep === "Knowledge");
-      setStep(saved.setupStep === "Knowledge" ? 2 : needsKnowledge(jobs) ? 3 : 2);
+      setStep(saved.setupStep === "Knowledge" ? 2 : saved.setupStep === "Responsibilities" ? 1 : needsKnowledge(jobs) ? 3 : 2);
     }).catch(() => { sessionStorage.removeItem(storageKey); reset(); }).finally(() => { if (live) setBusy(false); });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
