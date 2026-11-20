@@ -56,10 +56,16 @@ A separate full-conversation estimate drives the model-pressure forecast, so a 1
 request is not treated as a nearly full 196k model window.
 
 Compaction is background work at the 85% threshold. It retains the most recent 15,000 tokens
-verbatim beside an incremental summary. Foreground compaction is reserved for a request that
-cannot fit even after route packing, or for recovery from an actual overflow. A failed summary
+for a large model window, scaled to 25% of the effective input (with a 1,000-token floor) for
+narrow contexts. Foreground compaction is reserved for a request that cannot fit even after route
+packing, an explicit narrow context limit, or recovery from an actual overflow. A failed summary
 falls back to whole-group pruning and keeps the last valid summary; a failed or unavailable
 background job never blocks the reply.
+
+The chat's **Compact context** action admits a hidden maintenance task with a fresh execution
+root, freezes the current conversation into the same immutable background job, and settles the
+task after adoption. Maintenance tasks are excluded from conversation history and conversation
+reads.
 
 Under the shared protocol, tool results the model has already read are shortened to a bounded
 opening with an explicit note. The newest result is left whole, and the complete output remains in
