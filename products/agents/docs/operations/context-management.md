@@ -75,6 +75,16 @@ summary call. Compaction requests cap tool output separately.
 The context meter reports route-input usage and model-pressure usage separately. A 37% route and
 a 7% model window are different facts and must not be presented as one percentage.
 
+### Rollout flags
+
+- `AGENTS_COMPACTION_POLICY=pressure|off` enables automatic summaries or leaves route windowing
+  only. The default is `pressure`.
+- `AGENTS_COMPACTION_BACKGROUND=true|false` controls optional background summaries.
+- `AGENTS_COMPACTION_MANUAL=true|false` controls the explicit Compact context action.
+
+Flags are read at the operation boundary; invalid values fail instead of silently changing
+behavior. A restart applies a new value without a schema change.
+
 ## Request custody and recovery
 
 New publications use `tools.load`2. Models select the exact handles returned by discovery;

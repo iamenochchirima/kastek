@@ -84,6 +84,7 @@ import { protocolToolVersions } from "../../capabilities/protocol-tools";
 import { loadContinuityCheckpoint, prepareCompactionJob, adoptCompactionCheckpoint, readCompactionJobOutcome, failCompactionJob, retireQueuedBackgroundCompaction, type CompactionJobOutcome, type ContinuityCheckpoint } from "../lifecycle/checkpoints";
 import { customerChannelInstructions, customerSafeInstructions, retrievalOnlyChannelInstructions, sharedProtocolInstructions } from "../context/protocol-instructions";
 import { planBackgroundCompaction } from "../context/background-planning";
+import { compactionFlags } from "../context/compaction-flags";
 import { trimReadToolResults } from "../context/tool-results";
 import { CONTEXT_COMPACTION_WORKFLOW,type ContextCompactionWorkflow } from "../context/compaction-workflow";
 import { createToolCatalog, progressiveModelTools, assertLoadedTool, discoverToolCatalog, loadToolSchemas, toolSchemaFailureFeedback, type ToolCatalog, type ToolCatalogMetadata } from "../../capabilities/tool-discovery";
@@ -776,6 +777,7 @@ export function preparationFailureCode(error: unknown): string | null {
 export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, runtime: {release:string;workflow:string} = {release:HARNESS_RELEASE,workflow:WORKFLOW_NAME}) {
   // Direct constructions keep the built-in handlers; composition can override the registry.
   const capabilityHandlers = options.capabilityHandlers ?? [bookingOperationHandler(options.bookings), reportDeliveryHandler(), skillsOperationHandler(options.executeSandbox)];
+  const compaction = compactionFlags();
   return restate.workflow({ name: restateServiceName(runtime.workflow), options: { workflowRetention: { days: 7 }, journalRetention: { days: 7 } }, handlers: {
     run: async (ctx: restate.WorkflowContext, input: { taskId: string }) => {
       if (ctx.key !== input.taskId) throw new restate.TerminalError("Task identity mismatch", { errorCode: 400 });
@@ -955,6 +957,13 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
           knownGeneration = assembled.memoryFence?.generation;
           knownExpiry = assembled.memoryFence?.expiresAt;
           if (assembled.needsCompaction) {
+            if (compaction.policy === "off") {
+              if (backgroundJob) {
+                await guardedRun(ctx,`background-disabled:${step}`,()=>retireQueuedBackgroundCompaction(pool,backgroundJob!.taskId,backgroundJob!.id));
+                backgroundJob=undefined;
+              }
+              outcome = { state: "incomplete", errorCode: "CONTEXT_LIMIT" }; break;
+            }
             if(backgroundJob){
               const retired=await guardedRun(ctx,`background-foreground:${step}`,()=>retireQueuedBackgroundCompaction(pool,backgroundJob!.taskId,backgroundJob!.id));
               const settled=await awaitBackgroundCompaction(ctx,pool,backgroundJob,`background-foreground-join:${step}`);
@@ -1034,7 +1043,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
           }
           previousCompactionProgress = undefined;
           const snapshot = assembled.snapshot!;
-          if(assembled.backgroundCompactionRequested&&!backgroundJob&&!backgroundUnavailable&&options.evidence){
+          if(assembled.backgroundCompactionRequested&&compaction.background&&compaction.policy!=="off"&&!backgroundJob&&!backgroundUnavailable&&options.evidence){
             const remaining=await guardedRun(ctx,`background-allowance:${step}`,()=>executionAllowanceObservation(pool,execution));
             const hasFinishingCalls=[remaining?.agentModelCalls,remaining?.workModelCalls].every(value=>value===undefined||value>=3);
             const planned=await ctx.run(`background-prepare:${step}`,async()=>{

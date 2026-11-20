@@ -9,6 +9,7 @@ import { loadExecution } from "../lifecycle/state";
 import { contextModelPolicy } from "../business/business";
 import { requestDigest as modelRequestDigest, type ModelRequest } from "../business/model";
 import { prepareCompaction, recentWindowTokens, type ContextGroup } from "./context";
+import { compactionFlags } from "./compaction-flags";
 import type { EvidenceStore } from "./evidence";
 
 export interface ManualCompactionScope {
@@ -32,6 +33,7 @@ function unavailable(message: string): never {
 
 /** Freeze the current conversation into the same immutable background job used by automatic compaction. */
 export async function compactConversation(options: ManualCompactionOptions, scope: ManualCompactionScope): Promise<{ id: string; taskId: string }> {
+  if (!compactionFlags().manual) throw new PlatformError("COMPACTION_DISABLED", 409, "Manual context compaction is disabled.");
   const { pool, evidence } = options;
   const conversation = (await pool.query<{ agent_id: string; principal: unknown }>(
     "SELECT agent_id, principal FROM agents_platform.conversations WHERE id=$1 AND organization_id=$2 AND agent_id=$3 AND deleted_at IS NULL",
