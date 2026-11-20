@@ -85,6 +85,7 @@ import { loadContinuityCheckpoint, prepareCompactionJob, adoptCompactionCheckpoi
 import { customerChannelInstructions, customerSafeInstructions, retrievalOnlyChannelInstructions, sharedProtocolInstructions } from "../context/protocol-instructions";
 import { planBackgroundCompaction } from "../context/background-planning";
 import { compactionFlags } from "../context/compaction-flags";
+import { pruneCompactedGroups } from "../context/pruning";
 import { trimReadToolResults } from "../context/tool-results";
 import { CONTEXT_COMPACTION_WORKFLOW,type ContextCompactionWorkflow } from "../context/compaction-workflow";
 import { createToolCatalog, progressiveModelTools, assertLoadedTool, discoverToolCatalog, loadToolSchemas, toolSchemaFailureFeedback, type ToolCatalog, type ToolCatalogMetadata } from "../../capabilities/tool-discovery";
@@ -1021,10 +1022,28 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                 if(waiting.settled)return waiting.settled;
                 if(waiting.waited)continue;
               }
+              // A failed summary must not fail the reply. Automatic contexts prune the
+              // frozen prefix and continue; explicit narrow limits keep their hard cap.
+              if (!explicitContext) {
+                const fallback = pruneCompactedGroups(omitted, working, plan.compactedGroupIds);
+                if (fallback.pruned.length) {
+                  omitted = fallback.omitted; working = fallback.working; previousCompactionProgress = undefined;
+                  await ctx.run(`prune-event:${step}`, () => event(pool, taskId, `prune:${step}`, "context.pruned", { groups: fallback.pruned.length, reason: compacted.code }));
+                  continue;
+                }
+              }
               outcome = failed(compacted); break;
             }
             if (compacted.value.finishReason !== "stop" || !compacted.value.message.content) {
               if(sharedProtocol)await guardedRun(ctx,`compact-rejected:${step}`,()=>failCompactionJob(pool,`compact:${taskId}:${step}`,taskId,"rejected","COMPACTION_INVALID"));
+              if (!explicitContext) {
+                const fallback = pruneCompactedGroups(omitted, working, plan.compactedGroupIds);
+                if (fallback.pruned.length) {
+                  omitted = fallback.omitted; working = fallback.working; previousCompactionProgress = undefined;
+                  await ctx.run(`prune-event:${step}`, () => event(pool, taskId, `prune:${step}`, "context.pruned", { groups: fallback.pruned.length, reason: "COMPACTION_INVALID" }));
+                  continue;
+                }
+              }
               outcome = { state: "incomplete", errorCode: "COMPACTION_INVALID" }; break;
             }
             previousCompactionProgress=progress;

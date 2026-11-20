@@ -59,8 +59,14 @@ Compaction is background work at the 85% threshold. It retains the most recent 1
 for a large model window, scaled to 25% of the effective input (with a 1,000-token floor) for
 narrow contexts. Foreground compaction is reserved for a request that cannot fit even after route
 packing, an explicit narrow context limit, or recovery from an actual overflow. A failed summary
-falls back to whole-group pruning and keeps the last valid summary; a failed or unavailable
-background job never blocks the reply.
+prunes the frozen prefix and continues; the stored turns and their evidence remain available to
+history search/read, and a failed or unavailable background job never blocks the reply. Explicit
+narrow context limits keep their hard cap instead of silently pruning required context.
+
+A reasoning model can spend the whole compaction output allowance on internal reasoning and
+return no summary. The 4,096-token agent output cap is enough for a normal reply but not always
+for a summary. The pruning fallback keeps the turn alive; the compaction model and output
+allowance still need a dedicated review before relying on summaries alone.
 
 The chat's **Compact context** action admits a hidden maintenance task with a fresh execution
 root, freezes the current conversation into the same immutable background job, and settles the
