@@ -817,6 +817,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
       const sharedProtocol = runtime.release === SHARED_HARNESS_RELEASE;
       const adaptiveExecution = runtime.release === "product-capabilities-v14" || sharedProtocol;
       let working: ContextGroup[] = [], summary: ContextSource | undefined, omitted: string[] = [], knownGeneration: number | undefined, knownExpiry: number | undefined;
+      let backgroundFailureCode: string | undefined;
       let continuity: ContinuityCheckpoint | undefined;
       let backgroundJob:BackgroundCompactionJob|undefined,backgroundUnavailable=false;
       let partialChildren=false,finalMemoryFence:MemoryFence|undefined;
@@ -897,7 +898,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                 working=working.filter(group=>!observed.compactedGroupIds.includes(group.id));
                 previousCompactionProgress=undefined;
               }else if(observed.state==="uncertain"){outcome={state:"uncertain",errorCode:observed.code??"COMPACTION_OUTCOME_UNCERTAIN"};break;}
-              else backgroundUnavailable=true;
+              else { backgroundUnavailable=true; backgroundFailureCode=observed.code; }
             }
           }
           const execution = await awaitAuthority(ctx, pool, taskId, `authority:${step}`);
@@ -969,7 +970,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               const retired=await guardedRun(ctx,`background-foreground:${step}`,()=>retireQueuedBackgroundCompaction(pool,backgroundJob!.taskId,backgroundJob!.id));
               const settled=await awaitBackgroundCompaction(ctx,pool,backgroundJob,`background-foreground-join:${step}`);
               if(!retired)continue;
-              backgroundJob=undefined;backgroundUnavailable=true;
+              backgroundJob=undefined;backgroundUnavailable=true;backgroundFailureCode=settled.code;
               if(settled.state==="uncertain"){outcome={state:"uncertain",errorCode:settled.code??"COMPACTION_OUTCOME_UNCERTAIN"};break;}
             }
             const groups = [...assembled.history, ...assembled.working].filter(group=>(execution.task.execution_policy_version??1)<2||!group.id.startsWith("instruction:"));
@@ -980,6 +981,16 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
             }
             const plan = prepareCompaction(groups, { model: execution.models.compaction.binding.modelId, modelPolicy: contextModelPolicy(execution, "compaction"), ...(explicitContext ? { retainRecent: Math.min(1, groups.length - 1) } : { retainRecentTokens: recentWindowTokens(execution.models.primary.policy.maxInputTokens) }), maxInputTokens: execution.models.compaction.policy.maxInputTokens,
               maxOutputTokens: execution.models.compaction.policy.maxOutputTokens, previousSummary: summary });
+            // A truncated/empty background summary is deterministic for the same frozen
+            // request. Prune instead of spending a second identical compaction call.
+            if (!explicitContext && backgroundFailureCode === "COMPACTION_INVALID") {
+              const fallback = pruneCompactedGroups(omitted, working, plan.compactedGroupIds);
+              if (fallback.pruned.length) {
+                omitted = fallback.omitted; working = fallback.working; previousCompactionProgress = undefined; backgroundFailureCode = undefined;
+                await ctx.run(`prune-event:${step}`, () => event(pool, taskId, `prune:${step}`, "context.pruned", { groups: fallback.pruned.length, reason: "COMPACTION_INVALID" }));
+                continue;
+              }
+            }
             const request: ModelRequest = { messages: plan.messages, model: execution.models.compaction.binding.modelId, maxDurationSeconds: execution.models.compaction.policy.maxCallDurationMs / 1000,
               maxInputTokens: execution.models.compaction.policy.maxInputTokens, maxOutputTokens: execution.models.compaction.policy.maxOutputTokens };
             await ctx.run(`compact-context:${step}`, async () => {

@@ -25,3 +25,14 @@ describe("compaction pruning fallback", () => {
     expect(pruneCompactedGroups([], working, [])).toEqual({ omitted: [], working, pruned: [] });
   });
 });
+
+describe("manual maintenance outcome", () => {
+  it("is complete only for adopted or superseded jobs", async () => {
+    const { manualMaintenanceState } = await import("../src/execution/context/pruning");
+    expect(manualMaintenanceState("adopted")).toBe("completed");
+    expect(manualMaintenanceState("superseded")).toBe("completed");
+    expect(manualMaintenanceState("rejected")).toBe("incomplete");
+    expect(manualMaintenanceState("failed")).toBe("incomplete");
+    expect(manualMaintenanceState("uncertain")).toBe("incomplete");
+  });
+});

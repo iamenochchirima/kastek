@@ -22,3 +22,8 @@ export function pruneCompactedGroups(omitted: readonly string[], working: readon
     pruned,
   };
 }
+
+/** A manual maintenance task is complete only when its job was adopted or superseded. */
+export function manualMaintenanceState(state: string): "completed" | "incomplete" {
+  return state === "adopted" || state === "superseded" ? "completed" : "incomplete";
+}

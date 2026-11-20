@@ -13,6 +13,7 @@ import type { ProductRuntimePort } from "../products/product-runtime";
 import type { EvidenceStore } from "./evidence";
 import type { ContextGroup } from "./context";
 import { adoptCompactionCheckpoint, failCompactionJob, readCompactionJobOutcome, type CompactionJobOutcome } from "../lifecycle/checkpoints";
+import { manualMaintenanceState } from "./pruning";
 
 export { CONTEXT_COMPACTION_WORKFLOW } from "../../contracts/execution";
 export interface ContextCompactionOptions {
@@ -85,11 +86,13 @@ export function createContextCompactionWorkflow(pool:Pool,options:ContextCompact
         await ctx.run("compaction-failed-before-adoption",()=>failCompactionJob(pool,input.jobId,input.taskId,uncertainOperation(error)?"uncertain":"failed",error.code));
       }
       const outcome=await ctx.run("compaction-outcome",()=>readCompactionJobOutcome(pool,input.jobId,input.taskId));
+      const manual=input.jobId.startsWith("manual-");
       await ctx.run("compaction-event",()=>event(pool,input.taskId,`background:${input.jobId}`,outcome.state==="adopted"?"context.compacted":"context.compaction_settled",
-        {mode:"background",state:outcome.state,count:outcome.compactedGroupIds.length,reason:"threshold",
+        {mode:manual?"manual":"background",state:outcome.state,count:outcome.compactedGroupIds.length,reason:manual?"manual":"threshold",
           outcome:outcome.state==="adopted"||outcome.state==="superseded"?"completed":outcome.state==="uncertain"?"uncertain":"failed",
           ...(outcome.code?{errorCode:outcome.code}:{})}));
-      if (input.jobId.startsWith("manual-")) await ctx.run("manual-compaction-settle", () => settleTask(pool, input.taskId, { state: "completed" }));
+      if (manual) await ctx.run("manual-compaction-settle", () => settleTask(pool, input.taskId,
+        { state: manualMaintenanceState(outcome.state) }));
       return outcome;
     },
     capacity:async(ctx:restate.WorkflowSharedContext,input:{requestId:string;generation:number})=>{
