@@ -143,7 +143,17 @@ is added. Operational investigation uses record revisions/activity plus existing
 
 ## Product scope and implementation gaps
 
-Agent creation uses one customer-service offering with selectable question answering, support,
+Quick creation starts with a name, then one job template (Answer questions, Customer support,
+Bookings or Enquiries) or a Custom mix of those jobs, then optional website or document knowledge,
+then Create. A template sets the setup responsibilities and derives identity and instructions; it
+grants no external connection. The draft is created after the job choice so knowledge can attach;
+closing the dialog leaves a resumable draft. Purpose, instructions, model, identity, tools, memory,
+handoff, delegation, workflows and skills default and are edited after creation. The Capabilities
+page shows **What it does** and **Platform capabilities**; schedules, code execution and browser use
+remain unavailable. The controlled `create-agent-wizard.spec.ts` covers template, bookings, Custom
+and resume paths.
+
+The guided setup flow uses one customer-service offering with selectable question answering, support,
 appointments and native enquiries. The guided flow saves progress on the server after each forward
 step. A scoped session pointer resumes the same agent after reload; creation retries use a stable
 operation ID. The setup progress card on the agent menu resumes or edits it. Saves use draft revisions and

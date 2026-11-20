@@ -38,6 +38,18 @@ import { Switch } from "@/components/ui/switch";
 
 const sections = ["overview", "conversations", "capabilities", "knowledge", "behaviour", "widget", "deploy", "settings"] as const;
 const memoryTools = ["memory.search", "memory.read", "memory.propose"] as const;
+
+/** Compare configurations without depending on JSON key order. */
+function sameConfiguration(left: unknown, right: unknown): boolean {
+  if (Array.isArray(left)) return Array.isArray(right) && left.length === right.length && left.every((value, index) => sameConfiguration(value, right[index]));
+  if (left && right && typeof left === "object" && typeof right === "object") {
+    const leftEntries = Object.entries(left as Record<string, unknown>).filter(([, value]) => value !== undefined);
+    const rightEntries = Object.entries(right as Record<string, unknown>).filter(([, value]) => value !== undefined);
+    return leftEntries.length === rightEntries.length && leftEntries.every(([key, value]) => sameConfiguration(value, (right as Record<string, unknown>)[key]));
+  }
+  return left === right;
+}
+
 type EffectiveSettings = { composed: string; sources: number; tools: number; connectedTools: number; skills: number };
 type Section = (typeof sections)[number];
 type BehaviourTab = "general" | "tools" | "skills";
@@ -85,7 +97,12 @@ export function AgentEditor() {
   useEffect(() => { let live = true; Promise.all([api<{ agent: Agent; versions: Version[] }>(path), api<KnowledgeSources>(`${organizationPath(organizationId)}/knowledge/sources`)]).then(([result, sources]) => { if (!live) return; setAgent(result.agent); setConfiguration(result.agent.draft); setName(result.agent.name); setVersions(result.versions); setKnowledge(sources.sources); }).catch(e => { if (live) setError(message(e)); }); return () => { live = false; }; }, [path, organizationId, agentId, session.account.id]);
   const latestDraft = useRef({ name, configuration }); latestDraft.current = { name, configuration };
   const dirty = Boolean(agent && configuration && (name !== agent.name || JSON.stringify(configuration) !== JSON.stringify(agent.draft)));
-  const pendingSetup = Boolean(agent && (!versions[0] || JSON.stringify(agent.draft) !== JSON.stringify(versions[0].configuration)));
+  const pendingSetup = Boolean(agent && (!versions[0] || (() => {
+    // Publishing resolves a default knowledge mode; a draft may legitimately omit it.
+    const saved = versions[0]!.configuration;
+    const draft = agent.draft.knowledge || !saved.knowledge ? agent.draft : { ...agent.draft, knowledge: saved.knowledge };
+    return !sameConfiguration(draft, saved);
+  })()));
   const needsApply = dirty || pendingSetup;
   const workspace = session.organizations.find(org => org.id === organizationId);
   const canConfigure = hasPermission(workspace, "agents.manage");
@@ -290,7 +307,7 @@ export function AgentEditor() {
     {chatOpen ? <Chat endpoint={`${organizationPath(organizationId)}/tasks`} key={`${agent.id}.${conversationId ?? "new"}.${chatGeneration}`} storageKey={`agents.chat.${session.account.id}.${organizationId}.${agent.id}.${conversationId ?? "new"}`} agentId={agent.id} initialConversationId={conversationId} expectedAgentId={agent.id} onConversationReady={id => { refresh(); if (!conversationId) navigate(`/app/agents/${agent.id}/conversations/${id}`, { replace: true }); }} view="chat" composerAccessory={<ChatModelPicker organizationId={organizationId} agentId={agent.id} configuration={agent.draft} dirty={dirty} saving={busy} onSelect={changeChatModel} />} cancellable /> :
     section === "overview" ? <AgentOverview organizationId={organizationId} agent={agent} /> :
     section === "conversations" ? <AgentConversations organizationId={organizationId} agentId={agent.id} onNewChat={newChat} /> :
-    section === "capabilities" ? agent.setup || agent.offering ? <><AgentCapabilities agent={agent} configuration={configuration} knowledgeCount={knowledgeCount} busy={busy || dirty || pendingSetup} onToggle={(id, enabled) => void changeCapabilities(id, enabled)} onConfigure={configureCapability} />{agent.setup?.responsibilities.includes("bookings") ? <section className="agent-section agent-capability-config" id="agent-booking-config"><BookingPolicies agentId={agent.id} configuration={configuration} onChange={setConfiguration} embedded returnTo={`/app/agents/${agent.id}?section=capabilities`} onBeforeConnect={async () => { await beforeConnect(); }} onBusyChange={setBusy} /></section> : null}</> : <PlatformCapabilities configuration={configuration} onConfigure={destination => destination === "knowledge" ? goSection("knowledge") : goSection("behaviour", destination === "general" ? undefined : destination)} /> :
+    section === "capabilities" ? <>{agent.setup || agent.offering ? <AgentCapabilities agent={agent} configuration={configuration} knowledgeCount={knowledgeCount} busy={busy || dirty || pendingSetup} onToggle={(id, enabled) => void changeCapabilities(id, enabled)} onConfigure={configureCapability} /> : null}<PlatformCapabilities configuration={configuration} onConfigure={destination => destination === "knowledge" ? goSection("knowledge") : goSection("behaviour", destination === "general" ? undefined : destination)} />{agent.setup?.responsibilities.includes("bookings") ? <section className="agent-section agent-capability-config" id="agent-booking-config"><BookingPolicies agentId={agent.id} configuration={configuration} onChange={setConfiguration} embedded returnTo={`/app/agents/${agent.id}?section=capabilities`} onBeforeConnect={async () => { await beforeConnect(); }} onBusyChange={setBusy} /></section> : null}</> :
     section === "knowledge" ? <section className="agent-section agent-knowledge-page"><p className="agent-section-lead">Sources this agent answers from.</p><SourceConfiguration agentId={agent.id} sources={knowledge} configuration={configuration} onChange={setConfiguration} onRefresh={refreshKnowledge} action={<div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" disabled={dirty || busy} onClick={() => setDocumentsOpen(true)}><Upload size={15} />Add documents</Button>{["faq", "customer-service"].includes(agent.offering ?? "") && (!agent.setup || agent.setup.responsibilities.some(value => ["answer-questions", "customer-support"].includes(value))) ? <Button type="button" size="sm" variant="outline" disabled={dirty || busy} onClick={() => setKnowledgeOpen(true)}><Upload size={15} />Import website</Button> : null}</div>} /></section> :
     section === "behaviour" ? <section className="agent-section agent-behaviour-page"><header className="agent-section-heading"><div><h1>Behaviour</h1><p>How this agent introduces itself, responds, and remembers.</p></div></header><nav className="agent-subtabs" aria-label="Behaviour sections">{([["general", "General"], ["tools", "Tools"], ["skills", "Skills"]] as const).map(([id, label]) => <button key={id} type="button" onClick={() => setBehaviourTab(id)} aria-current={behaviourTab === id ? "page" : undefined}>{label}</button>)}</nav>
       {behaviourTab === "general" ? <form id="agent-behaviour-form" className="agent-general-grid" onSubmit={event => void save(event)}>
