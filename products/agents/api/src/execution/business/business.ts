@@ -29,7 +29,7 @@ import { selectedProductContextText } from "../products/product-information";
 import { composeAgentInstructions } from "../context/agent-identity";
 import type { TaskRecord } from "../../contracts/records";
 import { estimatedTokensFromSerialized } from "../../contracts/serialized-tokens";
-import { buildContext,prepareCompaction,type ContextGroup,type ContextSource,type ContextModelPolicy,type RequestTimeContext } from "../context/context";
+import { buildContext,estimateMessagesTokens,prepareCompaction,type ContextGroup,type ContextSource,type ContextModelPolicy,type RequestTimeContext } from "../context/context";
 import { knowledgeModeForRoute,routePlan,routeTurn,toolAllowed,type PendingActionKind,type RoutePlan } from "../routing/turn-router";
 import { loadContinuation } from "../context/continuation";
 import { workContinuationGroups } from "../lifecycle/work-continuation";
@@ -84,6 +84,7 @@ import { protocolToolVersions } from "../../capabilities/protocol-tools";
 import { loadContinuityCheckpoint, prepareCompactionJob, adoptCompactionCheckpoint, readCompactionJobOutcome, failCompactionJob, retireQueuedBackgroundCompaction, type CompactionJobOutcome, type ContinuityCheckpoint } from "../lifecycle/checkpoints";
 import { customerChannelInstructions, customerSafeInstructions, retrievalOnlyChannelInstructions, sharedProtocolInstructions } from "../context/protocol-instructions";
 import { planBackgroundCompaction } from "../context/background-planning";
+import { trimReadToolResults } from "../context/tool-results";
 import { CONTEXT_COMPACTION_WORKFLOW,type ContextCompactionWorkflow } from "../context/compaction-workflow";
 import { createToolCatalog, progressiveModelTools, assertLoadedTool, discoverToolCatalog, loadToolSchemas, toolSchemaFailureFeedback, type ToolCatalog, type ToolCatalogMetadata } from "../../capabilities/tool-discovery";
 import { instructionHead } from "../context/request-manifest";
@@ -536,7 +537,9 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       : knowledgeCapReached
         ? "\nKnowledge lookups are closed for this request. Answer from the knowledge already supplied and say plainly when it does not contain the answer."
         : knowledgeReadFailed ? "\nKnowledge passage paging is closed for this request. Answer from the passages already supplied." : "";
-  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: customerInstructions+memberContext+outcomeGuidance+recoveryInstructions+procedureInstructions+(directory?"\n"+directory.text:"")+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":"")+(task.channel_binding?(handoffAvailable?customerChannelInstructions:retrievalOnlyChannelInstructions):"")+knowledgeNotice+omittedInstructionNotice+(turnPlan?`\n${turnPlan.definition.instructions}`:""), compactContinuation: (task.execution_policy_version??1)>=2, ...(originatingRequest?{originatingRequest,currentInputOrigin:"coordinator" as const}:{}), currentInput: [task.input,...(selectedProductContext?[selectedProductContextText(selectedProductContext.reference)]:[]),...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
+  const contextHistory = sharedProtocol ? trimReadToolResults(history) : history;
+  const contextWorking = sharedProtocol ? trimReadToolResults(active) : active;
+  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: customerInstructions+memberContext+outcomeGuidance+recoveryInstructions+procedureInstructions+(directory?"\n"+directory.text:"")+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":"")+(task.channel_binding?(handoffAvailable?customerChannelInstructions:retrievalOnlyChannelInstructions):"")+knowledgeNotice+omittedInstructionNotice+(turnPlan?`\n${turnPlan.definition.instructions}`:""), compactContinuation: (task.execution_policy_version??1)>=2, ...(originatingRequest?{originatingRequest,currentInputOrigin:"coordinator" as const}:{}), currentInput: [task.input,...(selectedProductContext?[selectedProductContextText(selectedProductContext.reference)]:[]),...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history: contextHistory, workingGroups: contextWorking,
     summary: invalidated ? undefined : summary, sources,
     skills: loadedSkills.sources, skillCatalog: loadedSkills.catalog,
     tools: routedTools, model: execution.models.primary.binding.modelId, modelPolicy: contextModelPolicy(execution, "primary", await nativeContextCosts(pool, execution), packingOverhead),
@@ -572,17 +575,20 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     }
   }
   const totalGroups = history.length + active.length;
-  if (built.status === "compaction_required" || (!sharedProtocol && built.estimatedTokens >= execution.models.primary.policy.compactAtTokens && totalGroups > 2)) {
+  if (!sharedProtocol && built.estimatedTokens >= execution.models.primary.policy.compactAtTokens && totalGroups > 2) {
     return { history, working: active, memoryFence, invalidated, needsCompaction: true };
   }
   phase.mark("assemble");
   const selectedContinuation=built.continuation;
-  const previousSnapshot=sharedProtocol?(await pool.query(`SELECT id,payload->>'estimatedTokens' AS tokens,payload->>'catalogDigest' AS "catalogDigest",
+  const previousSnapshot=sharedProtocol?(await pool.query(`SELECT id,payload->>'estimatedTokens' AS tokens,payload->>'fullEstimatedTokens' AS "fullTokens",payload->>'catalogDigest' AS "catalogDigest",
       payload->>'catalogOwner' AS "catalogOwner",(payload ? 'catalog') AS "hasCatalog"
     FROM agents_platform.context_snapshots WHERE task_id=$1 AND step>=0 AND step<$2 ORDER BY step DESC LIMIT 1`,[taskId,step])).rows[0]:undefined;
   const previousSize=previousSnapshot;
-  const mandatory=sharedProtocol?buildContext({...input,history:[],summary:undefined,sources:[],workingGroups:active.filter(group=>group.id.startsWith("instruction:"))}).estimatedTokens:0;
-  const forecast=compactionForecast(execution.models.primary.policy,built.estimatedTokens,previousSize?Number(previousSize.tokens):undefined,mandatory);
+  const omittedGroups = sharedProtocol ? history.filter(group => built.omittedHistoryGroupIds.includes(group.id)) : [];
+  const fullEstimatedTokens = built.estimatedTokens + (omittedGroups.length ? estimateMessagesTokens({ ...input, tools: undefined }, omittedGroups.flatMap(group => group.messages)) : 0);
+  const mandatory=sharedProtocol?buildContext({...input,history:[],summary:undefined,sources:[],workingGroups:contextWorking.filter(group=>group.id.startsWith("instruction:"))}).estimatedTokens:0;
+  const previousFullTokens=previousSize?.fullTokens?Number(previousSize.fullTokens):previousSize?Number(previousSize.tokens):undefined;
+  const forecast=compactionForecast(execution.models.primary.policy,fullEstimatedTokens,previousFullTokens,mandatory);
   const id = `context:${taskId}:${step}`;
   const knowledgeReferences = built.sourceReferences.filter(reference => reference.kind === "knowledge");
   const messageBytes = (role: "system" | "user" | "assistant" | "tool") => built.messages.filter((message: HarnessMessage) => message.role === role)
@@ -607,7 +613,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       owner: typeof previousSnapshot.catalogOwner === "string" ? previousSnapshot.catalogOwner : (previousSnapshot.hasCatalog === "catalog" ? previousSnapshot.id : null),
       digest: typeof previousSnapshot.catalogDigest === "string" ? previousSnapshot.catalogDigest : null } : undefined), ...(modernInstructions?{primaryInstructionIds}:{}), instructionGroups:active.filter(group=>group.id.startsWith("instruction:")),
     historyGroupIds: built.historyGroupIds.filter(groupId=>!groupId.startsWith("channel:")),
-    ...(task.channel_binding?{channelHistoryGroupIds:built.historyGroupIds}:{}), estimatedTokens: built.estimatedTokens,...(sharedProtocol?{compactionForecast:forecast,backgroundCompactionRequested:forecast.requested&&totalGroups>2}:{}), memoryExpiresAt: memoryFence?.expiresAt, evidenceIds: [...new Set([...built.sourceReferences.flatMap(reference=>reference.evidenceId?[reference.evidenceId]:[]),...active.flatMap(group=>group.evidenceIds??[])])] }, JSON.stringify(built.sourceReferences),
+    ...(task.channel_binding?{channelHistoryGroupIds:built.historyGroupIds}:{}), estimatedTokens: built.estimatedTokens,...(sharedProtocol?{fullEstimatedTokens,compactionForecast:forecast,backgroundCompactionRequested:forecast.requested&&totalGroups>2}:{}), memoryExpiresAt: memoryFence?.expiresAt, evidenceIds: [...new Set([...built.sourceReferences.flatMap(reference=>reference.evidenceId?[reference.evidenceId]:[]),...active.flatMap(group=>group.evidenceIds??[])])] }, JSON.stringify(built.sourceReferences),
     memoryFence?.id ?? null, memoryFence?.generation ?? null, task.history_cutoff ?? "0"])).rows[0];
   const saved = row ? undefined : (await pool.query("SELECT * FROM agents_platform.context_snapshots WHERE id=$1", [id])).rows[0];
   phase.mark("insert");
@@ -957,7 +963,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
             if ((execution.task.execution_policy_version??1)>=2 && compactionDidNotProgress(assembled.invalidated ? undefined : previousCompactionProgress,progress)) {
               outcome = { state: "incomplete", errorCode: "COMPACTION_NO_PROGRESS" }; break;
             }
-            const plan = prepareCompaction(groups, { model: execution.models.compaction.binding.modelId, modelPolicy: contextModelPolicy(execution, "compaction"), retainRecent: Math.min(1, groups.length - 1), maxInputTokens: execution.models.compaction.policy.maxInputTokens,
+            const plan = prepareCompaction(groups, { model: execution.models.compaction.binding.modelId, modelPolicy: contextModelPolicy(execution, "compaction"), retainRecentTokens: 15_000, maxInputTokens: execution.models.compaction.policy.maxInputTokens,
               maxOutputTokens: execution.models.compaction.policy.maxOutputTokens, previousSummary: summary });
             const request: ModelRequest = { messages: plan.messages, model: execution.models.compaction.binding.modelId, maxDurationSeconds: execution.models.compaction.policy.maxCallDurationMs / 1000,
               maxInputTokens: execution.models.compaction.policy.maxInputTokens, maxOutputTokens: execution.models.compaction.policy.maxOutputTokens };
@@ -1018,7 +1024,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               ? options.evidence!.deriveSummaryFromSnapshot(taskId,summary!.id,`context:compact:${taskId}:${step}`)
               : options.evidence!.derive(taskId,"summary",summary!.id));
             omitted.push(...plan.compactedGroupIds); working = working.filter(group => !plan.compactedGroupIds.includes(group.id));
-            await ctx.run(`compaction-event:${step}`, () => event(pool, taskId, summary!.id, "context.compacted", { compactedGroups: plan.compactedGroupIds.length }));
+            await ctx.run(`compaction-event:${step}`, () => event(pool, taskId, summary!.id, "context.compacted", { compactedGroups: plan.compactedGroupIds.length, reason: "overflow" }));
             continue;
           }
           previousCompactionProgress = undefined;

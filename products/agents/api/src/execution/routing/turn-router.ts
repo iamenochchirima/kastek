@@ -21,9 +21,9 @@ const policy = (maxInputTokens: number, maxKnowledgeTokens: number, maxHistoryTo
 export const ROUTE_DEFINITIONS: Readonly<Record<RouteKey, RouteDefinition>> = Object.freeze({
   conversation: { key: "conversation", policy: policy(4_000, 0, 1_500, 1_200, 0, 0, "none", ["core"]),
     instructions: "This is a short conversational turn. Reply directly and do not claim to search or look anything up." },
-  knowledge: { key: "knowledge", policy: policy(10_000, 6_000, 2_500, 2_000, 1_000, 2_000, "retrieved", ["knowledge", "product", "workspace", "core"]),
+  knowledge: { key: "knowledge", policy: policy(16_000, 8_000, 6_000, 2_000, 1_000, 2_000, "retrieved", ["knowledge", "product", "workspace", "core"]),
     instructions: "Answer from the supplied knowledge. Do not claim to search unless a knowledge tool was actually called." },
-  catalogue: { key: "catalogue", policy: policy(16_000, 10_000, 2_500, 2_000, 1_000, 2_000, "retrieved", ["knowledge", "product", "workspace", "core"]),
+  catalogue: { key: "catalogue", policy: policy(20_000, 10_000, 6_000, 2_000, 1_000, 2_000, "retrieved", ["knowledge", "product", "workspace", "core"]),
     instructions: "Answer from the supplied knowledge. Include the complete requested list when it fits the reply budget." },
   action: { key: "action", policy: policy(8_000, 2_000, 2_000, 2_000, 1_000, 4_000, "retrieved", ["action", "product", "workspace", "core"]),
     instructions: "Continue the requested action. Do not claim an effect without a tool result." },

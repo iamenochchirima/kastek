@@ -120,6 +120,10 @@ function estimatedTokens(input: ContextInput, request: ModelRequest): number {
   if (!Number.isSafeInteger(tokens) || tokens < 0) throw new ModelOperationError("MODEL_TOKEN_ESTIMATE_INVALID", "rejected", 400);
   return tokens;
 }
+/** Estimate messages without enforcing the current request's input cap. */
+export function estimateMessagesTokens(input: ContextInput, messages: HarnessMessage[]): number {
+  return estimatedTokens(input, modelRequest(input, messages));
+}
 function contextRequestDigest(input: ContextInput, request: ModelRequest): string {
   return valueDigest({ request, modelPolicy: policySnapshot(input.modelPolicy) });
 }
@@ -253,7 +257,7 @@ export interface CompactionPlan {
   profileId?: string; modelPolicy?: ContextModelPolicySnapshot;
 }
 export interface CompactionOptions {
-  retainRecent?: number; model?: string; maxInputTokens?: number; maxOutputTokens?: number; previousSummary?: ContextSource;
+  retainRecent?: number; retainRecentTokens?: number; model?: string; maxInputTokens?: number; maxOutputTokens?: number; previousSummary?: ContextSource;
   modelPolicy: ContextModelPolicy;
 }
 function compactionInput(options: CompactionOptions): ContextInput {
@@ -265,10 +269,26 @@ function compactionDigest(ids: string[], request: ModelRequest, options: Compact
   const content = { groups: ids, request: contextRequestDigest(compactionInput(options), request), previousSummary: options.previousSummary ?? null };
   return valueDigest(content);
 }
+function retainedGroupCount(groups: ContextGroup[], input: ContextInput, tokenBudget: number): number {
+  let count = 0, tokens = 0;
+  for (let index = groups.length - 1; index >= 0; index--) {
+    const groupTokens = estimatedTokens(input, modelRequest(input, groups[index]!.messages));
+    if (count > 0 && tokens + groupTokens > tokenBudget) break;
+    tokens += groupTokens;
+    count++;
+  }
+  return Math.min(count, groups.length - 1);
+}
+
 export function prepareCompaction(groups: ContextGroup[], options: CompactionOptions): CompactionPlan {
   const input = compactionInput(options);
   validatePolicy(input);
-  const retainRecent = options.retainRecent ?? 2;
+  if (options.retainRecentTokens !== undefined && (!Number.isSafeInteger(options.retainRecentTokens) || options.retainRecentTokens < 0)) {
+    throw new ModelOperationError("COMPACTION_NOT_AVAILABLE", "rejected", 400);
+  }
+  const retainRecent = options.retainRecentTokens !== undefined
+    ? retainedGroupCount(groups, input, options.retainRecentTokens)
+    : options.retainRecent ?? 2;
   if (!Number.isSafeInteger(retainRecent) || retainRecent < 0 || groups.length <= retainRecent) throw new ModelOperationError("COMPACTION_NOT_AVAILABLE", "rejected", 400);
   const prefix = groups.slice(0, groups.length - retainRecent), recentGroups = groups.slice(groups.length - retainRecent);
   const ids = new Set<string>();

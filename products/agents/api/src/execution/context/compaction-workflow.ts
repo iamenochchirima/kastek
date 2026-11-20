@@ -86,7 +86,7 @@ export function createContextCompactionWorkflow(pool:Pool,options:ContextCompact
       }
       const outcome=await ctx.run("compaction-outcome",()=>readCompactionJobOutcome(pool,input.jobId,input.taskId));
       await ctx.run("compaction-event",()=>event(pool,input.taskId,`background:${input.jobId}`,outcome.state==="adopted"?"context.compacted":"context.compaction_settled",
-        {mode:"background",state:outcome.state,count:outcome.compactedGroupIds.length,
+        {mode:"background",state:outcome.state,count:outcome.compactedGroupIds.length,reason:"threshold",
           outcome:outcome.state==="adopted"||outcome.state==="superseded"?"completed":outcome.state==="uncertain"?"uncertain":"failed",
           ...(outcome.code?{errorCode:outcome.code}:{})}));
       return outcome;

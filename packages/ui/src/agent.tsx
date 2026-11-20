@@ -38,7 +38,8 @@ export interface AgentExecution {
   operations?: AgentOperation[];
   children?: AgentSubagent[];
   output?: string | null;
-  context?: { estimatedInputTokens?: number | null; inputLimitTokens?: number | null; windowTokens?: number | null; utilizationPercent?: number | null };
+  context?: { estimatedInputTokens?: number | null; inputLimitTokens?: number | null; windowTokens?: number | null; utilizationPercent?: number | null;
+    routeInputLimitTokens?: number | null; routeUtilizationPercent?: number | null; fullInputTokens?: number | null; compactAtTokens?: number | null };
   diagnostics?: { label: string; value: string | number | null }[];
   elapsedMs?: number | null;
   observedAt?: string;
@@ -226,9 +227,9 @@ export function AgentSubagentRow({ child, onOpen }: { child: AgentSubagent; onOp
 
 export function AgentContextUsage({ context, diagnostics }: Pick<AgentExecution, "context" | "diagnostics">) {
   if (!context && !diagnostics?.length) return null;
-  const percent = context?.utilizationPercent;
+  const percent = context?.routeUtilizationPercent ?? context?.utilizationPercent;
   return <details data-agent-context data-dialog-disclosure className="relative min-w-0 text-xs text-muted-foreground" onKeyDown={event => { if (event.key === "Escape" && event.currentTarget.open) { event.preventDefault(); event.stopPropagation(); event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}><summary className="min-h-9 w-fit cursor-pointer py-2">{context ? `Context${typeof percent === "number" && Number.isFinite(percent) ? ` · ${Math.round(percent)}%` : ""}` : "Execution details"}</summary>
-    <div className="absolute bottom-full left-0 z-50 mb-2 max-h-[min(60dvh,24rem)] w-[min(80vw,24rem)] space-y-3 overflow-auto rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-lg">{context ? <><p>Context capacity</p><dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1"><dt>Estimated input</dt><dd>{context.estimatedInputTokens?.toLocaleString() ?? "Unavailable"}</dd><dt>Input limit</dt><dd>{context.inputLimitTokens?.toLocaleString() ?? "Unavailable"}</dd><dt>Model window</dt><dd>{context.windowTokens?.toLocaleString() ?? "Unavailable"}</dd></dl></> : null}
+    <div className="absolute bottom-full left-0 z-50 mb-2 max-h-[min(60dvh,24rem)] w-[min(80vw,24rem)] space-y-3 overflow-auto rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-lg">{context ? <><p>Context capacity</p><dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1"><dt>Route input</dt><dd>{context.estimatedInputTokens?.toLocaleString() ?? "Unavailable"} / {context.routeInputLimitTokens?.toLocaleString() ?? "Unavailable"}</dd><dt>Model pressure</dt><dd>{context.fullInputTokens?.toLocaleString() ?? "Unavailable"} / {context.compactAtTokens?.toLocaleString() ?? "Unavailable"}</dd><dt>Model window</dt><dd>{context.windowTokens?.toLocaleString() ?? "Unavailable"}</dd></dl></> : null}
       {diagnostics?.length ? <details><summary className="min-h-9 cursor-pointer py-2">{context ? "Execution details" : "Measurements"}</summary><dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1">{diagnostics.map(item => <React.Fragment key={item.label}><dt>{item.label}</dt><dd className="max-w-48 break-words text-right">{item.value ?? "Unavailable"}</dd></React.Fragment>)}</dl></details> : null}
     </div>
   </details>;

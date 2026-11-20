@@ -17,6 +17,12 @@ describe("whole-context compaction progress",()=>{
     expect(next.remainingBytes).toBeLessThan(previous.remainingBytes);
     expect(compactionDidNotProgress(previous,next)).toBe(false);
   });
+  it("keeps automatic model-pressure compaction near 85% of the input allowance",()=>{
+    const policy={maxInputTokens:196608,compactAtTokens:167116,safetyTokens:1024};
+    expect(compactionForecast(policy,100000)).toMatchObject({requested:false});
+    expect(compactionForecast(policy,167000)).toMatchObject({requested:false});
+    expect(compactionForecast(policy,167200)).toMatchObject({requested:true});
+  });
   it("allows new corrections or source groups even when they grow the remaining context",()=>{
     const previous=measureCompactionProgress([group("retained",1000)]);
     const next=measureCompactionProgress([group("retained",1000),group("instruction:new",4000)]);
