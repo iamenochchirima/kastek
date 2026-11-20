@@ -64,9 +64,15 @@ history search/read, and a failed or unavailable background job never blocks the
 narrow context limits keep their hard cap instead of silently pruning required context.
 
 A reasoning model can spend the whole compaction output allowance on internal reasoning and
-return no summary. The 4,096-token agent output cap is enough for a normal reply but not always
-for a summary. The pruning fallback keeps the turn alive; the compaction model and output
-allowance still need a dedicated review before relying on summaries alone.
+return no summary. The user-facing reply cap is not a summary budget, so the compaction route
+gets its own floor of 8,192 output tokens, clamped to the model window and the configured safety
+reserve. The primary and delegated routes keep their configured cap. The pruning fallback still
+covers a summary that fails for another reason.
+
+A pasted document longer than 6,000 characters is routed to the 24k complex route even when it
+contains action keywords. Previously a long document could be classified as a short action and
+rejected with `CONTEXT_MANDATORY_OVERFLOW`. Explicit narrow context limits still reject input
+that genuinely cannot fit.
 
 The chat's **Compact context** action admits a hidden maintenance task with a fresh execution
 root, freezes the current conversation into the same immutable background job, and settles the

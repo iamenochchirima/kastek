@@ -132,3 +132,11 @@ it("uses shared catalogue presentation and typed discovery activity for public o
   expect(value.operations.find(item=>item.id==="memory.search")).toMatchObject({label:"Find memory",category:"Memory"});
   expect(value.operations.find(item=>item.id==="memory.search")?.activityKind).toBeUndefined();
 });
+
+it("projects the pruned group count from explicit pruning events",()=>{
+  const task=root();
+  const value=projectGrowthRuntime(task,{tasks:[],operations:[],aggregate:{pruned_groups:7,compaction_count:0},
+    snapshot:{estimated_tokens:300,full_estimated_tokens:400,trigger_tokens:600},
+    route:{model_id:"fixture/model",provider_id:"fixture",policy:{contextTokens:1000,maxInputTokens:800,maxOutputTokens:100,safetyTokens:50,compactAtTokens:600}}},now);
+  expect(value.context.prunedGroups).toBe(7);
+});

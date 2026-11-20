@@ -80,7 +80,7 @@ interface Root { id: string; organization_id: string; principal: unknown; create
 interface RuntimeRows {
   tasks: { id: string; name: string; tokens_used: unknown; model_calls: unknown; tool_calls: unknown }[];
   operations: { id: string; task_id: string; kind: string; name: string; catalog_description?:unknown; catalog_binding?:unknown; state: string; started_at: unknown; completed_at: unknown; error_code: unknown }[];
-  aggregate: { input_tokens?: unknown; output_tokens?: unknown; observed_calls?: unknown; operation_count?: unknown; compaction_count?: unknown; last_compacted_at?: unknown; compacting?: boolean };
+  aggregate: { input_tokens?: unknown; output_tokens?: unknown; observed_calls?: unknown; operation_count?: unknown; compaction_count?: unknown; last_compacted_at?: unknown; compacting?: boolean; pruned_groups?: unknown };
   snapshot?: { estimated_tokens?: unknown; full_estimated_tokens?: unknown; trigger_tokens?: unknown; route_input_limit?: unknown; history_count?: unknown; source_count?: unknown; compacted?: unknown };
   route?: { model_id?: unknown; provider_id?: unknown; policy?: Record<string, unknown> };
   timing?: { duration_ms?: unknown; first_token_ms?: unknown; output_tokens?: unknown };
@@ -118,6 +118,7 @@ export function projectGrowthRuntime(root: Root, rows: RuntimeRows, now = new Da
       routeInputLimitTokens: routeLimit,
       routeUtilizationPercent: estimated !== null && routeEffective !== null ? estimated / routeEffective * 100 : null,
       fullInputTokens: full,
+      prunedGroups: count(rows.aggregate.pruned_groups) ?? 0,
       compactionCount: count(rows.aggregate.compaction_count) ?? 0, lastCompactedAt: instant(rows.aggregate.last_compacted_at),
       historyGroups: count(rows.snapshot?.history_count), sourceCount: count(rows.snapshot?.source_count) },
     usage: { accountedTokens: rows.tasks.reduce((sum, task) => sum + (count(task.tokens_used) ?? 0), 0),
@@ -161,7 +162,9 @@ export async function readTaskRuntime(pool: Pool, root: Root, product:"agents"|"
     bool_or(task_id=$2 AND kind='compaction' AND state='started') compacting,
     count(*) FILTER(WHERE kind IN ('model','compaction') AND output->'usage'->>'observed'='true')::int observed_calls,
     sum(CASE WHEN kind IN ('model','compaction') AND output->'usage'->>'observed'='true' AND jsonb_typeof(output->'usage'->'inputTokens')='number' THEN (output->'usage'->>'inputTokens')::numeric END) input_tokens,
-    sum(CASE WHEN kind IN ('model','compaction') AND output->'usage'->>'observed'='true' AND jsonb_typeof(output->'usage'->'outputTokens')='number' THEN (output->'usage'->>'outputTokens')::numeric END) output_tokens
+    sum(CASE WHEN kind IN ('model','compaction') AND output->'usage'->>'observed'='true' AND jsonb_typeof(output->'usage'->'outputTokens')='number' THEN (output->'usage'->>'outputTokens')::numeric END) output_tokens,
+    (SELECT COALESCE(sum(CASE WHEN jsonb_typeof(e.payload->'groups')='number' THEN (e.payload->>'groups')::int ELSE 0 END),0)
+     FROM agents_platform.task_events e WHERE e.task_id=$2 AND e.kind='context.pruned')::int pruned_groups
     FROM agents_platform.operations WHERE task_id=ANY($1::uuid[])`, [ids,root.id])).rows[0] ?? {};
   const snapshot = (await pool.query(`SELECT payload->'estimatedTokens' estimated_tokens,
     CASE WHEN jsonb_typeof(payload->'fullEstimatedTokens')='number' THEN (payload->>'fullEstimatedTokens')::numeric END full_estimated_tokens,

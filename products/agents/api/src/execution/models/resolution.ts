@@ -7,7 +7,7 @@ import { PlatformError, canonicalJson, requestDigest } from "../../contracts/con
 import { acceptedModelRoutesSchema, type AcceptedModelRoutes } from "../../contracts/model-bindings";
 import { modelDescriptorSchema, modelSelectionSchema, managedModelIds, providerDefinitionSchema,
   type ModelSelection, type ProviderUseGrant } from "../../contracts/model-providers";
-import { compileEffectiveExecutionPolicy, type ExecutionPolicyLayer } from "./policy";
+import { compileEffectiveExecutionPolicy, withCompactionOutputAllowance, type ExecutionPolicyLayer } from "./policy";
 
 /** Admission only. It reads saved metadata and authority without discovery, inference or key access. */
 export async function resolveAcceptedModelRoutes(db: PoolClient, input: {
@@ -81,15 +81,19 @@ export async function resolveAcceptedModelRoutes(db: PoolClient, input: {
   try { compiled = compileEffectiveExecutionPolicy(model, input.layers); }
   catch { throw new PlatformError("MODEL_POLICY_INVALID", 422, "Model limits are unknown or do not fit the execution allowance"); }
   if (compiled.policy.maxCostMicros !== null) throw new PlatformError("MODEL_COST_CAP_UNSUPPORTED", 422, "A strict spending cap requires a qualified token bound and an enforceable price ceiling for this route");
+  const compaction = withCompactionOutputAllowance(compiled, model, 8_192);
   let generation;
   try { generation = validateGeneration(model, compiled.policy, connection.endpoint, input.generation); }
   catch (error) { if (error instanceof ProviderTransportError) throw new PlatformError(error.code, error.status, "The generation settings do not fit this model or output allowance"); throw error; }
   const generationDigest = requestDigest({ generation, revision: modelControlsRevision });
-  const route = (role: "primary" | "compaction" | "delegated") => ({ definition, model, consumer, policy: compiled.policy, policyDecisions:compiled.decisions, generation, generationRevision: modelControlsRevision,
-    binding: { organizationId: input.organizationId, connectionId, connectionRevision: connection.revision,
-      credentialRevision: connection.credential_revision, useGrantId: grant.id, useGrantRevision: grant.revision,
-      providerId: definition.id, providerDefinitionDigest: requestDigest(definition), endpoint: connection.endpoint,
-      protocol: definition.protocol, modelId, modelRevision: model.revision, adapterId: definition.adapter.id,
-      adapterRevision: definition.adapter.revision, generationDigest, role, policyDigest: compiled.policy.digest } });
+  const route = (role: "primary" | "compaction" | "delegated") => {
+    const selected = role === "compaction" ? compaction : compiled;
+    return { definition, model, consumer, policy: selected.policy, policyDecisions: selected.decisions, generation, generationRevision: modelControlsRevision,
+      binding: { organizationId: input.organizationId, connectionId, connectionRevision: connection.revision,
+        credentialRevision: connection.credential_revision, useGrantId: grant.id, useGrantRevision: grant.revision,
+        providerId: definition.id, providerDefinitionDigest: requestDigest(definition), endpoint: connection.endpoint,
+        protocol: definition.protocol, modelId, modelRevision: model.revision, adapterId: definition.adapter.id,
+        adapterRevision: definition.adapter.revision, generationDigest, role, policyDigest: selected.policy.digest } };
+  };
   return acceptedModelRoutesSchema.parse({ primary: route("primary"), compaction: route("compaction"), delegated: route("delegated") });
 }

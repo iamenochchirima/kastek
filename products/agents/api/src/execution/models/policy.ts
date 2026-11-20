@@ -59,6 +59,23 @@ export interface CompiledExecutionPolicy {
   pricing: ResolvedPolicyPricing | null;
 }
 
+/**
+ * Internal maintenance calls need room for a summary even when the user-facing
+ * reply cap is small. This never widens the primary or delegated route.
+ */
+export function withCompactionOutputAllowance(compiled: CompiledExecutionPolicy, model: ModelDescriptor, minimum: number): CompiledExecutionPolicy {
+  const available = compiled.policy.contextTokens - compiled.policy.maxInputTokens - compiled.policy.safetyTokens;
+  const maxOutputTokens = Math.min(Math.max(compiled.policy.maxOutputTokens, minimum), available);
+  if (maxOutputTokens <= compiled.policy.maxOutputTokens) return compiled;
+  const { revision, digest: _digest, ...limits } = compiled.policy;
+  const resolved = { ...limits, maxOutputTokens };
+  const decisions: ExecutionPolicyDecision[] = [...compiled.decisions, { field: "maxOutputTokens", value: maxOutputTokens, rule: "maximum",
+    sources: [{ kind: "platform", reference: "compaction-output-floor:v1", value: maxOutputTokens }] }];
+  const policy = effectiveExecutionPolicySchema.parse({ ...resolved, revision, digest: "0".repeat(64) });
+  policy.digest = requestDigest({ revision, model, decisions, pricing: compiled.pricing, policy: resolved });
+  return { ...compiled, policy, decisions };
+}
+
 const { revision: _revision, digest: _digest, ...limitShape } = effectiveExecutionPolicySchema.shape;
 const limitsSchema = z.strictObject({
   ...limitShape,

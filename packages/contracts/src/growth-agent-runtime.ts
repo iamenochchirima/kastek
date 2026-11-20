@@ -38,6 +38,7 @@ export interface GrowthAgentRuntime {
     routeInputLimitTokens?: number | null;
     routeUtilizationPercent?: number | null;
     fullInputTokens?: number | null;
+    prunedGroups?: number;
     compactAtTokens?: number | null;
     pressure?: "normal" | "compaction_due" | null;
     decision?: "prepared" | "compacting" | "compacted" | null;
