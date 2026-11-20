@@ -11,6 +11,8 @@ import { authorizeOrchestration, queueOrchestrationInstruction, readWorkProgress
 import { deadlineMillis } from "../../execution/lifecycle/deadline";
 import { queueChildContinuations, requestTreeCancellation } from "../../execution/lifecycle/execution";
 import { contextGrantCeiling } from "../../execution/models/settings";
+import type { ManualCompactionScope } from "../../execution/context/manual-compaction";
+import { requirePermission } from "../access";
 import { finishPage, pageQuery, readPageCursor, type PageQuery } from "../../infrastructure/read-pages";
 
 export type RunScope = { account: Account; organizationId: string };
@@ -66,6 +68,8 @@ export function registerRunRoutes(app: FastifyInstance, options: {
   presentTask(task: TaskRecord): Promise<Record<string, unknown>>;
   presentOutput(taskId: string, output: string | null): Promise<object>;
   deleteConversationSources(scope: { accountId: string; organizationId: string; agentId: string }, conversationId: string): Promise<unknown>;
+  compactConversation?: (scope: ManualCompactionScope) => Promise<{ id: string; taskId: string }>;
+  compactionJobStatus?: (scope: ManualCompactionScope, jobId: string) => Promise<{ state: string; errorCode: string | null }>;
   admitMember(input: { accountId: string; authority: AdmissionAuthority; message: string; requestKey: string;
     conversationId?: string; evaluationRootTokenLimit?: number }): Promise<{ task: TaskRecord; replayed: boolean }>;
   assertServices(configuration: AgentConfiguration): Promise<void>;
@@ -344,5 +348,22 @@ export function registerRunRoutes(app: FastifyInstance, options: {
       [organizationId, conversationId])).rows[0];
     if (!conversation) throw new PlatformError("NOT_FOUND", 404, "Conversation not found");
     return options.deleteConversationSources({ accountId: account.id, organizationId, agentId: conversation.agent_id }, conversationId);
+  });
+
+  const compactionJobId = z.string().trim().min(1).max(128);
+  app.post(`${base}/agents/:agentId/conversations/:conversationId/compact`, async request => {
+    const { account, organizationId } = await scopeFor(request);
+    const agentId = uuid.parse(parameters(request).agentId), conversationId = uuid.parse(parameters(request).conversationId);
+    await requirePermission(options.pool, { accountId: account.id, organizationId }, "agents.manage");
+    if (!options.compactConversation) throw new PlatformError("COMPACTION_UNAVAILABLE", 503, "Context compaction is unavailable");
+    return { job: await options.compactConversation({ accountId: account.id, organizationId, agentId, conversationId }) };
+  });
+  app.get(`${base}/agents/:agentId/conversations/:conversationId/compaction-jobs/:jobId`, async request => {
+    const { account, organizationId } = await scopeFor(request);
+    const agentId = uuid.parse(parameters(request).agentId), conversationId = uuid.parse(parameters(request).conversationId);
+    const jobId = compactionJobId.parse(parameters(request).jobId);
+    await requirePermission(options.pool, { accountId: account.id, organizationId }, "agents.manage");
+    if (!options.compactionJobStatus) throw new PlatformError("COMPACTION_UNAVAILABLE", 503, "Context compaction is unavailable");
+    return options.compactionJobStatus({ accountId: account.id, organizationId, agentId, conversationId }, jobId);
   });
 }

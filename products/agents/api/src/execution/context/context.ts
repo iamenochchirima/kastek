@@ -269,6 +269,12 @@ function compactionDigest(ids: string[], request: ModelRequest, options: Compact
   const content = { groups: ids, request: contextRequestDigest(compactionInput(options), request), previousSummary: options.previousSummary ?? null };
   return valueDigest(content);
 }
+/** Keep a recent window sized for the selected model, capped at the standard 15k. */
+export function recentWindowTokens(primaryMaxInputTokens: number): number {
+  if (!Number.isSafeInteger(primaryMaxInputTokens) || primaryMaxInputTokens < 1) throw new ModelOperationError("CONTEXT_INVALID_GROUP", "rejected", 400);
+  return Math.min(15_000, Math.max(1_000, Math.floor(primaryMaxInputTokens * 0.25)));
+}
+
 function retainedGroupCount(groups: ContextGroup[], input: ContextInput, tokenBudget: number): number {
   let count = 0, tokens = 0;
   for (let index = groups.length - 1; index >= 0; index--) {

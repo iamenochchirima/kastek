@@ -30,16 +30,16 @@ import { assertParentEdge } from "../delegation/scope";
 import { assertCustomerChannelRecipient } from "../context/recipient-boundary";
 import { assertPublishedTools } from "../../capabilities/tool-definitions";
 import { parseHandoffFeedbackRequest, type HandoffFeedbackRequest } from "./handoff-feedback-contract";
-export async function assertBaseAuthority(db: Pool | PoolClient, execution: Execution): Promise<void> {
-  return assertBaseAuthorityForPurpose(db, execution, false);
+export async function assertBaseAuthority(db: Pool | PoolClient, execution: Execution, options: { allowSettled?: boolean } = {}): Promise<void> {
+  return assertBaseAuthorityForPurpose(db, execution, false, options.allowSettled ?? false);
 }
 
-async function assertBaseAuthorityForPurpose(db: Pool | PoolClient, execution: Execution, handoffFeedback: boolean): Promise<void> {
+async function assertBaseAuthorityForPurpose(db: Pool | PoolClient, execution: Execution, handoffFeedback: boolean, allowSettled = false): Promise<void> {
   const { task, configuration, agentId } = execution;
   assertCustomerChannelRecipient(task.product, task.principal, task.channel_binding);
-  if (terminalTaskStates.has(task.state)) throw new PlatformError("TASK_SETTLED", 409, "Task has settled");
+  if (!allowSettled && terminalTaskStates.has(task.state)) throw new PlatformError("TASK_SETTLED", 409, "Task has settled");
   if (task.state === "cancel_requested") throw new PlatformError("TASK_CANCELLED", 409, "Task is stopping");
-  if (deadlineMillis(task.deadline_at) <= Date.now()) throw new PlatformError("TASK_DEADLINE", 409, "Task deadline reached");
+  if (!allowSettled && deadlineMillis(task.deadline_at) <= Date.now()) throw new PlatformError("TASK_DEADLINE", 409, "Task deadline reached");
   if (task.channel_binding && !handoffFeedback) {
     const root = task.parent_task_id ? await loadExecution(db, task.root_task_id) : execution;
     await channelPorts(db).assertBinding(db, channelBindingSchema.parse(task.channel_binding), root.task);

@@ -414,9 +414,9 @@ export function memoryVisible(value:unknown,id:string,content:string):boolean{
   return false;
 }
 
-export async function assertCurrentAuthority(db:Pool|PoolClient,execution:Execution):Promise<void>{
+export async function assertCurrentAuthority(db:Pool|PoolClient,execution:Execution,options:{allowSettled?:boolean}={}):Promise<void>{
   if(execution.task.execution_purpose==="support_status_v1")await assertPendingSupportStatusAuthority(db,execution);
-  else await assertBaseAuthority(db,execution);
+  else await assertBaseAuthority(db,execution,options);
   await assertMcpTaskAuthority(db, execution.task.root_task_id ?? execution.task.id);
   if(execution.task.parent_task_id)await assertDelegationInputEvidence(db,execution.task.id);
 }

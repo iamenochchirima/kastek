@@ -5,7 +5,7 @@ import { PlatformError, requestDigest } from "../../contracts/contracts";
 import { CONTEXT_COMPACTION_WORKFLOW, SHARED_HARNESS_RELEASE } from "../../contracts/execution";
 import { requestDigest as modelRequestDigest, ModelOperationError, validateMessageGroups, type ModelRequest } from "../business/model";
 import { operation, uncertainOperation } from "../lifecycle/durable-operation";
-import { event, loadExecution } from "../lifecycle/execution";
+import { event, loadExecution, settleTask } from "../lifecycle/execution";
 import { assertCurrentAuthority } from "./evidence-policy";
 import { invokeObservedTaskModel } from "../models/observed-invocation";
 import type { TaskModelInvocation, ModelRuntimeDependencies } from "../models/runtime";
@@ -23,7 +23,7 @@ const invalid=()=>new PlatformError("COMPACTION_SNAPSHOT_INVALID",409,"The froze
 
 async function frozenJob(pool:Pool,jobId:string,taskId:string) {
   const execution=await loadExecution(pool,taskId);
-  await assertCurrentAuthority(pool,execution);
+  await assertCurrentAuthority(pool,execution,{allowSettled:jobId.startsWith("manual-")});
   if(execution.task.harness_release!==SHARED_HARNESS_RELEASE)throw invalid();
   const job=(await pool.query("SELECT * FROM agents_platform.context_compaction_jobs WHERE id=$1 AND task_id=$2 AND mode='background'",[jobId,taskId])).rows[0];
   if(!job?.snapshot_id)throw invalid();
@@ -75,7 +75,7 @@ export function createContextCompactionWorkflow(pool:Pool,options:ContextCompact
         else if(generated.value.contextDisposition==="quarantined"||generated.value.finishReason!=="stop"||!generated.value.message.content)
           await ctx.run("compaction-rejected",()=>failCompactionJob(pool,input.jobId,input.taskId,"rejected",generated.value.guardCode??"COMPACTION_INVALID"));
         else {
-          await ctx.run("compaction-summary-evidence",()=>options.evidence.deriveSummaryFromSnapshot(input.taskId,input.jobId,frozen.job.snapshot_id));
+          await ctx.run("compaction-summary-evidence",()=>options.evidence.deriveSummaryFromSnapshot(input.taskId,input.jobId,frozen.job.snapshot_id,{allowSettled:input.jobId.startsWith("manual-")}));
           await ctx.run("compaction-adopt",()=>adoptCompactionCheckpoint(pool,{jobId:input.jobId,taskId:input.taskId,
             summary:generated.value.message.content!,finishReason:generated.value.finishReason}));
         }
@@ -89,6 +89,7 @@ export function createContextCompactionWorkflow(pool:Pool,options:ContextCompact
         {mode:"background",state:outcome.state,count:outcome.compactedGroupIds.length,reason:"threshold",
           outcome:outcome.state==="adopted"||outcome.state==="superseded"?"completed":outcome.state==="uncertain"?"uncertain":"failed",
           ...(outcome.code?{errorCode:outcome.code}:{})}));
+      if (input.jobId.startsWith("manual-")) await ctx.run("manual-compaction-settle", () => settleTask(pool, input.taskId, { state: "completed" }));
       return outcome;
     },
     capacity:async(ctx:restate.WorkflowSharedContext,input:{requestId:string;generation:number})=>{

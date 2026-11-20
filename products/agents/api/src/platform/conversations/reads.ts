@@ -23,15 +23,18 @@ export class ConversationReads extends AuthorityStore {
         (authority.product === "agents" && authority.principal.kind === "human" && conversation.agent_id !== authority.resourceId) ||
         (authority.principal.kind === "visitor" && conversation.deployment_id !== authority.resourceId)) denied();
       const first = (await db.query<TaskRecord>(`SELECT * FROM agents_platform.tasks WHERE organization_id=$1 AND conversation_id=$2
-        AND product=$3 AND caller_client_id=$4 AND resource_id=$5 AND parent_task_id IS NULL ORDER BY turn_sequence LIMIT 1`,
+        AND product=$3 AND caller_client_id=$4 AND resource_id=$5 AND parent_task_id IS NULL
+        AND (execution_purpose IS NULL OR execution_purpose <> 'manual_compaction') ORDER BY turn_sequence LIMIT 1`,
       [authority.organizationId, conversationId, authority.product, authority.callerClientId, authority.resourceId])).rows[0] ?? absent();
       if (authority.principal.kind === "automation") await resolveAutomationOwner(db, authority.organizationId, authority.principal);
       else await this.assertPrincipal(db, authority, await this.version(db, authority.organizationId, first.version_id));
       if (cursor.position && !/^\d{1,19}$/.test(cursor.position)) throw new PlatformError("INVALID_CURSOR", 400, "Invalid turn cursor");
-      const latest = (await db.query<{ id: string; version_id: string; turn_sequence: string; number: number }>(`SELECT t.id,t.version_id,t.turn_sequence,v.number FROM agents_platform.tasks t JOIN agents_platform.agent_versions v ON v.id=t.version_id WHERE t.conversation_id=$1 AND t.parent_task_id IS NULL ORDER BY t.turn_sequence DESC LIMIT 1`,
+      const latest = (await db.query<{ id: string; version_id: string; turn_sequence: string; number: number }>(`SELECT t.id,t.version_id,t.turn_sequence,v.number FROM agents_platform.tasks t JOIN agents_platform.agent_versions v ON v.id=t.version_id WHERE t.conversation_id=$1 AND t.parent_task_id IS NULL
+        AND (t.execution_purpose IS NULL OR t.execution_purpose <> 'manual_compaction') ORDER BY t.turn_sequence DESC LIMIT 1`,
         [conversationId])).rows[0]!;
       const tasks = (await db.query<TaskRecord & { turn_sequence: string }>(`SELECT * FROM agents_platform.tasks WHERE organization_id=$1 AND conversation_id=$2
         AND product=$3 AND caller_client_id=$4 AND resource_id=$5 AND principal=$6::jsonb AND parent_task_id IS NULL
+        AND (execution_purpose IS NULL OR execution_purpose <> 'manual_compaction')
         AND ($7::bigint IS NULL OR turn_sequence<$7::bigint) AND created_at<=$8 ORDER BY turn_sequence DESC LIMIT $9`,
       [authority.organizationId, conversationId, authority.product, authority.callerClientId, authority.resourceId,
         JSON.stringify(authority.principal), cursor.position || null, cursor.snapshot, query.limit + 1])).rows;

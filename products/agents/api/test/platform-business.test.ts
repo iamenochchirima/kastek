@@ -1094,7 +1094,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       messages:[{role:"system",content:config.instructions},{role:"user",content:"What are the opening hours?"}],tools:toolsFor(config)};
     // Leave room for the native protocol envelope and the initial source record.
     config.instructions+="p".repeat(inputBudget-estimateRequestTokens(request));
-    return{instructions:config.instructions,tools:config.tools,context:{maxInputTokens:8192,compactAtTokens:6144}};
+    return{instructions:config.instructions,tools:config.tools,context:{maxInputTokens:8192,compactAtTokens:4096}};
   }
   it("compacts a single complete overflowing tool group and replays its evidence without spending again",async()=>{
     const sourceContent=JSON.stringify({hours:"Open at nine",note:'Opening "quoted" hours\nnext line'});

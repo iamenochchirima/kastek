@@ -29,7 +29,7 @@ import { selectedProductContextText } from "../products/product-information";
 import { composeAgentInstructions } from "../context/agent-identity";
 import type { TaskRecord } from "../../contracts/records";
 import { estimatedTokensFromSerialized } from "../../contracts/serialized-tokens";
-import { buildContext,estimateMessagesTokens,prepareCompaction,type ContextGroup,type ContextSource,type ContextModelPolicy,type RequestTimeContext } from "../context/context";
+import { buildContext,estimateMessagesTokens,prepareCompaction,recentWindowTokens,type ContextGroup,type ContextSource,type ContextModelPolicy,type RequestTimeContext } from "../context/context";
 import { knowledgeModeForRoute,routePlan,routeTurn,toolAllowed,type PendingActionKind,type RoutePlan } from "../routing/turn-router";
 import { loadContinuation } from "../context/continuation";
 import { workContinuationGroups } from "../lifecycle/work-continuation";
@@ -90,7 +90,7 @@ import { createToolCatalog, progressiveModelTools, assertLoadedTool, discoverToo
 import { instructionHead } from "../context/request-manifest";
 import { catalogSnapshotFields, hydrateCatalog } from "../context/catalog-reference";
 import { HANDOFF_RECEIPT_DEADLINE_MS, type HandoffFeedbackRequest } from "../../contracts/channel";
-function contextModelPolicy(execution: Execution, role: "primary" | "compaction" = "primary", privateCosts: Map<string, number> = new Map(), packingOverhead = 0): ContextModelPolicy {
+export function contextModelPolicy(execution: Execution, role: "primary" | "compaction" = "primary", privateCosts: Map<string, number> = new Map(), packingOverhead = 0): ContextModelPolicy {
   const route = execution.models[role], policy = route.policy;
   return { modelId: route.binding.modelId, revision: policy.digest, counterRevision: packingOverhead ? `serialized-utf8-estimate-v2-native-${packingOverhead}` : "serialized-utf8-estimated-tokens-v2",
     maxDurationSeconds: policy.maxCallDurationMs / 1000, contextWindowTokens: policy.contextTokens,
@@ -435,6 +435,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   } else {
     const priorPredicate=`FROM agents_platform.tasks t
       WHERE t.conversation_id=$1 AND t.turn_sequence<$2 AND t.state IN ${terminalSql}
+      AND (t.execution_purpose IS NULL OR t.execution_purpose <> 'manual_compaction')
       AND NOT EXISTS(SELECT 1 FROM agents_platform.context_snapshots c WHERE c.task_id=t.id AND c.memory_scope_id=$3
         AND c.memory_generation<>$4)`;
     prior = (await pool.query(`SELECT t.id,t.input,t.output,t.state,t.turn_sequence::text AS sequence,t.created_at ${priorPredicate}
@@ -575,7 +576,10 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     }
   }
   const totalGroups = history.length + active.length;
-  if (!sharedProtocol && built.estimatedTokens >= execution.models.primary.policy.compactAtTokens && totalGroups > 2) {
+  const explicitContext = !("mode" in execution.configuration.context);
+  const explicitPressure = explicitContext && built.estimatedTokens >= execution.models.primary.policy.compactAtTokens;
+  if ((((built.status === "compaction_required" && (!sharedProtocol || explicitContext)) || explicitPressure ||
+      (!sharedProtocol && built.estimatedTokens >= execution.models.primary.policy.compactAtTokens)) && (explicitContext ? totalGroups > 0 : totalGroups > 2))) {
     return { history, working: active, memoryFence, invalidated, needsCompaction: true };
   }
   phase.mark("assemble");
@@ -959,11 +963,12 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               if(settled.state==="uncertain"){outcome={state:"uncertain",errorCode:settled.code??"COMPACTION_OUTCOME_UNCERTAIN"};break;}
             }
             const groups = [...assembled.history, ...assembled.working].filter(group=>(execution.task.execution_policy_version??1)<2||!group.id.startsWith("instruction:"));
+            const explicitContext = !("mode" in execution.configuration.context);
             const progress=measureCompactionProgress(groups,summary);
             if ((execution.task.execution_policy_version??1)>=2 && compactionDidNotProgress(assembled.invalidated ? undefined : previousCompactionProgress,progress)) {
               outcome = { state: "incomplete", errorCode: "COMPACTION_NO_PROGRESS" }; break;
             }
-            const plan = prepareCompaction(groups, { model: execution.models.compaction.binding.modelId, modelPolicy: contextModelPolicy(execution, "compaction"), retainRecentTokens: 15_000, maxInputTokens: execution.models.compaction.policy.maxInputTokens,
+            const plan = prepareCompaction(groups, { model: execution.models.compaction.binding.modelId, modelPolicy: contextModelPolicy(execution, "compaction"), ...(explicitContext ? { retainRecent: Math.min(1, groups.length - 1) } : { retainRecentTokens: recentWindowTokens(execution.models.primary.policy.maxInputTokens) }), maxInputTokens: execution.models.compaction.policy.maxInputTokens,
               maxOutputTokens: execution.models.compaction.policy.maxOutputTokens, previousSummary: summary });
             const request: ModelRequest = { messages: plan.messages, model: execution.models.compaction.binding.modelId, maxDurationSeconds: execution.models.compaction.policy.maxCallDurationMs / 1000,
               maxInputTokens: execution.models.compaction.policy.maxInputTokens, maxOutputTokens: execution.models.compaction.policy.maxOutputTokens };

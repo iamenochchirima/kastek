@@ -27,6 +27,7 @@ export async function admitMemberRun(options: {
   requestKey: string;
   conversationId?: string;
   evaluationRootTokenLimit?: number;
+  executionPurpose?: "manual_compaction";
 }): Promise<{ task: TaskRecord; replayed: boolean }> {
   const { authority } = input;
   const org = authority.organizationId;
@@ -58,7 +59,7 @@ export async function admitMemberRun(options: {
       maxContextTokens: contextGrantCeiling(version.configuration), expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), revokedAt: null });
     await options.store.createGrantInTransaction(db, { accountId: input.accountId, grant });
     const result = await options.store.admitTaskInTransaction(db, { authority, grantId: grant.id, versionId: version.id, input: input.message,
-      requestKey: input.requestKey, conversationId: input.conversationId, configurationMode: "current" });
+      requestKey: input.requestKey, conversationId: input.conversationId, configurationMode: "current", executionPurpose: input.executionPurpose });
     await options.onAdmitted?.(db, result);
     return result;
   });

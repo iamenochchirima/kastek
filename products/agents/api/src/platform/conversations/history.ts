@@ -12,6 +12,7 @@ export class PlatformConversationHistory implements ConversationHistoryReader {
     memoryScopeId: string | null; memoryGeneration: number | null }): Promise<{ turns: ConversationHistoryTurn[]; olderCount: number }> {
     const predicate = `FROM agents_platform.tasks t
       WHERE t.conversation_id=$1 AND t.turn_sequence<$2 AND t.state=ANY($3::text[])
+      AND (t.execution_purpose IS NULL OR t.execution_purpose <> 'manual_compaction')
       AND NOT EXISTS(SELECT 1 FROM agents_platform.context_snapshots c WHERE c.task_id=t.id AND c.memory_scope_id=$4
         AND c.memory_generation<>$5)`;
     const parameters = [input.conversationId, input.beforeSequence, [...input.terminalStates], input.memoryScopeId, input.memoryGeneration];

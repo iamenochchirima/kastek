@@ -45,6 +45,7 @@ terminalTaskStates,type AdmissionAuthority,type AgentConfiguration
 import type { Account,TaskRecord,VersionRecord } from "../contracts/records";
 import { TaskArtifactStore } from "../execution/artifacts/task-artifacts";
 import { assertCurrentEvidence,assertDelegationInputEvidence,citationLabels,EvidenceStore } from "../execution/context/evidence";
+import { compactConversation, readManualCompactionJob } from "../execution/context/manual-compaction";
 import { resolveAutomationOwner,resolveAutomationReviewer } from "../execution/lifecycle/automation-authority";
 import { requestTreeCancellation } from "../execution/lifecycle/execution";
 import { MemoryStore } from "../platform/memory";
@@ -406,6 +407,13 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     pool, store, discovery, taskAccess: humanTask, presentTask: readableTask, presentOutput: readableOutput, present: dto,
     resolveScope: async request => ({ account: await account(request), organizationId: organizationId(request) }),
     deleteConversationSources: (scope, conversationId) => new MemoryStore(pool, skillPackageCodec).deleteConversationSources(scope, conversationId),
+    compactConversation: scope => compactConversation({ pool, evidence, ingressUrl: config.RESTATE_INGRESS_URL,
+      admit: input => admitMemberRun({ pool, store, assertServices, grantOperations,
+        onAdmitted: async (db, { task }) => { await db.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1 AND state='accepted'", [task.id]); },
+      }, { accountId: input.accountId, authority: { product: "agents", organizationId: input.organizationId, resourceId: input.agentId,
+        callerClientId: "agents-execution", principal: input.principal as AdmissionAuthority["principal"] },
+        message: input.message, requestKey: input.requestKey, conversationId: input.conversationId, executionPurpose: "manual_compaction" }).then(result => ({ taskId: result.task.id })) }, scope),
+    compactionJobStatus: (scope, jobId) => readManualCompactionJob(pool, scope, jobId),
     admitMember: input => admitMemberRun({ pool, store, assertServices, grantOperations }, input),
     assertServices, grantOperations, evaluationTrials, actions: actionServices?.actions, artifacts: taskArtifacts, evidence,
     readRuntime: task => readTaskRuntime(pool, task, "agents"),

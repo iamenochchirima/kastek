@@ -26,4 +26,6 @@ export interface TaskRecord { id: string; product: AdmissionAuthority["product"]
 export interface TaskEvent { sequence: string; task_id: string; event_key: string; kind: string; payload: Record<string,unknown>; created_at: Date }
 export interface AdmitTaskInput { authority: AdmissionAuthority; grantId: string; versionId: string;
   continuationOf?: string;
-  requestKey: string; input: string; taskId?: string; conversationId?: string; evaluationTrialId?: string; channelBinding?: ChannelBinding; configurationMode?: "current" }
+  requestKey: string; input: string; taskId?: string; conversationId?: string; evaluationTrialId?: string; channelBinding?: ChannelBinding; configurationMode?: "current";
+  executionPurpose?: "manual_compaction";
+}

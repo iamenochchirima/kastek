@@ -18,6 +18,7 @@ export interface CompactionJobInput {
   id: string; taskId: string; groups: ContextGroup[]; inputDigest: string;
   mode?:"foreground"|"background";snapshotId?:string;
   historyIds: string[]; previous?: ContinuityCheckpoint; manifest?: DependencyManifest; memoryFence?: MemoryFence;
+  allowSettled?: boolean;
 }
 export type CompactionJobOutcome={jobId:string;taskId:string;state:"pending"|"adopted"|"superseded"|"rejected"|"failed"|"uncertain";
   compactedGroupIds:string[];checkpoint?:ContinuityCheckpoint;code?:string};
@@ -32,7 +33,7 @@ export async function readCompactionJobOutcome(pool:Pool,jobId:string,taskId:str
   if(!checkpoint || requestDigest(checkpoint.summary)!==checkpoint.summary_digest)throw new PlatformError("CONTEXT_CHECKPOINT_INTEGRITY",409,"The continuity checkpoint is unavailable");
   if(Number(checkpoint.head_revision)>Number(checkpoint.revision))return {...result,state:"superseded"};
   await transaction(pool,async db=>{
-    await assertCurrentAuthority(db,await loadExecution(db,taskId));
+    await assertCurrentAuthority(db,await loadExecution(db,taskId),{allowSettled:row.id.startsWith("manual-")});
     if(!await memoryCurrent(db,checkpoint.memory_scope_id,checkpoint.memory_generation))throw new PlatformError("CONTEXT_INVALIDATED",409,"The selected memory changed");
     if(checkpoint.source_manifest)await assertCurrentEvidence(db,taskId,checkpoint.source_manifest);
   });
@@ -73,7 +74,7 @@ async function memoryCurrent(db: PoolClient, id: string | null, generation: stri
 }
 
 /** A portable checkpoint never replaces the retained task, instruction or operation records. */
-export async function loadContinuityCheckpoint(pool: Pool, taskId: string, evidence: EvidenceStore): Promise<ContinuityCheckpoint | undefined> {
+export async function loadContinuityCheckpoint(pool: Pool, taskId: string, evidence: EvidenceStore, options: { allowSettled?: boolean } = {}): Promise<ContinuityCheckpoint | undefined> {
   const current = await loadExecution(pool, taskId);
   if (current.task.channel_binding) return undefined;
   const row = (await pool.query(`SELECT c.* FROM agents_platform.context_continuity_heads h
@@ -86,7 +87,7 @@ export async function loadContinuityCheckpoint(pool: Pool, taskId: string, evide
   if (requestDigest(row.summary) !== row.summary_digest) throw new PlatformError("CONTEXT_CHECKPOINT_INTEGRITY", 409, "The continuity checkpoint is unavailable");
   try {
     await transaction(pool, async db => {
-      await assertCurrentAuthority(db, await loadExecution(db, taskId));
+      await assertCurrentAuthority(db, await loadExecution(db, taskId), options);
       if (!await memoryCurrent(db, row.memory_scope_id, row.memory_generation)) throw new PlatformError("CONTEXT_INVALIDATED", 409, "Memory changed");
       if (row.source_manifest) await assertCurrentEvidence(db, taskId, row.source_manifest, { historyOriginTaskIds: row.task_id === taskId ? [] : [row.task_id] });
     });
@@ -107,7 +108,7 @@ export async function loadContinuityCheckpoint(pool: Pool, taskId: string, evide
 export async function prepareCompactionJob(pool: Pool, input: CompactionJobInput): Promise<{ id: string; taskId:string; baseRevision: number }> {
   return transaction(pool, async db => {
     const execution = await loadExecution(db, input.taskId);
-    await assertCurrentAuthority(db, execution);
+    await assertCurrentAuthority(db, execution, { allowSettled: input.allowSettled });
     if (!input.groups.length || new Set(input.groups.map(group => group.id)).size !== input.groups.length) throw new PlatformError("COMPACTION_PLAN_INVALID", 400, "The compaction prefix is invalid");
     for(const group of input.groups)validateMessageGroups(group.messages);
     if(input.historyIds.some(id=>!input.groups.some(group=>group.id===id)))throw new PlatformError("COMPACTION_COVERAGE_INVALID",409,"The history coverage does not match the frozen prefix");
@@ -151,7 +152,7 @@ export async function prepareCompactionJob(pool: Pool, input: CompactionJobInput
 export async function adoptCompactionCheckpoint(pool: Pool, input: { jobId: string; taskId: string; summary: string; finishReason: string; previousSummary?: string }): Promise<ContinuityCheckpoint | undefined> {
   return transaction(pool, async db => {
     const execution = await loadExecution(db, input.taskId);
-    await assertCurrentAuthority(db, execution);
+    await assertCurrentAuthority(db, execution, { allowSettled: input.jobId.startsWith("manual-") });
     const row = (await db.query("SELECT * FROM agents_platform.context_compaction_jobs WHERE id=$1 AND task_id=$2 FOR UPDATE", [input.jobId, input.taskId])).rows[0];
     if (!row) throw new PlatformError("COMPACTION_JOB_UNAVAILABLE", 409, "The compaction job is unavailable");
     if (row.state === "adopted") {
