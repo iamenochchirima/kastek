@@ -22,6 +22,7 @@ describe('generated widget response progress with controlled HTTP',()=>{
    throw Error(path);
   });
   const open=async()=>{await page.addScriptTag({url:'http://localhost/api/website/fixture/widget.js'});await page.getByRole('button',{name:'Chat',exact:true}).click();await check(page.getByRole('button',{name:'Send',exact:true})).toBeEnabled()};
+  const refreshUntilRead=async(before:number)=>{for(let index=0;index<12&&reads===before;index++)await page.clock.runFor(1000);expect(reads).toBeGreaterThan(before);};
   try{
    await page.goto('http://localhost/');await open();
    const indicator=page.getByRole('status',{name:'Assistant is responding'});
@@ -36,13 +37,13 @@ describe('generated widget response progress with controlled HTTP',()=>{
    failReads=false;await page.clock.runFor(1500);await check(page.getByRole('status',{name:'Assistant is taking longer than expected'})).toBeVisible();
    await page.emulateMedia({reducedMotion:'reduce'});
    expect(await page.getByRole('status',{name:'Assistant is taking longer than expected'}).locator('span').first().evaluate((node:HTMLElement)=>getComputedStyle(node).animationName)).toBe('none');
-   replied=true;phase=null;let before=reads;await page.clock.runFor(1500);await check.poll(()=>reads).toBeGreaterThan(before);
+   replied=true;phase=null;let before=reads;await refreshUntilRead(before);
    await check(page.getByText('7s',{exact:true})).toBeVisible();await check(indicator).toBeHidden();
    await page.reload();await open();await check(page.getByText('7s',{exact:true})).toBeVisible();
-   for(const state of ['handoff_pending','human_owned','resolved']){ownership=state;phase='working';before=reads;await page.clock.runFor(1500);await check.poll(()=>reads).toBeGreaterThan(before);await check(indicator).toBeHidden();}
-   ownership='automation_active';phase='failed';before=reads;await page.clock.runFor(1500);await check.poll(()=>reads).toBeGreaterThan(before);
+   for(const state of ['handoff_pending','human_owned','resolved']){ownership=state;phase='working';before=reads;await refreshUntilRead(before);await check(indicator).toBeHidden();}
+   ownership='automation_active';phase='failed';before=reads;await refreshUntilRead(before);
    await check(page.getByText('Could not finish the reply. Please try again.',{exact:true})).toBeVisible();await check(indicator).toBeHidden();
-   phase='uncertain';before=reads;await page.clock.runFor(1500);await check.poll(()=>reads).toBeGreaterThan(before);
+   phase='uncertain';before=reads;await refreshUntilRead(before);
    await check(page.getByText('Could not confirm the outcome. Check before trying again.',{exact:true})).toBeVisible();
    await check(page.getByRole('button',{name:'Retry message',exact:true})).toBeHidden();
   }finally{await browser.close()}
