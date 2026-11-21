@@ -60,12 +60,13 @@ checks.
 The product processes are detached from the provisioner service. Restarting the
 control plane does not stop running sandbox APIs and workers.
 
-## Agent setup profiles
+## Agent setup
 
-Agents sandboxes expose versioned setup profiles. A profile targets either the
-existing platform Assistant or a new customer-service business agent. Applying a
-profile calls the normal Agents model, knowledge, agent, capability and publication
-APIs, then registers the resulting agent reference in the evaluation control plane.
+Agents sandboxes expose versioned agent configurations, stored internally as setup
+profiles. A setup targets either the existing platform Assistant or a new
+customer-service business agent. Applying a setup calls the normal Agents model,
+knowledge, agent, capability and publication APIs, then registers the resulting
+agent reference in the evaluation control plane.
 
 Profiles can also create custom agents from the full non-channel agent configuration,
 merged over the platform Assistant draft. The first business-agent profile uses the
