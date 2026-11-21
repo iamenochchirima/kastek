@@ -46,7 +46,10 @@ export const sourceChunkSchema = z.strictObject({
   if (textDigest(chunk.text) !== chunk.digest) context.addIssue({ code: "custom", message: "Chunk digest does not match its text" });
 });
 
-const sourceDependency = z.strictObject({ kind: z.literal("source"), sourceId: id, revisionId: id, generation });
+const sourceDependency = z.strictObject({ kind: z.literal("source"), sourceId: id, revisionId: id, generation,
+  // Historical manifests only. Visibility is no longer enforced; accepting the
+  // field keeps pre-removal conversations replayable during the rollout.
+  visibility: z.enum(["private", "public"]).optional() });
 const connectionDependency = z.strictObject({ kind: z.literal("connection"), connectionId: id, policyRevision: generation,
   resource: z.string().min(1).max(2048), catalogDigest: digest });
 const memoryTransition = z.strictObject({ memoryId: id, memoryRevision: generation });
@@ -107,11 +110,22 @@ function dependencyKey(dependency: EvidenceDependency): string {
     case "artifact": return `artifact:${dependency.referenceId}`;
   }
 }
+/** Visibility-only shape differences are historical: keep the prior dependency. */
+function sameDependencyExceptVisibility(a: EvidenceDependency, b: EvidenceDependency): boolean {
+  if (a.kind !== "source" || b.kind !== "source") return false;
+  const { visibility: _av, ...restA } = a;
+  const { visibility: _bv, ...restB } = b;
+  return requestDigest(restA) === requestDigest(restB);
+}
+
 export function createDependencyManifest(inputs: readonly EvidenceDependency[]): DependencyManifest {
   const unique = new Map<string, EvidenceDependency>();
   for (const input of inputs) {
     const dependency = evidenceDependencySchema.parse(input), key = dependencyKey(dependency), prior = unique.get(key);
-    if (prior && requestDigest(prior) !== requestDigest(dependency)) throw new PlatformError("EVIDENCE_POLICY_CONFLICT", 409, "Evidence policy changed during execution");
+    if (prior && requestDigest(prior) !== requestDigest(dependency)) {
+      if (sameDependencyExceptVisibility(prior, dependency)) continue;
+      throw new PlatformError("EVIDENCE_POLICY_CONFLICT", 409, "Evidence policy changed during execution");
+    }
     unique.set(key, dependency);
     if (unique.size > SOURCE_LIMITS.manifestNodes) throw new PlatformError("EVIDENCE_LIMIT", 413, "Too many evidence dependencies");
   }
@@ -139,7 +153,10 @@ function inspectDependencyGraph(rootIds:readonly string[],nodes:ReadonlyMap<stri
     if(!node||node.id!==entry.id)throw new PlatformError("EVIDENCE_MISSING",409,"Evidence dependency is unavailable");
     for(const dependency of assertDependencyManifest(node.manifest).dependencies){
       const key=dependencyKey(dependency),prior=dependencies.get(key);
-      if(prior&&requestDigest(prior)!==requestDigest(dependency))throw new PlatformError("EVIDENCE_POLICY_CONFLICT",409,"Evidence policy changed during execution");
+      if(prior&&requestDigest(prior)!==requestDigest(dependency)){
+        if(sameDependencyExceptVisibility(prior,dependency))continue;
+        throw new PlatformError("EVIDENCE_POLICY_CONFLICT",409,"Evidence policy changed during execution");
+      }
       dependencies.set(key,dependency);
       if(dependencies.size>SOURCE_LIMITS.manifestNodes)throw new PlatformError("EVIDENCE_LIMIT",413,"Too many evidence dependencies");
     }

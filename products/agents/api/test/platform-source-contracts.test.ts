@@ -28,6 +28,15 @@ describe("source and evidence contracts", () => {
     expect(()=>createDependencyManifest(Array.from({length:1025},dependency))).toThrow("dependencies");
   });
 
+  it("accepts historical source visibility without enforcing it", () => {
+    const base = { kind: "source" as const, sourceId: randomUUID(), revisionId: randomUUID(), generation: 1 };
+    const historical = { ...base, visibility: "private" as const }, current = { ...base };
+    const manifest = createDependencyManifest([historical, current]);
+    expect(manifest.dependencies).toHaveLength(1);
+    expect(assertDependencyManifest(manifest)).toEqual(manifest);
+    expect(assertDependencyManifest(createDependencyManifest([current]))).toEqual(createDependencyManifest([current]));
+  });
+
   it("rejects stale or tampered manifests rather than choosing one policy generation", () => {
     const first = dependency();
     expect(() => createDependencyManifest([first, { ...first, generation: 2 }])).toThrow("policy changed");
