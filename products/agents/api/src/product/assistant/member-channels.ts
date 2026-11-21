@@ -13,7 +13,7 @@ import type { ChannelWebhookEvent } from "../../contracts/channel-adapters";
 import type { Account, TaskRecord, VersionRecord } from "../../contracts/records";
 import { transaction } from "../../infrastructure/database";
 import { PlatformStore } from "../agents/store";
-import { operationsForConfiguration } from "../automations/automations";
+import { operationsForConfiguration } from "../../platform/access";
 import { EvidenceStore, assertCurrentEvidence, assertDelegationInputEvidence } from "../../execution/context/evidence";
 import { ToolReviewStore } from "../../capabilities/reviews/tool-reviews";
 import { channelSegments } from "../channels/channel-outbound";

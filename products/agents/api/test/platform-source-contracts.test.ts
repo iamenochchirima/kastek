@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { assertDependencyManifest, assertIngestionPublication, collectDependencyGraph, createDependencyManifest, dependencyFrontier,
   sourceChunkSchema, textDigest, type DependencyNode, type EvidenceDependency, type IngestionJob, type Source } from "../src/contracts/source-contracts";
 
-const dependency = (): EvidenceDependency => ({ kind: "source", sourceId: randomUUID(), revisionId: randomUUID(), generation: 1, visibility: "private" });
+const dependency = (): EvidenceDependency => ({ kind: "source", sourceId: randomUUID(), revisionId: randomUUID(), generation: 1 });
 
 describe("source and evidence contracts", () => {
   it("deduplicates shared ancestors without dropping influencing dependencies", () => {
@@ -28,6 +28,15 @@ describe("source and evidence contracts", () => {
     expect(()=>createDependencyManifest(Array.from({length:1025},dependency))).toThrow("dependencies");
   });
 
+  it("accepts historical source visibility without enforcing it", () => {
+    const base = { kind: "source" as const, sourceId: randomUUID(), revisionId: randomUUID(), generation: 1 };
+    const historical = { ...base, visibility: "private" as const }, current = { ...base };
+    const manifest = createDependencyManifest([historical, current]);
+    expect(manifest.dependencies).toHaveLength(1);
+    expect(assertDependencyManifest(manifest)).toEqual(manifest);
+    expect(assertDependencyManifest(createDependencyManifest([current]))).toEqual(createDependencyManifest([current]));
+  });
+
   it("rejects stale or tampered manifests rather than choosing one policy generation", () => {
     const first = dependency();
     expect(() => createDependencyManifest([first, { ...first, generation: 2 }])).toThrow("policy changed");
@@ -48,7 +57,7 @@ describe("source and evidence contracts", () => {
 
   it("denies late publication after cancellation, withdrawal, refresh, or deadline", () => {
     const source: Source = { id: randomUUID(), organizationId: randomUUID(), importerAccountId: randomUUID(), title: "Research", kind: "upload", generation: 1,
-      state: "active", visibility: "private", createdAt: "2026-10-17T00:00:00Z" };
+      state: "active", createdAt: "2026-10-17T00:00:00Z" };
     const job: IngestionJob = { id: randomUUID(), sourceId: source.id, revisionId: randomUUID(), revision: 1,
       acceptedGeneration: 1, state: "indexing", parserRelease: "document-v1", deadline: "2026-10-17T00:10:00Z" };
     const now = Date.parse("2026-10-17T00:05:00Z");

@@ -4,12 +4,13 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { randomUUID } from "node:crypto";
 import { GROWTH_AGENT_FEATURE_IDS, GrowthAgentContractError, parseGrowthAgentContext as parseContextWire, parseGrowthDraftProposal as parseDraftWire, parseGrowthAgentCommand,
   GROWTH_RESOURCE_FIELDS, type GrowthAgentResourceOperation,
-  type GrowthAgentBootstrap, type GrowthAgentCommandInputs, type GrowthAgentCommandOperation, type GrowthAgentFeatureId } from "@kasitek-labs/contracts";
+  type GrowthAgentBootstrap, type GrowthAgentCommandInputs, type GrowthAgentCommandOperation, type GrowthAgentFeatureId,
+  type ProductAgentInputs } from "@kasitek-labs/contracts";
 import type { CoreContext } from "../context.js";
 import { ApiError } from "../error.js";
 import { extractUser, resolveActiveOrgId, requireOrigin } from "../identity/session.js";
 import { growthAgentPublication } from "./manifest.js";
-import { GrowthAgentClient, type GrowthAgentTransport } from "./client.js";
+import { GrowthAgentClient, type SharedAgentOperation, type GrowthAgentTransport } from "./client.js";
 import { growthAgentActor } from "./security.js";
 import { authorizeGrowthAgentScope, readGrowthAgentContext, type GrowthAgentScope } from "./scope.js";
 import { GrowthAgentReviewStore } from "./reviews.js";
@@ -174,6 +175,45 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     await recordAgentTaskUsage(core, auth.tenantId, result);
     return result;
   }
+  const sharedAnalytics: Partial<Record<SharedAgentOperation, string>> = {
+    "conversations.create": "conversations.create",
+    "runs.start": "turns.submit",
+    "runs.continue": "tasks.continue",
+    "runs.steer": "tasks.instructions",
+  };
+  function sharedFeature(input: unknown): GrowthAgentFeatureId | null {
+    const target = (input as { target?: { kind?: string; featureId?: string } }).target;
+    return target?.kind === "product_feature" && target.featureId ? target.featureId as GrowthAgentFeatureId : null;
+  }
+  async function invokeShared<K extends SharedAgentOperation>(request: FastifyRequest, operation: K, input: ProductAgentInputs[K], requestId?: string) {
+    const auth = await scope(request), commandId = requestId ?? randomUUID(), analytics = sharedAnalytics[operation] ?? null;
+    if (["runs.start", "runs.continue", "runs.steer"].includes(operation)) await requireAiCredit(core.pool, auth.tenantId);
+    let result;
+    try { result = await client.shared(auth, operation, input, commandId); }
+    catch (error) {
+      if (error instanceof ApiError && analytics) await enqueueGrowthAgentCommand(core.pool, auth, {
+        operation: analytics, requestId: commandId, featureId: sharedFeature(input),
+        conversationId: (input as { conversationId?: string }).conversationId ?? null,
+        taskId: (input as { taskId?: string }).taskId ?? null,
+        outcome: error.status >= 500 ? "unavailable" : "rejected",
+        failureCode: /^[a-zA-Z0-9_]{1,80}$/.test(error.code) ? error.code : "agent_command_failed",
+      });
+      throw error;
+    }
+    const acknowledged = result as { conversation?: { id: string; featureId: GrowthAgentFeatureId }; task?: { id: string; conversationId: string; featureId: GrowthAgentFeatureId } };
+    if (analytics) await enqueueGrowthAgentCommand(core.pool, auth, { operation: analytics, requestId: commandId,
+      featureId: acknowledged.task?.featureId ?? acknowledged.conversation?.featureId ?? sharedFeature(input),
+      conversationId: acknowledged.task?.conversationId ?? acknowledged.conversation?.id ?? (input as { conversationId?: string }).conversationId ?? null,
+      taskId: acknowledged.task?.id ?? (input as { taskId?: string }).taskId ?? null, outcome: "accepted", failureCode: null });
+    await recordAgentTaskUsage(core, auth.tenantId, result);
+    return result;
+  }
+  function sharedConversationPage(request: FastifyRequest) {
+    const value = page(request, ["featureId", "search"]);
+    const featureId = typeof value.featureId === "string" ? value.featureId : undefined;
+    const { featureId: _ignored, ...rest } = value;
+    return { ...rest, ...(featureId ? { target: { kind: "product_feature" as const, featureId } } : {}) };
+  }
   const id = (request: FastifyRequest, name: string) => string((request.params as Record<string, unknown>)[name], name);
   app.get("/api/agents/bootstrap", async request => {
     const auth = await scope(request), business = await authorizeGrowthAgentScope(core, auth);
@@ -219,13 +259,13 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
   app.get("/api/agents/features/:featureId/models", async (request, reply) => {
     const auth=await scope(request);await requireAdmin(core.pool,auth.tenantId,auth.actor.subject);
     strict(request.query as Record<string,unknown>??{},[]);reply.header("Cache-Control","no-store");
-    return invoke(request,"models.list",{featureId:id(request,"featureId") as GrowthAgentFeatureId});
+    return invokeShared(request,"models.list",{target:{kind:"product_feature",featureId:id(request,"featureId") as GrowthAgentFeatureId}});
   });
   app.patch("/api/agents/features/:featureId/model", async request => {
     const auth=await scope(request);await requireAdmin(core.pool,auth.tenantId,auth.actor.subject);
     const input=body(request);strict(input,["requestId","expectedRevision","selection"]);
-    return invoke(request,"models.select",{featureId:id(request,"featureId") as GrowthAgentFeatureId,
-      expectedRevision:Number(input.expectedRevision),selection:input.selection as GrowthAgentCommandInputs["models.select"]["selection"]},string(input.requestId));
+    return invokeShared(request,"models.select",{target:{kind:"product_feature",featureId:id(request,"featureId") as GrowthAgentFeatureId},
+      expectedRevision:Number(input.expectedRevision),selection:input.selection as ProductAgentInputs["models.select"]["selection"]},string(input.requestId));
   });
   app.get("/api/agents/features/:featureId/memory",request=>{
     const query=request.query as Record<string,unknown>??{};strict(query,["offset","limit"]);
@@ -274,7 +314,7 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
   resourceMutation("skills/review", "skills.review");
   resourceMutation("skills/state", "skills.state");
   resourceMutation("resources/select", "resources.select");
-  app.get("/api/agents/conversations", request => invoke(request, "conversations.list", page(request, ["featureId", "search"])));
+  app.get("/api/agents/conversations", request => invokeShared(request, "conversations.list", sharedConversationPage(request)));
   app.post("/api/agents/conversations", async (request, reply) => {
     const input = body(request); strict(input, ["requestId", "featureId", "title", "context"]);
     const auth = await scope(request), featureId = string(input.featureId) as GrowthAgentFeatureId;
@@ -282,28 +322,28 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     await authorizeGrowthAgentScope(core, auth, featureId);
     const context = input.context === undefined || input.context === null ? null : parseGrowthAgentContext(input.context);
     if (context) await readGrowthAgentContext(core, auth, context);
-    const result = await invoke(request, "conversations.create", { featureId, ...(input.title === undefined ? {} : { title: string(input.title, "title", 240) }), context }, string(input.requestId));
+    const result = await invokeShared(request, "conversations.create", { target: { kind: "product_feature", featureId }, ...(input.title === undefined ? {} : { title: string(input.title, "title", 240) }), context }, string(input.requestId));
     return reply.code(201).send(result);
   });
-  app.get("/api/agents/conversations/:conversationId", request => invoke(request, "conversations.get", { ...page(request, []), conversationId: id(request, "conversationId") }));
+  app.get("/api/agents/conversations/:conversationId", request => invokeShared(request, "conversations.get", { ...page(request, []), conversationId: id(request, "conversationId") }));
   app.patch("/api/agents/conversations/:conversationId/context", async request => {
     const input = body(request); strict(input, ["requestId", "context"]);
     if (input.context === undefined) throw new ApiError(400, "agent_request_invalid", "Choose the conversation context");
     const context = input.context === null ? null : parseGrowthAgentContext(input.context), auth = await scope(request);
     if (context) await readGrowthAgentContext(core, auth, context);
-    return invoke(request, "conversations.context", { conversationId: id(request, "conversationId"), context }, string(input.requestId));
+    return invokeShared(request, "conversations.context", { conversationId: id(request, "conversationId"), context }, string(input.requestId));
   });
   app.post("/api/agents/conversations/:conversationId/messages", async (request, reply) => {
     const input = body(request); strict(input, ["requestId", "text", "context"]);
-    const result = await invoke(request, "turns.submit", { conversationId: id(request, "conversationId"), text: string(input.text, "message", 131072),
+    const result = await invokeShared(request, "runs.start", { conversationId: id(request, "conversationId"), message: string(input.text, "message", 131072),
       ...(input.context === undefined ? {} : { context: input.context === null ? null : parseGrowthAgentContext(input.context) }) }, string(input.requestId));
     return reply.code(result.replayed ? 200 : 202).send(result);
   });
-  app.get("/api/agents/tasks", request => invoke(request, "tasks.list", page(request, ["conversationId", "state", "search"])));
-  app.get("/api/agents/tasks/:taskId", request => invoke(request, "tasks.get", { taskId: id(request, "taskId") }));
+  app.get("/api/agents/tasks", request => invokeShared(request, "runs.list", page(request, ["conversationId", "state", "search"])));
+  app.get("/api/agents/tasks/:taskId", request => invokeShared(request, "runs.get", { taskId: id(request, "taskId") }));
   app.get("/api/agents/tasks/:taskId/activity", request => {
     const query=request.query as Record<string,unknown>??{}; strict(query,["childTaskId","cursor","operationCursor","limit"]);
-    return invoke(request,"tasks.observe",{taskId:id(request,"taskId"),
+    return invokeShared(request,"runs.activity",{taskId:id(request,"taskId"),
       ...(query.childTaskId===undefined?{}:{childTaskId:string(query.childTaskId,"childTaskId")}),
       ...(query.cursor===undefined?{}:{cursor:string(query.cursor,"cursor",2048)}),
       ...(query.operationCursor===undefined?{}:{operationCursor:string(query.operationCursor,"operationCursor",2048)}),
@@ -315,14 +355,14 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
       ...(query.childTaskId===undefined?{}:{childTaskId:string(query.childTaskId,"childTaskId")}),
       ...(query.cursor===undefined?{}:{cursor:string(query.cursor,"cursor",2048)}),client,scope:()=>scope(request)});
   });
-  app.get("/api/agents/tasks/:taskId/export", request => invoke(request, "tasks.export", { taskId: id(request, "taskId") }));
+  app.get("/api/agents/tasks/:taskId/export", request => invokeShared(request, "tasks.export", { taskId: id(request, "taskId") }));
   app.get("/api/agents/tasks/:taskId/specialists/:childTaskId/result", async (request, reply) => {
     reply.header("Cache-Control", "no-store");
     const query = request.query as Record<string, unknown> ?? {}; strict(query, ["offset"]);
     const offset = query.offset === undefined ? 0 : Number(query.offset);
     if (!Number.isSafeInteger(offset) || offset < 0 || offset > 2097152) throw new ApiError(400, "agent_request_invalid", "Check the result offset");
     const taskId = id(request, "taskId"), childTaskId = id(request, "childTaskId");
-    const result = await invoke(request, "tasks.observe", { taskId, childTaskId });
+    const result = await invokeShared(request, "runs.activity", { taskId, childTaskId });
     if (result.rootTaskId !== taskId || result.parentTaskId !== taskId || result.task?.id !== childTaskId)
       throw new ApiError(404, "agent_result_missing", "Specialist result is unavailable");
     const child = result.task;
@@ -337,26 +377,26 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     if (query.limit !== undefined) throw new ApiError(400, "agent_request_invalid", "Check the request fields");
     return streamGrowthTask(request, reply, {taskId: id(request, "taskId"), cursor: query.cursor as string | undefined, scope: () => scope(request), client});
   });
-  app.get("/api/agents/tasks/:taskId/events", request => invoke(request, "tasks.events", { ...page(request, []), taskId: id(request, "taskId") }));
+  app.get("/api/agents/tasks/:taskId/events", request => invokeShared(request, "runs.events", { ...page(request, []), taskId: id(request, "taskId") }));
   app.post("/api/agents/tasks/:taskId/cancel", request => {
     const input = body(request); strict(input, ["requestId"]);
-    return invoke(request, "tasks.cancel", { taskId: id(request, "taskId") }, string(input.requestId));
+    return invokeShared(request, "runs.cancel", { taskId: id(request, "taskId") }, string(input.requestId));
   });
   app.post("/api/agents/tasks/:taskId/instructions", request => {
     const input = body(request); strict(input, ["requestId", "instruction"]);
-    return invoke(request, "tasks.instructions", { taskId: id(request, "taskId"), instruction: string(input.instruction, "instructions", 4000) }, string(input.requestId));
+    return invokeShared(request, "runs.steer", { taskId: id(request, "taskId"), instruction: string(input.instruction, "instructions", 4000) }, string(input.requestId));
   });
   app.post("/api/agents/tasks/:taskId/continue", request => {
     const input = body(request); strict(input, ["requestId"]);
-    return invoke(request, "tasks.continue", { taskId: id(request, "taskId") }, string(input.requestId));
+    return invokeShared(request, "runs.continue", { taskId: id(request, "taskId") }, string(input.requestId));
   });
   app.get("/api/agents/draft-destinations", async request => ({ destinations: await reviews.destinations(await scope(request)) }));
   app.get("/api/agents/tasks/:taskId/reviews", async request => {
-    const taskId = id(request, "taskId"), result = await invoke(request, "reviews.list", { taskId });
+    const taskId = id(request, "taskId"), result = await invokeShared(request, "reviews.list", { taskId });
     return { reviews: result.reviews.map(review => ({ ...review, taskId })) };
   });
   async function scopedReview(auth: GrowthAgentScope, taskId: string, reviewId: string) {
-    const result = await client.command(auth, "reviews.list", { taskId });
+    const result = await client.shared(auth, "reviews.list", { taskId });
     const review = result.reviews.find(review => review.id === reviewId);
     if (!review) throw new ApiError(404, "agent_review_missing", "Review is unavailable");
     return review;
@@ -379,7 +419,7 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     if (input.decision === "approve") await requireAiCredit(core.pool, auth.tenantId);
     const result = await reviews.decide(auth, reviewId, { requestId, payloadDigest, decision: input.decision }, allowed?.taskId);
     let resumePending = false;
-    try { await client.command(auth, "reviews.decide", { taskId: publicTaskId ?? result.review.taskId, reviewId, payloadDigest, decision: input.decision }, requestId); }
+    try { await client.shared(auth, "reviews.decide", { taskId: publicTaskId ?? result.review.taskId, reviewId, payloadDigest, decision: input.decision }, requestId); }
     catch (error) { if (!(error instanceof ApiError) || error.status < 500) throw error; resumePending = true; }
     return { ...result, review: { ...result.review, taskId: publicTaskId ?? result.review.taskId }, resumePending };
   }
@@ -388,12 +428,12 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     await scope(request);
     throw new ApiError(400, "agent_review_task_required", "Open the task to review this draft");
   });
-  app.get("/api/agents/tasks/:taskId/artifacts", request => invoke(request, "artifacts.list", { taskId: id(request, "taskId"), ...artifactChild(request) }));
+  app.get("/api/agents/tasks/:taskId/artifacts", request => invokeShared(request, "artifacts.list", { taskId: id(request, "taskId"), ...artifactChild(request) }));
   app.get("/api/agents/tasks/:taskId/artifacts/:artifactId/download", async (request, reply) => {
     const selected=artifactChild(request),artifactId=id(request,"artifactId");
     const chunks: Buffer[] = []; let offset = 0, digest: string | undefined, bytes: number | undefined, mediaType = "application/octet-stream", name:string|undefined;
     do {
-      const result = await invoke(request, "artifacts.get", { taskId: id(request, "taskId"), artifactId, offset, ...selected });
+      const result = await invokeShared(request, "artifacts.get", { taskId: id(request, "taskId"), artifactId, offset, ...selected });
       const part = result.artifact.chunk;
       if (!part || part.offset !== offset || !Number.isSafeInteger(part.bytes) || part.bytes < 0 || part.bytes > 1048576 ||
         result.artifact.id!==artifactId || !/^[a-f0-9]{64}$/.test(part.digest) || (digest !== undefined && (digest !== part.digest || bytes !== part.bytes || mediaType!==result.artifact.mediaType || name!==result.artifact.title)))
@@ -412,5 +452,5 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
       .header("Content-Disposition", `attachment; filename="${name&&/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$/.test(name)?name:"agent-result.bin"}"`);
     return reply.type(mediaType).send(content);
   });
-  app.get("/api/agents/tasks/:taskId/artifacts/:artifactId", request => invoke(request, "artifacts.get", { taskId: id(request, "taskId"), artifactId: id(request, "artifactId"), ...artifactChild(request) }));
+  app.get("/api/agents/tasks/:taskId/artifacts/:artifactId", request => invokeShared(request, "artifacts.get", { taskId: id(request, "taskId"), artifactId: id(request, "artifactId"), ...artifactChild(request) }));
 }

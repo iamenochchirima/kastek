@@ -1,11 +1,11 @@
 import type { Pool } from "pg";
 import { PlatformError } from "../contracts/contracts";
 import { assertCurrentAuthority, loadExecution } from "../execution/lifecycle/execution";
-import { MemoryStore, type MemoryRecord } from "../execution/memory/memory";
+import type { MemoryAssertion, MemoryRecord, MemoryStorePort } from "../contracts/memory";
 import { builtinToolEnabled } from "./tool-definitions";
 import { fitUtf8 } from "../infrastructure/utf8";
 import { validateBuiltinArguments, validateBuiltinResult } from "./tool-contracts";
-import type { MemoryAssertion } from "../contracts/memory";
+
 
 export interface MemoryEvidencePort {
   recordMemory(taskId: string, operationId: string, memoryId: string, previewBytes?: number): Promise<{ reference: { id: string }; label: string }>;
@@ -20,7 +20,7 @@ const fullMemory = (memory: MemoryRecord, includeAssertion: boolean) => ({ id: m
   origin: memory.origin, verified: memory.verified, ...(includeAssertion ? { assertion: memory.assertion } : {}), updatedAt: memory.updatedAt, expiresAt: memory.expiresAt });
 
 /** Product-origin access is checked by the caller before entering the shared tool gateway. */
-export async function executeMemoryTool(pool: Pool, taskId: string, operationId: string,
+export async function executeMemoryTool(pool: Pool, store: MemoryStorePort, taskId: string, operationId: string,
   name: "memory.search" | "memory.read" | "memory.propose", input: unknown, evidence?: MemoryEvidencePort): Promise<unknown> {
   const execution = await loadExecution(pool, taskId);
   await assertCurrentAuthority(pool, execution);
@@ -30,7 +30,7 @@ export async function executeMemoryTool(pool: Pool, taskId: string, operationId:
   const acceptedVersion = execution.toolBindings.find(binding => binding.name === name)?.version;
   const includeAssertion = name === "memory.search" ? !["1", "2"].includes(acceptedVersion ?? "") : name === "memory.read" ? acceptedVersion !== "1" : true;
   const args = validateBuiltinArguments(name, input, acceptedVersion) as { query?: string; offset?: number; memoryId?: string; content?: string; kind?: "semantic" | "episodic"; assertion?: MemoryAssertion };
-  const store = new MemoryStore(pool), scope = { organizationId: execution.task.organization_id, agentId: execution.agentId, principal: execution.task.principal, taskId };
+  const scope = { organizationId: execution.task.organization_id, agentId: execution.agentId, principal: execution.task.principal, taskId };
   const citation = async (memoryId: string, previewBytes?: number) => {
     if (!evidence) return {};
     const passage = await evidence.recordMemory(taskId, operationId, memoryId, previewBytes);

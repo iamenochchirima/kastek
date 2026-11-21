@@ -16,6 +16,7 @@ export interface DispatcherOptions {
   onError?: (code: string) => void;
   onPhase?: (phase:DispatcherPhase,durationMs:number,success:boolean)=>void;
   policy?: Partial<DispatchPolicy>;
+  workload?: "interactive" | "background";
   runtimeRoutes?: Record<string,{ingressUrl:string;adminUrl:string;workflowName:string}>;
   supportStatusRoute?: {ingressUrl:string;adminUrl:string;workflowName:string};
 }
@@ -36,7 +37,7 @@ async function dispatchRootBatch(pool:Pool,options:DispatcherOptions,{request,ro
     WHERE o.dispatched_at IS NULL AND t.state IN ('completed','incomplete','refused','failed','cancelled','uncertain')
     ORDER BY o.created_at,o.task_id FOR UPDATE OF o SKIP LOCKED LIMIT 128)
     UPDATE agents_platform.task_outbox o SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL FROM terminal t WHERE t.task_id=o.task_id`);
-  const {owner,rows,policy}=await claimDispatchBatch(pool,options.policy,releases);
+  const {owner,rows,policy}=await claimDispatchBatch(pool,options.policy,releases,options.workload);
   await drainBatch(rows,policy.parallelism,async row=>{
     try {
       const task = (await pool.query(`SELECT state,runtime_invocation_id,harness_release,parent_task_id,EXISTS(SELECT 1 FROM agents_platform.operations op WHERE op.task_id=t.parent_task_id AND op.id=t.delegation_operation_id AND op.name IN ('agents.start','agents.followup') AND op.state='completed') AS background${options.supportStatusRoute?',execution_purpose':''} FROM agents_platform.tasks t WHERE id=$1`, [row.task_id])).rows[0];

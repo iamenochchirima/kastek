@@ -1,4 +1,5 @@
-import { loadProcedure } from "../../contracts/procedure-definitions";
+import { findProcedure } from "../../contracts/procedure-definitions";
+import type { ProcedureDefinition } from "../../contracts/procedure-definitions";
 import type { CapabilityBinding } from "../../contracts/capability-catalog";
 import { requestDigest, type AgentConfiguration } from "../../contracts/contracts";
 import { SHARED_HARNESS_RELEASE, SHARED_WORKFLOW_NAME } from "../../contracts/execution";
@@ -8,13 +9,17 @@ import { compileComposition } from "./composition";
 import { PROTOCOL_TOOL_NAMES, type PublishedToolBinding } from "../../capabilities/protocol-tools";
 
 export function compilePublishedComposition(configuration: AgentConfiguration, connectedBindings: readonly CapabilityBinding[], pinnedRuntime?: {release:string;workflow:string},
-  acceptedBindings?: readonly PublishedToolBinding[]) {
+  acceptedBindings?: readonly PublishedToolBinding[], procedureDefinitions?: ReadonlyMap<string, ProcedureDefinition>) {
   const shared = pinnedRuntime === undefined || pinnedRuntime.release === SHARED_HARNESS_RELEASE;
   const versions = acceptedBindings === undefined ? shared ? undefined : new Map([["agents.result",pinnedRuntime!.release==="product-capabilities-v13"?"1":"2"],["memory.search","1"],["memory.propose","1"]])
     : new Map(acceptedBindings.map(binding=>[binding.name,binding.version]));
   const includeProtocol = shared && (acceptedBindings === undefined || PROTOCOL_TOOL_NAMES.some(name=>versions!.has(name)));
   return compileComposition(configuration.program, configuration, {
-    runtime: pinnedRuntime ?? {release:SHARED_HARNESS_RELEASE,workflow:SHARED_WORKFLOW_NAME}, tools: publishedToolBindings(configuration,pinnedRuntime?.release==="product-capabilities-v13",versions,includeProtocol), connectedBindings,
-    workflows: [...[REPORT_WORKFLOW_BINDING,BOOKING_WORKFLOW_BINDING].map(binding=>({id:binding.profileId,version:binding.version,digest:requestDigest(binding)})), ...(configuration.procedures??[]).map(ref=>({...ref,digest:requestDigest(loadProcedure(ref))}))],
+    runtime: pinnedRuntime ?? {release:SHARED_HARNESS_RELEASE,workflow:SHARED_WORKFLOW_NAME}, tools: publishedToolBindings(configuration,pinnedRuntime?.release==="product-capabilities-v13",versions,includeProtocol,procedureDefinitions?.size??0), connectedBindings,
+    workflows: [...[REPORT_WORKFLOW_BINDING,BOOKING_WORKFLOW_BINDING].map(binding=>({id:binding.profileId,version:binding.version,digest:requestDigest(binding)})),
+      ...(configuration.procedures??[]).flatMap(ref=>{
+        const definition=procedureDefinitions?.get(`${ref.id}@${ref.version}`)??findProcedure(ref);
+        return definition?[{...ref,digest:requestDigest(definition.metadata)}]:[];
+      })],
   });
 }

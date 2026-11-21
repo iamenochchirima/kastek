@@ -5,16 +5,18 @@ import {procedureApplicabilitySchema,procedureEvidenceSchema,procedureReferenceS
 import {PlatformError,requestDigest} from "../../contracts/primitives";
 import {transaction} from "../../infrastructure/database";
 import {resolveProcedure} from "../../contracts/procedure-definitions";
+import type {ProcedureDefinition} from "../../contracts/procedure-definitions";
 
 export type ProcedureEvidenceVerifier=(db:PoolClient,scope:ProcedureScope,evidence:ProcedureEvidence)=>Promise<boolean|void>;
 const missing=()=>new PlatformError("PROCEDURE_NOT_FOUND",404,"Procedure not found");
 const conflict=()=>new PlatformError("PROCEDURE_CONFLICT",409,"Procedure changed. Inspect it and try again");
-function dto(row:any):ProcedureInstance {
- const progress=resolveProcedure({id:row.definition_id,version:row.definition_version}).progress(row.route,row.receipts);
- return {id:row.id,organizationId:row.organization_id,agentId:row.agent_id,conversationId:row.conversation_id,definition:{id:row.definition_id,version:row.definition_version},revision:String(row.revision),status:row.status,route:row.route,applicability:row.applicability,receipts:row.receipts,missing:progress.missing,hasUnknownEffects:progress.hasUnknownEffects,createdAt:new Date(row.created_at).toISOString(),updatedAt:new Date(row.updated_at).toISOString()};
-}
 export class ProcedureStore {
- constructor(readonly pool:Pool|PoolClient,readonly verifyEvidence?:ProcedureEvidenceVerifier){}
+ constructor(readonly pool:Pool|PoolClient,readonly verifyEvidence?:ProcedureEvidenceVerifier,
+  private readonly definition:(reference:ProcedureReference)=>ProcedureDefinition=resolveProcedure){}
+ private dto(row:any):ProcedureInstance {
+  const progress=this.definition({id:row.definition_id,version:row.definition_version}).progress(row.route,row.receipts);
+  return {id:row.id,organizationId:row.organization_id,agentId:row.agent_id,conversationId:row.conversation_id,definition:{id:row.definition_id,version:row.definition_version},revision:String(row.revision),status:row.status,route:row.route,applicability:row.applicability,receipts:row.receipts,missing:progress.missing,hasUnknownEffects:progress.hasUnknownEffects,createdAt:new Date(row.created_at).toISOString(),updatedAt:new Date(row.updated_at).toISOString()};
+ }
  private run<T>(work:(db:PoolClient)=>Promise<T>):Promise<T>{return "release" in this.pool?work(this.pool as PoolClient):transaction(this.pool as Pool,work);}
  private async authorize(db:PoolClient,raw:ProcedureScope){
   const scope=procedureScopeSchema.parse(raw);
@@ -34,15 +36,15 @@ export class ProcedureStore {
  async start(scope:ProcedureScope,rawReference:ProcedureReference,raw:{commandId:string;applicability:ProcedureApplicability;taskId?:string}){
   const reference=procedureReferenceSchema.parse(rawReference),commandId=z.uuid().parse(raw.commandId),applicability=procedureApplicabilitySchema.parse(raw.applicability);
   const taskId=raw.taskId===undefined?null:z.uuid().parse(raw.taskId);
-  const definition=resolveProcedure(reference);
+  const definition=this.definition(reference);
   if(!definition.validateApplicability(applicability))throw new PlatformError("PROCEDURE_NOT_APPLICABLE",409,"Procedure is not applicable to the current facts");
   return this.run(db=>this.command(db,scope,commandId,{reference,applicability,taskId},async()=>{
    if(taskId&&!(await db.query(`SELECT 1 FROM agents_platform.tasks t JOIN agents_platform.agent_versions v ON v.id=t.version_id AND v.organization_id=t.organization_id WHERE t.id=$1 AND t.organization_id=$2 AND t.conversation_id=$3 AND v.agent_id=$4 FOR SHARE OF t,v`,[taskId,scope.organizationId,scope.conversationId,scope.agentId])).rowCount)throw new PlatformError("PROCEDURE_ORIGIN_DENIED",403,"Procedure origin is unavailable");
-   await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`${scope.organizationId}:${scope.conversationId}:${reference.id}:${reference.version}`]);const existing=(await db.query("SELECT * FROM agents_platform.business_procedure_instances WHERE organization_id=$1 AND agent_id=$2 AND conversation_id=$3 AND definition_id=$4 AND definition_version=$5 AND status IN ('active','suspended') FOR UPDATE",[scope.organizationId,scope.agentId,scope.conversationId,reference.id,reference.version])).rows[0];if(existing){if(taskId&&!existing.origin_task_id)return dto((await db.query('UPDATE agents_platform.business_procedure_instances SET origin_task_id=$3,revision=revision+1,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *',[scope.organizationId,existing.id,taskId])).rows[0]);return dto(existing);}return dto((await db.query(`INSERT INTO agents_platform.business_procedure_instances(id,organization_id,agent_id,conversation_id,definition_id,definition_version,applicability,origin_task_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,[randomUUID(),scope.organizationId,scope.agentId,scope.conversationId,reference.id,reference.version,applicability,taskId])).rows[0]);}));
+   await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`${scope.organizationId}:${scope.conversationId}:${reference.id}:${reference.version}`]);const existing=(await db.query("SELECT * FROM agents_platform.business_procedure_instances WHERE organization_id=$1 AND agent_id=$2 AND conversation_id=$3 AND definition_id=$4 AND definition_version=$5 AND status IN ('active','suspended') FOR UPDATE",[scope.organizationId,scope.agentId,scope.conversationId,reference.id,reference.version])).rows[0];if(existing){if(taskId&&!existing.origin_task_id)return this.dto((await db.query('UPDATE agents_platform.business_procedure_instances SET origin_task_id=$3,revision=revision+1,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *',[scope.organizationId,existing.id,taskId])).rows[0]);return this.dto(existing);}return this.dto((await db.query(`INSERT INTO agents_platform.business_procedure_instances(id,organization_id,agent_id,conversation_id,definition_id,definition_version,applicability,origin_task_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,[randomUUID(),scope.organizationId,scope.agentId,scope.conversationId,reference.id,reference.version,applicability,taskId])).rows[0]);}));
  }
  async inspect(scope:ProcedureScope,id?:string):Promise<ProcedureInstance[]> {
   if(id)z.uuid().parse(id);
-  return this.run(async db=>{await this.authorize(db,scope);return (await db.query(`SELECT * FROM agents_platform.business_procedure_instances WHERE organization_id=$1 AND agent_id=$2 AND conversation_id=$3 AND ($4::uuid IS NULL OR id=$4) ORDER BY (status IN ('active','suspended')) DESC,created_at DESC,id DESC LIMIT 100`,[scope.organizationId,scope.agentId,scope.conversationId,id??null])).rows.map(dto);});
+  return this.run(async db=>{await this.authorize(db,scope);return (await db.query(`SELECT * FROM agents_platform.business_procedure_instances WHERE organization_id=$1 AND agent_id=$2 AND conversation_id=$3 AND ($4::uuid IS NULL OR id=$4) ORDER BY (status IN ('active','suspended')) DESC,created_at DESC,id DESC LIMIT 100`,[scope.organizationId,scope.agentId,scope.conversationId,id??null])).rows.map(row=>this.dto(row));});
  }
  private async locked(db:PoolClient,scope:ProcedureScope,id:string,revision:string){
   const row=(await db.query('SELECT * FROM agents_platform.business_procedure_instances WHERE organization_id=$1 AND agent_id=$2 AND conversation_id=$3 AND id=$4 FOR UPDATE',[scope.organizationId,scope.agentId,scope.conversationId,z.uuid().parse(id)])).rows[0];
@@ -53,8 +55,8 @@ export class ProcedureStore {
   return this.run(db=>this.command(db,scope,input.commandId,{id,...input},async()=>{
    const row=await this.locked(db,scope,id,input.expectedRevision);
    if(row.status==='cancelled'||row.status==='completed')throw new PlatformError("PROCEDURE_TERMINAL",409,"Procedure has already ended");
-   const status=input.action==='cancel'?'cancelled':input.action==='suspend'?'suspended':resolveProcedure({id:row.definition_id,version:row.definition_version}).progress(row.route,row.receipts).complete?'completed':'active';
-   return dto((await db.query('UPDATE agents_platform.business_procedure_instances SET status=$3,revision=revision+1,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *',[scope.organizationId,id,status])).rows[0]);
+   const status=input.action==='cancel'?'cancelled':input.action==='suspend'?'suspended':this.definition({id:row.definition_id,version:row.definition_version}).progress(row.route,row.receipts).complete?'completed':'active';
+   return this.dto((await db.query('UPDATE agents_platform.business_procedure_instances SET status=$3,revision=revision+1,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *',[scope.organizationId,id,status])).rows[0]);
   }));
  }
  /** Only product adapters may supply evidence; model-facing tools must never expose this input. */
@@ -69,9 +71,9 @@ export class ProcedureStore {
    const merged=new Map<string,ProcedureEvidence['receipts'][number]>(row.receipts.map((r:ProcedureEvidence['receipts'][number])=>[`${r.kind}:${r.sourceId}`,r]));
    for(const receipt of input.receipts)merged.set(`${receipt.kind}:${receipt.sourceId}`,receipt);
    if(merged.size>256)throw new PlatformError("PROCEDURE_RECEIPT_LIMIT",409,"Procedure receipt limit reached");
-   const receipts=[...merged.values()],route=input.route??row.route,progress=resolveProcedure({id:row.definition_id,version:row.definition_version}).progress(route,receipts);
+   const receipts=[...merged.values()],route=input.route??row.route,progress=this.definition({id:row.definition_id,version:row.definition_version}).progress(route,receipts);
    const status=terminal?row.status:row.status==='suspended'?'suspended':progress.complete?'completed':'active';
-   return dto((await db.query('UPDATE agents_platform.business_procedure_instances SET route=$3,receipts=$4,status=$5,revision=revision+1,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *',[scope.organizationId,id,route,JSON.stringify(receipts),status])).rows[0]);
+   return this.dto((await db.query('UPDATE agents_platform.business_procedure_instances SET route=$3,receipts=$4,status=$5,revision=revision+1,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *',[scope.organizationId,id,route,JSON.stringify(receipts),status])).rows[0]);
   }));
  }
 }

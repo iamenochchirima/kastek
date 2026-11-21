@@ -21,7 +21,8 @@ import { assertEvaluationTrial } from "../admission/trial-authority";
 import { channelBindingSchema } from "../../contracts/channel";
 import { channelPorts } from "../../infrastructure/channel-ports";
 import { assertProductAuthority } from "../admission/product-authority";
-import { assertProductNativeTaskAccess } from "../../capabilities/products/resource-scope";
+import { assertApplicationAuthority } from "../admission/application-authority";
+import { assertProductNativeTaskAccess } from "../../contracts/resource-scope";
 import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
 import { currentVisitorLineageAllowed } from "../context/visitor-lineage";
 import { HANDOFF_HARNESS_RELEASE } from "../../contracts/execution";
@@ -29,16 +30,16 @@ import { assertParentEdge } from "../delegation/scope";
 import { assertCustomerChannelRecipient } from "../context/recipient-boundary";
 import { assertPublishedTools } from "../../capabilities/tool-definitions";
 import { parseHandoffFeedbackRequest, type HandoffFeedbackRequest } from "./handoff-feedback-contract";
-export async function assertBaseAuthority(db: Pool | PoolClient, execution: Execution): Promise<void> {
-  return assertBaseAuthorityForPurpose(db, execution, false);
+export async function assertBaseAuthority(db: Pool | PoolClient, execution: Execution, options: { allowSettled?: boolean } = {}): Promise<void> {
+  return assertBaseAuthorityForPurpose(db, execution, false, options.allowSettled ?? false);
 }
 
-async function assertBaseAuthorityForPurpose(db: Pool | PoolClient, execution: Execution, handoffFeedback: boolean): Promise<void> {
+async function assertBaseAuthorityForPurpose(db: Pool | PoolClient, execution: Execution, handoffFeedback: boolean, allowSettled = false): Promise<void> {
   const { task, configuration, agentId } = execution;
   assertCustomerChannelRecipient(task.product, task.principal, task.channel_binding);
-  if (terminalTaskStates.has(task.state)) throw new PlatformError("TASK_SETTLED", 409, "Task has settled");
+  if (!allowSettled && terminalTaskStates.has(task.state)) throw new PlatformError("TASK_SETTLED", 409, "Task has settled");
   if (task.state === "cancel_requested") throw new PlatformError("TASK_CANCELLED", 409, "Task is stopping");
-  if (deadlineMillis(task.deadline_at) <= Date.now()) throw new PlatformError("TASK_DEADLINE", 409, "Task deadline reached");
+  if (!allowSettled && deadlineMillis(task.deadline_at) <= Date.now()) throw new PlatformError("TASK_DEADLINE", 409, "Task deadline reached");
   if (task.channel_binding && !handoffFeedback) {
     const root = task.parent_task_id ? await loadExecution(db, task.root_task_id) : execution;
     await channelPorts(db).assertBinding(db, channelBindingSchema.parse(task.channel_binding), root.task);
@@ -87,6 +88,10 @@ async function assertBaseAuthorityForPurpose(db: Pool | PoolClient, execution: E
         throw new PlatformError("MEMBER_CHANNEL_REVOKED",403,"Private messaging access was revoked");
     }
 
+  } else if (task.principal.kind === "application") {
+    // Delegated runs inherit their parent's authority, checked recursively above.
+    if (!task.parent_task_id) await assertApplicationAuthority(db, { product: task.product, organizationId: task.organization_id,
+      resourceId: task.resource_id, callerClientId: task.caller_client_id, principal: task.principal }, agentId, row.application_credential_id);
   } else if (task.principal.kind === "visitor" && !task.parent_task_id) {
     if (!await currentVisitorLineageAllowed(db,execution)) throw new PlatformError("DEPLOYMENT_SCOPE_DENIED",403,"Website return access is unavailable");
     const allowed = await db.query(`SELECT 1 FROM agents_platform.website_deployments d JOIN agents_platform.website_sessions s ON s.deployment_id=d.id

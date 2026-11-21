@@ -20,14 +20,16 @@ const ready={version:"1" as const,tenantId:target.tenantId,defaultsRevision:targ
 test("provisioning uses a separate service identity and rejects mismatched results, without leaking response details",async()=>{
  const keys=await generateKeyPair("RS256",{extractable:true});const privateKey=await exportPKCS8(keys.privateKey);
  const config=readConfig({DATABASE_URL:"postgres://unused",AGENTS_PRODUCT_API_URL:"http://localhost:4100",GROWTH_AGENTS_PROVISION_PRIVATE_KEY:privateKey});
- let captured:Record<string,unknown>|undefined;
+ let captured:Record<string,unknown>|undefined,capturedBody:unknown;
  const deliver:typeof fetch=async (_url,init)=>{
   captured=decodeJwt(String((init!.headers as Record<string,string>).authorization).slice(7));
-  assert.deepEqual(JSON.parse(String(init!.body)),target);
+  const body=JSON.parse(String(init!.body));capturedBody=body;
+  assert.equal(body.operation,"agents.applyPublication");assert.equal(body.product,"growth");assert.equal(body.tenantId,target.tenantId);
+  assert.deepEqual(body.input,{defaultsRevision:target.defaultsRevision,modelProfileId:target.modelProfileId,modelProfileRevision:target.modelProfileRevision});
   return new Response(JSON.stringify(ready));
  };
  assert.equal((await provisionGrowthAgents(config,target,{fetch:deliver})).state,"ready");
- assert.equal(captured!.sub,"growth-provisioner");assert.equal(captured!.aud,"agents-product-provisioning");assert.equal(captured!.product,"growth");assert.equal(captured!.requestDigest,growthAgentDigest(target));
+ assert.equal(captured!.sub,"growth-provisioner");assert.equal(captured!.aud,"agents-product-provisioning");assert.equal(captured!.product,"growth");assert.equal(captured!.requestDigest,growthAgentDigest(capturedBody));
  await assert.rejects(provisionGrowthAgents(config,target,{fetch:async()=>new Response(JSON.stringify({...ready,tenantId:"foreign"}))}),{code:"AGENT_SETUP_SCOPE_INVALID"});
  await assert.rejects(provisionGrowthAgents(config,target,{fetch:async()=>new Response("private provider response",{status:401})}),{code:"AGENT_SETUP_AUTHORITY_DENIED"});
  await assert.rejects(provisionGrowthAgents(readConfig({DATABASE_URL:"postgres://unused",AGENTS_PRODUCT_API_URL:"http://localhost:4100",GROWTH_AGENTS_SIGNING_PRIVATE_KEY:privateKey}),target),{code:"AGENT_SETUP_CONFIGURATION_MISSING"});

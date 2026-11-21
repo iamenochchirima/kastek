@@ -12,7 +12,7 @@ export function compactionForecast(policy:{maxInputTokens:number;compactAtTokens
   const base=Math.min(current,Math.max(0,mandatory));
   const relativeTrigger=base+Math.floor((policy.maxInputTokens-base)*policy.compactAtTokens/policy.maxInputTokens);
   const triggerTokens=Math.max(base+1,Math.min(relativeTrigger,Math.max(1,policy.maxInputTokens-reserveTokens)));
-  return {growthTokens,reserveTokens,mandatoryTokens:base,triggerTokens,requested:current>=triggerTokens};
+  return {growthTokens,reserveTokens,mandatoryTokens:base,triggerTokens,current,requested:current>=triggerTokens};
 }
 
 export function measureCompactionProgress(groups: ContextGroup[], summary?: ContextSource): CompactionProgress {

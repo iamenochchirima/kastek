@@ -7,15 +7,15 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
 import { resolveAgentsOAuthToken } from "./oauth";
-import { containsConnectorCredential } from "../../capabilities/connected-tools/credential-reflection";
+import { containsConnectorCredential } from "../../infrastructure/credential-reflection";
 import { projectMcpReferences, referenceAwareSchema, resolveMcpReferences } from "./references";
-export type McpOperation = { name: string; description: string; scope: "agents:read" | "agents:manage"; inputSchema: { type: "object"; properties?: Record<string, unknown>; required?: string[]; additionalProperties?: boolean }; idempotent?: boolean; openWorld?: boolean; run(scope: { accountId: string; organizationId: string; connectionId: string }, args: Record<string, unknown>): Promise<unknown> };
+export type McpOperation = { name: string; description: string; scope: "agents:read" | "agents:manage" | "agents:publish" | "runs:read" | "runs:start" | "runs:control" | "reviews:decide"; inputSchema: { type: "object"; properties?: Record<string, unknown>; required?: string[]; additionalProperties?: boolean }; idempotent?: boolean; openWorld?: boolean; run(scope: { accountId: string; organizationId: string; connectionId: string }, args: Record<string, unknown>): Promise<unknown> };
 
 /** Each request resolves a revocable product-owned OAuth connection and current membership. */
 export function registerAgentsMcp(app: FastifyInstance, options: { pool: Pool; publicUrl: string; operations: McpOperation[]; allowedOrigins: string[]; allowedHosts?: string[] }) {
  const resource = new URL("/mcp", options.publicUrl).toString();
  const hosts = new Set([new URL(options.publicUrl).host,...(options.allowedHosts??[])].map(host=>host.toLowerCase()));
- const metadata = () => ({ resource, authorization_servers: [new URL(options.publicUrl).origin], scopes_supported: ["agents:read", "agents:manage"], bearer_methods_supported: ["header"] });
+ const metadata = () => ({ resource, authorization_servers: [new URL(options.publicUrl).origin], scopes_supported: ["agents:read", "agents:manage", "agents:publish", "runs:read", "runs:start", "runs:control", "reviews:decide"], bearer_methods_supported: ["header"] });
  app.get("/.well-known/oauth-protected-resource", metadata);
  app.get("/.well-known/oauth-protected-resource/mcp", metadata);
  app.post("/mcp", { bodyLimit: 262144 }, async (request, reply) => {
@@ -33,7 +33,7 @@ export function registerAgentsMcp(app: FastifyInstance, options: { pool: Pool; p
    description: op.description,
    inputSchema: referenceAwareSchema(op.inputSchema) as typeof op.inputSchema,
    // MCP annotations describe the tool; authorization is always enforced by OAuth and the operation.
-   annotations: { readOnlyHint: op.scope === "agents:read", destructiveHint: false, ...(op.idempotent ? { idempotentHint: true } : {}), ...(op.openWorld ? { openWorldHint: true } : {}) },
+   annotations: { readOnlyHint: op.scope === "agents:read" || op.scope === "runs:read", destructiveHint: false, ...(op.idempotent ? { idempotentHint: true } : {}), ...(op.openWorld ? { openWorldHint: true } : {}) },
   })) }));
   server.setRequestHandler(CallToolRequestSchema, async call => {
    const op = options.operations.find(item => item.name === call.params.name && granted.has(item.scope));
@@ -43,7 +43,7 @@ export function registerAgentsMcp(app: FastifyInstance, options: { pool: Pool; p
    try {
     let value:unknown;
     const args=await resolveMcpReferences(options.pool,scope,call.params.arguments??{}) as Record<string,unknown>;
-    if(op.scope === "agents:manage") {
+    if(op.scope === "agents:manage" || op.scope === "runs:start" || op.scope === "runs:control") {
      // Serialize admission with connection and membership revocation. The called product
      // operation retains its own transaction and authority checks; revocation cannot
      // commit between this check and that operation's commit.
@@ -67,7 +67,7 @@ export function registerAgentsMcp(app: FastifyInstance, options: { pool: Pool; p
     request.log.info({ event: "agents.mcp.operation.completed", operation: op.name, duration_ms: Math.round(performance.now() - started), outcome: "completed" });
     return { content: [{ type: "text", text }], structuredContent: projected as Record<string, unknown> };
    } catch (error) {
-    const message = completed && op.scope === "agents:manage" ? "The operation completed, but its result is unavailable. Check its status before retrying." : error instanceof PlatformError ? error.code === "CONFIGURATION_CONFIRMATION_REQUIRED" ? "This change needs review. Call request_configuration_review with the same proposed changes." : error.message : error instanceof z.ZodError ? "Invalid input" : "Operation failed";
+    const message = completed && (op.scope === "agents:manage" || op.scope === "runs:start" || op.scope === "runs:control") ? "The operation completed, but its result is unavailable. Check its status before retrying." : error instanceof PlatformError ? error.code === "CONFIGURATION_CONFIRMATION_REQUIRED" ? "This change needs review. Call request_configuration_review with the same proposed changes." : error.message : error instanceof z.ZodError ? "Invalid input" : "Operation failed";
     const code = error instanceof PlatformError ? error.code : error instanceof z.ZodError ? "invalid_input" : "operation_failed";
     request.log.warn({ event: "agents.mcp.operation.failed", operation: op.name, duration_ms: Math.round(performance.now() - started), code });
     return { isError: true, content: [{ type: "text", text: message }], structuredContent: { code, message } };

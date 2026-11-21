@@ -7,7 +7,8 @@ import {loadExecution,assertCurrentAuthority} from '../execution/lifecycle/execu
 import {transaction} from '../infrastructure/database';
 import {channelPorts} from '../infrastructure/channel-ports';
 import {ProcedureStore} from '../execution/procedures/store';
-import {afterHoursAssistance,discoverProcedures,loadProcedure} from '../contracts/procedure-definitions';
+import {afterHoursAssistance,discoverProcedures,findProcedure,loadProcedure,resolveProcedure} from '../contracts/procedure-definitions';
+import {procedureDefinitionsFor} from '../execution/procedures/workflow-revisions';
 import {supportStatusV2} from './support-status-v2';
 
 export {procedureToolNames} from '../contracts/procedures';
@@ -41,8 +42,8 @@ async function authorize(db:PoolClient,execution:Execution){
  await channelPorts(db).assertBinding(db,channelBindingSchema.parse(task.channel_binding),task);
  return refs;
 }
-async function reconcile(db:PoolClient,execution:Execution,operationId:string){
- const scope=scopeFor(execution),store=new ProcedureStore(db,verifyDomainEvidence);
+async function reconcile(db:PoolClient,execution:Execution,operationId:string,definition?:(reference:Parameters<typeof resolveProcedure>[0])=>ReturnType<typeof resolveProcedure>){
+ const scope=scopeFor(execution),store=new ProcedureStore(db,verifyDomainEvidence,definition);
  const instances=await store.inspect(scope);
  // Product receipts remain authoritative; a procedure never treats model claims as delivery.
  const snapshot=await domainSnapshot(db,execution),request=snapshot.request;
@@ -67,16 +68,21 @@ export async function executeProcedureTool(pool:Pool,taskId:string,operationId:s
  const name=rawName as Name;
  const args=procedureToolContracts[name].input.parse(input) as any;
  return transaction(pool,async db=>{
-  const execution=await loadExecution(db,taskId,true),refs=await authorize(db,execution),scope=scopeFor(execution),store=new ProcedureStore(db,verifyDomainEvidence);
-  if(name==='procedures.discover')return {procedures:discoverProcedures(refs,()=>true)};
+  const execution=await loadExecution(db,taskId,true),refs=await authorize(db,execution),scope=scopeFor(execution);
+  const definitions=await procedureDefinitionsFor(db,execution.task.organization_id,refs);
+  const definition=(reference:Parameters<typeof resolveProcedure>[0])=>definitions.get(`${reference.id}@${reference.version}`)??resolveProcedure(reference);
+  const store=new ProcedureStore(db,verifyDomainEvidence,definition);
+  if(name==='procedures.discover'){const builtin=discoverProcedures(refs,()=>true);
+   const custom=refs.flatMap(ref=>{const found=definitions.get(`${ref.id}@${ref.version}`);if(!found)return[];const{playbook,...metadata}=found.metadata;return[metadata];});
+   return {procedures:[...builtin,...custom]};}
   if(name==='procedures.load'||name==='procedures.start'){
    if(!refs.some(ref=>ref.id===args.id&&ref.version===args.version))throw denied();
-   if(name==='procedures.load')return loadProcedure(args);
+   if(name==='procedures.load')return definition(args).metadata;
    const facts=await supportStatusV2(db,scope.organizationId,execution.configuration.supportHours);
    const instance=await store.start(scope,args,{taskId:execution.task.id,commandId:commandId(operationId),applicability:{afterHours:facts.hours.state==='closed',nextOpeningAt:facts.nextOpening}});
-   return {...instance,procedure:loadProcedure(args)};
+   return {...instance,procedure:definition(args).metadata};
   }
-  if(name==='procedures.inspect'){await reconcile(db,execution,operationId);return {instances:await store.inspect(scope,args.instanceId)};}
+  if(name==='procedures.inspect'){await reconcile(db,execution,operationId,definition);return {instances:await store.inspect(scope,args.instanceId)};}
   if(name==='procedures.update'||name==='procedures.cancel')return store.update(scope,args.instanceId,{commandId:commandId(operationId),expectedRevision:args.expectedRevision,action:name==='procedures.cancel'?'cancel':args.action,...(args.reason?{reason:args.reason}:{})});
   const ports=channelPorts(db),binding=channelBindingSchema.parse(execution.task.channel_binding);
   const method=name==='support.request_assistance'?ports.requestHumanAssistance:ports.updateHumanAssistance;
@@ -101,8 +107,10 @@ export async function procedureContext(pool:Pool,execution:Execution):Promise<st
  return transaction(pool,async db=>{
   await authorize(db,execution);
   const scope=scopeFor(execution),facts=await supportStatusV2(db,scope.organizationId,execution.configuration.supportHours);
+  const definitions=await procedureDefinitionsFor(db,scope.organizationId,selected(execution.configuration));
+  const definition=(reference:Parameters<typeof resolveProcedure>[0])=>definitions.get(`${reference.id}@${reference.version}`)??resolveProcedure(reference);
   const nextOpeningLocal=facts.hours.state!=="unknown"&&facts.nextOpening?new Intl.DateTimeFormat("en-GB",{timeZone:facts.hours.timeZone,weekday:"long",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(facts.nextOpening))+" ("+facts.hours.timeZone+")":null;
-  const persisted=await reconcile(db,execution,`context:${execution.task.id}`);
+  const persisted=await reconcile(db,execution,`context:${execution.task.id}`,definition);
   const instances=[...persisted.filter(row=>row.status==='active'||row.status==='suspended'),...persisted.filter(row=>row.status==='completed'||row.status==='cancelled').slice(0,3)];
   const snapshot=await domainSnapshot(db,execution),messages=snapshot.customerEvidence;
   return `Business procedures: ${JSON.stringify({selected:selected(execution.configuration),supportFacts:{...facts,nextOpeningLocal},instances,currentHumanRequest:snapshot.request,customerEvidence:messages})}\nYou are the conversational agent. Use the selected applicable playbook when a customer requests a person. Discover and load it before acting. For after-hours support, use support.request_assistance and support.update_assistance; do not use legacy ownership-changing handoff tools. The backend determines hours and validates effects. Save an explicit human request promptly. You provide the only customer reply.

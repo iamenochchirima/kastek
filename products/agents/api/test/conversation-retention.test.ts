@@ -7,7 +7,7 @@ import { afterAll,beforeAll,describe,expect,it } from "vitest";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
 import { defaultBusinessConfiguration } from "../src/contracts/contracts";
-import { configureConversationRetention,expireInactiveConversations } from "../src/execution/memory/conversation-retention";
+import { configureConversationRetention,expireInactiveConversations } from "../src/platform/memory/conversation-retention";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { retentionLedgerCommand } from "../src/composition/retention-ledger";
 const url=process.env.AGENTS_TEST_DATABASE_URL;

@@ -13,9 +13,9 @@ import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { ExecutorClient } from "../src/adapters/executors/executor-client";
 import { routedSandbox, routedDocuments } from "../src/composition/routed-resources";
 import { SandboxManager, sandboxAllocationId } from "../src/capabilities/sandbox/sandbox";
-import { DocumentRuntime } from "../src/capabilities/knowledge/document-runtime";
-import { IngestionService } from "../src/capabilities/knowledge/ingestion-runtime";
-import { KnowledgeStore } from "../src/capabilities/knowledge/knowledge";
+import { DocumentRuntime } from "../src/platform/knowledge/document-runtime";
+import { IngestionService } from "../src/platform/knowledge/ingestion-runtime";
+import { KnowledgeStore } from "../src/platform/knowledge/knowledge";
 import type { PrivateObjectStore } from "../src/infrastructure/object-store";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 

@@ -18,7 +18,7 @@ import { InboxStore } from "../src/product/inbox/inbox-store";
 import { RemoteConnectionStore } from "../src/product/connections/remote-connections";
 import { createRemoteMcpCapabilityCatalog } from "../src/capabilities/connected-tools/generic-connected-runtime";
 import { ToolReviewStore } from "../src/capabilities/reviews/tool-reviews";
-import { operationsForConfiguration } from "../src/product/automations/automations";
+import { operationsForConfiguration } from "../src/platform/access/grant-operations";
 import { connectFixtureModel } from "./model-fixture";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 

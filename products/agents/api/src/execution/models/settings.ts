@@ -12,7 +12,9 @@ import { acceptedModelRoutesSchema, type AcceptedModelRoutes } from "../../contr
 // Operator service allowances, not claims about any vendor's model capacity.
 export const modelServiceDefaults = Object.freeze({
   contextTokens: 262144, maxInputTokens: 196608, maxOutputTokens: 32768, safetyTokens: 1024,
-  compactAtTokens: 131072, maxModelCalls: null, maxToolCalls: null, maxRootModelCalls: null, maxRootToolCalls: null,
+  // Compact only when the effective input is 85% full. policy.ts scales this
+  // ratio for models with a smaller selected window.
+  compactAtTokens: 167116, maxModelCalls: null, maxToolCalls: null, maxRootModelCalls: null, maxRootToolCalls: null,
   maxDurationMs: null, maxWallDurationMs: null, maxCallDurationMs: 120000,
   maxInputBytes: 65536, maxRequestBytes: 2097152, maxMessages: 256, maxTools: 64, maxResponseBytes: 4194304, maxRootTokens: null, maxCostMicros: null,
 });
@@ -31,7 +33,13 @@ export function modelServicePolicy(environment: NodeJS.ProcessEnv = process.env)
     try { configured = JSON.parse(environment.AGENTS_MODEL_POLICY_JSON); } catch { throw new Error("Invalid model service policy"); }
   }
   if (!configured || typeof configured !== "object" || Array.isArray(configured)) throw new Error("Invalid model service policy");
-  return serviceSchema.parse({ ...modelServiceDefaults, maxRequestBytes: 2097152, ...configured });
+  const merged: Record<string, unknown> = { ...modelServiceDefaults, maxRequestBytes: 2097152, ...(configured as Record<string, unknown>) };
+  // A custom input allowance without a custom threshold keeps the 85% ratio.
+  if (typeof merged.maxInputTokens === "number" && Number.isSafeInteger(merged.maxInputTokens) && merged.maxInputTokens > 0 &&
+      !Object.prototype.hasOwnProperty.call(configured, "compactAtTokens")) {
+    merged.compactAtTokens = Math.max(1, Math.floor(merged.maxInputTokens * 0.85));
+  }
+  return serviceSchema.parse(merged);
 }
 
 /** Automatic grants use a trusted compilation ceiling; admission still applies the selected model. */

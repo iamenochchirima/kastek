@@ -7,7 +7,7 @@ import { PlatformStore } from "../src/product/agents/store";
 import { CustomerFollowupChallenges } from "../src/product/customer-followup/challenges";
 import { CustomerFollowupNotifications,customerFollowupFailures } from "../src/product/customer-followup/notifications";
 import { verifiedVisitorLineage } from "../src/product/customer-followup/lineage";
-import { KnowledgeStore } from "../src/capabilities/knowledge/knowledge";
+import { KnowledgeStore } from "../src/platform/knowledge/knowledge";
 import { EvidenceStore } from "../src/execution/context/evidence";
 import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { textDigest } from "../src/contracts/source-contracts";

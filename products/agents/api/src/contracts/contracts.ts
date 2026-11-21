@@ -46,7 +46,8 @@ export const delegationBindingSchema = z.strictObject({
 });
 export const businessCapabilitiesSchema = z.strictObject({
   delegation: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({ enabled: z.literal(true),
-    bindings: z.array(delegationBindingSchema).min(1).max(32).refine(bindings => new Set(bindings.map(binding => binding.id)).size === bindings.length, "Duplicate specialist binding"),
+    bindings: z.array(delegationBindingSchema).max(32).refine(bindings => new Set(bindings.map(binding => binding.id)).size === bindings.length, "Duplicate specialist binding"),
+    roster: z.enum(["open", "restricted"]).optional(),
     maxChildren: z.number().int().min(1).max(8), maxDepth: z.number().int().positive().max(2147483647).nullable(), policy: orchestrationPolicySchema.optional() })]),
   sandbox: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({ enabled: z.literal(true), profileId: z.literal("python-analysis-v1") })]),
   businessActions: z.discriminatedUnion("enabled",[unavailableCapability,z.strictObject({enabled:z.literal(true),profileId:z.literal("calendar-booking-v1"),permittedOperations:calendarOperationsSchema,policyId:z.uuid(),policyDigest:z.string().regex(/^[a-f0-9]{64}$/)})]),
@@ -184,6 +185,7 @@ export const executionGrantSchema = z.strictObject({
   resourceId: z.string().min(1).max(256),
   callerClientId: z.string().min(1).max(128),
   principal: principalSchema,
+  applicationCredentialId: z.uuid().nullable().default(null),
   versionId: z.uuid(),
   operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver", "connected.read", "connected.execute", "channel.handoff", "skill.read", "booking.read", "booking.execute", "product.read", "product.write", "enquiry.submit", "enquiry.read", "enquiry.amend", "records.read", "records.write", "tasks.read", "tasks.cancel"])).min(1).max(24),
   sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),

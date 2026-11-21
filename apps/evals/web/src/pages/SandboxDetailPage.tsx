@@ -123,9 +123,9 @@ export default function SandboxDetailPage() {
     productAgents?.find((agent) => agent.refId === refId)?.name ?? shortId(refId);
   const tabs: Array<{ id: Tab; label: string; count?: number }> = [
     { id: "overview", label: "Overview" },
-    { id: "agents", label: "Agents", count: productAgents?.length },
+    { id: "agents", label: "Published", count: productAgents?.length },
     ...(detail.sandbox.product === "agents"
-      ? [{ id: "profiles" as const, label: "Profiles" }]
+      ? [{ id: "profiles" as const, label: "Agents" }]
       : []),
     { id: "sessions", label: "Sessions", count: detail.sessions.length },
     { id: "outcomes", label: "Outcomes", count: detail.outcomes.length },
@@ -219,7 +219,7 @@ export default function SandboxDetailPage() {
             <div className="meta-card"><span>Code revision</span><strong className="mono">{detail.version?.codeRevision ?? "—"}</strong></div>
             <div className="meta-card"><span>Schema</span><strong className="mono">{detail.version?.schemaVersion ?? "—"}</strong></div>
             <div className="meta-card"><span>Runtime</span><strong className="mono">{detail.version?.runtimeVersion ?? "—"}</strong></div>
-            <div className="meta-card"><span>Profile</span><strong>{detail.sandbox.profile}</strong></div>
+            <div className="meta-card"><span>Runtime</span><strong>{detail.sandbox.profile}</strong></div>
             <div className="meta-card"><span>Created</span><strong>{formatDate(detail.sandbox.createdAt)}</strong></div>
             <div className="meta-card"><span>Provisioned</span><strong>{formatDate(detail.sandbox.provisionedAt)}</strong></div>
             {typeof detail.sandbox.runtime.productApiUrl === "string" && (
@@ -287,8 +287,8 @@ export default function SandboxDetailPage() {
         <section className="panel">
           <div className="panel-head">
             <div>
-              <h2>Agents</h2>
-              <p className="muted">Agents available in the product workspace.</p>
+              <h2>Published agents</h2>
+              <p className="muted">Published agents in this workspace.</p>
             </div>
             {detail.sandbox.product === "growth" && <span className="ref-chip">Growth default agents</span>}
           </div>
@@ -335,7 +335,7 @@ export default function SandboxDetailPage() {
             onAgentChanged={() => setAgentsRefresh((value) => value + 1)}
           />
         ) : (
-          <section className="panel"><EmptyState title="No workspace" description="Agent profiles require a workspace reference." /></section>
+          <section className="panel"><EmptyState title="No workspace" description="Agent setup requires a workspace reference." /></section>
         )
       )}
 

@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../src/capabilities/skills/package";
 import { contextGrantCeiling } from "../src/execution/models/settings";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel, fixtureModelProviders } from "./model-fixture";
@@ -33,16 +34,16 @@ import {ConnectionStore} from "../src/product/connections/connections";
 import {ConnectionVault} from "../src/infrastructure/vault";
 import {TaskArtifactStore} from "../src/execution/artifacts/task-artifacts";
 import {createReportReceiver,initializeReportReceiver} from "../src/acceptance/report-receiver";
-import { KnowledgeStore } from "../src/capabilities/knowledge/knowledge";
-import { KnowledgeRuntime } from "../src/capabilities/knowledge/knowledge-runtime";
+import { KnowledgeStore } from "../src/platform/knowledge/knowledge";
+import { KnowledgeRuntime } from "../src/platform/knowledge/knowledge-runtime";
 import { EvidenceStore } from "../src/execution/context/evidence";
 import { textDigest } from "../src/contracts/source-contracts";
-import { MemoryStore } from "../src/execution/memory/memory";
+import { MemoryStore } from "../src/platform/memory/memory";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
 import { toolsFor, executeTool } from "../src/capabilities/tools";
 import { ProductRuntime } from "../src/execution/products/product-runtime";
-import type { ProductResourceScope } from "../src/capabilities/products/resource-scope";
+import type { ProductResourceScope } from "../src/contracts/resource-scope";
 import { SkillPackageStore } from "../src/product/agents/skill-package-store";
 import { controlPlatformAdmissions } from "../src/product/agents/platform-admission-control";
 import { parseSkillPackage } from "../src/capabilities/skills/package";
@@ -102,7 +103,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const url = new URL(databaseUrl!); url.pathname = `/${databaseName}`;
     pool = new Pool({ connectionString: url.href });
     await setupPlatformSchema(pool);
-    store = new PlatformStore(pool); memory = new MemoryStore(pool);
+    store = new PlatformStore(pool); memory = new MemoryStore(pool, skillPackageCodec);
     await initializeReportReceiver(pool);
     receiver=createReportReceiver({pool,keys:[{apiKey:receiverKey,resource:"reports:controller"}],afterAccept:async id=>{await afterAccept?.(id);}});
     const address=await receiver.listen({host:"127.0.0.1",port:0});
@@ -1093,7 +1094,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       messages:[{role:"system",content:config.instructions},{role:"user",content:"What are the opening hours?"}],tools:toolsFor(config)};
     // Leave room for the native protocol envelope and the initial source record.
     config.instructions+="p".repeat(inputBudget-estimateRequestTokens(request));
-    return{instructions:config.instructions,tools:config.tools,context:{maxInputTokens:8192,compactAtTokens:6144}};
+    return{instructions:config.instructions,tools:config.tools,context:{maxInputTokens:8192,compactAtTokens:4096}};
   }
   it("compacts a single complete overflowing tool group and replays its evidence without spending again",async()=>{
     const sourceContent=JSON.stringify({hours:"Open at nine",note:'Opening "quoted" hours\nnext line'});

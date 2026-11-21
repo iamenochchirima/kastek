@@ -94,3 +94,14 @@ describe("turn routing", () => {
     expect(ROUTE_DEFINITIONS.conversation.policy.maxInputTokens).toBe(4_000);
   });
 });
+
+describe("long input routing", () => {
+  it("escalates a pasted document from a short route to complex", () => {
+    const decision = routeTurn({ text: `booking ${"policy ".repeat(1_000)}` });
+    expect(decision).toMatchObject({ route: "complex", reason: "long input requires a larger context budget" });
+  });
+
+  it("keeps a short action request on the action route", () => {
+    expect(routeTurn({ text: "Can I book an appointment?" })).toMatchObject({ route: "action" });
+  });
+});

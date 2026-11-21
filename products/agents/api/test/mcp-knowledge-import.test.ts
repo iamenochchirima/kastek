@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { KnowledgeStore } from "../src/capabilities/knowledge/knowledge";
+import type { KnowledgeStore } from "../src/platform/knowledge/knowledge";
 import { importKnowledgeOperation, MCP_KNOWLEDGE_IMPORT_BYTES } from "../src/product/mcp/knowledge-import";
 
 const scope = { accountId: "00000000-0000-4000-8000-000000000001", organizationId: "00000000-0000-4000-8000-000000000002", connectionId: "connection" };

@@ -7,10 +7,10 @@ import { ApiError } from "../error.js";
 import { growthAgentDigest } from "./security.js";
 import type { GrowthAgentScope } from "./scope.js";
 
-const resourceMutations = new Set<GrowthAgentCommandOperation>(["sources.import", "sources.review", "sources.state", "skills.import", "skills.review", "skills.state", "resources.select"]);
-const commandOperations = new Set<GrowthAgentCommandOperation>(["conversations.create", "conversations.context", "turns.submit", "tasks.cancel", "tasks.instructions", "tasks.continue","memory.configure","memory.mutate", ...resourceMutations]);
+const resourceMutations = new Set<string>(["sources.import", "sources.review", "sources.state", "skills.import", "skills.review", "skills.state", "resources.select"]);
+const commandOperations = new Set<string>(["conversations.create", "conversations.context", "turns.submit", "tasks.cancel", "tasks.instructions", "tasks.continue","memory.configure","memory.mutate", ...resourceMutations]);
 export interface GrowthAgentCommandOutcome {
-  operation: GrowthAgentCommandOperation; requestId: string; featureId: GrowthAgentFeatureId | null;
+  operation: string; requestId: string; featureId: GrowthAgentFeatureId | null;
   conversationId: string | null; taskId: string | null;
   outcome: "accepted" | "rejected" | "unavailable"; failureCode: string | null;
 }

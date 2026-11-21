@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { defaultBusinessConfiguration, type AgentConfiguration } from "../src/contracts/contracts";
 import { PlatformStore } from "../src/product/agents/store";
-import { operationsForConfiguration } from "../src/product/automations/automations";
+import { operationsForConfiguration } from "../src/platform/access/grant-operations";
 import { executeTool, publishedToolBindings, toolsFor } from "../src/capabilities/tools";
 import { visibleTaskControlTools } from "../src/capabilities/task-control";
 import { validateBuiltinArguments, validateBuiltinResult } from "../src/capabilities/tool-contracts";

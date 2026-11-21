@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe,expect,it } from "vitest";
-import type { KnowledgeStore } from "../src/capabilities/knowledge/knowledge";
+import type { KnowledgeStore } from "../src/platform/knowledge/knowledge";
 import { readKnowledgeSourcePage } from "../src/product/mcp/knowledge-source-page";
 
 describe("MCP knowledge pages",()=>{

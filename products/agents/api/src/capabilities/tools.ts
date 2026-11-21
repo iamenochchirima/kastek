@@ -8,16 +8,18 @@ import { loadExecution } from "../execution/lifecycle/execution";
 import { channelPorts } from "../infrastructure/channel-ports";
 import { transaction } from "../infrastructure/database";
 import { builtinToolEnabled } from "./tool-definitions";
+import { operationCapabilityDeferred } from "../contracts/capabilities";
 import { executeRecordTool } from "./enquiries/record-tools";
 import { EnquiryStore } from "./enquiries/enquiries";
 import { executeSkillTool, type SkillLoadResult } from "./skills/runtime";
 import { executeMemoryTool } from "./memory-tools";
+import type { MemoryStorePort } from "../contracts/memory";
 import { supportStatus } from "./support-status";
 import { handoffBriefSchema } from "../contracts/channel";
 import type { HandoffFeedbackRequest } from "../execution/lifecycle/handoff-feedback-contract";
 export { BUILTIN_MODEL_ALIASES, builtinToolName, builtinModelAlias, builtinToolEnabled, parseModelDelegationRequest, publishedToolBindings, assertPublishedTools, fitUtf8, toolsFor } from "./tool-definitions";
 
-export async function executeTool(pool: Pool, taskId: string, operationId: string, name: string, rawArguments: string, maxResultBytes?: number, handoffFeedback?: HandoffFeedbackRequest,
+export async function executeTool(pool: Pool, memoryStore: MemoryStorePort, taskId: string, operationId: string, name: string, rawArguments: string, maxResultBytes?: number, handoffFeedback?: HandoffFeedbackRequest,
   skillFitsContext?: (value: SkillLoadResult) => boolean, acceptedVersion?: string): Promise<unknown> {
   const execution = await loadExecution(pool, taskId), config = execution.configuration;
   if(execution.task.execution_purpose==='support_status_v1')throw new PlatformError('TOOL_DENIED',403,'Tool is unavailable');
@@ -56,7 +58,8 @@ export async function executeTool(pool: Pool, taskId: string, operationId: strin
       return await transaction(pool, db => channelPorts(db).requestHandoff(db, execution.task.channel_binding!, taskId, brief));
     }
     if (name.startsWith("knowledge.")) throw new PlatformError("KNOWLEDGE_RUNTIME_UNAVAILABLE", 503, "Grounded knowledge runtime is unavailable");
-    if (name === "memory.search" || name === "memory.read" || name === "memory.propose") return await executeMemoryTool(pool, taskId, operationId, name, input);
+    if (operationCapabilityDeferred(name)) throw new PlatformError("CAPABILITY_UNAVAILABLE", 403, "This capability is not available");
+    if (name === "memory.search" || name === "memory.read" || name === "memory.propose") return await executeMemoryTool(pool, memoryStore, taskId, operationId, name, input);
     throw new PlatformError("TOOL_DENIED", 403, "Tool is unavailable");
   } catch (error) {
     if (error instanceof z.ZodError) throw new PlatformError("TOOL_ARGUMENTS_INVALID", 400, "Check the tool arguments");

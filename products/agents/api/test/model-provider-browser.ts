@@ -21,7 +21,7 @@ import { createBusinessWorkflow } from "../src/execution/business/business";
 import { dispatchBoundModel } from "../src/execution/models/dispatch";
 import { dispatchTasksOnce } from "../src/execution/lifecycle/dispatcher";
 import { EvidenceStore } from "../src/execution/context/evidence";
-import { KnowledgeRuntime } from "../src/capabilities/knowledge/knowledge-runtime";
+import { KnowledgeRuntime } from "../src/platform/knowledge/knowledge-runtime";
 import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 

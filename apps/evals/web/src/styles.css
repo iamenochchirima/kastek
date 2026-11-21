@@ -220,10 +220,19 @@ h3 { font-size: 14px; font-weight: 600; }
 .model-trigger { display: flex; align-items: center; gap: 8px; max-width: min(360px, 50vw); padding: 7px 10px; }
 .model-trigger-label { color: var(--faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; }
 .model-trigger-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 550; }
+.model-trigger-provider { color: var(--faint); font-size: 10.5px; padding-left: 8px; border-left: 1px solid var(--border); white-space: nowrap; }
 .model-picker-modal { width: min(620px, 100%); }
+.provider-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.provider-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--muted); font-family: inherit; font-size: 11.5px; font-weight: 550; cursor: pointer; }
+.provider-chip:hover { border-color: rgba(122, 162, 247, 0.4); color: var(--text); }
+.provider-chip.selected { border-color: rgba(122, 162, 247, 0.5); background: rgba(122, 162, 247, 0.12); color: var(--text); }
+.provider-chip:disabled { opacity: 0.5; cursor: wait; }
+.provider-chip-count { color: var(--faint); font-size: 10px; font-weight: 600; }
 .model-search { max-width: none; margin-bottom: 12px; }
 .model-list { max-height: min(48dvh, 430px); overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 3px; }
 .model-group { display: flex; flex-direction: column; gap: 2px; }
+.model-connection { display: flex; flex-direction: column; gap: 2px; }
+.model-connection-label { padding: 3px 8px 2px; color: var(--faint); font-size: 10.5px; }
 .model-group-label { position: sticky; top: 0; z-index: 1; padding: 7px 8px 4px; background: var(--panel); color: var(--faint); font-size: 10px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; }
 .model-option { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 8px 10px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--text); text-align: left; cursor: pointer; font-family: inherit; }
 .model-option:hover { background: rgba(255, 255, 255, 0.04); }
@@ -231,6 +240,7 @@ h3 { font-size: 14px; font-weight: 600; }
 .model-option:disabled { opacity: 0.5; cursor: wait; }
 .model-option-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .model-option-main strong { font-size: 12px; font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-option-detail { color: var(--faint); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .model-empty { padding: 24px 8px; text-align: center; }
 @media (max-width: 720px) { .model-trigger { max-width: 100%; } .model-picker-modal { max-height: 92dvh; } }
 .product-agent-card h3 { font-size: 15px; }
@@ -241,6 +251,39 @@ h3 { font-size: 14px; font-weight: 600; }
 .message.assistant { align-self: flex-start; background: var(--panel-2); border: 1px solid var(--border); }
 .message.pending { color: var(--faint); }
 .chat-form { display: flex; gap: 8px; margin-top: 10px; }
+.activity-panel { margin-top: 16px; }
+.activity-live { display: inline-flex; align-items: center; gap: 7px; color: var(--accent); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; }
+.activity-pulse { width: 7px; height: 7px; border-radius: 999px; background: var(--accent); animation: activity-pulse 1.4s ease-in-out infinite; }
+@keyframes activity-pulse { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }
+.activity-task { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 14px; padding: 9px 0 11px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; }
+.activity-task .mono { color: var(--text); font-size: 10.5px; }
+.activity-task-state { color: var(--muted); font-weight: 600; text-transform: capitalize; }
+.activity-task-state.completed { color: #86efac; }
+.activity-task-state.failed, .activity-task-state.uncertain, .activity-task-state.incomplete, .activity-task-state.refused { color: #fca5a5; }
+.activity-error { color: #fca5a5; overflow-wrap: anywhere; }
+.activity-list { display: flex; flex-direction: column; gap: 2px; max-height: 420px; overflow: auto; padding: 9px 0; font-family: var(--mono); font-size: 11px; }
+.activity-row { display: grid; grid-template-columns: 88px 48px minmax(160px, 1fr) 72px 58px 72px; align-items: baseline; gap: 8px; padding: 5px 8px; border-radius: 5px; }
+.activity-row:nth-child(odd) { background: rgba(255, 255, 255, 0.025); }
+.activity-row time { color: var(--faint); }
+.activity-kind { color: var(--accent); font-size: 9px; letter-spacing: 0.07em; text-transform: uppercase; }
+.activity-name { min-width: 0; overflow-wrap: anywhere; color: var(--text); }
+.activity-state { color: var(--muted); text-transform: capitalize; }
+.activity-duration { color: var(--text); text-align: right; }
+.activity-tokens { color: var(--faint); text-align: right; }
+.activity-row.failed, .activity-row.uncertain, .activity-row.incomplete, .activity-row.refused { border-left: 2px solid #fca5a5; padding-left: 6px; }
+.activity-events { border-top: 1px solid var(--border); padding-top: 9px; font-size: 11px; }
+.activity-events summary { cursor: pointer; color: var(--muted); }
+.activity-event-list { display: flex; flex-direction: column; gap: 3px; max-height: 260px; overflow: auto; margin-top: 9px; font-family: var(--mono); }
+.activity-event { display: grid; grid-template-columns: 88px 132px minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 3px 8px; }
+.activity-event time { color: var(--faint); }
+.activity-event span { color: var(--accent); }
+.activity-event code { color: var(--faint); overflow-wrap: anywhere; white-space: pre-wrap; }
+@media (max-width: 760px) {
+  .activity-row { grid-template-columns: 78px 44px minmax(0, 1fr); }
+  .activity-row .activity-state, .activity-row .activity-duration, .activity-row .activity-tokens { display: none; }
+  .activity-event { grid-template-columns: 78px minmax(0, 1fr); }
+  .activity-event code { grid-column: 1 / -1; }
+}
 .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .span-2 { grid-column: span 2; }
 .span-all { grid-column: 1 / -1; }
@@ -338,3 +381,82 @@ h3 { font-size: 14px; font-weight: 600; }
 .profile-steps .step { padding: 7px 9px; }
 .profile-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .profile-actions .button { text-decoration: none; }
+
+.profile-view-toggle {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  margin-right: 4px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--panel-2);
+}
+.profile-view-toggle button {
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  padding: 4px 9px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.profile-view-toggle button.active {
+  background: rgba(122, 162, 247, 0.14);
+  color: var(--text);
+}
+.profile-view-toggle button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.profile-config-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.profile-config-table th,
+.profile-config-table td {
+  padding: 8px 7px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.profile-config-table thead th {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.profile-config-table tbody th {
+  width: 132px;
+  min-width: 132px;
+  font-weight: 600;
+}
+.profile-config-summary {
+  width: 225px;
+  min-width: 225px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.profile-config-hint {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  padding-top: 0 !important;
+}
+.profile-config-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.profile-config-table .input,
+.profile-config-table .select,
+.profile-config-table .textarea {
+  width: 100%;
+}
+.profile-config-table .json-editor {
+  min-height: 90px;
+  font-family: var(--mono);
+  font-size: 11px;
+}

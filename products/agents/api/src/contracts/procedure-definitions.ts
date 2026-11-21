@@ -6,6 +6,9 @@ export const afterHoursAssistance = Object.freeze({
  id:"after-hours-assistance",version:"1",title:"After-hours assistance",
  description:"Help a customer requesting a person while human support is closed.",
  requiredCapabilities:["support.request_assistance","support.update_assistance","support.get_status_v2"],
+ prerequisites:["support.request_assistance","support.update_assistance","support.get_status_v2"],
+ waits:[{kind:"customer_choice",description:"The customer chooses a callback, self service, decline or withdrawal."}],
+ completionEvidence:[{kind:"assistant_reply",required:true},{kind:"customer_choice",required:true}],
  playbook:`You are the conversational agent. Handle an after-hours request for a person naturally while the backend saves the request and validates tool effects.
 
 Initial handoff reply:
@@ -35,10 +38,17 @@ export function afterHoursProgress(route:ProcedureRoute|null,receipts:ProcedureR
  return {missing,hasUnknownEffects,complete:missing.length===0&&!hasUnknownEffects};
 }
 const afterHoursFactsSchema=z.strictObject({afterHours:z.literal(true),nextOpeningAt:z.iso.datetime().nullable()});
-export type ProcedureMetadata={id:string;version:string;title:string;description:string;requiredCapabilities:readonly string[];playbook:string};
+export type ProcedureMetadata={id:string;version:string;title:string;description:string;requiredCapabilities:readonly string[];
+ prerequisites?:readonly string[];waits?:readonly {kind:string;description?:string}[];completionEvidence?:readonly {kind:string;required:boolean}[];playbook:string};
 export type ProcedureProgress={missing:string[];hasUnknownEffects:boolean;complete:boolean};
 export type ProcedureDefinition={metadata:ProcedureMetadata;validateApplicability:(facts:ProcedureApplicability)=>boolean;progress:(route:ProcedureRoute|null,receipts:ProcedureReceipt[])=>ProcedureProgress};
-const definitions:ReadonlyMap<string,ProcedureDefinition>=new Map([["after-hours-assistance@1",{metadata:afterHoursAssistance,validateApplicability:facts=>afterHoursFactsSchema.safeParse(facts).success,progress:afterHoursProgress}]]);
+export const afterHoursWaits=Object.freeze([{kind:"assistant_reply",description:"The agent reply was delivered.",required:true},
+ {kind:"customer_choice",description:"The customer chose a route.",required:true},
+ {kind:"human_request",description:"The human request was saved for a callback.",required:false}]);
+export const afterHoursCompletionEvidence=Object.freeze([{kind:"assistant_reply",required:true},{kind:"customer_choice",required:true},
+ {kind:"human_request",required:false}]);
+const definitions:ReadonlyMap<string,ProcedureDefinition>=new Map([["after-hours-assistance@1",{metadata:{...afterHoursAssistance,waits:afterHoursWaits,completionEvidence:afterHoursCompletionEvidence},validateApplicability:facts=>afterHoursFactsSchema.safeParse(facts).success,progress:afterHoursProgress}]]);
+export function findProcedure(reference:ProcedureReference){return definitions.get(`${reference.id}@${reference.version}`);}
 export function resolveProcedure(reference:ProcedureReference):ProcedureDefinition {
  const definition=definitions.get(`${reference.id}@${reference.version}`);
  if(!definition)throw new PlatformError("PROCEDURE_NOT_FOUND",404,"Procedure version is unavailable");

@@ -559,7 +559,7 @@ async function main() {
   const { loadPlatformConfig } = load("infrastructure/config.js") as typeof import("../src/infrastructure/config");
   const { privateStoreFromEnvironment } = load("infrastructure/object-store.js") as typeof import("../src/infrastructure/object-store");
   const { EvidenceStore } = load("execution/context/evidence.js") as typeof import("../src/execution/context/evidence");
-  const { KnowledgeRuntime } = load("capabilities/knowledge/knowledge-runtime.js") as typeof import("../src/capabilities/knowledge/knowledge-runtime");
+  const { KnowledgeRuntime } = load("platform/knowledge/knowledge-runtime.js") as typeof import("../src/platform/knowledge/knowledge-runtime");
   const { createBusinessWorkflow } = load("execution/business/business.js") as typeof import("../src/execution/business/business");
   const { ModelProviderStore } = load("product/model-providers/store.js") as typeof import("../src/product/model-providers/store");
   const { ModelCredentialVault } = load("infrastructure/model-credential-vault.js") as typeof import("../src/infrastructure/model-credential-vault");

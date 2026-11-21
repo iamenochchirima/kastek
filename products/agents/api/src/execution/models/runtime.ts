@@ -55,7 +55,7 @@ export interface TaskModelInvocation {
   estimateRequestTokens?: (payload: Readonly<Record<string, unknown>>) => number | Promise<number>;
   onText?: (delta: string) => void;
 }
-export type TaskModelResponse = Pick<ProviderTransportResponse, "message" | "finishReason" | "usage" | "providerRequestId" | "modelIdentity"> & {contextDisposition?:"quarantined";guardCode?:string};
+export type TaskModelResponse = Pick<ProviderTransportResponse, "message" | "finishReason" | "usage" | "providerRequestId" | "modelIdentity"> & {contextDisposition?:"quarantined";guardCode?:string;physicalPayloadDigest?:string};
 export interface ModelRuntimeDependencies {
   dispatch?: typeof dispatchBoundModel;
   assertAuthority?: (db: PoolClient, execution: Execution) => Promise<void>;
@@ -99,7 +99,7 @@ async function nativeHistory(db: Db, taskId: string, organizationId: string, rou
 /** Invoke only inside the durable operation boundary. Return public message/usage; keep native continuation out of journals. */
 export async function invokeTaskModel(input: TaskModelInvocation, dependencies: ModelRuntimeDependencies = {}): Promise<TaskModelResponse> {
   let claimed = false, dispatched = false;
-  let inputCount: PreparedInputCount | undefined;
+  let inputCount: PreparedInputCount | undefined, physicalPayloadDigest: string | undefined;
   let inputRejectedBeforeDispatch = false;
   let guardFailure: ModelOperationError | PlatformError | undefined;
   const retainGuardFailure = (error: unknown): never => {
@@ -118,7 +118,7 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
         throw new ModelOperationError("MODEL_REQUEST_LIMIT", "rejected", 400);
       }
       validateMessageGroups(messages);
-      const operation = (await db.query(`SELECT state,kind,reserved_tokens,started_at,reserved_ms FROM agents_platform.operations WHERE id=$1 AND task_id=$2 FOR UPDATE`, [input.operationId, taskId])).rows[0];
+      const operation = (await db.query(`SELECT state,kind,reserved_tokens,started_at,reserved_ms,attempt_id FROM agents_platform.operations WHERE id=$1 AND task_id=$2 FOR UPDATE`, [input.operationId, taskId])).rows[0];
       if (!operation || operation.state !== "started" || (input.role === "compaction" ? operation.kind !== "compaction" : operation.kind !== "model")) {
         throw new ModelOperationError("MODEL_OPERATION_UNAVAILABLE", "rejected", 409);
       }
@@ -134,7 +134,7 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
       if (!inserted.rowCount) throw new ModelOperationError("MODEL_NATIVE_OPERATION_ALREADY_RECORDED", "uncertain", 409);
       const deadlineAt = Math.min(deadlineMillis(input.execution.task.deadline_at),
         new Date(operation.started_at).getTime() + operation.reserved_ms);
-      return { route, restored, reservedTokens: operation.reserved_tokens, deadlineAt,contextManifest,legacyProductFence };
+      return { route, restored, reservedTokens: operation.reserved_tokens, deadlineAt,contextManifest,legacyProductFence, attemptId: operation.attempt_id };
     });
     claimed = true;
     if (!Number.isSafeInteger(prepared.deadlineAt) || prepared.deadlineAt <= Date.now()) {
@@ -143,6 +143,8 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
     let emitted = false;
     const dispatchInput: BoundModelDispatchInput = { pool: input.pool, providerStore: input.providerStore,
       accepted: prepared.route, messages, tools, nativeHistory: prepared.restored, signal: input.signal,
+      operationId: input.operationId, attemptId: prepared.attemptId, taskId, rootTaskId: input.execution.task.root_task_id,
+      onPhysicalPayload: digest => { physicalPayloadDigest = digest; },
       maxRequestBytes: Math.min(input.maxRequestBytes, prepared.route.policy.maxRequestBytes), deadlineAt: prepared.deadlineAt,
       onText: delta => { if (delta.length) emitted = true; if (sharedProtocol) textChunks.push(delta); else input.onText?.(delta); },
       beforeDispatch: async () => {
@@ -163,6 +165,7 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
       beforePayloadDispatch: async (payload, count) => {
         try {
           inputCount = count;
+          physicalPayloadDigest = requestDigest(payload);
           const estimate = input.estimateRequestTokens ? await input.estimateRequestTokens(payload) : count.tokens;
         if (!Number.isSafeInteger(estimate) || estimate < 0 || estimate > prepared.route.policy.maxInputTokens ||
           estimate + prepared.route.policy.maxOutputTokens > prepared.reservedTokens ||
@@ -227,10 +230,12 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
       if (!stored.rowCount) throw new Error("Native continuation was not persisted");
     } catch { throw new ModelOperationError("MODEL_CONTINUATION_PERSISTENCE_UNCERTAIN", "uncertain"); }
     if(responseGuardCode)return {message:{role:"assistant",content:null},finishReason:"refusal",usage:response.usage,modelIdentity,
-      contextDisposition:"quarantined",guardCode:responseGuardCode,...(response.providerRequestId?{providerRequestId:response.providerRequestId}:{})};
+      contextDisposition:"quarantined",guardCode:responseGuardCode,...(response.providerRequestId?{providerRequestId:response.providerRequestId}:{}),
+      ...(physicalPayloadDigest?{physicalPayloadDigest}:{})};
     if(sharedProtocol)for(const chunk of textChunks){try{input.onText?.(chunk);}catch{}}
     return { message: response.message, finishReason: response.finishReason, usage: response.usage, modelIdentity,
-      ...(response.providerRequestId ? { providerRequestId: response.providerRequestId } : {}) };
+      ...(response.providerRequestId ? { providerRequestId: response.providerRequestId } : {}),
+      ...(physicalPayloadDigest?{physicalPayloadDigest}:{}) };
   } catch (caught) {
     // SDKs can wrap callback failures; preserve a known pre-dispatch denial without masking uncertain physical outcomes.
     const error = caught instanceof BoundModelDispatchError && caught.outcome === "rejected" && guardFailure ? guardFailure : caught;

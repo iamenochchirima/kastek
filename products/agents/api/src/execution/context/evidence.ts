@@ -39,13 +39,13 @@ export class EvidenceStore {
     if (!this.objects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE",503,"Private evidence storage is unavailable");
     return this.objects;
   }
-  private async scoped<T>(taskId: string, work: (db: PoolClient, execution: Execution) => Promise<T>): Promise<T> {
+  private async scoped<T>(taskId: string, work: (db: PoolClient, execution: Execution) => Promise<T>, options: {allowSettled?:boolean} = {}): Promise<T> {
     return transaction(this.pool, async db => {
       const initial = await loadExecution(db, taskId);
       // Serialize evidence mutations per organization without holding the organization row lock.
       await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [initial.task.organization_id]);
       const execution = await loadExecution(db, taskId);
-      await assertCurrentAuthority(db, execution);
+      await assertCurrentAuthority(db, execution, options);
       return work(db, execution);
     });
   }
@@ -81,7 +81,7 @@ export class EvidenceStore {
   async recordChunk(taskId: string, operationId: string, chunkId: string, span: {start?: number; end?: number} = {}): Promise<EvidencePassage> {
     return this.scoped(taskId, async (db, execution) => {
       await this.operation(db, taskId, operationId, ["knowledge.search", "knowledge.read"]);
-      const row = (await db.query(`SELECT c.*,r.source_id,r.acquired_at,s.title,s.generation,s.visibility FROM agents_platform.source_chunks c
+      const row = (await db.query(`SELECT c.*,r.source_id,r.acquired_at,s.title,s.generation FROM agents_platform.source_chunks c
         JOIN agents_platform.source_revisions r ON r.id=c.revision_id JOIN agents_platform.sources s ON s.id=r.source_id
         WHERE c.id=$1 AND c.organization_id=$2`, [chunkId, execution.task.organization_id])).rows[0];
       if (!row || textDigest(row.content) !== row.content_digest) throw integrity();
@@ -92,7 +92,7 @@ export class EvidenceStore {
       const text = row.content.slice(start-row.start_offset, end-row.start_offset);
       return this.insert(db, execution, operationId, {sourceId:row.source_id,revisionId:row.revision_id,chunkId,start,end,text,title:row.title,
         acquiredAt:new Date(row.acquired_at).toISOString(),page:row.page,section:row.section,
-        manifest:createDependencyManifest([{kind:"source",sourceId:row.source_id,revisionId:row.revision_id,generation:row.generation,visibility:row.visibility}])});
+        manifest:createDependencyManifest([{kind:"source",sourceId:row.source_id,revisionId:row.revision_id,generation:row.generation}])});
     });
   }
   async recordConnected(taskId: string, operationId: string, input: ConnectedEvidenceInput): Promise<EvidencePassage> {
@@ -237,7 +237,7 @@ export class EvidenceStore {
       for(const origin of origins)await db.query("INSERT INTO agents_platform.evidence_history_links(node_id,origin_task_id,origin_node_ids) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",[node.id,origin.taskId,origin.originNodeIds]);
     });
   }
-  async inheritHistory(taskId:string,snapshotId:string,priorTaskIds:string[]):Promise<EvidenceNode>{
+  async inheritHistory(taskId:string,snapshotId:string,priorTaskIds:string[],options:{allowSettled?:boolean}={}):Promise<EvidenceNode>{
     return this.scoped(taskId,async(db,execution)=>{
       const snapshot=(await db.query("SELECT payload FROM agents_platform.context_snapshots WHERE id=$1 AND task_id=$2",[snapshotId,taskId])).rows[0];
       if(!snapshot||!Array.isArray(snapshot.payload.historyGroupIds))throw integrity();
@@ -248,7 +248,7 @@ export class EvidenceStore {
       const node=await this.node(db,execution,"input",`history:${snapshotId}`,[],[],{evidenceIds:origins.flatMap(origin=>origin.evidenceIds),manifest},"fixed",origins.map(origin=>origin.taskId));
       for(const origin of origins)await db.query("INSERT INTO agents_platform.evidence_history_links(node_id,origin_task_id,origin_node_ids) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",[node.id,origin.taskId,origin.originNodeIds]);
       return node;
-    });
+    },options);
   }
   /** A carried summary keeps its original policy graph after the covered history leaves the prompt. */
   async inheritCheckpoint(taskId:string,checkpointId:string):Promise<EvidenceNode>{
@@ -475,12 +475,12 @@ export class EvidenceStore {
       return this.node(db,execution,kind,ownerId,[],parents,undefined,"recorded");
     });
   }
-  async deriveSummaryFromSnapshot(taskId:string,ownerId:string,snapshotId:string):Promise<EvidenceNode> {
+  async deriveSummaryFromSnapshot(taskId:string,ownerId:string,snapshotId:string,options:{allowSettled?:boolean}={}):Promise<EvidenceNode> {
     return this.scoped(taskId,async(db,execution)=>{
       const parents=(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE task_id=$1 AND kind='context' AND owner_id=$2",[taskId,snapshotId])).rows.map(nodeDto);
       if(parents.length!==1)throw integrity();
       return this.node(db,execution,"summary",ownerId,[],parents,undefined,"recorded");
-    });
+    },options);
   }
   async joinChildren(taskId: string, operationId: string): Promise<EvidenceNode> {
     return this.scoped(taskId, async (db, execution) => {

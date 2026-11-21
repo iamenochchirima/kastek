@@ -1,5 +1,9 @@
 # 0003: Structured agent identity and separate knowledge states
 
+> **Amended 2026-11-21 by [ADR 0005](0005-knowledge-usable-when-attached.md).** The source-level
+> `private`/`public` flag is removed. Approval plus attachment now governs use on every authorized
+> channel; there is no separate publish-visibility decision.
+
 Status: Accepted. 2026-11-11.
 
 ## Context

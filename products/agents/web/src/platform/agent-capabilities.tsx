@@ -24,7 +24,7 @@ export function AgentCapabilities({ agent, configuration, knowledgeCount, busy, 
     return configuration.capabilities.enquiries?.enabled ? `Collects ${configuration.capabilities.enquiries.fields.join(", ")}` : "Needs setup";
   };
   return <section className="agent-section agent-capabilities-page">
-    <header className="agent-section-heading"><div><h1>Capabilities</h1><p>What this agent can do.</p></div></header>
+    <header className="agent-section-heading"><div><h1>What it does</h1></div></header>
     <div className="agent-capability-grid">{capabilities.map(({ id, label, detail, icon: Icon }) => {
       const isEnabled = enabled(id), onlyOne = isEnabled && responsibilities.length <= 1;
       return <article className={`agent-capability-card ${isEnabled ? "is-enabled" : ""}`} key={id}>

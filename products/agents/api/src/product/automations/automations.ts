@@ -1,7 +1,7 @@
 import { createHash,randomBytes,randomUUID } from 'node:crypto';
 import type { Pool,PoolClient } from 'pg';
 import { z } from 'zod';
-import { PlatformError,agentConfigurationSchema,assertRuntimeAvailable,sourceAuthorityIds,connectedToolAuthorityIds,executionGrantSchema,requestDigest,type AgentConfiguration,type ExecutionGrant } from '../../contracts/contracts';
+import { PlatformError,agentConfigurationSchema,assertRuntimeAvailable,sourceAuthorityIds,connectedToolAuthorityIds,executionGrantSchema,requestDigest,type AgentConfiguration } from '../../contracts/contracts';
 import type { VersionRecord } from "../../contracts/records";
 import { assertAutomationAdmission } from '../../execution/lifecycle/automation-authority';
 import { requestTreeCancellation } from '../../execution/lifecycle/execution';
@@ -11,6 +11,7 @@ import { PlatformStore } from "../agents/store";
 import { resolveAcceptedModelRoutes } from '../../execution/models/resolution';
 import { contextGrantCeiling, executionModelLayers } from '../../execution/models/settings';
 import { loadAutomationModelRoutes,saveAutomationModelRoutes } from '../../execution/models/automation-routes';
+import { operationsForConfiguration } from '../../platform/access';
 
 export const automationScheduleSchema=z.discriminatedUnion('kind',[
  z.strictObject({kind:z.literal('once'),at:z.iso.datetime({offset:true})}),
@@ -23,15 +24,6 @@ export interface AutomationScope {accountId:string;organizationId:string}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const deny=()=>new PlatformError('AUTOMATION_ACCESS_DENIED',403,'Automation access is unavailable');
 const missing=()=>new PlatformError('AUTOMATION_NOT_FOUND',404,'Automation not found');
-export function operationsForConfiguration(c:AgentConfiguration,staff=false):ExecutionGrant['operations'] {
- return ['model.reply','knowledge.read',...(staff&&c.tools.includes('tasks.inspect')?['tasks.read'] as const:[]),...(staff&&c.tools.includes('tasks.cancel')?['tasks.cancel'] as const:[]),...(c.tools.includes('enquiry.read')?['enquiry.read'] as const:[]),...(c.tools.includes('enquiry.amend')?['enquiry.amend'] as const:[]),...(staff&&c.tools.includes('records.search')?['records.read'] as const:[]),...(staff&&c.tools.includes('records.update')?['records.write'] as const:[]),...(c.capabilities.enquiries?.enabled?['enquiry.submit'] as const:[]),...(c.memory.enabled?['memory.read','memory.propose'] as const:[]),
- ...(c.skillIds.length?['skill.read'] as const:[]),
- ...(c.capabilities.businessActions.enabled?['booking.read' as const,...(c.capabilities.businessActions.permittedOperations.includes('calendar.book')?['booking.execute' as const]:[])]:[]),
- ...(c.capabilities.delegation.enabled?['delegation.execute'] as const:[]),...(c.capabilities.sandbox.enabled?['sandbox.execute'] as const:[]),
- ...((c.capabilities.sandbox.enabled||c.capabilities.workflows.enabled)?['artifact.read','artifact.write'] as const:[]),
- ...(c.capabilities.workflows.enabled?['effect.deliver'] as const:[]),...(connectedToolAuthorityIds(c).length?['connected.read','connected.execute'] as const:[]),
- ...(c.tools.includes('channel.request_handoff')?['channel.handoff'] as const:[])];
-}
 function dto(row:Record<string,any>) {return {id:row.id,organizationId:row.organization_id,ownerAccountId:row.owner_account_id,
  revision:row.revision,state:row.state,...row.configuration};}
 export class AutomationService {

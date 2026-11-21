@@ -242,6 +242,14 @@ app.get("/api/sandboxes/:id/agents/:agentRefId/models", async (request) => {
   const { id, agentRefId } = request.params as { id: string; agentRefId: string };
   return service(`/v1/sandboxes/${encodeURIComponent(id)}/agents/${encodeURIComponent(agentRefId)}/models`);
 });
+app.get("/api/sandboxes/:id/agents/:agentRefId/activity", async (request) => {
+  const { id, agentRefId } = request.params as { id: string; agentRefId: string };
+  const query = request.query as { taskId?: unknown };
+  const suffix = typeof query.taskId === "string" && query.taskId
+    ? `?taskId=${encodeURIComponent(query.taskId)}`
+    : "";
+  return service(`/v1/sandboxes/${encodeURIComponent(id)}/agents/${encodeURIComponent(agentRefId)}/activity${suffix}`);
+});
 app.post("/api/sandboxes/:id/agents/:agentRefId/model", async (request) => {
   const { id, agentRefId } = request.params as { id: string; agentRefId: string };
   const body = request.body as { kind?: unknown; connectionId?: unknown; modelId?: unknown } | null;

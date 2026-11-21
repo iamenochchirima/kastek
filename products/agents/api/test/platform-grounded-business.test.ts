@@ -18,7 +18,7 @@ import {loadContinuation} from "../src/execution/context/continuation";
 import { beginOperation } from "../src/execution/lifecycle/execution";
 import { dispatchTasksOnce } from "../src/execution/lifecycle/dispatcher";
 import { EvidenceStore } from "../src/execution/context/evidence";
-import { KnowledgeRuntime } from "../src/capabilities/knowledge/knowledge-runtime";
+import { KnowledgeRuntime } from "../src/platform/knowledge/knowledge-runtime";
 import { ConnectedExecutor } from "../src/capabilities/connected-tools/connected-executor";
 import { ConnectionStore } from "../src/product/connections/connections";
 import { ConnectionVault } from "../src/infrastructure/vault";

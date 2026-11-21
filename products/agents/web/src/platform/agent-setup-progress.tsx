@@ -23,12 +23,13 @@ export function AgentSetupProgress({ organizationId, agentId, draftRevision }: {
       const capabilitiesDone = capabilityKeys.every(key => readiness.requirements[key]?.state !== "needs_setup");
       const knowledgeDone = !knowledgeRequired || readiness.requirements.knowledge?.state === "ready";
       const channelDone = readiness.channels.some(channel => channel.state === "connected");
+      const customerSetup = Boolean(current.agent.setup || current.agent.offering);
       setSteps([
         { id: "profile", label: "Profile", done: true, section: "settings", action: "Review profile" },
         { id: "knowledge", label: "Training data", done: knowledgeDone, section: "knowledge", action: "Add training data" },
         { id: "model", label: "Model", done: readiness.requirements.model?.state === "ready", section: "behaviour", action: "Choose model" },
         { id: "capabilities", label: "Capabilities", done: capabilitiesDone, section: "capabilities", action: "Finish capability setup" },
-        { id: "channel", label: "Channel", done: channelDone, section: "deploy", action: "Connect a channel" },
+        ...(customerSetup ? [{ id: "channel", label: "Channel", done: channelDone, section: "deploy", action: "Connect a channel" }] : []),
       ]);
       setError("");
     }).catch(reason => { if (live) setError(message(reason)); });

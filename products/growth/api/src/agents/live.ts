@@ -10,7 +10,7 @@ const terminal = new Set(["completed", "incomplete", "failed", "cancelled", "unc
 export async function streamGrowthTask(request: FastifyRequest, reply: FastifyReply, input: {
   taskId: string; cursor?: string; childTaskId?: string; observation?: boolean;
   scope(): Promise<GrowthAgentScope>;
-  client: Pick<GrowthAgentClient, "command">;
+  client: Pick<GrowthAgentClient, "shared">;
 }) {
   const response = reply.raw, abort = new AbortController();
   const close = () => abort.abort();
@@ -31,13 +31,13 @@ export async function streamGrowthTask(request: FastifyRequest, reply: FastifyRe
     const auth = await sameScope();
     active();
     if(input.observation) {
-      const publicObservation=await input.client.command(auth,"tasks.observe",{taskId:input.taskId,...(input.childTaskId?{childTaskId:input.childTaskId}:{}),...(cursor?{cursor}:{}),limit:100});
+      const publicObservation=await input.client.shared(auth,"runs.activity",{taskId:input.taskId,...(input.childTaskId?{childTaskId:input.childTaskId}:{}),...(cursor?{cursor}:{}),limit:100});
       active();
       return {task:{task:publicObservation.task},events:{events:publicObservation.events,nextCursor:publicObservation.nextCursor},publicObservation};
     }
-    const task = await input.client.command(auth, "tasks.get", {taskId: input.taskId});
+    const task = await input.client.shared(auth, "runs.get", {taskId: input.taskId});
     active();
-    const events = await input.client.command(auth, "tasks.events", {taskId: input.taskId, ...(cursor ? {cursor} : {}), limit: 100});
+    const events = await input.client.shared(auth, "runs.events", {taskId: input.taskId, ...(cursor ? {cursor} : {}), limit: 100});
     active();
     return {task, events,publicObservation:undefined as GrowthAgentObservation|undefined};
   };
@@ -89,6 +89,6 @@ export async function streamGrowthTask(request: FastifyRequest, reply: FastifyRe
 }
 
 /** Same lease/auth/backpressure lifecycle, with a purpose-built root/child transcript projection. */
-export function streamGrowthObservation(request:FastifyRequest,reply:FastifyReply,input:{taskId:string;childTaskId?:string;cursor?:string;scope():Promise<GrowthAgentScope>;client:Pick<GrowthAgentClient,"command">}) {
+export function streamGrowthObservation(request:FastifyRequest,reply:FastifyReply,input:{taskId:string;childTaskId?:string;cursor?:string;scope():Promise<GrowthAgentScope>;client:Pick<GrowthAgentClient,"shared">}) {
   return streamGrowthTask(request,reply,{...input,observation:true});
 }

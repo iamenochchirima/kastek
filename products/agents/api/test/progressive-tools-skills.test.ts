@@ -13,7 +13,7 @@ import { validateBuiltinArguments } from "../src/capabilities/tool-contracts";
 import { toolDescriptor } from "../src/capabilities/tool-descriptors";
 import { toolsFor } from "../src/capabilities/tool-definitions";
 import { defaultBusinessConfiguration, requestDigest } from "../src/contracts/contracts";
-import type { SkillRevision } from "../src/execution/memory/memory";
+import type { SkillRevision } from "../src/platform/memory/memory";
 import type { ToolDefinition } from "../src/execution/business/model";
 import type { HarnessMessage, ModelRequest } from "../src/execution/business/model";
 

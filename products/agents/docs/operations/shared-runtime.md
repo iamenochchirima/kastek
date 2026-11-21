@@ -373,3 +373,81 @@ this missing configuration after its permission checks. This is a confirmed read
 historical authorization response was not retained, so it is not attributed to a search miss. Canonical operations retain their own
 current reporting/entitlement prerequisites. Do not claim analytics is ready or add deployment
 credentials as part of capability discovery.
+
+## Queue inspection, pool scaling and uncertain effects
+
+### Inspect queues
+
+Use the owned PostgreSQL connection; these are read-only.
+
+```sql
+-- Dispatch backlog and age
+SELECT count(*) AS pending, min(created_at) AS oldest FROM agents_platform.task_outbox WHERE dispatched_at IS NULL;
+-- Capacity backlog by workload (interactive, background, ingestion, sandbox, evaluation)
+SELECT workload, state, count(*), min(created_at) AS oldest
+  FROM agents_platform.capacity_requests WHERE finished_at IS NULL GROUP BY workload, state;
+-- Active dispatch leases
+SELECT lease_owner, count(*) FROM agents_platform.task_outbox
+  WHERE lease_owner IS NOT NULL AND lease_until > now() GROUP BY lease_owner;
+-- Terminal-but-unsettled and uncertain roots
+SELECT state, error_code, count(*) FROM agents_platform.tasks
+  WHERE parent_task_id IS NULL AND state IN ('uncertain','accepted','running','waiting_review','waiting_children') GROUP BY state, error_code;
+```
+
+`agents.capacity.oldest_wait_ms`, `agents.capacity.wait_p95_ms`, `agents.dispatch.oldest_ms`,
+`agents.dispatch.leases`, `agents.database.lock_waiters` and `agents.database.oldest_lock_wait_ms`
+expose the same facts through metrics. `agents.usage.tokens` carries the tenant organization.
+
+### Scale pools
+
+| Setting | Effect |
+| --- | --- |
+| `AGENTS_WORKER_ROLE` | `all` (default), `interactive`, `background` or `ingestion`. Pool roles register only business services; `ingestion` registers only knowledge-ingestion. |
+| `AGENTS_WORKER_POOL_INTERACTIVE`, `AGENTS_WORKER_POOL_BACKGROUND` | Pool label each role should serve. Unset means every worker accepts both classes. |
+| `AGENTS_WORKER_POOL` | This worker's label. Must match a configured pool to restrict claims. |
+| `AGENTS_DISPATCH_POLICY_JSON` | Batch size, lease and parallelism. Keep leases short relative to work. |
+| `AGENTS_DATABASE_POOL_POLICY_JSON` | Per-role connection pool limits. Raise API/worker pools only with database capacity. |
+
+Scale interactive replicas for conversation latency, background replicas for reports and
+long child work, and at least one ingestion replica when knowledge imports are active. The
+dispatcher routes by workload and compatibility release; a pool with no worker leaves its
+queue waiting rather than silently executing elsewhere. During a rolling deploy, replace one
+worker at a time; Restate keeps in-flight invocations on the old deployment until it drains.
+
+### Recover uncertain effects
+
+1. Inspect the root and children: `tasks` state `uncertain`, `operations` with `state='uncertain'`,
+   `connected_reads` with `state='uncertain'`, pending `tool_invocation_reviews`, and report
+   `actions` that are not terminal.
+2. Read the stored receipt or provider status before retrying. Never repeat a write whose
+   outcome is unknown; use the connection or action reconciliation path where it exists.
+3. Settle the task only after the effect is known. A truthful `uncertain` outcome is preferable
+   to a duplicate effect.
+4. Record the resolution against the task and the affected connection or action; keep the
+   receipt with the task.
+5. Resume or cancel remaining children through the normal controls, not by editing rows.
+
+### Measured capacity
+
+The controlled harness (`products/agents/api/test/scheduling-load.ts`) records a JSON report
+under `.audit/agents-load-*.json`. The same `full-mixed-v3` workload was run at 100 roots and
+2 replicas under each required fault; both runs met the declared targets.
+
+| Variant | Result | Admission p95 | Dispatch p95 | Child activation p95 | Recovery | Model calls |
+| --- | --- | --- | --- | --- | --- | --- |
+| worker-loss | 99 completed, 1 truthful uncertain | 1.26s | 1.43s | 10.7s | 0.58s | 150 |
+| provider-throttle | 95 completed, 5 rejected `MODEL_RATE_LIMITED` | 1.08s | 1.27s | 10.4s | 2.28s | 149 |
+
+Declared targets are 5s interactive p95 and 30s queue/child-activation p95. The worker-loss run
+peaked at 40 running roots and 4 concurrent provider calls, injected the kill into an active
+provider call, restarted the worker and reconciled through the surviving replica. The throttle
+run rejected 5 physical calls with HTTP 429 and settled those roots as failed rather than
+retrying them. Physical-call attribution matched 150/150 and 149/149 native operations; there
+were no lost roots, duplicate effects, cross-tenant leaks or incorrect settlements.
+
+The limiting resource at this profile is API CPU: each API process peaked near 4.4 cores of the
+12 available while workers peaked near 1.4 cores. Model-call concurrency peaked at 4 (worker-loss)
+and 9 (provider-throttle), so the provider is not the binding constraint before API CPU is.
+
+The harness accepts one selected fault per run. Run the workload once per fault; do not treat a
+single fault report as covering the others.

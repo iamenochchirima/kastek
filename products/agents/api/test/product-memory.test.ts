@@ -1,10 +1,11 @@
+import { skillPackageCodec } from "../src/capabilities/skills/package";
 import { contextGrantCeiling } from "../src/execution/models/settings";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
-import { MemoryStore, type ProductMemoryManagementScope } from "../src/execution/memory/memory";
+import { MemoryStore, type ProductMemoryManagementScope } from "../src/platform/memory/memory";
 import { executeMemoryTool } from "../src/capabilities/memory-tools";
 import { EvidenceStore, assertCurrentEvidence, taskEvidenceManifest } from "../src/execution/context/evidence";
 import { beginOperation, finishOperation, loadExecution, settleTask } from "../src/execution/lifecycle/execution";
@@ -25,7 +26,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     admin = new Pool({ connectionString: databaseUrl }); await admin.query(`CREATE DATABASE "${database}"`);
     const url = new URL(databaseUrl!); url.pathname = `/${database}`;
     pool = new Pool({ connectionString: url.href }); await setupPlatformSchema(pool);
-    platform = new PlatformStore(pool); memory = new MemoryStore(pool);
+    platform = new PlatformStore(pool); memory = new MemoryStore(pool, skillPackageCodec);
   });
   afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin, database); await admin.end(); } });
 

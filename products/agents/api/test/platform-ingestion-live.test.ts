@@ -10,8 +10,8 @@ import { join, resolve } from "node:path";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {S3PrivateStore} from "../src/infrastructure/object-store";
-import { DocumentRuntime } from "../src/capabilities/knowledge/document-runtime";
-import { KnowledgeStore, type KnowledgeScope } from "../src/capabilities/knowledge/knowledge";
+import { DocumentRuntime } from "../src/platform/knowledge/document-runtime";
+import { KnowledgeStore, type KnowledgeScope } from "../src/platform/knowledge/knowledge";
 import { PlatformStore } from "../src/product/agents/store";
 import { defaultBusinessConfiguration, terminalTaskStates } from "../src/contracts/contracts";
 import { dispatchTasksOnce } from "../src/execution/lifecycle/dispatcher";
@@ -96,7 +96,7 @@ const enabled = process.env.AGENTS_INGESTION_LIVE === "1" && process.env.AGENTS_
   }
   async function inspect(jobId: string) {
     const job = await ready(jobId), source = (await knowledge.list(scope)).find(source => source.id === job.sourceId)!;
-    expect(source.visibility).toBe("private"); expect(source.revisions.find(revision => revision.id === job.revisionId)?.state).toBe("candidate");
+    expect(source.revisions.find(revision => revision.id === job.revisionId)?.state).toBe("candidate");
     const preview = await knowledge.preview(scope, job.sourceId, job.revisionId);
     const allocationRows = (await pool.query("SELECT id,stage,stage_index,state,receipt,result_digest FROM agents_platform.document_allocations WHERE job_id=$1 ORDER BY stage,stage_index", [jobId])).rows;
     expect(allocationRows.every(row => row.state === "destroyed" && row.result_digest && row.receipt)).toBe(true);
@@ -113,7 +113,6 @@ const enabled = process.env.AGENTS_INGESTION_LIVE === "1" && process.env.AGENTS_
     const code=`CEDAR-${randomUUID().slice(0,8)}`;
     const job=await upload("application/pdf",pdf(["General project introduction.","This page has no release code.",`The public archive release code is ${code}.`]),"Widget tail-page policy");
     await inspect(job.id);
-    await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"visibility",visibility:"public"});
     const abstention="I do not have source evidence to answer that question.";
     const defaults=defaultBusinessConfiguration(); defaults.model.model="nvidia/nemotron-3-super-120b-a12b:free";
     const config={...defaults,instructions:`Answer only the visitor's question from the provided evidence. Include the exact bracketed evidence citation when a passage answers the question. If no supplied passage answers it, reply exactly: ${abstention} Do not add a citation to that response. Never invent a code or use outside knowledge.`,sourceRevisionIds:[job.revisionId],retrievalProfile:{kind:"hybrid-v1" as const,embeddingRelease:profileRelease},tools:[]};
@@ -222,10 +221,7 @@ const enabled = process.env.AGENTS_INGESTION_LIVE === "1" && process.env.AGENTS_
       await page.getByRole("button", { name: "Approve source", exact: true }).click();
       await browserExpect(page.getByText("Source approved", { exact: true })).toBeVisible();
       const imported = (await knowledge.list(scope)).find(source => source.title === "Browser imported policy")!;
-      expect(imported.visibility).toBe("private"); expect(imported.revisions[0]!.state).toBe("approved");
-      await page.getByRole("button", { name: "Make public", exact: true }).last().click();
-      await page.getByRole("dialog").getByRole("button", { name: "Make public", exact: true }).click();
-      await browserExpect(page.getByText("Visibility updated", { exact: true })).toBeVisible();
+      expect(imported.revisions[0]!.state).toBe("approved");
       for (const width of [1440, 768, 390]) {
         await page.setViewportSize({ width, height: 1000 });
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

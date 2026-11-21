@@ -4,17 +4,11 @@ import { parseDocument } from "yaml";
 import { fromBuffer, type Entry, type ZipFile } from "yauzl";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
-import { parseSkillRequirements,type SkillRequirements } from "./requirements";
+import { parseSkillRequirements } from "./requirements";
+import { SKILL_PACKAGE_LIMITS, type SkillPackage, type SkillPackageCodec, type SkillPackageFile, type SkillRequirements } from "../../contracts/skills";
 
-export const SKILL_PACKAGE_LIMITS = Object.freeze({ archiveBytes: 2_097_152, totalBytes: 2_097_152,
-  fileBytes: 524_288, instructionBytes: 65_536, files: 128, pathBytes: 256, depth: 8, archiveEntries: 256 });
-export interface SkillPackageFile { readonly path: string; readonly content: string; readonly encoding: "base64"; readonly digest: string; readonly size: number }
-export interface SkillPackage {
-  readonly format: "agent-skills-v1"; readonly name: string; readonly description: string;
-  readonly compatibility: string | null; readonly body: string; readonly contentDigest: string;
-  readonly files: readonly SkillPackageFile[]; readonly totalBytes: number;
-  readonly requirements:SkillRequirements;
-}
+export { SKILL_PACKAGE_LIMITS } from "../../contracts/skills";
+export type { SkillPackage, SkillPackageFile } from "../../contracts/skills";
 export interface SkillFileEvidence { packageDigest: string; path: string; contentDigest: string }
 export interface SkillFileRange { start: number; end: number; totalBytes: number; nextOffset: number | null; complete: boolean }
 export type SkillContentKind = "instructions" | "reference" | "executable";
@@ -173,3 +167,9 @@ export function readSkillPackageFile(pkg: SkillPackage, path: string, reviewedDi
   return { content: utf8(Buffer.from(file.content, "base64")),
     evidence: { packageDigest: current.contentDigest, path: file.path, contentDigest: file.digest } satisfies SkillFileEvidence };
 }
+
+/** The codec MemoryStore receives, so memory does not import package parsing. */
+export const skillPackageCodec: SkillPackageCodec = {
+  parse: parseSkillPackage,
+  activate: activateSkillPackage,
+};

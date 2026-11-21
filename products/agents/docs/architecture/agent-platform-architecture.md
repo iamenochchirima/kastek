@@ -951,7 +951,7 @@ implementation is removed. No existing database is migrated or modified.
 
 The connected-knowledge foundation separates mutable import jobs and source policy from sealed
 source revisions and chunks. Imports start private and unapproved. Current organization owners
-approve candidates, change visibility and withdraw sources; each revision's importer can inspect
+approve candidates and withdraw sources; each revision's importer can inspect
 that candidate and cancel their pending work. Refreshing a source does not give its original
 importer access to another account's candidate. Publication checks the accepted source generation and job deadline under the
 organization lock. A cancelled or withdrawn import cannot seal a late result. Revision bodies and ingestion receipts use private, content-addressed keys backed by PostgreSQL; chunk offsets count UTF-16 text units and bind a text hash. Other execution artifacts continue to use private object storage.
@@ -1240,7 +1240,7 @@ Exactly two execution categories remain. Workspace tasks fail before acceptance 
 adapter is implemented. The initial connected action is exact reviewed report delivery through ReportDeliveryHTTP; arbitrary business-write adapters remain unavailable. Durable UTC one-shot/interval schedules and authenticated events use explicit automation authorization. Additional workflow profiles remain unavailable. Delegation and analysis require their published configuration, bounded current grants and available runtime/storage.
 Shared runtime probes verify coordination capabilities without establishing customer catalogue
 offerings. Selected outbound MCP reads are implemented. The generic signed product adapter retains
-its contract for model replies and public knowledge. Growth's separate typed product contract now maps verified
+its contract for model replies and approved knowledge. Growth's separate typed product contract now maps verified
 Growth actors and businesses to shared features, private conversations and tasks without creating
 standalone Agents accounts. Growth owns current membership, resource reads, exact action reviews
 and authoritative business receipts. The shared harness pins the managed model route, accepted

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { agentConfigurationSchema, defaultBusinessConfiguration } from "../src/contracts/contracts";
-import { composeAgentInstructions, defaultAgentGuidance, defaultAgentIdentity, renderGuidance, renderIdentity } from "../src/product/agents/identity";
+import { defaultAgentGuidance, defaultAgentIdentity } from "../src/product/agents/identity";
+import { composeAgentInstructions, renderGuidance, renderIdentity } from "../src/execution/context/agent-identity";
 
 const base = () => ({ ...defaultBusinessConfiguration(), instructions: "Follow the task rules." });
 

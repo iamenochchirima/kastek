@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../src/capabilities/skills/package";
 import { contextGrantCeiling } from "../src/execution/models/settings";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
@@ -15,7 +16,7 @@ import {EvidenceStore} from "../src/execution/context/evidence";
 import {publishFixtureSource} from "./knowledge-fixture";
 import {readHistory,searchHistory} from "../src/execution/context/journal";
 import {validateBuiltinArguments,validateBuiltinResult} from "../src/capabilities/tool-contracts";
-import {MemoryStore} from "../src/execution/memory/memory";
+import {MemoryStore} from "../src/platform/memory/memory";
 import {TaskArtifactStore} from "../src/execution/artifacts/task-artifacts";
 import {ConnectionVault} from "../src/infrastructure/vault";
 import {ConnectionStore} from "../src/product/connections/connections";
@@ -31,7 +32,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  beforeAll(async()=>{
   admin=new Pool({connectionString:databaseUrl});await admin.query(`CREATE DATABASE "${database}"`);
   const url=new URL(databaseUrl!);url.pathname=`/${database}`;pool=new Pool({connectionString:url.href});await setupPlatformSchema(pool);
-  store=new PlatformStore(pool);memory=new MemoryStore(pool);
+  store=new PlatformStore(pool);memory=new MemoryStore(pool, skillPackageCodec);
   artifacts=new TaskArtifactStore(pool,{async put(k,b){bodies.set(k,Buffer.from(b));},async get(k){const bytes=bodies.get(k);if(!bytes)throw Error("Missing object");return bytes;},async delete(k){bodies.delete(k);}});
  });
  afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});

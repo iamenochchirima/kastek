@@ -3,7 +3,7 @@ import {importPKCS8,importSPKI,jwtVerify,SignJWT} from "jose";
 import type {FastifyInstance} from "fastify";
 import type {Pool,PoolClient} from "pg";
 import {z} from "zod";
-import {GROWTH_AGENT_PROVISION_PATH,GROWTH_AGENT_PROVISION_CHECK_PATH,GROWTH_AGENT_PUBLICATION_MAX_BYTES,parseGrowthAgentProvisionRequest,type GrowthAgentProvisionRequest,type GrowthAgentProvisionResult} from "@kasitek-labs/contracts";
+import {GROWTH_AGENT_PROVISION_PATH,GROWTH_AGENT_PROVISION_CHECK_PATH,GROWTH_AGENT_PUBLICATION_MAX_BYTES,parseGrowthAgentProvisionRequest,parseProductAgentLifecycleCommand,type GrowthAgentProvisionRequest,type GrowthAgentProvisionResult} from "@kasitek-labs/contracts";
 import {PlatformError,requestDigest,agentConfigurationSchema} from "../../contracts/contracts";
 import {modelDescriptorSchema,modelEndpointSchema} from "../../contracts/model-providers";
 import {connectionVaultFromEnvironment} from "../../infrastructure/vault";
@@ -29,12 +29,12 @@ export class GrowthProvisionAuth {
       return [id,importSPKI(String(key.export({format:"pem",type:"spki"})),"RS256")];
     }));
   }
-  async verify(token:string,input:GrowthAgentProvisionRequest) {
+  async verify(token:string,input:GrowthAgentProvisionRequest,digestBody?:unknown) {
     try {
       const {payload:p}=await jwtVerify(token,async h=>{const key=h.kid?this.keys.get(h.kid):this.keys.size===1?[...this.keys.values()][0]:undefined;if(!key)throw Error();return await key;},
         {issuer:this.issuer,audience:"agents-product-provisioning",algorithms:["RS256"],clockTolerance:5,requiredClaims:["iat","exp","jti","sub"]});
       const now=Math.floor(Date.now()/1000);
-      if(p.sub!=="growth-provisioner"||p.product!=="growth"||p.requestDigest!==requestDigest(input)||typeof p.iat!=="number"||typeof p.exp!=="number"||p.exp<=p.iat||p.exp-p.iat>120||p.iat>now+5||!z.uuid().safeParse(p.jti).success)throw Error();
+      if(p.sub!=="growth-provisioner"||p.product!=="growth"||p.requestDigest!==requestDigest(digestBody??input)||typeof p.iat!=="number"||typeof p.exp!=="number"||p.exp<=p.iat||p.exp-p.iat>120||p.iat>now+5||!z.uuid().safeParse(p.jti).success)throw Error();
       return {jti:p.jti as string,expiresAt:new Date(p.exp*1000)};
     }catch {throw new PlatformError("PRODUCT_PROVISION_DENIED",401,"Growth provisioning authentication is invalid");}
   }
@@ -138,17 +138,14 @@ export function registerGrowthProvisionRoute(app:FastifyInstance,pool:Pool,trust
   const vault=connectionVaultFromEnvironment(env),active=growthProvisionLifecycleFromEnvironment(env);
   const service=trust&&vault&&active?new GrowthProvisionService(pool,{trust,vault:new ModelCredentialVault(vault),active,
     profile:()=>{try{return JSON.parse(env.GROWTH_MANAGED_MODEL_PROFILE_JSON??"null");}catch{return null;}},credential:ref=>env[ref],discoveryFetch:options.discoveryFetch}):undefined;
-  app.post(GROWTH_AGENT_PROVISION_PATH,{bodyLimit:GROWTH_AGENT_PUBLICATION_MAX_BYTES+16_384},async request=>{
-    if(!auth||!service)throw new PlatformError("PRODUCT_PROVISION_UNAVAILABLE",503,"Growth provisioning is not configured");
-    let input:GrowthAgentProvisionRequest;try {input=parseGrowthAgentProvisionRequest(request.body);}catch {throw new PlatformError("INVALID_PRODUCT_PROVISION",400,"Check the provisioning fields");}
-    const bearer=request.headers.authorization?.match(/^Bearer ([A-Za-z0-9_.-]+)$/)?.[1];
-    if(!bearer)throw new PlatformError("PRODUCT_PROVISION_DENIED",401,"Provisioning authentication is required");
-    const verified=await auth.verify(bearer,input),digest=requestDigest(input);
-    await pool.query("INSERT INTO agents_platform.product_service_assertions(product,client_id,jti,request_digest,expires_at) VALUES('growth','growth-provisioner',$1,$2,$3) ON CONFLICT DO NOTHING",[verified.jti,digest,verified.expiresAt]);
-    const row=(await pool.query("SELECT request_digest FROM agents_platform.product_service_assertions WHERE product='growth' AND client_id='growth-provisioner' AND jti=$1",[verified.jti])).rows[0];
+  async function recordAssertion(jti:string,digest:string,expiresAt:Date) {
+    await pool.query("INSERT INTO agents_platform.product_service_assertions(product,client_id,jti,request_digest,expires_at) VALUES('growth','growth-provisioner',$1,$2,$3) ON CONFLICT DO NOTHING",[jti,digest,expiresAt]);
+    const row=(await pool.query("SELECT request_digest FROM agents_platform.product_service_assertions WHERE product='growth' AND client_id='growth-provisioner' AND jti=$1",[jti])).rows[0];
     if(row?.request_digest!==digest)throw new PlatformError("PRODUCT_ASSERTION_CONFLICT",409,"Provisioning assertion input changed");
+  }
+  async function runProvision(request:import("fastify").FastifyRequest,input:GrowthAgentProvisionRequest):Promise<GrowthAgentProvisionResult>{
     let result:GrowthAgentProvisionResult;
-    try { result=await service.provision(input); }
+    try { result=await service!.provision(input); }
     catch(error) {
       const known=error instanceof PlatformError;
       const code=known&&/^[A-Z][A-Z0-9_]{0,63}$/.test(error.code)?error.code:
@@ -159,5 +156,30 @@ export function registerGrowthProvisionRoute(app:FastifyInstance,pool:Pool,trust
     }
     request.log.info({event:"growth_default_provision",tenantId:input.tenantId,operationId:input.requestId,state:result.state,code:result.code},"Growth defaults provisioning");
     return result;
+  }
+  app.post("/internal/v1/products/:product/lifecycle",{bodyLimit:GROWTH_AGENT_PUBLICATION_MAX_BYTES+16_384},async request=>{
+    const product=(request.params as {product?:string}).product;
+    if(product!=="growth"||!auth||!service)throw new PlatformError("PRODUCT_PROVISION_UNAVAILABLE",503,"Product lifecycle is not configured");
+    let command:ReturnType<typeof parseProductAgentLifecycleCommand>;
+    try {command=parseProductAgentLifecycleCommand(request.body);}catch {throw new PlatformError("INVALID_PRODUCT_PROVISION",400,"Check the lifecycle fields");}
+    if(command.operation!=="agents.applyPublication"||command.product!=="growth")throw new PlatformError("INVALID_PRODUCT_PROVISION",400,"Check the lifecycle operation");
+    const input:GrowthAgentProvisionRequest={version:"1",requestId:command.requestId,tenantId:command.tenantId,
+      defaultsRevision:command.input.defaultsRevision,modelProfileId:command.input.modelProfileId,modelProfileRevision:command.input.modelProfileRevision,
+      ...(command.input.publication===undefined?{}:{publication:command.input.publication as GrowthAgentProvisionRequest["publication"]}),
+      ...(command.input.upgradeDefaults===undefined?{}:{upgradeDefaults:command.input.upgradeDefaults})};
+    const bearer=request.headers.authorization?.match(/^Bearer ([A-Za-z0-9_.-]+)$/)?.[1];
+    if(!bearer)throw new PlatformError("PRODUCT_PROVISION_DENIED",401,"Provisioning authentication is required");
+    const verified=await auth.verify(bearer,input,command);
+    await recordAssertion(verified.jti,requestDigest(command),verified.expiresAt);
+    return runProvision(request,input);
+  });
+  app.post(GROWTH_AGENT_PROVISION_PATH,{bodyLimit:GROWTH_AGENT_PUBLICATION_MAX_BYTES+16_384},async request=>{
+    if(!auth||!service)throw new PlatformError("PRODUCT_PROVISION_UNAVAILABLE",503,"Growth provisioning is not configured");
+    let input:GrowthAgentProvisionRequest;try {input=parseGrowthAgentProvisionRequest(request.body);}catch {throw new PlatformError("INVALID_PRODUCT_PROVISION",400,"Check the provisioning fields");}
+    const bearer=request.headers.authorization?.match(/^Bearer ([A-Za-z0-9_.-]+)$/)?.[1];
+    if(!bearer)throw new PlatformError("PRODUCT_PROVISION_DENIED",401,"Provisioning authentication is required");
+    const verified=await auth.verify(bearer,input);
+    await recordAssertion(verified.jti,requestDigest(input),verified.expiresAt);
+    return runProvision(request,input);
   });
 }

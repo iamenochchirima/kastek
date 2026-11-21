@@ -14,6 +14,18 @@ const setup=()=>customerSetupSchema.parse({business:{name:"Business"},responsibi
  beforeAll(async()=>{admin=new Pool({connectionString:databaseUrl});await admin.query(`CREATE DATABASE "${database}"`);const url=new URL(databaseUrl!);url.pathname=`/${database}`;pool=new Pool({connectionString:url.href});await setupPlatformSchema(pool);store=new PlatformStore(pool);});
  afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(){const account=await store.ensureAccount({issuer:"https://setup.test",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"});const organization=await store.createOrganization(account.id,"Setup");return{accountId:account.id,organizationId:organization.id};}
+ it("requires agent management permission at the shared creation boundary",async()=>{
+  const scope=await fixture();
+  const member=await store.ensureAccount({issuer:"https://setup.test",subject:randomUUID(),email:"member@example.test",displayName:"Member"});
+  await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'member')",[scope.organizationId,member.id]);
+  const request={accountId:member.id,organizationId:scope.organizationId,name:"Agent",operationId:randomUUID()};
+  await expect(store.createConfiguredAgent(request)).rejects.toMatchObject({statusCode:403});
+  await pool.query("UPDATE agents_platform.memberships SET role='admin' WHERE organization_id=$1 AND account_id=$2",[scope.organizationId,member.id]);
+  const created=await store.createConfiguredAgent(request);
+  expect((await store.createConfiguredAgent(request)).agent.id).toBe(created.agent.id);
+  await pool.query("UPDATE agents_platform.memberships SET role='member' WHERE organization_id=$1 AND account_id=$2",[scope.organizationId,member.id]);
+  await expect(store.createConfiguredAgent(request)).rejects.toMatchObject({statusCode:403});
+ });
  it("resumes the same draft after duplicate creation and persists setup progress",async()=>{
   const scope=await fixture(),operationId=randomUUID(),input=setup();
   const first=await store.createConfiguredAgent({...scope,name:"Assistant",setup:input,operationId});

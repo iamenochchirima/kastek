@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
-import { Boxes, ClipboardCheck, MessageSquare } from "lucide-react";
+import { Boxes, ClipboardCheck, MessageSquare, Settings2 } from "lucide-react";
 import type { ServiceHealth } from "../../shared/types";
 import { api } from "./api";
 
@@ -8,6 +8,7 @@ const navigation = [
   { to: "/", label: "Sandboxes", icon: Boxes, end: true },
   { to: "/sessions", label: "Sessions", icon: MessageSquare },
   { to: "/outcomes", label: "Outcomes", icon: ClipboardCheck },
+  { to: "/configuration", label: "Configuration", icon: Settings2 },
 ];
 
 export default function App() {

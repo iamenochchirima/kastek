@@ -588,6 +588,11 @@ and drop uniquely named test databases. The business suite also starts its own
 Restate container and uses deterministic provider responses. These checks do not
 prove a real model reply or the complete browser journey.
 
+Run these suites on Node 24. The isolated MCP adapter starts a child process with
+`--jitless`, which disables WebAssembly. Node 23's built-in undici requires
+WebAssembly to load its HTTP parser, so MCP discovery fails with
+`ADAPTER_RESOURCE_LIMIT` before any request is sent.
+
 Verify real private storage and memory against disposable PostgreSQL and MinIO:
 
 ```sh

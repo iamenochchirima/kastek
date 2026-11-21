@@ -3,7 +3,7 @@ export interface NativeModelCall {operationId:string;attemptId:string;taskId:str
 export interface EffectIdentity {id:string;taskId:string;rootTaskId:string;nativeRootTaskId:string;artifactTaskId:string;artifactRootTaskId:string;payloadDigest:string;computedPayloadDigest:string;artifactDigest:string;nativeArtifactDigest:string;receiptId:string;receiptDigest:string}
 export interface ReceivedEffect {id:string;payloadDigest:string;computedPayloadDigest:string;artifactDigest:string;bytesDigest:string}
 export interface EffectPost {id:string;payloadDigest:string;computedPayloadDigest:string;artifactDigest:string;status:number}
-export function verifyModelCalls(physical:PhysicalModelCall[],native:NativeModelCall[]){
+export function verifyModelCalls(physical:PhysicalModelCall[],native:NativeModelCall[],options:{allowTruthfulUncertainty?:boolean}={}){
  const errors:string[]=[],counts=new Map<string,number>(),matched=new Set<string>();
  const byProvider=new Map<string,NativeModelCall[]>(),byAttempt=new Map<string,NativeModelCall[]>();
  const nativeIds=new Set<string>();
@@ -12,12 +12,13 @@ export function verifyModelCalls(physical:PhysicalModelCall[],native:NativeModel
   const candidates=[...new Set([...(byProvider.get(call.id)??[]),...(call.operationId&&call.attemptId?byAttempt.get(call.operationId+':'+call.attemptId)??[]:[])])];
   if(candidates.length!==1){errors.push(`Physical call ${call.id} has ${candidates.length} native matches`);continue;}
   const item=candidates[0]!;const key=item.operationId+':'+item.attemptId;matched.add(key);counts.set(key,(counts.get(key)??0)+1);
-  if(call.attributionCount!==undefined&&call.attributionCount!==1||call.operationId&&call.operationId!==item.operationId||call.attemptId&&call.attemptId!==item.attemptId||item.bodyDigest!==call.bodyDigest||call.taskId&&call.taskId!==item.taskId||call.rootTaskId&&call.rootTaskId!==item.rootTaskId)errors.push(`Physical call ${call.id} attribution differs`);
+  const truthful=options.allowTruthfulUncertainty&&(item.state==='uncertain'||item.state==='failed'&&item.errorCode==='MODEL_RATE_LIMITED');
+  if(call.attributionCount!==undefined&&call.attributionCount!==1||call.operationId&&call.operationId!==item.operationId||call.attemptId&&call.attemptId!==item.attemptId||!truthful&&item.bodyDigest!==call.bodyDigest||call.taskId&&call.taskId!==item.taskId||call.rootTaskId&&call.rootTaskId!==item.rootTaskId)errors.push(`Physical call ${call.id} attribution differs`);
   if(item.state==='completed'&&(call.status!==200||!call.endedAt))errors.push(`Completed operation ${item.operationId} lacks an actual successful physical response`);
   if(item.errorCode==='MODEL_RATE_LIMITED'&&call.status!==429)errors.push(`Native rejection ${item.operationId} differs from its physical response`);
   if(call.status===429&&(item.state!=='failed'||item.errorCode!=='MODEL_RATE_LIMITED'))errors.push(`Physical rejection ${call.id} lacks its native rejected receipt`);
  }
- for(const item of native)if(!matched.has(item.operationId+':'+item.attemptId))errors.push(`Native operation ${item.operationId} lacks a physical request`);
+ for(const item of native)if(!matched.has(item.operationId+':'+item.attemptId)&&!(options.allowTruthfulUncertainty&&(item.state==='uncertain'||item.state==='failed'&&item.errorCode==='MODEL_RATE_LIMITED')))errors.push(`Native operation ${item.operationId} lacks a physical request`);
  for(const[id,count]of counts)if(count!==1)errors.push(`Native operation ${id} made ${count} physical calls`);
  return{physical:physical.length,native:native.length,matched:matched.size,errors};
 }
@@ -35,7 +36,8 @@ export function verifyEffects(actions:EffectIdentity[],received:ReceivedEffect[]
 export function classifyRootOutcomes(roots:{id:string;state:string;errorCode:string|null}[],fault:string,affected:string[]){
  const errors:string[]=[],expected:{id:string;state:string;errorCode:string|null}[]=[];
  for(const root of roots){if(root.state==='completed')continue;
-  const allowed=affected.includes(root.id)&&(fault==='worker-loss'&&root.state==='uncertain'||fault==='provider-throttle'&&['failed','incomplete'].includes(root.state)&&['MODEL_RATE_LIMITED','CHILD_PARTIAL_FAILURE'].includes(root.errorCode??''));
+  const allowed=affected.includes(root.id)&&(fault==='worker-loss'&&root.state==='uncertain'||
+   fault==='provider-throttle'&&['failed','incomplete'].includes(root.state)&&['MODEL_RATE_LIMITED','CHILD_PARTIAL_FAILURE'].includes(root.errorCode??''));
   if(allowed)expected.push(root);else errors.push(`Unexpected ${root.state} root ${root.id}: ${root.errorCode??'none'}`);
  }
  return{expected,errors};

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { PlatformError,requestDigest } from "../../contracts/contracts";
 
 export const STASH_MCP_ENDPOINT = "https://api.stash.kasitek.co.za/mcp";
-export const STASH_ADAPTER_RELEASE = "stash-items-read-v1";
+export const STASH_ADAPTER_RELEASE = "stash-items-read-v2";
 const invalid = () => new PlatformError("STASH_RESPONSE_INVALID", 502, "Stash did not return the selected note or document");
 const itemSchema = z.object({
   id: z.uuid(), kind: z.enum(["note", "idea"]), title: z.string().max(1000),

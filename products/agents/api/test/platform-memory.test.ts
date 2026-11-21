@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../src/capabilities/skills/package";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import { randomUUID } from "node:crypto";
@@ -6,9 +7,9 @@ import { resolve } from "node:path";
 import { Pool } from "pg";
 import Fastify from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { MemoryStore } from "../src/execution/memory/memory";
+import { MemoryStore } from "../src/platform/memory/memory";
 import { memoryContextAllowed } from "../src/execution/business/business";
-import { registerMemoryRoutes } from "../src/product/agents/memory-routes";
+import { registerMemoryRoutes } from "../src/integrations/http/memory-routes";
 import { defaultBusinessConfiguration, type AgentConfiguration } from "../src/contracts/contracts";
 import { contextGrantCeiling } from "../src/execution/models/settings";
 import { orchestrationTools } from "../src/contracts/orchestration";
@@ -27,7 +28,7 @@ suite("scoped PostgreSQL memory and immutable skills", () => {
     admin = new Pool({ connectionString: databaseUrl }); await admin.query(`CREATE DATABASE "${database}"`);
     const url = new URL(databaseUrl!); url.pathname = `/${database}`; pool = new Pool({ connectionString: url.href });
     for (const file of (await readdir(resolve(__dirname, "../schema"))).filter(file => file.endsWith(".sql")).sort()) await pool.query(await readFile(resolve(__dirname, "../schema", file), "utf8"));
-    platform = new PlatformStore(pool); memory = new MemoryStore(pool);
+    platform = new PlatformStore(pool); memory = new MemoryStore(pool, skillPackageCodec);
   });
   afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin,database); await admin.end(); } });
   async function fixture() {
@@ -212,7 +213,7 @@ suite("scoped PostgreSQL memory and immutable skills", () => {
     await pool.query("UPDATE agents_platform.memories SET expires_at=now()-interval '1 second' WHERE id=$1",[candidate.id]);
     const before = await pool.query("UPDATE agents_platform.memory_scopes SET next_expiry_at=now()-interval '1 second' WHERE organization_id=$1 RETURNING generation",[f.organization.id]);
     const expired = await memory.read(f.scope); expect(expired.memories).toEqual([]); expect(expired.generation).toBe(Number(before.rows[0].generation)+1);
-    const unavailable = new MemoryStore(new Pool({ connectionString:"postgresql://invalid:invalid@127.0.0.1:1/postgres",connectionTimeoutMillis:100 }));
+    const unavailable = new MemoryStore(new Pool({ connectionString:"postgresql://invalid:invalid@127.0.0.1:1/postgres",connectionTimeoutMillis:100 }), skillPackageCodec);
     try { await expect(unavailable.read(f.scope)).rejects.toBeDefined(); } finally { await unavailable.pool.end(); }
   });
   it("management HTTP routes preserve candidate/review/revision separation", async () => {

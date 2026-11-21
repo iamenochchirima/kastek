@@ -43,8 +43,7 @@ async function fixture(page: Page) {
   return requests;
 }
 async function start(page: Page) {
-  await page.goto("/app/agents");
-  await page.getByRole("button", { name: "Create agent", exact: true }).filter({ visible: true }).first().click();
+  await page.goto("/app/agents?setup=guided");
   return page.getByRole("dialog", { name: "Create agent", exact: true });
 }
 async function setSupportHours(dialog: ReturnType<Page["getByRole"]>) {
@@ -147,7 +146,7 @@ test("booking-only setup skips knowledge and closing preserves the current step"
   await expect(dialog.getByRole("heading", { name: "Where will customers use it?" })).toBeVisible();
   expect(requests.filter(request=>request.path===`${base}/agents`)).toHaveLength(1);
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
-  await page.getByRole("button", { name: "Create agent", exact: true }).filter({ visible: true }).first().click();
+  await page.goto("/app/agents?setup=guided");
   dialog = page.getByRole("dialog", { name: "Create agent", exact: true });
   await expect(dialog.getByRole("heading", { name: "Where will customers use it?" })).toBeVisible();
   await dialog.getByRole("button", { name: "Back", exact: true }).click();

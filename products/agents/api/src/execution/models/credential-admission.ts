@@ -1,4 +1,4 @@
-import { credentialReflectionVariants } from "../../capabilities/connected-tools/credential-reflection";
+import { credentialReflectionVariants } from "../../infrastructure/credential-reflection";
 
 /** Check the credential already held by the dispatcher, without exposing it to a separate service. */
 export function payloadContainsModelCredential(payload: unknown, credential: string): boolean {

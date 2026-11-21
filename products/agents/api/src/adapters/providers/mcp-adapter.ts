@@ -5,7 +5,7 @@ import type { Duplex } from "node:stream";
 import { StringDecoder } from "node:string_decoder";
 import type { NetworkAttempt } from "../../infrastructure/connected-network";
 
-export const MCP_ADAPTER_RELEASE = "mcp-read-v4-sdk2.3.1";
+export const MCP_ADAPTER_RELEASE = "mcp-read-v5-sdk2.3.1";
 export const MCP_ADAPTER_LIMITS = Object.freeze({ tools: 100, catalogBytes: 262144, schemaBytes: 32768, schemaDepth: 12, schemaNodes: 1024, resultBytes: 262144, argumentsBytes: 8192, textBytes: 8192, wallMs: 30000, cpuSeconds: 3, heapMiB: 64, addressBytes: 2147483648 });
 export interface McpEndpoint { endpoint: string; authorization?: string; protocolVersion?: "2026-07-28" | "2025-11-25"; headers?: Record<string, string>; deadlineAt: number; testLoopback?: boolean; readAttempts?: number }
 export interface McpTool { name: string; description: string; inputSchema: Record<string, unknown>; outputSchema?: Record<string, unknown>; schemaDigest: string }

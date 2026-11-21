@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ESTIMATED_BYTES_PER_TOKEN, estimatedTokensFromSerialized } from "../src/execution/context/serialized-tokens";
+import { ESTIMATED_BYTES_PER_TOKEN, estimatedTokensFromSerialized } from "../src/contracts/serialized-tokens";
 
 describe("serialized token accounting", () => {
   // Observed request sizes and provider input counts from a Growth Content conversation.

@@ -35,6 +35,27 @@ The Agents MCP transport is in [`server.ts`](../api/src/product/mcp/server.ts);
 [`app.ts`](../api/src/composition/app.ts) composes its operation handlers from the product services. Agent create, read and save operations
 share [`creation-operations.ts`](../api/src/product/agents/creation-operations.ts), which is also
 used by the management API.
+Creating an agent without a customer-service setup or explicit configuration starts a generic
+agent with no assigned tools or retained memory. Both the management API and MCP `create_agent`
+accept an optional purpose and instructions. MCP requires an operation ID for safe retries;
+the management API accepts one. Capability assignment and publication still use the existing
+configuration flow. Both entry points enforce the current workspace agent-management permission
+and agent-count entitlement at creation; retries recheck permission without consuming another slot.
+Member chat admission now uses the shared `platform/runs/member-admission.ts` operation. It pins
+the current agent version and creates the execution grant in the same transaction as the run.
+The MCP `start_agent_run` operation uses it for a signed-in workspace member and records the
+originating OAuth connection with the run. `get_agent_run` returns that connection's run state,
+public updates and result. Assigned tools use the ordinary runtime policy. MCP uses `runs:start`
+and `runs:read` independently of agent-management scopes. Separate application credentials
+still require implementation.
+With `runs:control`, the originating connection can add instructions or cancel its run and child
+work. The connection and selected-agent grant are checked again for these operations.
+Consent for `runs:start` requires choosing workspace agents. The connection can start only those
+agents, and the runtime rechecks the selection while work continues. A connection created before
+agent selection has no runnable agents and must be reauthorized.
+The operation ceiling used when issuing execution grants is shared under
+`platform/access/grant-operations.ts`. The repository boundary check rejects imports from
+`platform/` into Agents product or integration modules as those platform modules are migrated.
 Agents adds revision-pinned signed-in reviews for setup changes, knowledge approval, and website
 activation. The boundary follows the shared product architecture in
 [`agent-platform-architecture.md`](./architecture/agent-platform-architecture.md).
@@ -44,6 +65,8 @@ When `AGENTS_MCP_ENABLED=true`, the standalone API exposes `/mcp` and OAuth disc
 authorization code with PKCE, account consent, an organization selection and revocable scoped
 connections. Users can remove their own connections in Settings. MCP requests recheck membership;
 long-running imports also retain their originating connection and recheck it before further work.
+The shared runtime authority check also rechecks the originating MCP connection for a run and its
+child work, in addition to the model-call checks.
 An external request already sent to a provider cannot be recalled on revocation.
 
 The server exposes agent setup, knowledge, supported capabilities, model selection, private preview,
@@ -523,3 +546,25 @@ published grants, each physical receipt and replay without a second send;
 [api-connections.spec.ts](../web/test/api-connections.spec.ts) covers the structured editor
 and explicit read selection at 1440, 768 and 390 pixels using a mocked API transport.
 These checks do not establish a real provider's pagination or mutation semantics.
+
+## Agents MCP operation surface
+
+The MCP server exposes the same scoped operations as the application HTTP API where the
+transport supports them. OAuth scopes are `agents:read`, `agents:manage`, `agents:publish`,
+`runs:read`, `runs:start`, `runs:control` and `reviews:decide`.
+
+| Area | Operations | Scope |
+| --- | --- | --- |
+| Agent management | `list_agents`, `get_agent`, `get_agent_setup`, `agent_readiness`, `list_available_tools`, `list_available_skills` | `agents:read` |
+| Agent management | `create_agent`, `update_agent_instructions`, `update_agent_setup`, `configure_agent_capabilities`, `select_agent_model`, `attach_knowledge`, review requests | `agents:manage` |
+| Publication | `publish_agent_version`, `bind_agent_deployment` | `agents:publish` |
+| Conversations | `list_conversations`, `get_conversation` | `runs:read` |
+| Runs | `start_agent_run` | `runs:start` |
+| Runs | `get_agent_run`, `get_run_activity`, `get_pending_reviews` | `runs:read` |
+| Runs | `steer_agent_run`, `cancel_agent_run` | `runs:control` |
+| Reviews | `decide_tool_review` | `reviews:decide` |
+
+Publication and review operations recheck the OAuth connection's scopes and current
+membership in the same transaction as the operation. Run and conversation operations are
+limited to runs started by the calling connection. Error codes, idempotency keys and cursor
+semantics match the HTTP application API.

@@ -1,8 +1,8 @@
 import type {Pool} from "pg";
 import type {Execution,MemoryFence} from "../../contracts/execution";
 import {requestDigest as modelRequestDigest,type ModelRequest} from "../business/model";
-import {prepareCompaction,type ContextGroup,type ContextModelPolicy} from "./context";
-import {prepareCompactionJob,type ContinuityCheckpoint} from "./checkpoints";
+import {prepareCompaction,recentWindowTokens,type ContextGroup,type ContextModelPolicy} from "./context";
+import {prepareCompactionJob,type ContinuityCheckpoint} from "../lifecycle/checkpoints";
 import type {EvidenceStore} from "./evidence";
 import {PlatformError,requestDigest} from "../../contracts/contracts";
 
@@ -20,7 +20,7 @@ export async function planBackgroundCompaction(pool:Pool,input:{execution:Execut
   const primaryReserve={tokens:Math.min(primaryPolicy.maxInputTokens,primary.payload.estimatedTokens+primaryPolicy.safetyTokens)+primaryPolicy.maxOutputTokens,
     activeMs:primaryPolicy.maxCallDurationMs};
   const plan=prepareCompaction(groups,{model:execution.models.compaction.binding.modelId,modelPolicy:input.modelPolicy,
-    retainRecent:2,maxInputTokens:policy.maxInputTokens,maxOutputTokens:policy.maxOutputTokens,previousSummary:input.previous?.summary});
+    retainRecentTokens:recentWindowTokens(primaryPolicy.maxInputTokens),maxInputTokens:policy.maxInputTokens,maxOutputTokens:policy.maxOutputTokens,previousSummary:input.previous?.summary});
   const prefix=groups.filter(group=>plan.compactedGroupIds.includes(group.id));
   const previous=(await pool.query("SELECT id,source_groups FROM agents_platform.context_compaction_jobs WHERE task_id=$1 AND mode='background' ORDER BY created_at DESC LIMIT 1",[taskId])).rows[0];
   // A threshold oscillation cannot compact the same prefix again; new eligible groups rearm it.

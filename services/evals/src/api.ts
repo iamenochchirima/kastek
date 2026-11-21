@@ -53,6 +53,7 @@ import {
 import {
   chatWithProductAgent,
   ProductChatError,
+  productAgentActivity,
   productMessages,
 } from "./product-chat.js";
 import {
@@ -796,6 +797,20 @@ export function buildApi(
     const params = request.params as { id: string };
     const sandboxId = uuid(params.id, "id");
     return { agents: await listProductAgents(config, pool, sandboxId) };
+  });
+
+  app.get("/v1/sandboxes/:id/agents/:agentRefId/activity", async (request) => {
+    const params = request.params as { id: string; agentRefId: string };
+    const query = request.query as { taskId?: unknown };
+    return productAgentActivity(
+      config,
+      pool,
+      uuid(params.id, "id"),
+      uuid(params.agentRefId, "agentRefId"),
+      typeof query.taskId === "string" && query.taskId
+        ? uuid(query.taskId, "taskId")
+        : undefined,
+    );
   });
 
   app.post("/v1/sandboxes/:id/chat", async (request) => {

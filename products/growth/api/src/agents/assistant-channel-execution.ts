@@ -46,10 +46,10 @@ async function conversationFor(
   ).rows[0]?.conversationId;
   const created = existing
     ? null
-    : await client.command(
+    : await client.shared(
         { tenantId: grant.orgId, actor: growthAgentActor(core.config, grant.actorId) },
         "conversations.create",
-        { featureId: "assistant" },
+        { target: { kind: "product_feature", featureId: "assistant" } },
       );
   const conversationId = existing ?? created!.conversation.id;
   await core.pool.query(
@@ -83,7 +83,7 @@ export async function runGrowthAssistantChannelEvent(
   let conversationId = await conversationFor(core, grant, event, client);
   let submitted;
   try {
-    submitted = await client.command(scope, "turns.submit", { conversationId, text });
+    submitted = await client.shared(scope, "runs.start", { conversationId, message: text });
   } catch (error) {
     if (!(error instanceof Error) || !/not found|unavailable|conversation/i.test(error.message))
       throw error;
@@ -92,13 +92,13 @@ export async function runGrowthAssistantChannelEvent(
       [grant.grantId, event.externalConversationId],
     );
     conversationId = await conversationFor(core, grant, event, client);
-    submitted = await client.command(scope, "turns.submit", { conversationId, text });
+    submitted = await client.shared(scope, "runs.start", { conversationId, message: text });
   }
   let task = submitted.task;
   const deadline = Date.now() + 60_000;
   while (!TERMINAL_TASK_STATES.has(task.state) && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 1_000));
-    task = (await client.command(scope, "tasks.get", { taskId: task.id })).task;
+    task = (await client.shared(scope, "runs.get", { taskId: task.id })).task;
   }
   if (task.state === "waiting_review") {
     await sendGrowthAgentChannelMessage(

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import {
+canonicalJson,
 executionGrantSchema,
 PlatformError,
 type AdmissionAuthority,
@@ -8,11 +9,12 @@ type ExecutionGrant
 } from "../../contracts/contracts";
 
 import { transaction } from "../../infrastructure/database";
-import { assertAutomationAdmission } from "../lifecycle/automation-authority";
+import { assertAutomationAdmission, resolveAutomationOwner } from "../lifecycle/automation-authority";
 import { assertChannelCustomerAuthority } from "./channel-authority";
 import { assertProductAuthority } from "./product-authority";
+import { assertApplicationAuthority, assertApplicationHistoryAccess } from "./application-authority";
 
-import type { Account,VersionRecord,WebsiteDeployment } from "../../contracts/records";
+import type { Account,TaskRecord,VersionRecord,WebsiteDeployment } from "../../contracts/records";
 
 type Db=Pool|PoolClient;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -46,19 +48,31 @@ export class AuthorityStore {
   }
   protected async insertGrant(db: Db, grant: ExecutionGrant): Promise<ExecutionGrant> {
     await db.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,
-      version_id,operations,max_input_bytes,max_output_tokens,expires_at,revoked_at,max_context_tokens,root_token_limit,source_revision_ids,connected_tool_binding_ids)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`, [grant.id, grant.product, grant.organizationId, grant.resourceId,
+      version_id,operations,max_input_bytes,max_output_tokens,expires_at,revoked_at,max_context_tokens,root_token_limit,source_revision_ids,connected_tool_binding_ids,application_credential_id)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`, [grant.id, grant.product, grant.organizationId, grant.resourceId,
       grant.callerClientId, grant.principal, grant.versionId, JSON.stringify(grant.operations),
-      grant.maxInputBytes, grant.maxOutputTokens, grant.expiresAt, grant.revokedAt, grant.maxContextTokens, grant.rootTokenLimit, grant.sourceRevisionIds, grant.connectedToolBindingIds]);
+      grant.maxInputBytes, grant.maxOutputTokens, grant.expiresAt, grant.revokedAt, grant.maxContextTokens, grant.rootTokenLimit, grant.sourceRevisionIds, grant.connectedToolBindingIds, grant.applicationCredentialId]);
     return grant;
   }
-  protected async assertPrincipal(db: Db, authority: AdmissionAuthority, version: VersionRecord, options: { currentDeployment?: boolean } = {}): Promise<void> {
+  async getTask(authority: AdmissionAuthority, taskId: string): Promise<TaskRecord> {
+    return this.transaction(async (db) => {
+      const task = (await db.query<TaskRecord>("SELECT * FROM agents_platform.tasks WHERE id=$1 AND organization_id=$2", [taskId, authority.organizationId])).rows[0] ?? absent();
+      if (task.product !== authority.product || task.resource_id !== authority.resourceId || task.caller_client_id !== authority.callerClientId || canonicalJson(task.principal) !== canonicalJson(authority.principal)) denied();
+      if(authority.principal.kind==="automation")await resolveAutomationOwner(db,authority.organizationId,authority.principal);
+      else await this.assertPrincipal(db, authority, await this.version(db, authority.organizationId, task.version_id));
+      return task;
+    });
+  }
+  protected async assertPrincipal(db: Db, authority: AdmissionAuthority, version: VersionRecord, options: { currentDeployment?: boolean; applicationCredentialId?: string | null } = {}): Promise<void> {
     if (authority.product !== "agents") return assertProductAuthority(db,authority,version.id);
     if (authority.principal.kind === "human") {
       if (authority.callerClientId !== "agents-execution" || authority.resourceId !== version.agent_id) denied();
       const account = (await db.query<Account>("SELECT * FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2", [authority.principal.issuer, authority.principal.subject])).rows[0];
       if (!account) denied();
       await this.membership(db, account.id, authority.organizationId);
+    } else if (authority.principal.kind === "application") {
+      if (options.applicationCredentialId !== undefined) await assertApplicationAuthority(db, authority, version.agent_id, options.applicationCredentialId);
+      else await assertApplicationHistoryAccess(db, authority, version.agent_id);
     } else if (authority.principal.kind === "visitor") {
       if (authority.callerClientId !== "agents-website" || authority.resourceId !== authority.principal.deploymentId) denied();
       const deployment = (await db.query<WebsiteDeployment>("SELECT * FROM agents_platform.website_deployments WHERE organization_id=$1 AND id=$2 AND revoked_at IS NULL AND paused=false FOR SHARE", [authority.organizationId, authority.principal.deploymentId])).rows[0];

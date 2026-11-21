@@ -2,6 +2,18 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AlertTriangle, Check, CircleHelp, Clock, Search, X } from "lucide-react";
 import type { AgentModelCatalogue } from "../../shared/types";
 
+const PROVIDER_NAMES: Record<string, string> = {
+  anthropic: "Anthropic",
+  google: "Google",
+  openai: "OpenAI",
+  opencode: "OpenCode",
+  openrouter: "OpenRouter",
+};
+
+export function providerName(id: string) {
+  return PROVIDER_NAMES[id] ?? id.charAt(0).toUpperCase() + id.slice(1);
+}
+
 export function StatusBadge({ status }: { status: string }) {
   const tone =
     status === "passed" || status === "completed" || status === "submitted" || status === "ready" || status === "complete" ? "passed" :
@@ -171,6 +183,7 @@ export function ModelPickerDialog({
 }) {
   const [search, setSearch] = useState("");
   const [pending, setPending] = useState(selected);
+  const [provider, setProvider] = useState("all");
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !saving) onClose();
@@ -182,15 +195,28 @@ export function ModelPickerDialog({
   const term = search.trim().toLowerCase();
   const matches = (label: string, detail: string) =>
     !term || `${label} ${detail}`.toLowerCase().includes(term);
+  const providers = [...new Set(catalogue.models.map((model) => model.provider))].sort();
+  const activeProvider = providers.includes(provider) ? provider : "all";
   const defaultLabel = catalogue.defaultModel?.label ?? "Default";
-  const defaultVisible = matches(`${defaultLabel} default`, "organization default");
-  const groups = [...new Set(catalogue.models.map((model) => model.provider))]
-    .sort()
-    .map((provider) => ({
-      provider,
-      models: catalogue.models.filter((model) =>
-        model.provider === provider && matches(model.label, `${model.modelId} ${provider}`)),
-    }))
+  const defaultVisible = matches(`${defaultLabel} default`, "organization default")
+    && (activeProvider === "all" || catalogue.defaultModel?.provider === activeProvider);
+  const visibleProviders = activeProvider === "all" ? providers : [activeProvider];
+  const groups = visibleProviders
+    .map((id) => {
+      const models = catalogue.models.filter(
+        (model) => model.provider === id && matches(model.label, `${model.modelId} ${id}`),
+      );
+      const connectionIds = [...new Set(models.map((model) => model.connectionId))];
+      return {
+        provider: id,
+        models,
+        connections: connectionIds.map((connectionId) => ({
+          connectionId,
+          label: models.find((model) => model.connectionId === connectionId)?.connectionLabel ?? connectionId,
+          models: models.filter((model) => model.connectionId === connectionId),
+        })),
+      };
+    })
     .filter((group) => group.models.length > 0);
   return (
     <div
@@ -222,6 +248,32 @@ export function ModelPickerDialog({
               disabled={saving}
             />
           </div>
+          <div className="provider-chips" role="group" aria-label="Filter by provider">
+            <button
+              type="button"
+              className={`provider-chip${activeProvider === "all" ? " selected" : ""}`}
+              aria-pressed={activeProvider === "all"}
+              onClick={() => setProvider("all")}
+              disabled={saving}
+            >
+              All
+            </button>
+            {providers.map((id) => (
+              <button
+                type="button"
+                key={id}
+                className={`provider-chip${activeProvider === id ? " selected" : ""}`}
+                aria-pressed={activeProvider === id}
+                onClick={() => setProvider(id)}
+                disabled={saving}
+              >
+                {providerName(id)}
+                <span className="provider-chip-count">
+                  {catalogue.models.filter((model) => model.provider === id).length}
+                </span>
+              </button>
+            ))}
+          </div>
           <div className="model-list">
             {defaultVisible && (
               <button
@@ -231,31 +283,41 @@ export function ModelPickerDialog({
                 disabled={saving}
               >
                 <span className="model-option-main">
-                  <strong>{defaultLabel}</strong>
+                  <strong>Organization default</strong>
+                  {catalogue.defaultModel && (
+                    <span className="model-option-detail">{catalogue.defaultModel.label}</span>
+                  )}
                 </span>
                 {pending === "organization_default" && <Check size={16} />}
               </button>
             )}
             {groups.map((group) => (
               <div className="model-group" key={group.provider}>
-                <div className="model-group-label">{group.provider}</div>
-                {group.models.map((model) => {
-                  const value = optionValue(model.connectionId, model.modelId);
-                  return (
-                    <button
-                      type="button"
-                      className={`model-option${pending === value ? " selected" : ""}`}
-                      key={value}
-                      onClick={() => setPending(value)}
-                      disabled={saving}
-                    >
-                      <span className="model-option-main">
-                        <strong>{model.label}</strong>
-                      </span>
-                      {pending === value && <Check size={16} />}
-                    </button>
-                  );
-                })}
+                <div className="model-group-label">{providerName(group.provider)}</div>
+                {group.connections.map((connection) => (
+                  <div className="model-connection" key={connection.connectionId}>
+                    {group.connections.length > 1 && (
+                      <div className="model-connection-label">{connection.label}</div>
+                    )}
+                    {connection.models.map((model) => {
+                      const value = optionValue(model.connectionId, model.modelId);
+                      return (
+                        <button
+                          type="button"
+                          className={`model-option${pending === value ? " selected" : ""}`}
+                          key={value}
+                          onClick={() => setPending(value)}
+                          disabled={saving}
+                        >
+                          <span className="model-option-main">
+                            <strong>{model.label}</strong>
+                          </span>
+                          {pending === value && <Check size={16} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
             ))}
             {!defaultVisible && groups.length === 0 && (

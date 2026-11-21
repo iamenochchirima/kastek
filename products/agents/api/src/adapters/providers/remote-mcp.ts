@@ -10,9 +10,9 @@ import { StringDecoder } from "node:string_decoder";
 import { preflightToolSchema,remoteTargetSchema,type RemoteMcpTarget } from "../../contracts/capability-catalog";
 import { requestDigest } from "../../contracts/contracts";
 import { publicAddress, type NetworkAttempt } from "../../infrastructure/connected-network";
-import { credentialReflectionVariants } from "../../capabilities/connected-tools/credential-reflection";
+import { credentialReflectionVariants } from "../../infrastructure/credential-reflection";
 
-export const REMOTE_MCP_RELEASE = "remote-mcp-v1-sdk2.3.1-content1";
+export const REMOTE_MCP_RELEASE = "remote-mcp-v2-sdk2.3.1-content1";
 export const REMOTE_MCP_LIMITS = Object.freeze({ tools: 500, inventoryEntries: 500, catalogBytes: 2_097_152,
   pages: 32, schemaBytes: 32768, argumentsBytes: 65536, resultBytes: 2_097_152,
   requestBytes: 131072, requests: 128, wallMs: 30_000, cpuSeconds: 5, heapMiB: 96, addressBytes: 2_147_483_648 });

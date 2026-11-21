@@ -25,7 +25,7 @@ test("Growth active instructions and continuation retain signed scope, input bou
     const claims = await jwtVerify(token, keys.publicKey, { issuer: "https://growth.kasitek.co.za", audience: "agents-product-api" });
     assert.equal(claims.payload.sub, "growth-api");
     forwarded.push(command);
-    return Response.json(command.operation === "tasks.instructions" ? { accepted: true } : { task: { id: "task", state: "working" } });
+    return Response.json(command.operation === "runs.steer" ? { accepted: true } : { task: { id: "task", state: "working" } });
   } })]);
   try {
     const input = { requestId: "stable-instruction", instruction: "Focus on the evidence" };
@@ -35,11 +35,11 @@ test("Growth active instructions and continuation retain signed scope, input bou
       assert.equal(response.statusCode, 200, response.body); assert.deepEqual(response.json(), { accepted: true });
     }
     assert.deepEqual(forwarded[0], forwarded[1]);
-    assert.deepEqual(forwarded[0], { version: "1", requestId: input.requestId, tenantId: "business", actor, operation: "tasks.instructions", input: { taskId: "task", instruction: input.instruction } });
+    assert.deepEqual(forwarded[0], { version: "1", requestId: input.requestId, product: "growth", tenantId: "business", actor, operation: "runs.steer", input: { taskId: "task", instruction: input.instruction } });
     assert.equal((await app.inject({ method: "POST", url: "/api/agents/tasks/task/instructions", headers: { origin }, payload: { ...input, instruction: "x".repeat(4001) } })).statusCode, 400);
     assert.equal((await app.inject({ method: "POST", url: "/api/agents/tasks/task/instructions", headers: { origin }, payload: { ...input, actor: "another" } })).statusCode, 400);
     const resumed = await app.inject({ method: "POST", url: "/api/agents/tasks/task/continue", headers: { origin }, payload: { requestId: "continue-request" } });
-    assert.equal(resumed.statusCode, 200, resumed.body); assert.equal(forwarded.at(-1)?.operation, "tasks.continue");
+    assert.equal(resumed.statusCode, 200, resumed.body); assert.equal(forwarded.at(-1)?.operation, "runs.continue");
     member = false;
     assert.equal((await app.inject({ method: "POST", url: "/api/agents/tasks/task/continue", headers: { origin }, payload: { requestId: "denied" } })).statusCode, 403);
     assert.equal(forwarded.length, 3);
@@ -124,7 +124,7 @@ test("Growth specialist inspection bounds output and requires current root scope
   const core = { config: readConfig({ DATABASE_URL: "postgres://unused", LOG_LEVEL: "silent", FRONTEND_URL: origin, AGENTS_PRODUCT_API_URL: "https://agents.example.test", GROWTH_AGENTS_SIGNING_PRIVATE_KEY: privateKey }), pool: { query, connect: async () => ({ query, release() {} }) } } as unknown as CoreContext;
   const roots: string[] = [];
   const app = await buildApp(core, [(app, core) => registerGrowthAgentRoutes(app, core, { resolveScope: async () => ({ tenantId: "business", actor }), fetch: async (_url, init) => {
-    const command = JSON.parse(String(init?.body)); assert.equal(command.operation, "tasks.observe"); roots.push(command.input.taskId);
+    const command = JSON.parse(String(init?.body)); assert.equal(command.operation, "runs.activity"); roots.push(command.input.taskId);
     if (command.input.taskId !== "root") return Response.json({ error: "Task unavailable", code: "TASK_MISSING" }, { status: 404 });
     const child=command.input.childTaskId;
     if(child==="missing")return Response.json({ error: "Task unavailable", code: "TASK_MISSING" }, { status: 404 });

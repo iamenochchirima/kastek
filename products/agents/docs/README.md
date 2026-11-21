@@ -33,17 +33,31 @@ passed with MiniMax M3.1 Flash on21 October2026. Other provider accounts were no
 account compatibility. See [implementation boundaries](source-boundary.md) for
 operator limits, verification scope, and remaining work.
 
-Owner: Agents engineering. Last reviewed: 2026-11-12.
+Owner: Agents engineering. Last reviewed: 2026-11-20.
 
-The standalone product offers a customer-service agent with selectable question answering, support,
-booking and enquiry responsibilities across customer channels, with a shared inbox for staff
-support. Research and campaign experiences belong in Growth or Agencies. The [product boundary and inbox contract](architecture/agent-platform-architecture.md#standalone-agents-product)
-define that scope. Website Inbox, assignment, human replies, takeover and explicit return to automation
-are implemented. Google Calendar booking is implemented through explicit owner policy and exact customer confirmation.
+The standalone product creates an agent from a name, one job template (Answer questions,
+Customer support, Bookings or Enquiries) or a Custom mix of those jobs, and optional website or
+document knowledge. Purpose, instructions, identity, model and every other capability use
+defaults and remain editable after creation. A canceled creation leaves a resumable draft.
+The Capabilities page shows **What it does** for setup agents alongside **Platform capabilities**
+for tools, knowledge, memory, human handoff, delegation, workflows and skills. Schedules, code
+execution and browser use are listed as unavailable. Website crawling requires a configured
+crawler; document upload and Skip work without one. Existing customer-service agents retain their
+selectable question answering, support, booking and enquiry responsibilities across customer
+channels, with a shared inbox for staff support. Research and campaign experiences belong in
+Growth or Agencies. The [product boundary and inbox contract](architecture/agent-platform-architecture.md#standalone-agents-product)
+defines that scope. Website Inbox, assignment, human replies, takeover and explicit return to
+automation are implemented. Google Calendar booking is implemented through explicit owner policy
+and exact customer confirmation.
 An opt-in Agents MCP server lets authorized external assistants create and configure agents, add
 website knowledge, preview privately, customize a widget, and request signed-in review before
 activation. It uses Agents organization grants; Growth's operation catalogue and permissions remain
 separate.
+Workspace owners can also issue application credentials for the
+[application API](application-api.md), including runs, run events and conversation continuation.
+The Platform capabilities cards link to the existing tools, knowledge, memory, handoff,
+delegation, workflow and skills configuration. Delegation currently requires assigned published
+agents; temporary general-purpose children are not yet supported by this interface.
 Deploy on an Agent starts and manages that Agent's social channel connections. The global
 Connections page reflects connected provider accounts. Website installation and appearance are
 managed under Chat widget.
@@ -62,6 +76,8 @@ implementation and boundaries:
 - [Platform interface](../README.md#platform-interface): landing, chat, history, task review and management navigation.
 
 - [Platform architecture](architecture/agent-platform-architecture.md): target contracts and execution categories.
+- [Platform inventory](architecture/platform-inventory.md): current HTTP, runtime and persisted surface with owners, callers and change targets.
+- [Consumer retirement](architecture/consumer-retirement.md): surfaces to remove once their replacement serves the last caller.
 - [Adaptive orchestration](operations/adaptive-orchestration.md): specialist discovery, background work, follow-up, progress and release controls.
 - [Context management](operations/context-management.md): retained originals, request manifests, background compaction and exact recovery.
 - [Shared runtime operations](operations/shared-runtime.md): current retained copies, failure investigation, disable and restore boundaries.
@@ -73,6 +89,7 @@ implementation and boundaries:
 - [Workspace members](operations/workspace-members.md): owner/admin/member roles, permissions, invitations, email configuration and member management.
 - [Enquiry outcomes](operations/enquiry-outcomes.md): website visitor confirmation, customer-record projection and outcome references.
 - [Sandbox workspace bootstrap](operations/sandbox-bootstrap.md): product-owned owner/workspace bootstrap for a fresh evaluation sandbox.
+- [Application connections](application-connections.md): sharing a connection owner's read access with application runs.
 - [Integration boundaries](mcp-integration.md): outbound read adapters, provider acceptance gates and future product connections.
 - [Threat model](THREAT_MODEL.md): enforced controls and release limits.
 

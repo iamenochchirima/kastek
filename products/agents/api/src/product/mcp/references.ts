@@ -2,7 +2,7 @@ import {randomUUID} from "node:crypto";
 import type {Pool} from "pg";
 import {PlatformError} from "../../contracts/contracts";
 
-const single=new Set(["id","agentId","sourceId","revisionId","connectionId","crawlId","taskId","reviewId","deploymentId","importJobId","jobId","modelId","versionId","bindingId","snapshotId","organizationId","accountId"]);
+const single=new Set(["id","agentId","sourceId","revisionId","connectionId","conversationId","crawlId","taskId","reviewId","deploymentId","importJobId","jobId","modelId","versionId","bindingId","snapshotId","organizationId","accountId"]);
 const many=new Set(["sourceRevisionIds","connectedToolBindingIds","skillIds","pageIds"]);
 const internal=/^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|[0-9a-f]{64})$/i;
 const handle=/^ref_([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;

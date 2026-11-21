@@ -1,5 +1,5 @@
 import type { ProductCapabilityManifest } from "./product-capabilities.js";
-import type { GrowthAgentObservation, GrowthAgentTask, GrowthAgentMessage } from "./growth-agents.js";
+import type { ProductAgentObservation, ProductAgentTask, ProductAgentMessage } from "./product-agent-shared.js";
 import { isMemoryAssertion, type MemoryAssertion } from "./agent-memory.js";
 
 export const AGENCY_AGENT_COMMAND_PATH = "/internal/v1/products/agencies/commands";
@@ -8,8 +8,8 @@ export interface AgencyAgentModelConfiguration {
   version:"1"; operation:"model.configure"; requestId:string; tenantId:string; clientId:string;
   actor:{issuer:string;subject:string}; input:{providerId:string;modelId:string;apiKey:string;endpoint?:string};
 }
-export type AgencyAgentTask = GrowthAgentTask;
-export type AgencyAgentObservation = GrowthAgentObservation;
+export type AgencyAgentTask = ProductAgentTask;
+export type AgencyAgentObservation = ProductAgentObservation;
 export interface AgencyAgentConversation {
   id: string; clientId: string; title: string; createdAt: string; updatedAt: string;
 }
@@ -39,7 +39,7 @@ export type AgencyAgentCommand<K extends AgencyAgentOperation = AgencyAgentOpera
   actor: { issuer: string; subject: string }; operation: K; input: AgencyAgentCommandInputs[K];
 } : never;
 export interface AgencyAgentHistory {
-  conversation: AgencyAgentConversation; messages: GrowthAgentMessage[]; tasks: AgencyAgentTask[]; nextCursor: string | null;
+  conversation: AgencyAgentConversation; messages: ProductAgentMessage[]; tasks: AgencyAgentTask[]; nextCursor: string | null;
 }
 export class AgencyAgentContractError extends Error {}
 

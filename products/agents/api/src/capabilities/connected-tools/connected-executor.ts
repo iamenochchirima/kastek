@@ -13,7 +13,8 @@ import { ExecutableAdapterRegistry,capabilityBindingSchema,createCatalog,digestT
 import type { ActionScope,ConnectionCredentialPort } from "../../contracts/connections";
 import { isCustomerPrincipal,PlatformError,requestDigest } from "../../contracts/contracts";
 import { assertCustomerNativeBindings } from "./customer-native-policy";
-import { containsConnectorCredential } from "./credential-reflection";
+import { applicationConnectionCustodian } from "./application-connection-authority";
+import { containsConnectorCredential } from "../../infrastructure/credential-reflection";
 import { retainedSecurityOverlayManifests } from "./retained-security-overlays";
 import {channelPorts} from "../../infrastructure/channel-ports";
 import { textDigest } from "../../contracts/source-contracts";
@@ -58,7 +59,7 @@ export class ConnectedExecutor {
  readonly nativeAdapter;readonly mcpAdapter;readonly stashAdapter;readonly publicMcpAdapter;readonly remoteMcpAdapter;readonly nativeApiAdapter;readonly nativeProviderAdapter;
  constructor(readonly pool:Pool,readonly connections:ConnectionCredentialPort,readonly objects:PrivateObjectStore,readonly evidence:EvidenceStore,private readonly options:ConnectedExecutorOptions={}){
   const extension=extname(__filename),modules=[
-    ["connected-executor","./connected-executor"],["connected-tool-schema","./connected-tool-schema"],["credential-reflection","./credential-reflection"],["retained-security-overlays","./retained-security-overlays"],
+    ["connected-executor","./connected-executor"],["application-connection-authority","./application-connection-authority"],["connected-tool-schema","./connected-tool-schema"],["credential-reflection","../../infrastructure/credential-reflection"],["retained-security-overlays","./retained-security-overlays"],
     ["connected-network","../../infrastructure/connected-network"],["github-adapter","../../adapters/providers/github-adapter"],
     ["github-mcp-file","../../adapters/providers/github-mcp-file"],["stash-adapter","../../adapters/providers/stash-adapter"],
     ["mcp-adapter","../../adapters/providers/mcp-adapter"],["adapter-process","../../adapters/providers/adapter-process"],
@@ -69,7 +70,7 @@ export class ConnectedExecutor {
   this.nativeAdapter=this.registry.register({schemaVersion:1,id:"github-native-read",release:GITHUB_ADAPTER_RELEASE,executableDigest,transports:["native_http"],protocolVersions:[],boundedSchemaValidation:true},this);
   this.mcpAdapter=this.registry.register({schemaVersion:1,id:"github-mcp-read",release:MCP_ADAPTER_RELEASE,executableDigest,transports:["mcp_http"],protocolVersions:["2026-07-28","2025-11-25"],boundedSchemaValidation:true},this);
   this.stashAdapter=this.registry.register({schemaVersion:1,id:"stash-mcp-read",release:STASH_ADAPTER_RELEASE,executableDigest,transports:["mcp_http"],protocolVersions:["2026-07-28","2025-11-25"],boundedSchemaValidation:true},this);
-  this.publicMcpAdapter=this.registry.register({schemaVersion:1,id:"deepwiki-mcp-read",release:"public-repository-read-v1",executableDigest,transports:["mcp_http"],protocolVersions:["2026-07-28","2025-11-25"],boundedSchemaValidation:true},this);
+  this.publicMcpAdapter=this.registry.register({schemaVersion:1,id:"deepwiki-mcp-read",release:"public-repository-read-v2",executableDigest,transports:["mcp_http"],protocolVersions:["2026-07-28","2025-11-25"],boundedSchemaValidation:true},this);
   this.remoteMcpAdapter=this.registry.register(remoteMcpAdapterManifest(),this);
   this.nativeApiAdapter=this.registry.register(nativeApiAdapterManifest(),this);
   this.nativeProviderAdapter=this.registry.register(nativeProviderAdapterManifest(),this);
@@ -124,7 +125,7 @@ export class ConnectedExecutor {
   const execution=await loadExecution(db,taskId);await assertCurrentAuthority(db,execution);
   if(!binding.connection||binding.organizationId!==execution.task.organization_id||!execution.configuration.connectedToolBindingIds.includes(binding.id)||!connectedProviderOperationAllowed(binding.connection.profileId,binding.transport,binding.definition.providerOperation))throw denied();
   const principal=execution.task.principal;
-  const accountId=isCustomerPrincipal(principal)?(await assertCustomerNativeBindings(db,execution.task.organization_id,[binding.id]))[0]?.ownerAccountId:principal.kind==="automation"?principal.ownerAccountId:principal.kind==="human"?(await db.query("SELECT id FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2",[principal.issuer,principal.subject])).rows[0]?.id:null;
+  const accountId=isCustomerPrincipal(principal)?(await assertCustomerNativeBindings(db,execution.task.organization_id,[binding.id]))[0]?.ownerAccountId:principal.kind==="application"?await applicationConnectionCustodian(db,execution,binding):principal.kind==="automation"?principal.ownerAccountId:principal.kind==="human"?(await db.query("SELECT id FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2",[principal.issuer,principal.subject])).rows[0]?.id:null;
   if(!accountId)throw denied();
   const grant=(await db.query("SELECT operations,connected_tool_binding_ids FROM agents_platform.execution_grants WHERE id=$1",[execution.task.grant_id])).rows[0];
   const operation=["remote-mcp-v1","custom-api-v1","hubspot-contacts-v1"].includes(binding.connection.profileId)&&binding.policy.effect==="reviewed_write"?"connected.execute":"connected.read";

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Bot, Plus, X } from "lucide-react";
 import type { AgentProfileDetail, AgentProfileSpec, AgentSetupStep, AgentTargetType, AgentTemplate } from "../../../shared/types";
 import { api, errorMessage, formatDate, shortId } from "../api";
 import { EmptyState, ErrorBox, Loading, StatusBadge } from "../components";
+import { configFieldSummary } from "../data/agent-config-catalogue";
 
 const responsibilityOptions: Array<{
   id: AgentProfileSpec["responsibilities"][number];
@@ -31,6 +32,7 @@ export function AgentProfilesPanel({
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [applying, setApplying] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"form" | "table">("form");
   const notified = useRef(new Set<string>());
   const defaultForm = {
     targetType: "business_agent" as AgentTargetType,
@@ -54,6 +56,7 @@ export function AgentProfilesPanel({
     setForm(defaultForm);
     setTemplateKey("");
     setFormError(null);
+    setViewMode("form");
     setOpen(true);
   }
 
@@ -73,6 +76,7 @@ export function AgentProfilesPanel({
       setupJson: JSON.stringify(spec.setup ?? {}, null, 2),
     });
     setFormError(null);
+    setViewMode("form");
     setOpen(true);
   }
 
@@ -190,7 +194,7 @@ export function AgentProfilesPanel({
           body: JSON.stringify({ idempotencyKey: crypto.randomUUID() }),
         });
       } catch (value) {
-        setError(`Profile saved, but setup could not start: ${errorMessage(value)}`);
+        setError(`Agent saved, but setup could not start: ${errorMessage(value)}`);
       }
       setRefresh((value) => value + 1);
     } catch (value) {
@@ -248,24 +252,72 @@ export function AgentProfilesPanel({
     });
   }
 
+  function renderTable() {
+    const row = (field: string, summary: string, value: ReactNode) => (
+      <tr key={field}>
+        <th scope="row">{field}</th>
+        <td className="profile-config-summary">{summary}</td>
+        <td>{value}</td>
+      </tr>
+    );
+    return (
+      <table className="profile-config-table">
+        <thead><tr><th scope="col">Field</th><th scope="col">What it controls</th><th scope="col">Value</th></tr></thead>
+        <tbody>
+          {!editingProfileId && row("Template", "Starts the form from a saved preset. You can edit every value before creating.", (
+            <select className="select" value={templateKey} onChange={(event) => selectTemplate(event.target.value)} disabled={creating}>
+              <option value="">Start from scratch</option>
+              {templates.map((template) => <option key={template.key} value={template.key}>{template.name}</option>)}
+            </select>
+          ))}
+          {selectedTemplate && <tr><td colSpan={3} className="profile-config-hint">{selectedTemplate.description}</td></tr>}
+          {templateError && <tr><td colSpan={3}><ErrorBox message={templateError} /></td></tr>}
+          {row("Target", configFieldSummary("Target"), (
+            <select className="select" value={form.targetType} onChange={(event) => { setTemplateKey(""); setForm((current) => ({ ...current, targetType: event.target.value as AgentTargetType, agentName: event.target.value === "platform_assistant" ? "Assistant" : "Customer support", responsibilities: event.target.value === "platform_assistant" ? ["answer-questions"] : ["answer-questions", "customer-support", "bookings"] })); }} disabled={creating}>
+              <option value="business_agent">New business agent</option>
+              <option value="platform_assistant">Platform Assistant</option>
+            </select>
+          ))}
+          {form.targetType === "business_agent" && row("Agent kind", "Customer service uses the product offering and setup; custom merges advanced configuration over the Assistant draft.", (
+            <select className="select" value={form.offering} onChange={(event) => { setTemplateKey(""); setForm((current) => ({ ...current, offering: event.target.value as "customer-service" | "custom" })); }} disabled={creating}>
+              <option value="customer-service">Customer service offering</option>
+              <option value="custom">Custom configuration</option>
+            </select>
+          ))}
+          {row("Name", configFieldSummary("Name"), <input className="input" value={form.agentName} onChange={(event) => setForm((current) => ({ ...current, agentName: event.target.value }))} disabled={creating} />)}
+          {row("Instructions", configFieldSummary("Instructions"), <textarea className="textarea" value={form.instructions} onChange={(event) => setForm((current) => ({ ...current, instructions: event.target.value }))} disabled={creating} />)}
+          {row("Knowledge title", configFieldSummary("Knowledge sources"), <input className="input" value={form.knowledgeTitle} onChange={(event) => setForm((current) => ({ ...current, knowledgeTitle: event.target.value }))} disabled={creating} />)}
+          {row("Knowledge content", configFieldSummary("Knowledge uploads"), <textarea className="textarea" value={form.knowledgeContent} onChange={(event) => setForm((current) => ({ ...current, knowledgeContent: event.target.value }))} disabled={creating} placeholder="Policy, FAQs or service details" />)}
+          {row("Responsibilities", configFieldSummary("Responsibilities"), (
+            <div className="profile-config-checks">{responsibilityOptions.map((item) => <label className="check-row" key={item.id}><input type="checkbox" checked={form.responsibilities.includes(item.id)} onChange={() => toggleResponsibility(item.id)} disabled={creating || (form.targetType === "platform_assistant" && item.id !== "answer-questions")} /><span>{item.label}</span></label>)}</div>
+          ))}
+          {row("Model", configFieldSummary("Model"), <span className="field-hint">Workspace default; resolved when the profile is applied.</span>)}
+          {form.targetType === "business_agent" && row("Advanced configuration", "Raw AgentConfiguration overrides for tools, memory, context, program, skills, capabilities, retrieval and product bindings. Channels are excluded.", <textarea className="textarea mono json-editor" value={form.configurationJson} onChange={(event) => setForm((current) => ({ ...current, configurationJson: event.target.value }))} disabled={creating} spellCheck={false} />)}
+          {form.targetType === "business_agent" && form.offering === "customer-service" && row("Customer-service setup", "Business, booking, intake, support hours and behaviour overrides. Channels are forced empty.", <textarea className="textarea mono json-editor" value={form.setupJson} onChange={(event) => setForm((current) => ({ ...current, setupJson: event.target.value }))} disabled={creating} spellCheck={false} />)}
+          {row("Channels", "Channels are deferred in Evals. They are not configured in a sandbox profile.", <span className="field-hint">Deferred</span>)}
+        </tbody>
+      </table>
+    );
+  }
+
   if (error && !profiles) return <ErrorBox message={error} />;
-  if (!profiles) return <Loading label="Loading agent profiles" />;
+  if (!profiles) return <Loading label="Loading agents" />;
 
   return (
     <>
       <section className="panel">
         <div className="panel-head">
           <div>
-            <h2>Agent profiles</h2>
-            <p className="muted">Configure a published agent through normal Agents APIs.</p>
+            <h2>Agents</h2>
+            <p className="muted">Create, configure and publish agents through normal Agents APIs.</p>
           </div>
           <button className="button" onClick={openCreate}>
-            <Plus size={15} /> New profile
+            <Plus size={15} /> New agent
           </button>
         </div>
         {error && <ErrorBox message={error} />}
         {profiles.length === 0 ? (
-          <EmptyState title="No agent profiles" description="Create a profile to configure and publish an agent." />
+          <EmptyState title="No agents yet" description="Create an agent to configure and publish it." />
         ) : (
           <div className="card-grid">
             {profiles.map((profile) => {
@@ -282,7 +334,7 @@ export function AgentProfilesPanel({
                     {profile.targetType === "platform_assistant" ? "Platform Assistant" : "Business agent"}
                   </p>
                   <div className="kv compact">
-                    <div><span>Profile</span><code>v{profile.currentVersion}</code></div>
+                    <div><span>Version</span><code>v{profile.currentVersion}</code></div>
                     <div><span>Updated</span><code>{formatDate(profile.updatedAt)}</code></div>
                     {run && <div><span>Run</span><code className="mono">{shortId(run.id)}</code></div>}
                   </div>
@@ -320,12 +372,17 @@ export function AgentProfilesPanel({
             <div className="modal-head">
               <div>
                 <div className="eyebrow">Agent setup</div>
-                <h2 id="agent-profile-title">{editingProfileId ? "New profile version" : "New profile"}</h2>
+                <h2 id="agent-profile-title">{editingProfileId ? "New agent version" : "New agent"}</h2>
+              </div>
+              <div className="profile-view-toggle" role="group" aria-label="Setup view">
+                <button type="button" className={viewMode === "form" ? "active" : ""} onClick={() => setViewMode("form")} disabled={creating}>Form</button>
+                <button type="button" className={viewMode === "table" ? "active" : ""} onClick={() => setViewMode("table")} disabled={creating}>Table</button>
               </div>
               <button className="icon-button" onClick={() => setOpen(false)} disabled={creating} aria-label="Close"><X size={17} /></button>
             </div>
             <form onSubmit={create}>
               <div className="modal-body">
+                {viewMode === "table" ? renderTable() : (<>
                 {!editingProfileId && (
                   <label className="field">
                     <span className="field-label">Template</span>
@@ -335,7 +392,7 @@ export function AgentProfilesPanel({
                       onChange={(event) => selectTemplate(event.target.value)}
                       disabled={creating}
                     >
-                      <option value="">Blank profile</option>
+                      <option value="">Start from scratch</option>
                       {templates.map((template) => (
                         <option key={template.key} value={template.key}>{template.name}</option>
                       ))}
@@ -454,6 +511,7 @@ export function AgentProfilesPanel({
                     )}
                   </details>
                 )}
+                </>)}
                 {formError && <ErrorBox message={formError} />}
               </div>
               <div className="modal-actions">
