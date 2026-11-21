@@ -12,6 +12,11 @@ export type MemoryAssertion = z.infer<typeof memoryAssertionSchema>;
 
 export interface MemoryScope { organizationId: string; agentId: string; principal: InitiatingPrincipal; taskId?: string }
 export interface ManagementScope { accountId: string; organizationId: string; agentId: string }
+export interface ProductMemoryManagementScope {
+  namespace: "product_actor"; product: "growth" | "agencies"; tenantId: string; organizationId: string; agentId: string;
+  actor: { issuer: string; subject: string }; clientId: string | null;
+}
+export type MemoryManagementScope = ManagementScope | ProductMemoryManagementScope;
 export interface SkillRevision { id: string; name: string; description: string; body: string; revision: number; contentDigest: string; createdAt: string;
   familyId?:string; state?:"enabled"|"disabled"|"removed"; reviewState?: "pending" | "reviewed"; package?: SkillPackage; reviewedDigest?: string }
 
@@ -36,4 +41,14 @@ export interface MemoryStorePort {
   readOne(scope: MemoryScope, memoryId: string): Promise<{ generation: number; memory: MemoryRecord }>;
   propose(scope: MemoryScope, input: { operationId: string; kind: "semantic" | "episodic"; content: string;
     sourceTaskId?: string; expiresAt?: string; assertion?: MemoryAssertion }): Promise<{ id: string }>;
+}
+
+/** Workspace-facing memory and skill operations. Callers receive no database access. */
+export interface MemoryManagementPort {
+  list(scope: MemoryManagementScope, page?: { offset?: number; limit?: number }): Promise<{ generation: number; memories: MemoryRecord[]; candidates: MemoryRecord[]; nextOffset: number | null }>;
+  proposeManaged(scope: MemoryManagementScope, input: { operationId: string; kind: "semantic" | "episodic"; content: string; sourceTaskId?: string; expiresAt?: string; assertion?: MemoryAssertion }): Promise<MemoryRecord>;
+  mutate(scope: MemoryManagementScope, memoryId: string, input: { operationId: string; expectedRevision: number; action: "accept" | "correct" | "forget"; content?: string; assertion?: MemoryAssertion }): Promise<MemoryRecord>;
+  deleteConversationSources(scope: ManagementScope, conversationId: string): Promise<{ deleted: true; taskIds: string[] }>;
+  listSkills(accountId: string, organizationId: string, agentId: string): Promise<SkillRevision[]>;
+  publishSkill(scope: ManagementScope, input: { operationId: string; name: string; description: string; body: string }): Promise<SkillRevision>;
 }
