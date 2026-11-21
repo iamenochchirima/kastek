@@ -10,7 +10,7 @@ const fixture=vi.hoisted(()=>({
 }));
 vi.mock("../src/execution/lifecycle/state",()=>({loadExecution:async()=>fixture.execution,inspectInboxOutput:async(fn:()=>Promise<unknown>)=>fn()}));
 vi.mock("../src/capabilities/support-status-v2",()=>({supportStatusV2:async()=>fixture.facts}));
-vi.mock("../src/execution/business/support-status-request",()=>({supportStatusRequest:(_execution:unknown,facts:unknown)=>({messages:[facts,"Any update?"]})}));
+vi.mock("../src/execution/business/support-status-request",()=>({supportStatusRequest:(_execution:unknown,facts:unknown)=>({messages:[facts,"Any update?"]}),supportStatusRequestForEpisode:async(_db:unknown,_execution:unknown,facts:unknown)=>({messages:[facts,"Any update?"]})}));
 vi.mock("../src/execution/context/evidence-policy",()=>({
   taskEvidenceManifest:async()=>({}), assertCurrentEvidence:async()=>{if(!fixture.evidenceAllowed){const {PlatformError}=await import("../src/contracts/contracts");throw new PlatformError("EVIDENCE_UNAVAILABLE",403,"Unavailable");}},
 }));

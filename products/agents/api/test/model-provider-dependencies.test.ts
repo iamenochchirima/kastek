@@ -52,13 +52,13 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       await pool.query("INSERT INTO agents_platform.task_model_routes(task_id,organization_id,routes,snapshot_digest) VALUES($1,$2,$3,$4)", [task, f.scope.organizationId, { primary: { binding: { connectionId: f.connection.id } } }, "a".repeat(64)]);
     }
     const first = await f.app.inject({ url: `/api/organizations/${f.scope.organizationId}/model-providers/${f.connection.id}/dependencies` });
-    expect(first.statusCode, first.body).toBe(200); expect(first.json()).toMatchObject({ total: 2, defaultModel: { modelId: "model-one" }, activeTasks: 1, uncertainTasks: 1 });
-    expect(first.json().entries.map((entry: { kind: string }) => entry.kind)).toEqual(["agent", "schedule"]); expect(first.body).not.toContain("fixture-key");
+    expect(first.statusCode, first.body).toBe(200); expect(first.json()).toMatchObject({ total: 3, defaultModel: { modelId: "model-one" }, activeTasks: 1, uncertainTasks: 1 });
+expect(first.json().entries.map((entry: { kind: string }) => entry.kind)).toEqual(["agent", "agent", "schedule"]); expect(first.body).not.toContain("fixture-key");
     for (let i = 0; i < 51; i++) await platform.createAgent({ ...f.scope, name: `Additional ${i}`, configuration: f.configuration });
     const page = (await f.app.inject({ url: `/api/organizations/${f.scope.organizationId}/model-providers/${f.connection.id}/dependencies` })).json();
-    expect(page.entries).toHaveLength(50); expect(page.total).toBe(53); expect(page.nextCursor).toBeTruthy();
+    expect(page.entries).toHaveLength(50); expect(page.total).toBe(54); expect(page.nextCursor).toBeTruthy();
     const next = (await f.app.inject({ url: `/api/organizations/${f.scope.organizationId}/model-providers/${f.connection.id}/dependencies?cursor=${encodeURIComponent(page.nextCursor)}` })).json();
-    expect(next.entries).toHaveLength(3); expect(next.nextCursor).toBeNull(); await f.app.close();
+    expect(next.entries).toHaveLength(4); expect(next.nextCursor).toBeNull(); await f.app.close();
   });
   it("reconnect alone never restores use; explicit authorization binds current connection and agent revisions", async () => {
     const f = await fixture(); await platform.createVersion({ ...f.scope, agentId: f.agent.id, expectedRevision: 1 });

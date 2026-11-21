@@ -34,7 +34,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const grant = await platform.createGrant({ accountId: account.id, grant: { ...authority, id: randomUUID(), versionId: snapshot.id,
       operations: ["model.reply"], sourceRevisionIds: [], connectedToolBindingIds: [], maxInputBytes: configuration.model.maxInputBytes,
       maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(configuration),
-      rootTokenLimit: 32000, expiresAt: new Date(Date.now() + 600000).toISOString(), revokedAt: null } });
+      rootTokenLimit: null, expiresAt: new Date(Date.now() + 600000).toISOString(), revokedAt: null } });
     const request = { authority, grantId: grant.id, versionId: snapshot.id, requestKey: randomUUID(), input: "Hello" };
     return { account, org, models, configuration, agent, snapshot, request };
   }

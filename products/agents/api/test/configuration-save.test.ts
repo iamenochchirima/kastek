@@ -32,13 +32,13 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   expect((await store.saveConfiguration({...f,configuration,expectedRevision:saved.agent.draft_revision})).snapshot.id).toBe(saved.snapshot.id);
  });
  it("republishes an accepted implicit protocol with identical settings and preserves its old pins",async()=>{
-  const f=await fixture(),pins=publishedToolBindings(f.configuration,false,new Map()),composition=compilePublishedComposition(f.configuration,[],undefined,pins);
+  const f=await fixture(),savedConfiguration=f.snapshot.configuration,pins=publishedToolBindings(savedConfiguration,false,new Map()),composition=compilePublishedComposition(savedConfiguration,[],undefined,pins);
   await pool.query("ALTER TABLE agents_platform.agent_versions DISABLE TRIGGER immutable_agent_version");
   try{await pool.query("UPDATE agents_platform.agent_versions SET tool_bindings=$2,effective_composition=$3 WHERE id=$1",[f.snapshot.id,JSON.stringify(pins),composition]);}
   finally{await pool.query("ALTER TABLE agents_platform.agent_versions ENABLE TRIGGER immutable_agent_version");}
   const saved=await store.saveConfiguration(f);
   expect(saved.snapshot.id).not.toBe(f.snapshot.id);expect(saved.agent.draft).toEqual(f.agent.draft);
-  expect(saved.snapshot.tool_bindings).toEqual(expect.arrayContaining([expect.objectContaining({name:"tools.discover",version:"2"}),expect.objectContaining({name:"history.read",version:"2"})]));
+  expect(saved.snapshot.tool_bindings).toEqual(expect.arrayContaining([expect.objectContaining({name:"tools.discover",version:"3"}),expect.objectContaining({name:"history.read",version:"2"})]));
   const original=(await pool.query("SELECT tool_bindings,effective_composition FROM agents_platform.agent_versions WHERE id=$1",[f.snapshot.id])).rows[0];
   expect(original.tool_bindings).toEqual(pins);expect(original.effective_composition).toEqual(composition);
   expect((await store.saveConfiguration({...f,expectedRevision:saved.agent.draft_revision})).snapshot.id).toBe(saved.snapshot.id);

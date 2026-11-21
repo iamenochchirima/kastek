@@ -7,7 +7,7 @@ import {defaultBusinessConfiguration,requestDigest} from '../src/contracts/contr
 import {transaction} from '../src/infrastructure/database';
 import {connectFixtureModel} from './model-fixture';
 import {dropClosedTestDatabase} from './support/database-cleanup';
-import {GrowthExecutionService} from '../src/product/integrations/growth-execution';
+import {ProductAgentExecutionService} from '../src/product/integrations/product-agent-execution';
 import type {GrowthProductRuntime} from '../src/execution/products/growth-runtime';
 import {listGrowthModels,authorizeGrowthModelSelection} from '../src/product/integrations/growth-model-selection';
 const url=process.env.AGENTS_TEST_DATABASE_URL;
@@ -44,9 +44,9 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   await pool.query("INSERT INTO agents_platform.product_execution_tenants(product,tenant_id,organization_id,client_id,issuer) VALUES('growth',$1,$2,'growth-api',$3)",[tenantId,org.id,issuer]);
   await pool.query("INSERT INTO agents_platform.product_execution_features(product,tenant_id,feature_id,organization_id,agent_id,version_id) VALUES('growth',$1,'assistant',$2,$3,$4)",[tenantId,org.id,agent.id,version.id]);
   const runtime={client:{call:async()=>({authorized:true})}} as unknown as GrowthProductRuntime;
-  const service=new GrowthExecutionService(pool,{issuer,actorIssuer:account.issuer,keys:{}},runtime);
-  const command={version:'1' as const,requestId:randomUUID(),tenantId,actor:{issuer:account.issuer,subject:account.subject},operation:'models.select' as const,
-    input:{featureId:'assistant' as const,expectedRevision:1,selection:{kind:'connection' as const,connectionId:configured.connection.id,modelId:'fixture/alternative'}}};
+  const service=new ProductAgentExecutionService(pool,{issuer,actorIssuer:account.issuer,keys:{}},runtime);
+  const command={version:'1' as const,requestId:randomUUID(),product:'growth' as const,tenantId,actor:{issuer:account.issuer,subject:account.subject},operation:'models.select' as const,
+    input:{target:{kind:'product_feature' as const,featureId:'assistant'},expectedRevision:1,selection:{kind:'connection' as const,connectionId:configured.connection.id,modelId:'fixture/alternative'}}};
   expect(await service.execute(command)).toEqual({revision:2});expect(await service.execute(command)).toEqual({revision:2});
   expect((await pool.query('SELECT count(*)::int n FROM agents_platform.agent_versions WHERE agent_id=$1',[agent.id])).rows[0].n).toBe(2);
   await expect(service.execute({...command,requestId:randomUUID()})).rejects.toMatchObject({code:'CONFIGURATION_CHANGED'});

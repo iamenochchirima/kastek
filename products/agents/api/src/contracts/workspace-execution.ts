@@ -11,7 +11,7 @@ export const workspaceExecutionRequestSchema = z.strictObject({
 }).superRefine((request, context) => {
   if (Object.values(request.models).some(route => route.binding.organizationId !== request.grant.organizationId ||
       (request.grant.rootTokenLimit !== null && (route.policy.maxRootTokens === null || route.policy.maxRootTokens > request.grant.rootTokenLimit)) || route.policy.maxInputBytes > request.grant.maxInputBytes ||
-      route.policy.maxInputTokens > request.grant.maxContextTokens || route.policy.maxOutputTokens > request.grant.maxOutputTokens)) {
+      route.policy.maxInputTokens > request.grant.maxContextTokens || (route.binding.role !== "compaction" && route.policy.maxOutputTokens > request.grant.maxOutputTokens))) {
     context.addIssue({ code: "custom", message: "Workspace model policy exceeds its execution grant" });
   }
 });

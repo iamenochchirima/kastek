@@ -42,7 +42,7 @@ export async function automationModelRoutes(db: PoolClient, authority: Admission
   for (const route of Object.values(routes)) {
     const binding = route.binding;
     if ((grant.rootTokenLimit !== null && (route.policy.maxRootTokens === null || route.policy.maxRootTokens > grant.rootTokenLimit)) || route.policy.maxInputBytes > grant.maxInputBytes ||
-        route.policy.maxInputTokens > grant.maxContextTokens || route.policy.maxOutputTokens > grant.maxOutputTokens) mismatch();
+        route.policy.maxInputTokens > grant.maxContextTokens || (binding.role !== "compaction" && route.policy.maxOutputTokens > grant.maxOutputTokens)) mismatch();
     const current = await db.query(`SELECT 1 FROM agents_platform.model_provider_connections c
       JOIN agents_platform.model_provider_use_grants g ON g.organization_id=c.organization_id AND g.connection_id=c.id
       WHERE c.id=$1 AND c.organization_id=$2 AND c.state='active' AND c.revision=$3 AND c.credential_revision=$4

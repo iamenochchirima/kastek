@@ -45,10 +45,11 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   expect(await transaction(pool,db=>f.providers.resolveCalendar(db,f.scope,shared.id,shared.policyRevision,{requireOrganizationService:true}))).toMatchObject({providerId:"microsoft-calendar",calendarId:"selected-calendar",timeZone:"Africa/Johannesburg"});
  });
  it("creates only explicitly selected HubSpot bindings and never grants an agent authority",async()=>{
-  const f=await fixture(),c=await connect(f,"hubspot",["contacts.search","contacts.create"]);expect(c.connection).toMatchObject({status:"selection_required",bindingIds:[],customerDeploymentEligible:false});expect((await c.store.operationChoices(f.scope,c.connection.id)).operations).toHaveLength(2);
+  const f=await fixture(),agentCount=(await pool.query("SELECT count(*)::int n FROM agents_platform.agents WHERE organization_id=$1",[f.scope.organizationId])).rows[0].n,c=await connect(f,"hubspot",["contacts.search","contacts.create"]);expect(c.connection).toMatchObject({status:"selection_required",bindingIds:[],customerDeploymentEligible:false});expect((await c.store.operationChoices(f.scope,c.connection.id)).operations).toHaveLength(2);
   const selected=await c.store.selectOperations(f.scope,c.connection.id,{generation:c.connection.generation,operationIds:["contacts.search"]});expect(selected).toMatchObject({status:"ready",operations:["contacts.search"],sharing:"private",customerDeploymentEligible:false});expect(selected.bindingIds).toHaveLength(1);
   const binding=(await pool.query("SELECT binding FROM agents_platform.capability_bindings WHERE id=$1",[selected.bindingIds[0]])).rows[0].binding;expect(binding.definition.providerOperation).toBe("contacts.search");expect(binding.policy.effect).toBe("read");
-  for(const table of ["execution_grants","agents"])expect((await pool.query(`SELECT 1 FROM agents_platform.${table} WHERE organization_id=$1`,[f.scope.organizationId])).rowCount).toBe(0);
+  expect((await pool.query("SELECT 1 FROM agents_platform.execution_grants WHERE organization_id=$1",[f.scope.organizationId])).rowCount).toBe(0);
+  expect((await pool.query("SELECT count(*)::int n FROM agents_platform.agents WHERE organization_id=$1",[f.scope.organizationId])).rows[0].n).toBe(agentCount);
  });
  it("requires write scope step-up before creating a ready HubSpot write binding",async()=>{
   const f=await fixture(),c=await connect(f,"hubspot");const selected=await c.store.selectOperations(f.scope,c.connection.id,{generation:c.connection.generation,operationIds:["contacts.create"]});expect(selected).toMatchObject({status:"authorization_required",operations:["contacts.create"],bindingIds:[],readiness:{state:"unavailable"}});

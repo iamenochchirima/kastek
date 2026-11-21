@@ -184,6 +184,8 @@ export class AgentStore extends AuthorityStore {
   async saveConfigurationInTransaction(db:PoolClient,input:{accountId:string;organizationId:string;agentId:string;name?:string;avatar?:string;configuration:AgentConfiguration;expectedRevision:number;confirmImpact?:boolean;setup?:CustomerSetup;setupStep?:string}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
     let setup=input.setup===undefined?undefined:customerSetupSchema.parse(input.setup);
     let config=agentConfigurationSchema.parse(input.configuration);
+      const normalizeKnowledge=(value:AgentConfiguration):AgentConfiguration=>({...value,knowledge:value.knowledge&&value.knowledge.mode!=="auto"?value.knowledge:{mode:"retrieved"}});
+      const comparisonConfig=normalizeKnowledge(config);
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
       await this.membership(db,input.accountId,input.organizationId);
       await this.assertNoPendingTransfer(db,input.organizationId,input.agentId);
@@ -201,7 +203,8 @@ export class AgentStore extends AuthorityStore {
       if(agent.draft_revision!==input.expectedRevision)throw new PlatformError("DRAFT_CONFLICT",409,"The configuration has changed. Refresh and try again.");
       const latest=(await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC LIMIT 1",[input.organizationId,input.agentId])).rows[0];
       const previous=latest?agentConfigurationSchema.parse(latest.configuration):null;
-      const authority=previous?configurationAuthorityChange(previous,config):{expanded:false,reduced:false};
+      const latestConfig=previous;
+      const authority=previous?configurationAuthorityChange(previous,comparisonConfig):{expanded:false,reduced:false};
       if(authority.reduced)await db.query(`SELECT g.id FROM agents_platform.execution_grants g
         WHERE g.organization_id=$1 AND g.revoked_at IS NULL AND g.version_id IN
         (SELECT id FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2)
@@ -211,17 +214,17 @@ export class AgentStore extends AuthorityStore {
       const name=input.name===undefined?agent.name:text(input.name,120);
       const avatar=input.avatar??agent.avatar;
       const setupChanged=(setup!==undefined&&!isDeepStrictEqual(agent.setup,setup))||(input.setupStep!==undefined&&agent.setup_step!==input.setupStep);
-      const changed=!isDeepStrictEqual(agentConfigurationSchema.parse(agent.draft),config)||setupChanged;
+      const changed=!isDeepStrictEqual(normalizeKnowledge(agentConfigurationSchema.parse(agent.draft)),comparisonConfig)||setupChanged;
       const procedureDefinitions=await procedureDefinitionsFor(db,input.organizationId,config.procedures??[]);
       let refreshRelease = false;
       if (!changed && latest && latest.draft_revision === agent.draft_revision) {
         const bindings = (await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])", [input.organizationId, config.connectedToolBindingIds])).rows.map(row => capabilityBindingSchema.parse(row.binding));
         if (bindings.length !== config.connectedToolBindingIds.length) throw new PlatformError("CAPABILITY_BINDING_UNAVAILABLE",409,"Published connected tools are unavailable");
-        const current = compilePublishedComposition(config, bindings, undefined, undefined, procedureDefinitions);
+        const current = compilePublishedComposition(latestConfig!, bindings, undefined, undefined, procedureDefinitions);
         try { assertComposition(latest.effective_composition, current); }
         catch (error) {
           if (!(error instanceof PlatformError) || error.code !== "PROGRAM_RELEASE_UNAVAILABLE") throw error;
-          const accepted=compilePublishedComposition(config,bindings,latest.effective_composition.runtime,latest.tool_bindings,procedureDefinitions);
+          const accepted=compilePublishedComposition(latestConfig!,bindings,latest.effective_composition.runtime,latest.tool_bindings,procedureDefinitions);
           assertInspectableComposition(latest.effective_composition, accepted);
           refreshRelease = true;
         }
@@ -231,7 +234,7 @@ export class AgentStore extends AuthorityStore {
         agent=(await db.query<AgentRecord>("UPDATE agents_platform.agents SET name=$3,avatar=$4,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *",[input.organizationId,input.agentId,name,avatar])).rows[0]!;
         return {agent,snapshot:latest,deployments};
       }
-      if(input.confirmImpact!==true&&(((previous?canonical(previous)!==canonical(config):changed)&&(deployments.length>0||channelDeployments.length>0))||authority.expanded))throw new PlatformError("CONFIGURATION_CONFIRMATION_REQUIRED",409,"Confirm changes to agent permissions or connected customer channels.");
+      if(input.confirmImpact!==true&&(((previous?canonical(previous)!==canonical(comparisonConfig):changed)&&(deployments.length>0||channelDeployments.length>0))||authority.expanded))throw new PlatformError("CONFIGURATION_CONFIRMATION_REQUIRED",409,"Confirm changes to agent permissions or connected customer channels.");
       agent=(await db.query<AgentRecord>(`UPDATE agents_platform.agents SET draft=$3,name=$4,avatar=$7,setup=coalesce($5,setup),setup_step=coalesce($6,setup_step),draft_revision=draft_revision+1,updated_at=now()
         WHERE organization_id=$1 AND id=$2 RETURNING *`,[input.organizationId,input.agentId,config,name,setup??null,input.setupStep??null,avatar])).rows[0]!;
       const snapshot=await this.createVersionInTransaction(db,input,agent);

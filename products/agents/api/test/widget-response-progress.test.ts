@@ -16,7 +16,7 @@ describe('generated widget response progress with controlled HTTP',()=>{
    if(path.endsWith('/session'))return route.fulfill({json:{token:'controlled-visitor-token'}});
    if(path.endsWith('/customer-conversations'))return route.fulfill({json:{conversation:{id:'conversation'}}});
    if(path.endsWith('/messages')){
-    if(route.request().method()==='POST'){await pending;phase='working';return route.fulfill({json:{}})}
+    if(route.request().method()==='POST'){await pending;phase='working';return route.fulfill({json:{message:{id:'accepted-message'}}})}
     reads++;if(failReads)return route.fulfill({status:503,json:{error:{message:'History temporarily unavailable'}}});return route.fulfill({json:{conversation:{state:ownership},responseStatus:phase,responseActivity:phase===null&&!replied?null:{inputMessageId:'input',startedAt:started.toISOString(),completedAt:replied?new Date(started.getTime()+7000).toISOString():null,replyMessageId:replied?'reply':null},messages:replied?[{id:'reply',authorKind:'assistant',body:'Real fixture delivery',responseDurationMs:7000}]:[]}});
    }
    throw Error(path);

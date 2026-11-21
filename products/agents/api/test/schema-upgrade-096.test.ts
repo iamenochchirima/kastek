@@ -49,7 +49,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const hosted = files.slice(0,files.indexOf("099_recursive_delegation.sql"));
     expect(hosted.at(-1)).toBe("099_managed_default_model.sql");
     expect(checksumFor(sqlFor(hosted))).toBe("e95715b4efd7a675dca22b482e37e0e90b1525fa30e169f85e29654561f899b2");
-    const local = files.filter(name => name !== "099_managed_default_model.sql");
+    const local = files.slice(0, files.indexOf("099_recursive_delegation.sql") + 1).filter(name => name !== "099_managed_default_model.sql");
     const target = checksumFor(sqlFor(files));
     for (const [label,lineage] of [["hosted",hosted],["local",local]] as const) {
       const branchDatabase = `${database}_${label}`;

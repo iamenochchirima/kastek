@@ -101,7 +101,7 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const url = await store.admitUrl(scope, { operationId: randomUUID(), title: "Page", url: "https://example.com/approved?exact=1", parserRelease: "document-test-v1" });
     await pool.query("UPDATE agents_platform.ingestion_jobs SET acquisition_claimed_at=now(),state='acquiring' WHERE id=$1", [url.id]);
     await expect(service.acquire(url.id)).rejects.toMatchObject({ code: "SOURCE_ACQUISITION_UNCERTAIN" });
-    expect((await store.list(scope)).every(source => source.visibility === "private")).toBe(true);
+    expect((await store.list(scope)).flatMap(source => source.revisions).every(revision => revision.state !== "approved")).toBe(true);
     expect(stableChunkId(job.revisionId, 2)).toBe(stableChunkId(job.revisionId, 2));
   });
 });

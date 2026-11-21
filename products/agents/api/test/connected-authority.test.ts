@@ -134,7 +134,7 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const automation = await service.create(f.scope, randomUUID(), { name: "Research", versionId: version.id, input: "Research the approved repository",
       expiresAt: new Date(Date.now() + 86400_000).toISOString(), schedule: { kind: "interval", anchor: new Date().toISOString(), everySeconds: 60 } });
     const occurrence = await service.occur(automation.id, 1, randomUUID(), new Date());
-    expect(occurrence.status).toBe("accepted");
+    expect(occurrence.status, occurrence.error_code??undefined).toBe("accepted");
     const saved = (await pool.query("SELECT g.connected_tool_binding_ids,g.operations FROM agents_platform.execution_grants g JOIN agents_platform.tasks t ON t.grant_id=g.id WHERE t.id=$1", [occurrence.task_id])).rows[0];
     expect([...saved.connected_tool_binding_ids].sort()).toEqual([...ids].sort());
     expect(saved.operations).toContain("connected.read");

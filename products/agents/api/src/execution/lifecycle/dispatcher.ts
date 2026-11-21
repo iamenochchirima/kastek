@@ -7,7 +7,8 @@ import { claimDispatchBatch,parallelEach,type DispatchPolicy } from "../scheduli
 import type { Pool } from "pg";
 import { transaction } from "../../infrastructure/database";
 import {recordEvent} from "../../observability/event-store";
-import { HARNESS_RELEASE,reconcilePendingRoots,settleTask,WORKFLOW_NAME } from "./execution";
+import { reconcilePendingRoots,settleTask } from "./execution";
+import { runtimeWorkflows } from "../../contracts/execution";
 
 export interface DispatcherOptions {
   ingressUrl: string;
@@ -24,7 +25,7 @@ export interface DispatcherOptions {
 type DispatcherContext={request:typeof fetch;routes:NonNullable<DispatcherOptions["runtimeRoutes"]>;releases:string[]};
 function dispatcherContext(options:DispatcherOptions):DispatcherContext{
   const request = options.fetch ?? fetch;
-  const routes=options.runtimeRoutes??{[HARNESS_RELEASE]:{ingressUrl:options.ingressUrl,adminUrl:options.adminUrl,workflowName:WORKFLOW_NAME}};
+  const routes=options.runtimeRoutes??Object.fromEntries(Object.entries(runtimeWorkflows).map(([release,workflowName])=>[release,{ingressUrl:options.ingressUrl,adminUrl:options.adminUrl,workflowName}]));
   const releases=Object.keys(routes);if(!releases.length||releases.length>8)throw Error("Invalid compatible runtime routes");
   for(const route of Object.values(routes))if(!/^https?:$/.test(new URL(route.ingressUrl).protocol)||!/^https?:$/.test(new URL(route.adminUrl).protocol)||!/^AgentsBusinessRunV[0-9]+$/.test(route.workflowName))throw Error("Invalid compatible runtime route");
   if(options.supportStatusRoute && (!/^https?:$/.test(new URL(options.supportStatusRoute.ingressUrl).protocol) || !/^https?:$/.test(new URL(options.supportStatusRoute.adminUrl).protocol) || options.supportStatusRoute.workflowName!=='AgentsSupportStatusV23'))throw Error('Invalid support status runtime route');

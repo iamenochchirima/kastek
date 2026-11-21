@@ -5,7 +5,7 @@ import {acquireSkillRepository} from "../src/capabilities/skills/repository";
 import {parseSkillRequirements} from "../src/capabilities/skills/requirements";
 import {assertSkillRequirements} from "../src/capabilities/skills/requirement-authority";
 import {defaultBusinessConfiguration} from "../src/contracts/contracts";
-import {skillFamilyId} from "../src/capabilities/skills/family";
+import {skillFamilyId} from "../src/contracts/skills";
 const hash=(kind:string,bytes:Buffer)=>createHash("sha1").update(`${kind} ${bytes.length}\0`).update(bytes).digest("hex");
 async function fixture(mode="100644",tamper=false,truncated=false){
  const content=Buffer.from("---\nname: repository-helper\ndescription: Use this procedure for repository evidence.\n---\nReview sources before answering."),blob=hash("blob",content);

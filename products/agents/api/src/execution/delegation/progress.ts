@@ -83,6 +83,8 @@ export async function queueOrchestrationInstructionInTransaction(db: PoolClient,
       if (existing.instruction !== args.instruction) throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "Instruction request changed");
       return { accepted: true as const };
     }
+    const count = (await db.query("SELECT count(*)::int count FROM agents_platform.orchestration_instructions WHERE task_id=$1", [taskId])).rows[0].count;
+    if (count >= 32) throw new PlatformError("INSTRUCTION_LIMIT", 429, "This task has reached its instruction limit");
     await db.query("INSERT INTO agents_platform.orchestration_instructions(task_id,request_key,instruction) VALUES($1,$2,$3)", [taskId, args.requestKey, args.instruction]);
     await event(db, taskId, `instruction:${args.requestKey}`, "work.instruction_queued", {});
     return { accepted: true as const };

@@ -41,6 +41,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
     await pool.query(`CREATE SCHEMA agents_platform;
       CREATE TABLE agents_platform.tasks(id uuid PRIMARY KEY,root_task_id uuid,organization_id uuid,conversation_id uuid,principal jsonb,turn_sequence bigint,parent_task_id uuid,version_id uuid,grant_id uuid,input text,product text);
       CREATE TABLE agents_platform.operations(id text,task_id uuid,request jsonb,output jsonb,started_at timestamptz DEFAULT now());
+      CREATE TABLE agents_platform.product_references(id text PRIMARY KEY,source_task_id uuid,resource_id text);
       CREATE TABLE agents_platform.evidence_nodes(id uuid,task_id uuid);
       CREATE TABLE agents_platform.evidence_history_links(node_id uuid,origin_task_id uuid);`);
   });

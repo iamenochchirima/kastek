@@ -42,7 +42,7 @@ const setup=()=>customerSetupSchema.parse({business:{name:"Business"},responsibi
  it("saves setup alongside configuration and snapshots, retaining it through knowledge updates",async()=>{
   const scope=await fixture(),input=setup(),created=await store.createConfiguredAgent({...scope,name:"Assistant",setup:input});
   expect(created.agent.setup).toEqual(input);expect(created.agent.offering).toBe("customer-service");
-  expect(created.snapshot.configuration).toEqual(created.agent.draft);
+  expect(created.snapshot.configuration).toEqual({...created.agent.draft,knowledge:{mode:"retrieved"}});
   expect(created.agent.draft.capabilities.businessActions.enabled).toBe(false);
   const changed={...input,channels:["telegram" as const],behaviour:{...input.behaviour,language:"French"}};
   const saved=await store.saveConfiguration({...scope,agentId:created.agent.id,expectedRevision:1,configuration:created.agent.draft,setup:changed});
@@ -84,7 +84,7 @@ const setup=()=>customerSetupSchema.parse({business:{name:"Business"},responsibi
   const configuration={...created.agent.draft,instructions:"Owner-edited instructions. Do not replace them.",supportHours:hours};
   const saved=await store.saveConfiguration({...scope,agentId:created.agent.id,expectedRevision:1,configuration});
   expect(saved.agent.draft).toEqual(configuration);
-  expect(saved.snapshot.configuration).toEqual(configuration);
+  expect(saved.snapshot.configuration).toEqual({...configuration,knowledge:{mode:"retrieved"}});
   expect(saved.agent.setup).toEqual({...input,supportHours:hours});
   const reloaded=await store.getAgent(scope.accountId,scope.organizationId,created.agent.id);
   expect(reloaded.setup?.supportHours).toEqual(hours);
@@ -102,7 +102,7 @@ const setup=()=>customerSetupSchema.parse({business:{name:"Business"},responsibi
   expect(draft.draft).toEqual(configuration);
   const saved=await store.saveConfiguration({...scope,agentId:created.agent.id,expectedRevision:draft.draft_revision,configuration:draft.draft});
   expect(saved.agent.setup?.supportHours).toEqual(hours);
-  expect(saved.snapshot.configuration).toEqual(configuration);
+  expect(saved.snapshot.configuration).toEqual({...configuration,knowledge:{mode:"retrieved"}});
   const {supportHours:_hours,...withoutHours}=saved.agent.draft;
   const removed=await store.updateDraft({...scope,agentId:created.agent.id,expectedRevision:saved.agent.draft_revision,configuration:withoutHours});
   expect(removed.setup?.supportHours).toBeUndefined();

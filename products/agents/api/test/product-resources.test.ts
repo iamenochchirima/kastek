@@ -2,9 +2,10 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { generateKeyPair, exportPKCS8 } from "jose";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { parseGrowthAgentCommand, type GrowthAgentCommand, type GrowthAgentCommandInputs, type GrowthAgentCommandOperation, type GrowthAgentResourceInventory, type GrowthAgentPublication } from "@kasitek-labs/contracts";
+import { parseGrowthAgentCommand, parseProductAgentCommand, type GrowthAgentCommand, type GrowthAgentCommandInputs, type GrowthAgentCommandOperation, type GrowthAgentResourceInventory, type GrowthAgentPublication, type ProductAgentCommand, type ProductAgentInputs, type ProductAgentOperation } from "@kasitek-labs/contracts";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { GrowthExecutionService } from "../src/product/integrations/growth-execution";
+import { ProductAgentExecutionService } from "../src/product/integrations/product-agent-execution";
 import { GrowthProductRuntime } from "../src/execution/products/growth-runtime";
 import { growthInstalledAdapterManifest } from "../src/adapters/products/growth-capability-manifests";
 import { GrowthActionClient } from "../src/adapters/products/growth-action-client";
@@ -18,6 +19,8 @@ import { EvidenceStore, assertCurrentEvidence, taskEvidenceManifest } from "../s
 import { KnowledgeRuntime } from "../src/platform/knowledge/knowledge-runtime";
 import { executeSkillTool } from "../src/capabilities/skills/runtime";
 import { loadExecution, beginOperation, finishOperation, settleTask } from "../src/execution/lifecycle/execution";
+import { MemoryStore } from "../src/platform/memory/memory";
+import { skillPackageCodec } from "../src/capabilities/skills/package";
 import { assertProductNativeTaskAccess } from "../src/contracts/resource-scope";
 import { compilePublishedComposition } from "../src/execution/programs/publication";
 import { publishedToolBindings } from "../src/capabilities/tool-definitions";
@@ -29,7 +32,7 @@ import { dropClosedTestDatabase } from "./support/database-cleanup";
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl ? describe : describe.skip)("native product-owned knowledge and skills", () => {
   const database = `agents_product_resources_${randomUUID().replaceAll("-", "")}`, issuer = "https://growth.resources.fixture.test";
-  let admin: Pool, pool: Pool, service: GrowthExecutionService, runtime:GrowthProductRuntime;
+  let admin: Pool, pool: Pool, service: GrowthExecutionService, gatewayService: ProductAgentExecutionService, runtime:GrowthProductRuntime, memory:MemoryStore;
   const actor = { issuer: issuer + "/identity", subject: randomUUID() };
   let selectedContextRevision="a".repeat(64),selectedContextData:unknown={title:"A selected post",content:"A real selected post."};
   const vault = new ModelCredentialVault(new ConnectionVault("fixture", { fixture: randomBytes(32).toString("base64") }));
@@ -40,6 +43,8 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     runtime = new GrowthProductRuntime(pool, new GrowthActionClient({ origin: "https://growth.resources.fixture.test", issuer: "https://agents.resources.fixture.test", keyId: "fixture", privateKey: await exportPKCS8(keys.privateKey),
       fetch: (async (_url, request) => { const action = JSON.parse(String(request?.body)); return Response.json(action.operation === "context.read" ? { context: action.context, revision: selectedContextRevision, data: selectedContextData, sources: [] } : { authorized: true }); }) as typeof fetch }));
     service = new GrowthExecutionService(pool, { issuer, actorIssuer: actor.issuer, keys: {} }, runtime);
+    gatewayService = new ProductAgentExecutionService(pool, { issuer, actorIssuer: actor.issuer, keys: {} }, runtime);
+    memory = new MemoryStore(pool, skillPackageCodec);
   });
   afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin, database); await admin.end(); } });
   function publication(revision = "9"): GrowthAgentPublication {
@@ -57,8 +62,11 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     function command<K extends GrowthAgentCommandOperation>(operation: K, input: GrowthAgentCommandInputs[K], requestId = randomUUID()) {
       return parseGrowthAgentCommand({ version: "1", requestId, tenantId, actor, operation, input });
     }
+    function gateway<K extends ProductAgentOperation>(operation: K, input: ProductAgentInputs[K], requestId = randomUUID()) {
+      return parseProductAgentCommand({ version: "1", requestId, product: "growth", tenantId, actor, operation, input });
+    }
     const inventory = (featureId: "research" | "content" = "research") => service.execute(command("resources.list", { featureId })) as Promise<GrowthAgentResourceInventory>;
-    return { tenantId, command, inventory };
+    return { tenantId, command, gateway, inventory };
   }
   async function candidate(f: Awaited<ReturnType<typeof fixture>>) {
     const sourceCommand = f.command("sources.import", { featureId: "research", title: "Business facts", text: "Wheelhouse repairs bicycles in Pretoria. The call-out fee is R150. No launch discount is offered." });
@@ -84,7 +92,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const removed=await read();
     expect(removed.find(feature=>feature.id==="assistant")!.specialists).toContainEqual(expect.objectContaining({id:"campaigns",state:"unavailable"}));
     expect(removed.find(feature=>feature.id==="campaigns")!.ready).toBe(false);
-    await expect(service.execute(f.command("conversations.create",{featureId:"campaigns",context:null}))).rejects.toMatchObject({code:"FEATURE_DISABLED"});
+    await expect(gatewayService.execute(f.gateway("conversations.create",{target:{kind:"product_feature",featureId:"campaigns"},context:null}))).rejects.toMatchObject({code:"FEATURE_DISABLED"});
   },30000);
   it("reports specialist memory only when both the specialist and assistant can use it",async()=>{
     const f=await fixture(),read=async()=>(await service.execute(f.command("features.list",{})) as {features:Array<{id:string;revision:number;memory:{enabled:boolean};specialists?:Array<{id:string;memory:{enabled:boolean;availableToAssistant:boolean}}>}>}).features;
@@ -152,8 +160,8 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(parent.configuration.capabilities.delegation).toMatchObject({ maxDepth: null, policy: { maxTasks: null } });
     expect((await pool.query("SELECT revision_id FROM agents_platform.version_sources WHERE version_id=$1", [parent.version_id])).rows.map(row => row.revision_id)).toContain(revisionId);
     expect(parent.configuration.sourceRevisionIds).toEqual([]);
-    const created = await service.execute(f.command("conversations.create", { featureId: "research", context: null })) as { conversation: { id: string } };
-    const submitted = await service.execute(f.command("turns.submit", { conversationId: created.conversation.id, text: "What is the call-out fee?" })) as { task: { id: string } };
+    const created = await gatewayService.execute(f.gateway("conversations.create", { target: { kind: "product_feature", featureId: "research" }, context: null })) as { conversation: { id: string } };
+    const submitted = await gatewayService.execute(f.gateway("runs.start", { conversationId: created.conversation.id, message: "What is the call-out fee?" })) as { task: { id: string } };
     const evidence = new EvidenceStore(pool), knowledge = new KnowledgeRuntime(pool, evidence);
     await beginOperation(pool, submitted.task.id, { id: "knowledge:fixture", kind: "tool", name: "knowledge.search", request: { query: "call-out fee" }, reservedTokens: 0, reservedMs: 30000 });
     const found = await knowledge.search(submitted.task.id, "knowledge:fixture", "call-out fee");
@@ -175,8 +183,8 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await expect(service.execute(f.command("sources.review", { featureId: "content", sourceId: source.id, revisionId: source.revisions[0]!.id, expectedGeneration: source.generation }))).rejects.toBeDefined();
     await service.execute(f.command("skills.review", { featureId: "research", skillId: skill.id, contentDigest: skill.contentDigest }));
     await service.execute(f.command("resources.select", { featureId: "research", expectedRevision: 1, sourceRevisionIds: [], skillIds: [skill.id] }));
-    const created = await service.execute(f.command("conversations.create", { featureId: "research", context: null })) as { conversation: { id: string } };
-    const submitted = await service.execute(f.command("turns.submit", { conversationId: created.conversation.id, text: "Check our business facts" })) as { task: { id: string } };
+    const created = await gatewayService.execute(f.gateway("conversations.create", { target: { kind: "product_feature", featureId: "research" }, context: null })) as { conversation: { id: string } };
+    const submitted = await gatewayService.execute(f.gateway("runs.start", { conversationId: created.conversation.id, message: "Check our business facts" })) as { task: { id: string } };
     const accepted = await loadExecution(pool, submitted.task.id); await expect(assertProductNativeTaskAccess(pool, accepted)).resolves.toBeUndefined();
     await service.execute(f.command("resources.select", { featureId: "research", expectedRevision: 2, sourceRevisionIds: [], skillIds: [] }));
     await expect(assertProductNativeTaskAccess(pool, accepted)).rejects.toMatchObject({ code: "PRODUCT_RESOURCE_REVOKED" });
@@ -227,11 +235,11 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await service.feature(pool,f.command("features.list",{}),"assistant")).version_id).toBe(repaired.version_id);
   },30000);
   it("passes selected Growth conversation material to an authorized specialist", async () => {
-    const f=await fixture(),created=await service.execute(f.command("conversations.create",{featureId:"assistant",context:null})) as {conversation:{id:string}};
-    const prior=await service.execute(f.command("turns.submit",{conversationId:created.conversation.id,text:"Make a plan."})) as {task:{id:string}};
+    const f=await fixture(),created=await gatewayService.execute(f.gateway("conversations.create",{target:{kind:"product_feature",featureId:"assistant"},context:null})) as {conversation:{id:string}};
+    const prior=await gatewayService.execute(f.gateway("runs.start",{conversationId:created.conversation.id,message:"Make a plan."})) as {task:{id:string}};
     await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[prior.task.id]);
     await settleTask(pool,prior.task.id,{state:"completed",output:"The original launch plan."});
-    const current=await service.execute(f.command("turns.submit",{conversationId:created.conversation.id,text:"Please review it."})) as {task:{id:string}};
+    const current=await gatewayService.execute(f.gateway("runs.start",{conversationId:created.conversation.id,message:"Please review it."})) as {task:{id:string}};
     const operation={id:"growth:history-handoff",kind:"delegation" as const,name:"agents.start",request:{},reservedTokens:0,reservedMs:1000};
     await beginOperation(pool,current.task.id,operation);
     const evidence=new EvidenceStore(pool),child=(await startSpecialist(pool,current.task.id,operation.id,{requests:[{bindingId:"research",brief:"Review the plan",historyReferences:[{taskId:prior.task.id,part:"output"}]}]},evidence)).children[0]!;
@@ -241,8 +249,8 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   },30000);
   it("keeps the selected reference out of a child brief and enforces its inherited provider audience", async () => {
     const f=await fixture(),selection={kind:"content_post" as const,resourceId:"selected-record"};
-    const created=await service.execute(f.command("conversations.create",{featureId:"assistant",context:selection})) as {conversation:{id:string}};
-    const current=await service.execute(f.command("turns.submit",{conversationId:created.conversation.id,text:"Can you check this?"})) as {task:{id:string}};
+    const created=await gatewayService.execute(f.gateway("conversations.create",{target:{kind:"product_feature",featureId:"assistant"},context:selection})) as {conversation:{id:string}};
+    const current=await gatewayService.execute(f.gateway("runs.start",{conversationId:created.conversation.id,message:"Can you check this?"})) as {task:{id:string}};
     const selected=await runtime.selectedContextReference(current.task.id),evidence=new EvidenceStore(pool),snapshot=`context:${current.task.id}:0`;
     expect(selected?.reference).toMatchObject({...selection,revision:selectedContextRevision,data:selectedContextData});
     const payload={selectedProductContext:selected,messages:[{role:"user",content:`Can you check this?\n\n${selectedProductContextText(selected?.reference)}`}]};
@@ -274,22 +282,22 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const assistant = await service.feature(pool, f.command("features.list", {}), "assistant");
     await service.execute(f.command("memory.configure", { featureId: "assistant", expectedRevision: assistant.revision, enabled: true }));
     await service.execute(f.command("memory.configure", { featureId: "research", expectedRevision: 1, enabled: true }));
-    const created = await service.execute(f.command("conversations.create", { featureId: "assistant", context: null })) as { conversation: { id: string } };
-    const submitted = await service.execute(f.command("turns.submit", { conversationId: created.conversation.id, text: "Help me plan the launch." })) as { task: { id: string } };
+    const created = await gatewayService.execute(f.gateway("conversations.create", { target: { kind: "product_feature", featureId: "assistant" }, context: null })) as { conversation: { id: string } };
+    const submitted = await gatewayService.execute(f.gateway("runs.start", { conversationId: created.conversation.id, message: "Help me plan the launch." })) as { task: { id: string } };
     const child = (await startSpecialist(pool, submitted.task.id, "memory:child", { requests: [{ bindingId: "research", brief: "OLD_PRIVATE_BRIEF: Check the supplied launch facts." }] })).children[0]!;
     const evidence = new EvidenceStore(pool), childPayload = { messages: [{ role: "user", content: "OLD_PRIVATE_BRIEF: Check the supplied launch facts." }] }, childSnapshot = `context:${child.taskId}:0`;
     await pool.query("INSERT INTO agents_platform.context_snapshots(id,task_id,step,digest,payload,history_cutoff) VALUES($1,$2,0,$3,$4,0)", [childSnapshot, child.taskId, requestDigest(childPayload), childPayload]);
     await evidence.supplyContext(child.taskId, childSnapshot, []);
     await beginOperation(pool, child.taskId, { id: "memory:proposal", kind: "tool", name: "memory.propose", request: { content: "Prefer concise launch briefs." }, reservedTokens: 0, reservedMs: 30000 });
-    const candidate = await executeMemoryTool(pool, child.taskId, "memory:proposal", "memory.propose", { kind: "semantic", content: "Prefer concise launch briefs." }) as { candidateId: string };
+    const candidate = await executeMemoryTool(pool, memory, child.taskId, "memory:proposal", "memory.propose", { kind: "semantic", content: "Prefer concise launch briefs." }) as { candidateId: string };
     await finishOperation(pool, child.taskId, "memory:proposal", "completed", candidate, null, 0);
     await evidence.derive(child.taskId, "memory", candidate.candidateId);
     await service.execute(f.command("memory.mutate", { featureId: "research", memoryId: candidate.candidateId, expectedRevision: 1, action: "accept" }));
     expect(await service.execute(f.command("memory.list", { featureId: "assistant" }))).toMatchObject({ memories: [], candidates: [] });
-    const next = await service.execute(f.command("conversations.create", { featureId: "research", context: null })) as { conversation: { id: string } };
-    const current = await service.execute(f.command("turns.submit", { conversationId: next.conversation.id, text: "How do I like my launch briefs?" })) as { task: { id: string } };
+    const next = await gatewayService.execute(f.gateway("conversations.create", { target: { kind: "product_feature", featureId: "research" }, context: null })) as { conversation: { id: string } };
+    const current = await gatewayService.execute(f.gateway("runs.start", { conversationId: next.conversation.id, message: "How do I like my launch briefs?" })) as { task: { id: string } };
     await beginOperation(pool, current.task.id, { id: "memory:read", kind: "tool", name: "memory.read", request: { memoryId: candidate.candidateId }, reservedTokens: 0, reservedMs: 30000 });
-    const read = await executeMemoryTool(pool, current.task.id, "memory:read", "memory.read", { memoryId: candidate.candidateId }, evidence) as { memory: { content: string; evidence: { evidenceId: string } } };
+    const read = await executeMemoryTool(pool, memory, current.task.id, "memory:read", "memory.read", { memoryId: candidate.candidateId }, evidence) as { memory: { content: string; evidence: { evidenceId: string } } };
     expect(read.memory.content).toBe("Prefer concise launch briefs."); expect(JSON.stringify(read)).not.toContain("OLD_PRIVATE_BRIEF");
     const passage = (await pool.query("SELECT manifest FROM agents_platform.evidence_references WHERE id=$1", [read.memory.evidence.evidenceId])).rows[0];
     expect(passage.manifest.dependencies).toContainEqual(expect.objectContaining({ kind: "delegation_input", referenceId: child.taskId, memoryTransition: { memoryId: candidate.candidateId, memoryRevision: 2 } }));

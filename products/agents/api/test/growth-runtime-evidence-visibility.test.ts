@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { afterEach, expect, it, vi } from "vitest";
 import type { GrowthAgentCommand } from "@kasitek-labs/contracts";
-import { GrowthExecutionService } from "../src/product/integrations/growth-execution";
+import { ProductAgentExecutionService } from "../src/product/integrations/product-agent-execution";
+import { ConversationReads } from "../src/platform/conversations/reads";
 import { PlatformError } from "../src/contracts/contracts";
 import { assertCurrentEvidence, taskEvidenceManifest } from "../src/execution/context/evidence-policy";
 vi.mock("../src/execution/context/evidence-policy",async importOriginal=>({
@@ -13,7 +14,7 @@ afterEach(()=>vi.restoreAllMocks());
 function fixture(){
   const conversationId=randomUUID(),id=randomUUID(),organizationId=randomUUID();
   const pool={query:vi.fn()} as unknown as Pool;
-  const service=new GrowthExecutionService(pool,{issuer:"https://growth.fixture",actorIssuer:"https://identity.fixture",keys:{}});
+  const service=new ProductAgentExecutionService(pool,{issuer:"https://growth.fixture",actorIssuer:"https://identity.fixture",keys:{}});
   const task={id,conversation_id:conversationId,feature_id:"assistant",organization_id:organizationId,root_task_id:id,
     input:"My own original human request",output:"WITHDRAWN_ASSISTANT_OUTPUT",sources:[{id:"WITHDRAWN_SOURCE",title:"Source",revision:"1"}],
     state:"completed",created_at:new Date("2026-11-02T10:00:00Z"),updated_at:new Date("2026-11-02T10:00:01Z")};
@@ -42,9 +43,9 @@ it("conversation reload removes withdrawn assistant text/sources but preserves o
   vi.spyOn(service,"conversation").mockResolvedValue(conversation);
   vi.spyOn(service,"authorizeConversation").mockResolvedValue(undefined as never);
   vi.spyOn(service,"task").mockResolvedValue(task);
-  vi.spyOn(service.store,"getConversationPage").mockResolvedValue({items:[{id:task.id}],nextCursor:null} as never);
+  vi.spyOn(ConversationReads.prototype,"getConversationPage").mockResolvedValue({items:[{id:task.id}],nextCursor:null} as never);
   vi.mocked(pool.query).mockImplementation(async(sql:string)=>({rows:sql.includes("orchestration_instructions")?[{sequence:1,instruction:"My own correction",created_at:task.created_at}]:[{id:task.id}]} as never));
-  const command={version:"1",requestId:randomUUID(),tenantId:"owned-tenant",actor:{issuer:"https://identity.fixture",subject:"owner"},operation:"conversations.get",input:{conversationId}} as GrowthAgentCommand;
+  const command={version:"1",requestId:randomUUID(),product:"growth",tenantId:"owned-tenant",actor:{issuer:"https://identity.fixture",subject:"owner"},operation:"conversations.get",input:{conversationId}} as unknown as GrowthAgentCommand;
   vi.mocked(assertCurrentEvidence).mockRejectedValue(new PlatformError("EVIDENCE_UNAVAILABLE",403,"Withdrawn"));
   const withdrawn=await service.execute(command) as {messages:{role:string;text:string;sources?:unknown[]}[]};
   expect(withdrawn.messages.map(message=>[message.role,message.text])).toEqual([["user",task.input],["user","My own correction"]]);

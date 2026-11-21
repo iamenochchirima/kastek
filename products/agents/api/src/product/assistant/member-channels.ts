@@ -237,6 +237,8 @@ export class MemberChannels {
       const review=(await db.query(`SELECT * FROM agents_platform.tool_invocation_reviews WHERE id=$1 AND root_task_id=$2
         AND reviewer_account_id=$3 AND state='pending' AND expires_at>now()`,[row.request.memberReview.id,row.member_task_id,link.account_id])).rows[0];
       if(!review||review.request_digest!==row.request.memberReview.digest)throw deny();
+      const root=(await db.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[row.member_task_id])).rows[0];
+      if(!root||["completed","incomplete","refused","failed","cancelled","uncertain"].includes(root.state))throw deny();
       await assertCurrentAuthority(db,await loadExecution(db,review.task_id));
     }
     if(row.member_task_id) {
@@ -276,6 +278,10 @@ export class MemberChannels {
       await this.enqueue(db,link,task.task_id,`status:${task.task_id}:${task.state}`,body);
     });}catch(error){if(!(error instanceof PlatformError)||error.statusCode>=500)throw error;}
 
+    await this.pool.query(`UPDATE agents_platform.channel_outbound o SET state='suppressed',reason='member_task_terminal',updated_at=now()
+      FROM agents_platform.member_channel_tasks m JOIN agents_platform.tasks t ON t.id=m.task_id
+      WHERE o.member_link_id=m.link_id AND o.member_task_id=m.task_id AND o.state='pending' AND o.request ? 'memberReview'
+        AND t.state IN ('completed','incomplete','refused','failed','cancelled','uncertain')`);
     const reviews=(await this.pool.query(`SELECT r.*,m.link_id,m.link_generation,m.task_id member_root,c.name connection_name,c.resource destination,b.binding reviewed_binding FROM agents_platform.tool_invocation_reviews r
       JOIN agents_platform.connections c ON c.id=r.connection_id JOIN agents_platform.capability_bindings b ON b.id=r.binding_id
       JOIN agents_platform.member_channel_tasks m ON m.task_id=r.root_task_id JOIN agents_platform.member_channel_links l ON l.id=m.link_id

@@ -435,10 +435,11 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   async function archiveConversation(request: FastifyRequest, archived: boolean) {
     const user = await account(request), org = organizationId(request), conversationId = uuid.parse(parameters(request).conversationId);
-    await store.requireMembership(user.id, org);
+    try { await store.requireMembership(user.id, org); }
+    catch (error) { if (error instanceof PlatformError && error.code === "ACCESS_DENIED") throw new PlatformError("NOT_FOUND", 404, "Conversation not found"); throw error; }
     const principal = { kind: "human", issuer: user.issuer, subject: user.subject };
-    const updated = (await pool.query(`UPDATE agents_platform.conversations SET deleted_at=${archived ? "now()" : "NULL"},updated_at=now()
-      WHERE id=$1 AND organization_id=$2 AND principal=$3::jsonb AND deployment_id IS NULL AND (deleted_at IS NOT NULL)<>${archived} RETURNING id`,
+    const updated = (await pool.query(`UPDATE agents_platform.conversations SET archived_at=${archived ? "now()" : "NULL"}
+      WHERE id=$1 AND organization_id=$2 AND principal=$3::jsonb AND deployment_id IS NULL AND deleted_at IS NULL AND (archived_at IS NOT NULL)<>${archived} RETURNING id`,
       [conversationId, org, JSON.stringify(principal)])).rows[0];
     if (!updated) throw new PlatformError("NOT_FOUND", 404, "Conversation not found");
     return { id: conversationId, archived };

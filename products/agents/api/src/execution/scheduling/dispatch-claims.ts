@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { z } from "zod";
-import { HARNESS_RELEASE } from "../../contracts/execution";
+import { supportedRuntimeReleases } from "../../contracts/execution";
 
 export const dispatchPolicySchema = z.strictObject({
   batchSize:z.number().int().min(1).max(128).default(32),
@@ -18,7 +18,7 @@ export function dispatchPolicyFromEnvironment(environment:NodeJS.ProcessEnv=proc
  } catch { throw Error("Invalid dispatch policy"); }
 }
 const interactiveTask = "(t.parent_task_id IS NULL AND t.evaluation_trial_id IS NULL AND t.execution_purpose IS DISTINCT FROM 'support_status_v1' AND t.execution_purpose IS DISTINCT FROM 'private_preview_v1')";
-export async function claimDispatchBatch(pool:Pool,input:Partial<DispatchPolicy>={},compatibleReleases:readonly string[]=[HARNESS_RELEASE],workload?:"interactive"|"background") {
+export async function claimDispatchBatch(pool:Pool,input:Partial<DispatchPolicy>={},compatibleReleases:readonly string[]=supportedRuntimeReleases,workload?:"interactive"|"background") {
  const policy=dispatchPolicySchema.parse(input),owner=randomUUID();
  z.array(z.string().min(1).max(128)).min(1).max(8).parse(compatibleReleases);
  const workloadFilter=workload===undefined?"":` AND ${workload==="interactive"?interactiveTask:`NOT ${interactiveTask}`}`;

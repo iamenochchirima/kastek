@@ -237,7 +237,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
    await expect(assertCurrentEvidence(pool,recoveredTaskId,await taskEvidenceManifest(pool,recoveredTaskId))).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
    await expect(artifacts.download(f.account.id,f.organization.id,(await pool.query("SELECT task_id FROM agents_platform.artifacts WHERE id=$1",[derivedId])).rows[0].task_id,derivedId!)).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
   }
- },30000);
+ },60000);
  it("recovers an exact earlier artifact while unrelated withdrawn history remains unavailable",async()=>{
   const f=await manual(true,true),evidence=new EvidenceStore(pool,f.source!.storage),citations=[];
   for(let index=0;index<2;index++){

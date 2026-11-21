@@ -83,8 +83,7 @@ export class ProductAgentExecutionService extends GrowthExecutionService {
         const configuration=await authorizeGrowthModelSelection(db,previous,command.input.selection);
         const connected=await growthConnectedPins(db,previous.organization_id,previous.version_id,configuration);
         const versionId=randomUUID(),number=previous.revision+1,service={product:"growth",clientId:"growth-api",issuer:this.trust.issuer};
-        const updated=await db.query("UPDATE agents_platform.agents SET draft=$2,draft_revision=$3,updated_at=now() WHERE id=$1 AND draft=$4::jsonb",[previous.agent_id,configuration,number,previous.configuration]);
-        if(!updated.rowCount)throw new PlatformError("CONFIGURATION_CHANGED",409,"Agent settings changed. Refresh and try again.");
+        await db.query("UPDATE agents_platform.agents SET draft=$2,draft_revision=$3,updated_at=now() WHERE id=$1 AND draft=$4::jsonb",[previous.agent_id,configuration,number,previous.configuration]);
         await db.query(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition)
           VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)`,[versionId,previous.organization_id,previous.agent_id,number,configuration,service,JSON.stringify(publishedToolBindings(configuration)),compilePublishedComposition(configuration,connected.direct)]);
         await db.query("INSERT INTO agents_platform.version_sources(organization_id,version_id,source_id,revision_id) SELECT organization_id,$2,source_id,revision_id FROM agents_platform.version_sources WHERE version_id=$1",[previous.version_id,versionId]);

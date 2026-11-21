@@ -83,7 +83,7 @@ export function executionModelLayers(configuration: AgentConfiguration, grant: P
     grant.rootTokenLimit===null?platform.maxInputTokens:grant.rootTokenLimit-grant.maxOutputTokens);
   return [
     { kind: "platform", reference: "model-service-v2:AGENTS_MODEL_POLICY_JSON", limits: platform },
-    { kind: "product", reference: `execution-grant:${grant.id}`, limits: { maxInputBytes: grant.maxInputBytes,
+    { kind: "product", reference: "execution-grant", limits: { maxInputBytes: grant.maxInputBytes,
       maxInputTokens: grantInput, maxOutputTokens: grant.maxOutputTokens, maxRootTokens: grant.rootTokenLimit } },
     { kind: "agent", reference: "saved-agent-configuration",...(!savedContext?{contextMode:"automatic" as const}:{}),limits: { maxInputBytes: configuration.model.maxInputBytes,
       ...(savedContext?{maxInputTokens:savedContext.maxInputTokens,compactAtTokens:savedContext.compactAtTokens}:{}),

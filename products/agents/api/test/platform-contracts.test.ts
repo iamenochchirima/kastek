@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {
   agentConfigurationSchema, assertGrantAuthority, assertRuntimeAvailable, assertTaskTransition,
   defaultBusinessConfiguration, executionGrantSchema, executionKindSchema, parseAllowedOrigin, normalizeWebsiteDomain, requestDigest,
@@ -17,7 +18,8 @@ function authorizedRequest() {
   const grant = executionGrantSchema.parse({
     ...authority, id: randomUUID(), versionId, operations: ["knowledge.read", "model.reply"],
     sourceRevisionIds: configuration.sourceRevisionIds, maxInputBytes: configuration.model.maxInputBytes,
-    maxOutputTokens: configuration.model.maxOutputTokens, expiresAt: "2026-10-17T14:00:00Z", revokedAt: null,
+    maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(configuration),
+    expiresAt: "2026-10-17T14:00:00Z", revokedAt: null,
   });
   return { authority, configuration, versionId, grant };
 }

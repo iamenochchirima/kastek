@@ -56,7 +56,7 @@ describe("website widget active conversation", () => {
       expect(bySession.size).toBe(2);
       expect([...bySession.values()].map(chat => chat.messages.map(message => message.body))).toEqual([["First pending"], ["Second message"]]);
       bySession.get("session-2")!.messages.push({authorKind:"assistant",displayKind:"system",body:"Waiting update"},{authorKind:"assistant",body:"Agent update"},{authorKind:"human",body:"Human reply"});
-      for (const label of ["You", "System", "Assistant", "Support"]) await browserExpect(page.getByRole("log").getByText(label, {exact:true})).toBeVisible();
+      for (const label of ["You", "System", "Assistant", "Support"]) await browserExpect(page.getByRole("log").getByText(label, {exact:true}).first()).toBeVisible();
       bySession.delete("session-2");
       await browserExpect(page.getByRole("log").getByText("Second message")).toHaveCount(0);
       await browserExpect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();

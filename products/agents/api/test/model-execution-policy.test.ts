@@ -54,7 +54,7 @@ describe("shared effective model execution policy compiler", () => {
       maxContextTokens:contextGrantCeiling(configuration,{}),rootTokenLimit},{}));
     expect(automatic.context).toEqual({mode:"automatic"});
     const selected=compile(automatic);
-    expect(selected.policy).toMatchObject({maxInputTokens:196608,compactAtTokens:131072});
+    expect(selected.policy).toMatchObject({maxInputTokens:196608,compactAtTokens:167116});
     expect(selected.decisions.find(row=>row.field==="maxInputTokens")?.sources).toContainEqual(expect.objectContaining({kind:"derived",reference:expect.stringContaining("automatic-context-v1")}));
     const finite={...automatic,context:{maxInputTokens:8192,compactAtTokens:6144}},before=requestDigest(finite);
     expect(compile(finite).policy).toMatchObject({maxInputTokens:8192,compactAtTokens:6144});
@@ -62,7 +62,7 @@ describe("shared effective model execution policy compiler", () => {
     expect(requestDigest(agentConfigurationSchema.parse(finite))).toBe(before);
     expect(compile(automatic,20000).policy.maxInputTokens).toBe(15904);
     model.contextTokens.value=8192;
-    expect(compile(automatic).policy).toMatchObject({maxInputTokens:3072,compactAtTokens:2048});
+    expect(compile(automatic).policy).toMatchObject({maxInputTokens:3072,compactAtTokens:2611});
   });
 
   it("keeps local and shared call limits independent and prevents null from erasing finite authority", () => {

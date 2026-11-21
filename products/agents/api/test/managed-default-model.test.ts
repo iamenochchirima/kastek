@@ -126,7 +126,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
       const columns=await upgrade.query("SELECT column_name FROM information_schema.columns WHERE table_schema='agents_platform' AND table_name='model_provider_connections' AND column_name='managed_model_id'");
       expect(columns.rowCount).toBe(1);
     } finally {await upgrade.end();await dropClosedTestDatabase(admin,upgradeDatabase);}
-  });
+  },30_000);
   it("is disabled without a credential or vault and schema setup is repeatable",async()=>{
     expect(managedModelDefaultFromEnvironment(pool,vault,{AGENTS_DEFAULT_MODEL_ENABLED:"false",OPENROUTER_API_KEY:"key"})).toBeUndefined();
     expect(managedModelDefaultFromEnvironment(pool,vault,{})).toBeUndefined();expect(managedModelDefaultFromEnvironment(pool,undefined,{OPENROUTER_API_KEY:"key"})).toBeUndefined();

@@ -118,7 +118,7 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
         throw new PlatformError("ARTIFACT_HANDOFF_UNAVAILABLE",409,"This specialist cannot read selected artifacts");
       prepared.push({request,binding,version,effective,composition,maxTokens,models});
     }
-    const rollingTree=task.harness_release==="product-capabilities-v15";
+    const rollingTree=task.harness_release==="product-capabilities-v15"&&prepared.every(item=>item.binding.maxTokens===null&&item.binding.maxActiveMs===null);
     const tokens=rollingTree?0:prepared.reduce((sum,item)=>sum+(item.maxTokens??0),0), ms=rollingTree?0:prepared.reduce((sum,item)=>sum+(item.binding.maxActiveMs??0),0);
     // The root task allowance covers every branch. A narrower ancestor may also cap its subtree.
     for(const ancestor of [parent,...await delegationAncestors(db,parent)]) {

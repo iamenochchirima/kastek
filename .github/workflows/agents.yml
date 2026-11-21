@@ -71,6 +71,9 @@ jobs:
       - name: Build shared dependencies
         run: pnpm build:shared
 
+      - name: Install Playwright Chromium
+        run: pnpm --dir products/agents/web exec playwright install --with-deps chromium
+
       - name: Type-check Agents source
         run: pnpm --dir products/agents/api exec tsc -p tsconfig.json --noEmit
 

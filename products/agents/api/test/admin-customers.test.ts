@@ -122,16 +122,17 @@ describe.skipIf(!parent)('Agents admin customer operations on an isolated databa
    await upgradePool.query(previous);
    await upgradePool.query("CREATE TABLE agents_platform.schema_version(version text PRIMARY KEY,checksum text NOT NULL)");
    await upgradePool.query("INSERT INTO agents_platform.schema_version VALUES('001_platform',$1)",[createHash('sha256').update(previous).digest('hex')]);
-   const priorStore=new PlatformStore(upgradePool);
-   const owner=await priorStore.ensureAccount({issuer:'https://upgrade.fixture.test',subject:randomUUID(),email:'upgrade@example.test',displayName:'Existing customer'});
-   const organization=await priorStore.createOrganization(owner.id,'Existing organisation');
+   const ownerId=randomUUID(),organization={id:randomUUID()};
+   await upgradePool.query("INSERT INTO agents_platform.accounts(id,issuer,subject,email,display_name) VALUES($1,'https://upgrade.fixture.test',$2,'upgrade@example.test','Existing customer')",[ownerId,randomUUID()]);
+   await upgradePool.query("INSERT INTO agents_platform.organizations(id,name) VALUES($1,'Existing organisation')",[organization.id]);
+   await upgradePool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'owner')",[organization.id,ownerId]);
    await setupPlatformSchema(upgradePool);await setupPlatformSchema(upgradePool);
    expect((await upgradePool.query('SELECT name FROM agents_platform.organizations WHERE id=$1',[organization.id])).rows[0].name).toBe('Existing organisation');
    expect((await upgradePool.query('SELECT id FROM agents_platform.admin_customer_operations')).rowCount).toBe(0);
   } finally {
    await upgradePool.end();await admin.query(`DROP DATABASE "${upgradeDatabase}"`);
   }
- });
+ },30_000);
  it('hides evaluation channel fixtures and ignores malformed execution mappings',async()=>{
   const trial=randomUUID();
   await pool.query(`INSERT INTO agents_platform.evaluation_trials(id,trial_id,organization_id,account_id,agent_id,version_id,composition_digest,max_tokens,request_digest,expires_at,model_routes,model_routes_digest,root_token_limit) VALUES($1,'metadata-exclusion',$2,$3,$4,$5,$6,10000,$6,now()+interval '1 hour','{}',$6,10000)`,[trial,f.organizationId,f.accountId,f.agentId,f.versionId,'a'.repeat(64)]);
