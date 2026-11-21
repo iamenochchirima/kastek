@@ -2,4 +2,5 @@
 interface ImportMetaEnv {
   readonly VITE_GROWTH_APP_URL?: string;
   readonly VITE_AGENCY_APP_URL?: string;
+  readonly VITE_AGENTS_TEST_DEPLOYMENT_ID?: string;
 }
