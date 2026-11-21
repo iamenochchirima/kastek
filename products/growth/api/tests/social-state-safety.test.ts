@@ -162,7 +162,7 @@ test("reviewed account changes fence draft writes and queued publication reaches
     await db.pool.query('ALTER TABLE "SocialPost" ALTER COLUMN channels DROP DEFAULT; ALTER TABLE "SocialPost" ALTER COLUMN channels TYPE "SocialPlatform"[] USING channels::text[]::"SocialPlatform"[]');
     const config = readConfig({ DATABASE_URL: database!, SOCIAL_TOKEN_ENCRYPTION_KEY: "fixture" });
     await db.pool.query(`INSERT INTO "SocialChannelConnection"(id,"userId","orgId",platform,status,"displayName","externalAccountId","updatedAt") VALUES('x','user','org','X','CONNECTED','Fixture','approved-account',NOW())`);
-    const account = (await db.pool.query('SELECT id,status::text,"updatedAt" FROM "SocialChannelConnection" WHERE id=\'x\'')).rows[0];
+    const account = (await db.pool.query('SELECT id,status::text,"updatedAt","agentReviewRevision"::text AS "agentReviewRevision" FROM "SocialChannelConnection" WHERE id=\'x\'')).rows[0];
     const expectedAccounts = { x: createHash("sha256").update(canonicalJson(JSON.parse(apiJson(account)))).digest("hex") };
     const post = await createSocialPostIdempotent(db.pool, "user", "org", { content: "Approved", channels: ["X"], channelSelections: { X: "x" } }, "draft", { expectedAccounts });
     const id = post.publishJobs[0]!.id;
@@ -196,7 +196,7 @@ test("reviewed account changes fence draft writes and queued publication reaches
     assert.equal(failed.status, "FAILED");
     assert.notEqual((failed.metadata as Record<string, unknown>)._kasitek_outcome, "UNKNOWN");
     await assert.rejects(changePublishJobState(db.pool, "org", id, "retry", { expectedAccounts, delegation: null, actorUserId: "user" }), /publishing account changed/);
-    const reconnected = (await db.pool.query('SELECT id,status::text,"updatedAt" FROM "SocialChannelConnection" WHERE id=\'x\'')).rows[0];
+    const reconnected = (await db.pool.query('SELECT id,status::text,"updatedAt","agentReviewRevision"::text AS "agentReviewRevision" FROM "SocialChannelConnection" WHERE id=\'x\'')).rows[0];
     const freshAccounts = { x: createHash("sha256").update(canonicalJson(JSON.parse(apiJson(reconnected)))).digest("hex") };
     await changePublishJobState(db.pool, "org", id, "retry", { expectedAccounts: freshAccounts, delegation: null, actorUserId: "user" });
     const fresh = (await getSocialPost(db.pool, "org", post.id))!.publishJobs[0]!;
