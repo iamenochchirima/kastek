@@ -251,11 +251,12 @@ page and on the chat error state. The service also checks ready sandboxes every 
 seconds and restarts a stopped local runtime automatically. If the Growth runtime is
 unavailable, the Agents tab returns a clear error instead of an empty list.
 
-### Agent setup profiles
+### Agent setup
 
-Agent setup profiles make sandbox agent configuration repeatable. A profile targets
-either the existing platform Assistant or a new business agent, and is applied
-through normal Agents APIs.
+Agent setup makes sandbox agent configuration repeatable. The control plane stores
+each versioned configuration as an immutable profile record; the Evals UI and
+API call the resulting thing an agent. A setup targets either the existing platform
+Assistant or a new business agent, and is applied through normal Agents APIs.
 
 ```sh
 curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/agent-profiles" \
@@ -377,6 +378,13 @@ Growth model selection is feature-level and applies to new messages, matching th
 Growth product. The sandbox provisioning expands the Growth model grant to the full
 local provider catalogue, so the chat model picker is not limited to the single
 managed default.
+
+Agents model selection reads the sandbox organization's active model-provider
+connections and their cached catalogue. The chat picker filters by provider, shows
+the organization default and every discovered model, and names the connection when a
+provider has more than one. Selecting a model updates the organization default;
+inherited agent configurations use it on the next message without republishing the
+agent version.
 
 ```sh
 curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/agents/$AGENT_REF_ID/models" \

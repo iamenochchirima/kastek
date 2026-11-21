@@ -375,3 +375,69 @@ export async function productMessages(
   }
   fail(400, "unsupported_product", `Unsupported sandbox product: ${detail.sandbox.product}`);
 }
+
+export interface ProductActivity {
+  task: Json | null;
+  operations: Json[];
+  events: Json[];
+  operationsNextCursor: string | null;
+  eventsNextCursor: string | null;
+}
+
+/**
+ * Read the raw product task record for the agent's latest turn.
+ *
+ * The Evals UI polls this while a chat request is in flight. The product task
+ * list is newest-first, so no Evals session row is required before the first
+ * turn has settled.
+ */
+export async function productAgentActivity(
+  config: EvalsConfig,
+  pool: Pool,
+  sandboxId: string,
+  agentRefId: string,
+  taskId?: string,
+): Promise<ProductActivity> {
+  const detail = await getSandbox(pool, sandboxId);
+  if (!detail) fail(404, "not_found", "Sandbox not found");
+  const agentRef = await getAgentRef(pool, sandboxId, agentRefId);
+  if (!agentRef) fail(404, "agent_not_found", "Agent reference not found");
+  if (detail.sandbox.product !== "agents") {
+    fail(400, "unsupported_product", `Unsupported sandbox product: ${detail.sandbox.product}`);
+  }
+  const session = await readOwnerSession(config, detail);
+  const orgBase = `/api/organizations/${encodeURIComponent(session.organizationId)}`;
+  let targetTaskId = taskId;
+  if (!targetTaskId) {
+    const listed = await ownerRequest(
+      session,
+      "agents_session",
+      "GET",
+      `${orgBase}/tasks?agentId=${encodeURIComponent(agentRef.productAgentId)}&limit=1`,
+    );
+    const tasks = Array.isArray(listed.tasks) ? listed.tasks as Json[] : [];
+    targetTaskId = typeof tasks[0]?.id === "string" ? String(tasks[0].id) : undefined;
+  }
+  if (!targetTaskId) {
+    return {
+      task: null,
+      operations: [],
+      events: [],
+      operationsNextCursor: null,
+      eventsNextCursor: null,
+    };
+  }
+  const value = await ownerRequest(
+    session,
+    "agents_session",
+    "GET",
+    `${orgBase}/tasks/${encodeURIComponent(targetTaskId)}?operationsLimit=100&eventsLimit=100`,
+  );
+  return {
+    task: value.task && typeof value.task === "object" ? value.task as Json : null,
+    operations: Array.isArray(value.operations) ? value.operations as Json[] : [],
+    events: Array.isArray(value.events) ? value.events as Json[] : [],
+    operationsNextCursor: typeof value.operationsNextCursor === "string" ? value.operationsNextCursor : null,
+    eventsNextCursor: typeof value.eventsNextCursor === "string" ? value.eventsNextCursor : null,
+  };
+}

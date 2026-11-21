@@ -190,8 +190,54 @@ export interface ProductChatResult {
   productTaskState: string;
 }
 
+export interface ProductActivityTask {
+  id: string;
+  state: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  elapsedMs?: number | null;
+  workElapsedMs?: number | null;
+  modelCalls?: number | null;
+  toolCalls?: number | null;
+  tokensUsed?: number | null;
+  errorCode?: string | null;
+  versionId?: string | null;
+}
+
+export interface ProductActivityOperation {
+  operationId: string;
+  kind: string;
+  name: string;
+  label?: string;
+  category?: string;
+  state: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  durationMs: number | null;
+  errorCode: string | null;
+  accountedTokens: number | null;
+  transport?: string | null;
+  providerOperation?: string | null;
+}
+
+export interface ProductActivityEvent {
+  sequence: string;
+  kind: string;
+  createdAt: string | null;
+  payload?: Record<string, unknown>;
+}
+
+export interface ProductActivity {
+  task: ProductActivityTask | null;
+  operations: ProductActivityOperation[];
+  events: ProductActivityEvent[];
+  operationsNextCursor?: string | null;
+  eventsNextCursor?: string | null;
+}
+
 export interface AgentModelOption {
   connectionId: string;
+  connectionLabel?: string;
   modelId: string;
   label: string;
   provider: string;

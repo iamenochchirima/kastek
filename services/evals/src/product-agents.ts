@@ -80,7 +80,7 @@ export async function readOwnerSession(
 export async function ownerRequest(
   session: OwnerSession,
   cookieName: string,
-  method: "GET" | "POST" | "PATCH",
+  method: "GET" | "POST" | "PUT" | "PATCH",
   path: string,
   body?: unknown,
 ): Promise<Json> {
