@@ -42,6 +42,12 @@ import {
 import { restartSandboxRuntime } from "./runtime.js";
 import { SandboxSyncError, syncSandbox } from "./sandbox-sync.js";
 import { MountedSyncError, syncMountedSandbox } from "./mounted-sync.js";
+import {
+  ApiEnvironmentError,
+  connectApiEnvironment,
+  createApiAgent,
+  listApiAgents,
+} from "./api-environments.js";
 import { AgentTemplateError, listAgentTemplates } from "./agent-templates.js";
 import {
   AgentProfileError,
@@ -281,6 +287,12 @@ export function buildApi(
         code: error.code,
       });
     }
+    if (error instanceof ApiEnvironmentError) {
+      return reply.code(error.statusCode).send({
+        error: error.message,
+        code: error.code,
+      });
+    }
     if (error instanceof AgentProfileError) {
       return reply.code(error.statusCode).send({
         error: error.message,
@@ -381,6 +393,16 @@ export function buildApi(
     service: "evals",
     version: "0.1.0",
   }));
+
+  app.post("/v1/api-environments", async (request, reply) => {
+    const result = await connectApiEnvironment(config, pool, request.body);
+    request.log.info(
+      { event: "environment.api.connected", environmentId: result.environment.sandbox.id,
+        applicationId: (result.environment.sandbox.runtime as Record<string, unknown>).applicationId },
+      "API environment connected",
+    );
+    return reply.code(201).send(result);
+  });
 
   app.post("/v1/sandboxes", async (request, reply) => {
     const body = bodyObject(request.body);
@@ -581,6 +603,29 @@ export function buildApi(
       });
     }
     return reply.code(201).send({ workspaceRef: ref });
+  });
+
+  app.get("/v1/sandboxes/:id/api-agents", async (request) => {
+    const params = request.params as { id: string };
+    return {
+      agents: await listApiAgents(config, pool, uuid(params.id, "id")),
+    };
+  });
+
+  app.post("/v1/sandboxes/:id/api-agents", async (request, reply) => {
+    const params = request.params as { id: string };
+    const result = await createApiAgent(
+      config,
+      pool,
+      uuid(params.id, "id"),
+      request.body,
+    );
+    request.log.info(
+      { event: "environment.api.agent_created", sandboxId: params.id,
+        agentId: result.agent.id, versionId: result.agent.version?.id },
+      "API agent created",
+    );
+    return reply.code(201).send(result);
   });
 
   app.post("/v1/sandboxes/:id/agents", async (request, reply) => {

@@ -42,18 +42,23 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
         payload: { name: "Managed", purpose: "Answer questions", instructions: "Use approved sources.", operationId: randomUUID() } });
       expect(made.statusCode).toBe(201);
       const agentId = made.json().agent.id as string;
+      const draftRevision = made.json().agent.draftRevision as number;
+      expect(draftRevision).toBeGreaterThan(0);
       const configuration = defaultBusinessConfiguration();
-      expect((await app.inject({ method: "PATCH", url: `/v1/agents/${agentId}`, headers,
-        payload: { configuration, expectedRevision: 1 } })).statusCode).toBe(200);
+      const saved = await app.inject({ method: "PATCH", url: `/v1/agents/${agentId}`, headers,
+        payload: { configuration, expectedRevision: draftRevision } });
+      expect(saved.statusCode).toBe(200);
+      expect(saved.json().agent.draftRevision).toBe(draftRevision + 1);
       expect((await app.inject({ method: "POST", url: `/v1/agents/${agentId}/preview`, headers, payload: { configuration } })).json())
         .toMatchObject({ ready: true });
-      const version = await app.inject({ method: "POST", url: `/v1/agents/${agentId}/versions`, headers, payload: { expectedRevision: 2 } });
+      const version = await app.inject({ method: "POST", url: `/v1/agents/${agentId}/versions`, headers, payload: { expectedRevision: saved.json().agent.draftRevision } });
       expect(version.statusCode).toBe(201);
       const deployment = await app.inject({ method: "POST", url: `/v1/agents/${agentId}/deployments`, headers,
         payload: { versionId: version.json().version.id, allowedOrigins: ["https://example.com"] } });
       expect(deployment.statusCode).toBe(201);
       const opened = await app.inject({ method: "GET", url: `/v1/agents/${agentId}`, headers });
       expect(opened.json().agent.version.id).toBe(version.json().version.id);
+      expect(opened.json().agent.draftRevision).toBe(saved.json().agent.draftRevision);
       const workspaceVersions = await store.listVersions(owner.id, org.id, agentId);
       expect(workspaceVersions.some(item => item.id === version.json().version.id)).toBe(true);
     } finally { await app.close(); }

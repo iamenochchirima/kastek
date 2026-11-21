@@ -45,8 +45,8 @@ credential without it receives `403 ACCESS_DENIED`.
 
 | Operation | Request | Response |
 | --- | --- | --- |
-| Create agent | `POST /v1/agents` `{ name, purpose?, instructions?, operationId }` | `201 { agent: { id, name } }` |
-| Inspect agent | `GET /v1/agents/:agentId` | `{ agent: { id, name, version: { id, number, createdAt } } }` |
+| Create agent | `POST /v1/agents` `{ name, purpose?, instructions?, operationId }` | `201 { agent: { id, name, draftRevision } }` |
+| Inspect agent | `GET /v1/agents/:agentId` | `{ agent: { id, name, draftRevision, version: { id, number, createdAt } } }` |
 | Edit draft | `PATCH /v1/agents/:agentId` `{ name?, configuration, expectedRevision }` | `{ agent: { id, name, draftRevision } }` |
 | Preview | `POST /v1/agents/:agentId/preview` `{ configuration }` | `{ ready, errors: [{ code, message }] }` |
 | Publish | `POST /v1/agents/:agentId/versions` `{ expectedRevision }` | `201 { version: { id, number, createdAt } }` |

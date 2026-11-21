@@ -152,6 +152,51 @@ For `product: "growth"`, the request creates a Growth sandbox and a paired
 Agents runtime sandbox. The Growth runtime uses the signed Growth → Agents
 service keys and records the pair in `GET /v1/sandboxes/:id`.
 
+### Connect an API environment
+
+A deployed product can be recorded without provisioning it. This is the path an
+external product uses: it owns the deployment and the evaluation service reaches
+it through an Agents application credential.
+
+```sh
+curl -sS http://127.0.0.1:4600/v1/api-environments \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{
+    "name":"Agents staging",
+    "baseUrl":"https://agents.staging.example.com",
+    "organizationId":"<organization-uuid>",
+    "applicationId":"<application-uuid>",
+    "credential":"kat_..."
+  }'
+```
+
+The service validates the credential with `GET /v1/agents`, writes it to
+`.audit/api-environments/<id>/credential.json` at mode `0600`, and records an
+environment with `profile = api` and `runtime.kind = api`. The credential needs
+`agents:read`, `agents:manage` and `agents:publish` to create agents.
+
+Create and configure an agent through the application API:
+
+```sh
+POST /v1/sandboxes/:id/api-agents
+{
+  "name":"Support API agent",
+  "purpose":"Answer customer questions",
+  "instructions":"Answer from approved knowledge only.",
+  "configuration": { "tools":["memory.search"], "memory":{"enabled":true}, "...":"..." },
+  "publish":true
+}
+```
+
+The service calls `POST /v1/agents`, previews and patches the configuration using
+the returned `draftRevision`, publishes the version and records an agent
+reference. `GET /v1/sandboxes/:id/api-agents` lists the application's agents with
+their current version, draft revision and Evals reference.
+
+Deleting an API environment removes the credential file and retires the record.
+It does not change the deployment.
+
 The local provisioner currently:
 
 1. Creates `agents_sandbox_<id>` on the local PostgreSQL server.

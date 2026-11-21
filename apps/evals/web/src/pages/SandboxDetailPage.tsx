@@ -5,6 +5,7 @@ import type { MountedSyncResult, ProductAgent, SandboxDetail } from "../../../sh
 import { api, errorMessage, formatDate, shortId } from "../api";
 import { ConfirmDialog, EmptyState, ErrorBox, Loading, PageHeader, StatusBadge } from "../components";
 import { AgentProfilesPanel } from "../panels/AgentProfilesPanel";
+import { ApiAgentsPanel } from "../panels/ApiAgentsPanel";
 
 type Tab = "overview" | "agents" | "profiles" | "sessions" | "outcomes";
 
@@ -39,6 +40,9 @@ export default function SandboxDetailPage() {
         if (cancelled) return;
         setDetail(value);
         setError(null);
+        if ((value.sandbox.runtime as Record<string, unknown>).kind === "api") {
+          setTab("overview");
+        }
         if (value.sandbox.status === "provisioning") {
           setTab("overview");
           timer = setTimeout(load, 1_000);
@@ -56,6 +60,11 @@ export default function SandboxDetailPage() {
 
   useEffect(() => {
     if (!detail || detail.sandbox.status === "provisioning") return;
+    if ((detail.sandbox.runtime as Record<string, unknown>).kind === "api") {
+      setProductAgents([]);
+      setAgentsError(null);
+      return;
+    }
     let cancelled = false;
     setProductAgents(null);
     setAgentsError(null);
@@ -146,30 +155,36 @@ export default function SandboxDetailPage() {
   if (!detail) return <Loading label="Loading sandbox" />;
 
   const runtime = detail.sandbox.runtime as Record<string, unknown>;
-  const isMounted = typeof runtime.sessionFile === "string" ||
-    (typeof runtime.apiUrl === "string" && runtime.productDatabase == null);
+  const isApi = runtime.kind === "api";
+  const isMounted = !isApi && (typeof runtime.sessionFile === "string" ||
+    (typeof runtime.apiUrl === "string" && runtime.productDatabase == null));
   const agentName = (refId: string) =>
     productAgents?.find((agent) => agent.refId === refId)?.name ?? shortId(refId);
-  const tabs: Array<{ id: Tab; label: string; count?: number }> = [
-    { id: "overview", label: "Overview" },
-    { id: "agents", label: "Published", count: productAgents?.length },
-    ...(detail.sandbox.product === "agents"
-      ? [{ id: "profiles" as const, label: "Agents" }]
-      : []),
-    { id: "sessions", label: "Sessions", count: detail.sessions.length },
-    { id: "outcomes", label: "Outcomes", count: detail.outcomes.length },
-  ];
+  const tabs: Array<{ id: Tab; label: string; count?: number }> = isApi
+    ? [
+        { id: "overview", label: "Overview" },
+        { id: "profiles", label: "Agents" },
+      ]
+    : [
+        { id: "overview", label: "Overview" },
+        { id: "agents", label: "Published", count: productAgents?.length },
+        ...(detail.sandbox.product === "agents"
+          ? [{ id: "profiles" as const, label: "Agents" }]
+          : []),
+        { id: "sessions", label: "Sessions", count: detail.sessions.length },
+        { id: "outcomes", label: "Outcomes", count: detail.outcomes.length },
+      ];
 
   return (
     <>
       <PageHeader
-        eyebrow="Sandbox"
-        title={shortId(detail.sandbox.id)}
-        description={`${detail.sandbox.product} · ${detail.sandbox.status}`}
+        eyebrow={isApi ? "Application API" : "Sandbox"}
+        title={isApi && typeof runtime.name === "string" ? runtime.name : shortId(detail.sandbox.id)}
+        description={`${isApi ? "API environment" : detail.sandbox.product} · ${detail.sandbox.status}`}
         actions={
           <>
-            <Link className="button ghost" to="/"><ArrowLeft size={15} /> Sandboxes</Link>
-            {isMounted ? (
+            <Link className="button ghost" to="/"><ArrowLeft size={15} /> Environments</Link>
+            {isApi ? null : isMounted ? (
               <button
                 className="button ghost"
                 onClick={() => { setMountedOpen(true); setMountedError(null); }}
@@ -293,9 +308,18 @@ export default function SandboxDetailPage() {
             <div className="meta-card"><span>Runtime</span><strong className="mono">{detail.version?.runtimeVersion ?? "—"}</strong></div>
             <div className="meta-card"><span>Runtime</span><strong>{detail.sandbox.profile}</strong></div>
             <div className="meta-card"><span>Created</span><strong>{formatDate(detail.sandbox.createdAt)}</strong></div>
-            <div className="meta-card"><span>Provisioned</span><strong>{formatDate(detail.sandbox.provisionedAt)}</strong></div>
+            <div className="meta-card"><span>{isApi ? "Connected" : "Provisioned"}</span><strong>{formatDate(detail.sandbox.provisionedAt)}</strong></div>
             {typeof detail.sandbox.runtime.productApiUrl === "string" && (
               <div className="meta-card"><span>Product API</span><strong className="mono">{detail.sandbox.runtime.productApiUrl}</strong></div>
+            )}
+            {isApi && typeof runtime.baseUrl === "string" && (
+              <div className="meta-card"><span>Base URL</span><strong className="mono">{runtime.baseUrl}</strong></div>
+            )}
+            {isApi && typeof runtime.organizationId === "string" && (
+              <div className="meta-card"><span>Organization</span><strong className="mono">{runtime.organizationId}</strong></div>
+            )}
+            {isApi && typeof runtime.applicationId === "string" && (
+              <div className="meta-card"><span>Application</span><strong className="mono">{runtime.applicationId}</strong></div>
             )}
             {detail.pair && (
               <div className="meta-card">
@@ -401,11 +425,18 @@ export default function SandboxDetailPage() {
 
       {tab === "profiles" && detail.sandbox.product === "agents" && (
         detail.workspaceRefs[0] ? (
-          <AgentProfilesPanel
-            sandboxId={detail.sandbox.id}
-            workspaceRefId={detail.workspaceRefs[0].id}
-            onAgentChanged={() => setAgentsRefresh((value) => value + 1)}
-          />
+          isApi ? (
+            <ApiAgentsPanel
+              sandboxId={detail.sandbox.id}
+              onAgentChanged={() => setAgentsRefresh((value) => value + 1)}
+            />
+          ) : (
+            <AgentProfilesPanel
+              sandboxId={detail.sandbox.id}
+              workspaceRefId={detail.workspaceRefs[0].id}
+              onAgentChanged={() => setAgentsRefresh((value) => value + 1)}
+            />
+          )
         ) : (
           <section className="panel"><EmptyState title="No workspace" description="Agent setup requires a workspace reference." /></section>
         )

@@ -9,7 +9,7 @@ import { agentConfigurationSchema } from "../../contracts/contracts";
 export function registerApplicationRoutes(app: FastifyInstance, options: {
   applications: ApplicationAccess; resolveScope(request: FastifyRequest): Promise<{ accountId: string; organizationId: string }>;
   agentManagement?: {
-    create(caller: { organizationId: string; applicationId: string; credentialId: string }, input: { name: string; purpose?: string; instructions?: string; operationId: string }): Promise<{ id: string; name: string }>;
+    create(caller: { organizationId: string; applicationId: string; credentialId: string }, input: { name: string; purpose?: string; instructions?: string; operationId: string }): Promise<{ id: string; name: string; draftRevision: number }>;
     update(caller: { organizationId: string; applicationId: string; credentialId: string }, agentId: string, input: { name?: string; configuration: unknown; expectedRevision: number }): Promise<{ id: string; name: string; draftRevision: number }>;
     preview(caller: { organizationId: string; applicationId: string; credentialId: string }, agentId: string, input: { configuration: unknown }): Promise<ApplicationAgentPreviewResponse>;
     publish(caller: { organizationId: string; applicationId: string; credentialId: string }, agentId: string, input: { expectedRevision: number }): Promise<ApplicationAgentVersionSummary>;

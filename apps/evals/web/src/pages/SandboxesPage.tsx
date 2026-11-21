@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Boxes, ClipboardCheck, MessageSquare, Plus, Trash2, X } from "lucide-react";
+import { Boxes, ClipboardCheck, MessageSquare, Plug, Plus, Trash2, X } from "lucide-react";
 import type { SandboxDetail, SandboxSummary } from "../../../shared/types";
 import { api, errorMessage, formatDate, shortId } from "../api";
 import { ConfirmDialog, EmptyState, ErrorBox, Loading, PageHeader, StatCard, StatusBadge } from "../components";
@@ -19,6 +19,16 @@ export default function SandboxesPage() {
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [apiOpen, setApiOpen] = useState(false);
+  const [apiBusy, setApiBusy] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [apiForm, setApiForm] = useState({
+    name: "",
+    baseUrl: "http://127.0.0.1:4100",
+    organizationId: "",
+    applicationId: "",
+    credential: "",
+  });
 
   useEffect(() => {
     api<SandboxSummary[]>("/api/sandboxes").then(setSandboxes).catch((value) => setError(errorMessage(value)));
@@ -53,6 +63,26 @@ export default function SandboxesPage() {
       setFormError(errorMessage(value));
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function connectApi(event: React.FormEvent) {
+    event.preventDefault();
+    if (apiBusy) return;
+    setApiBusy(true);
+    setApiError(null);
+    try {
+      const result = await api<{ environment: SandboxDetail }>("/api/api-environments", {
+        method: "POST",
+        body: JSON.stringify(apiForm),
+      });
+      setApiOpen(false);
+      setApiForm((current) => ({ ...current, name: "", organizationId: "", applicationId: "", credential: "" }));
+      navigate(`/sandboxes/${result.environment.sandbox.id}`);
+    } catch (value) {
+      setApiError(errorMessage(value));
+    } finally {
+      setApiBusy(false);
     }
   }
 
@@ -108,8 +138,8 @@ export default function SandboxesPage() {
     <>
       <PageHeader
         eyebrow="Control plane"
-        title="Sandboxes"
-        description="Persistent product environments recorded by the evaluation service."
+        title="Environments"
+        description="Sandboxes and deployed products recorded by the evaluation service."
         actions={
           <>
             {sandboxes.length > 0 && (
@@ -120,12 +150,15 @@ export default function SandboxesPage() {
                 <Trash2 size={15} /> Delete all
               </button>
             )}
+            <button className="button ghost" onClick={() => { setApiOpen(true); setApiError(null); }}>
+              <Plug size={15} /> Connect API
+            </button>
             <button className="button" onClick={() => { setOpen(true); setFormError(null); }}><Plus size={15} /> Create sandbox</button>
           </>
         }
       />
       <section className="stat-grid">
-        <StatCard label="Sandboxes" value={sandboxes.length} hint={`${active} ready`} icon={<Boxes size={16} />} />
+        <StatCard label="Environments" value={sandboxes.length} hint={`${active} ready`} icon={<Boxes size={16} />} />
         <StatCard label="Sessions" value={sessions} hint="Interactive conversations" icon={<MessageSquare size={16} />} />
         <StatCard label="Outcomes" value={outcomes} hint="Saved business results" icon={<ClipboardCheck size={16} />} />
       </section>
@@ -159,7 +192,7 @@ export default function SandboxesPage() {
                 </div>
               </div>
               <h3 className="mono">{shortId(item.sandbox.id)}</h3>
-              <p className="muted">{item.sandbox.product} · {item.sandbox.profile}</p>
+              <p className="muted">{item.sandbox.profile === "api" ? "API environment" : `${item.sandbox.product} · ${item.sandbox.profile}`}</p>
               <div className="kv compact">
                 <div><span>Version</span><code>{item.version ? shortId(item.version.id) : "none"}</code></div>
                 <div><span>Workspaces</span><code>{item.workspaceRefs.length}</code></div>
@@ -178,7 +211,11 @@ export default function SandboxesPage() {
       {deleteTarget && (
         <ConfirmDialog
           title={`Delete ${shortId(deleteTarget.sandbox.id)}?`}
-          description="This stops the sandbox, drops its database, removes its local files, and deletes any paired runtime. This cannot be undone."
+          description={
+            deleteTarget.sandbox.profile === "api"
+              ? "This removes the stored credential and retires the environment. The deployment and its agents are not changed."
+              : "This stops the sandbox, drops its database, removes its local files, and deletes any paired runtime. This cannot be undone."
+          }
           busy={deleting}
           busyLabel="Deleting…"
           error={deleteError}
@@ -253,6 +290,90 @@ export default function SandboxesPage() {
                 <button className="button ghost" type="button" onClick={() => setOpen(false)} disabled={creating}>Cancel</button>
                 <button className="button" type="submit" disabled={creating || !workspaceName.trim()}>
                   {creating ? "Creating…" : "Create sandbox"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+      {apiOpen && (
+        <div className="modal-backdrop" onClick={(event) => { if (event.target === event.currentTarget && !apiBusy) setApiOpen(false); }}>
+          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="connect-api-title">
+            <div className="modal-head">
+              <div>
+                <div className="eyebrow">Application API</div>
+                <h2 id="connect-api-title">Connect API environment</h2>
+              </div>
+              <button className="icon-button" onClick={() => setApiOpen(false)} disabled={apiBusy} aria-label="Close">
+                <X size={17} />
+              </button>
+            </div>
+            <form onSubmit={connectApi}>
+              <div className="modal-body">
+                <label className="field">
+                  <span className="field-label">Name</span>
+                  <input
+                    className="input"
+                    value={apiForm.name}
+                    onChange={(event) => setApiForm((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="Agents staging"
+                    autoFocus
+                    disabled={apiBusy}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">Base URL</span>
+                  <input
+                    className="input mono"
+                    value={apiForm.baseUrl}
+                    onChange={(event) => setApiForm((current) => ({ ...current, baseUrl: event.target.value }))}
+                    placeholder="https://agents.example.com"
+                    disabled={apiBusy}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">Organization ID</span>
+                  <input
+                    className="input mono"
+                    value={apiForm.organizationId}
+                    onChange={(event) => setApiForm((current) => ({ ...current, organizationId: event.target.value }))}
+                    placeholder="00000000-0000-0000-0000-000000000000"
+                    disabled={apiBusy}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">Application ID</span>
+                  <input
+                    className="input mono"
+                    value={apiForm.applicationId}
+                    onChange={(event) => setApiForm((current) => ({ ...current, applicationId: event.target.value }))}
+                    placeholder="00000000-0000-0000-0000-000000000000"
+                    disabled={apiBusy}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">Credential</span>
+                  <input
+                    className="input mono"
+                    type="password"
+                    value={apiForm.credential}
+                    onChange={(event) => setApiForm((current) => ({ ...current, credential: event.target.value }))}
+                    placeholder="kat_…"
+                    autoComplete="off"
+                    disabled={apiBusy}
+                  />
+                  <span className="field-hint">Application credential with agents:read, agents:manage and agents:publish.</span>
+                </label>
+                {apiError && <ErrorBox message={apiError} />}
+              </div>
+              <div className="modal-actions">
+                <button className="button ghost" type="button" onClick={() => setApiOpen(false)} disabled={apiBusy}>Cancel</button>
+                <button
+                  className="button"
+                  type="submit"
+                  disabled={apiBusy || !apiForm.name.trim() || !apiForm.baseUrl.trim() || !apiForm.organizationId.trim() || !apiForm.applicationId.trim() || !apiForm.credential.trim()}
+                >
+                  {apiBusy ? "Connecting…" : "Connect"}
                 </button>
               </div>
             </form>

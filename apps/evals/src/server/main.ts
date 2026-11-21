@@ -166,6 +166,25 @@ app.setErrorHandler((error, _request, reply) => {
 
 app.get("/api/health", async () => health());
 app.get("/api/sandboxes", async () => listSandboxes());
+app.post("/api/api-environments", async (request, reply) => {
+  const value = await service<{ environment: SandboxDetail; agents: number }>("/v1/api-environments", {
+    method: "POST",
+    body: JSON.stringify(request.body ?? {}),
+  });
+  return reply.code(201).send(value);
+});
+app.get("/api/sandboxes/:id/api-agents", async (request) => {
+  const { id } = request.params as { id: string };
+  return service(`/v1/sandboxes/${encodeURIComponent(id)}/api-agents`);
+});
+app.post("/api/sandboxes/:id/api-agents", async (request, reply) => {
+  const { id } = request.params as { id: string };
+  const value = await service(`/v1/sandboxes/${encodeURIComponent(id)}/api-agents`, {
+    method: "POST",
+    body: JSON.stringify(request.body ?? {}),
+  });
+  return reply.code(201).send(value);
+});
 app.post("/api/sandboxes", async (request, reply) => {
   const body = request.body as { label?: unknown; workspaceName?: unknown; product?: unknown } | null;
   if (!body || typeof body.workspaceName !== "string" || !body.workspaceName.trim()) {

@@ -42,7 +42,7 @@ export function createApplicationAgentManagement(options: {
       const created = await options.operations.create({ accountId, organizationId: caller.organizationId }, input);
       await options.pool.query(`UPDATE agents_platform.applications SET agent_ids=agent_ids||ARRAY[$3::uuid]
         WHERE organization_id=$1 AND id=$2 AND NOT agent_ids @> ARRAY[$3]::uuid[]`, [caller.organizationId, caller.applicationId, created.agent.id]);
-      return { id: created.agent.id, name: created.agent.name };
+      return { id: created.agent.id, name: created.agent.name, draftRevision: created.agent.draft_revision };
     },
     async update(caller: Caller, agentId: string, input: { name?: string; configuration: AgentConfiguration; expectedRevision: number }) {
       const accountId = await assigned(caller, agentId);

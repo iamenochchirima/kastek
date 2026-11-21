@@ -12,6 +12,7 @@ export interface ApplicationAgentVersion {
 
 export interface ApplicationAgentDetail extends ApplicationAgentSummary {
   version: ApplicationAgentVersion;
+  draftRevision: number;
 }
 
 export interface ApplicationAgentsResponse {

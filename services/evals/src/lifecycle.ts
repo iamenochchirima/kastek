@@ -220,6 +220,20 @@ async function cleanupSandbox(
     fail(409, "sandbox_provisioning", "Wait for the sandbox to finish provisioning before deleting it");
   }
 
+  if (detail.sandbox.runtime.kind === "api") {
+    const directory = join(config.repoRoot, ".audit", "api-environments", id);
+    await rm(directory, { recursive: true, force: true });
+    await retireSandbox(pool, id);
+    return {
+      deleted: [id],
+      alreadyRetired: false,
+      stoppedProcesses: 0,
+      droppedDatabases: [],
+      removedDirectories: [directory],
+      bucket: "skipped",
+    };
+  }
+
   const database = databaseName(detail);
   let stoppedProcesses = 0;
   await stopProvisionedSandbox(id).catch(() => undefined);

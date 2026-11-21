@@ -42,6 +42,14 @@ export interface MountedSyncResult {
   models: { refreshed: number; warnings: string[] };
 }
 
+export interface ApiAgent {
+  id: string;
+  name: string;
+  draftRevision: number;
+  version: { id: string; number: number; createdAt: string } | null;
+  agentRefId: string | null;
+}
+
 export interface WorkspaceRef {
   id: string;
   sandboxId: string;

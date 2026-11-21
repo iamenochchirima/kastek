@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { transaction } from "./db.js";
 import type { SandboxManifest } from "./version.js";
@@ -238,6 +238,79 @@ export async function createSandbox(
       pair: null,
     };
   });
+}
+
+export interface CreateApiEnvironmentInput {
+  id: string;
+  name: string;
+  baseUrl: string;
+  organizationId: string;
+  applicationId: string;
+  credentialFile: string;
+  workspaceLabel?: string;
+}
+
+function digest(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+/**
+ * An API environment is a deployed product reached through its application API.
+ * It is stored in the sandbox registry so agent refs, sessions and the client keep
+ * one environment record; `profile='api'` and `runtime.kind='api'` distinguish it
+ * from a provisioned sandbox.
+ */
+export async function createApiEnvironment(
+  pool: Pool,
+  input: CreateApiEnvironmentInput,
+): Promise<SandboxDetail> {
+  const identity = digest(
+    `${input.baseUrl}\n${input.organizationId}\n${input.applicationId}`,
+  );
+  await transaction(pool, async (client) => {
+    await client.query(
+      `INSERT INTO evals.sandboxes(
+         id, product, status, profile, provisioned_at, runtime
+       ) VALUES($1,'agents','ready','api',now(),$2::jsonb)`,
+      [
+        input.id,
+        JSON.stringify({
+          kind: "api",
+          name: input.name,
+          baseUrl: input.baseUrl,
+          organizationId: input.organizationId,
+          applicationId: input.applicationId,
+          credentialFile: input.credentialFile,
+        }),
+      ],
+    );
+    await client.query(
+      `INSERT INTO evals.sandbox_versions(
+         id, sandbox_id, code_revision, image_digest, schema_version,
+         migration_checksum, config_digest, runtime_version,
+         model_routes_digest, adapter_versions
+       ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [
+        randomUUID(),
+        input.id,
+        `application-api:${new URL(input.baseUrl).host}`.slice(0, 200),
+        "application-api",
+        "api",
+        identity,
+        digest(JSON.stringify({ applicationId: input.applicationId })),
+        "application-api",
+        identity,
+        JSON.stringify({ application: "1" }),
+      ],
+    );
+    await insertWorkspaceRef(client, input.id, {
+      productWorkspaceId: input.organizationId,
+      label: input.workspaceLabel ?? input.name,
+    });
+  });
+  const detail = await getSandbox(pool, input.id);
+  if (!detail) throw new Error("API environment was not recorded");
+  return detail;
 }
 
 export async function listSandboxes(
