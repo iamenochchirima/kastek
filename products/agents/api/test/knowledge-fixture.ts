@@ -5,7 +5,7 @@ import {KnowledgeStore} from "../src/platform/knowledge/knowledge";
 import {textDigest} from "../src/contracts/source-contracts";
 
 /** Persistence fixture: extraction is supplied explicitly; parser containment has a separate real-runtime suite. */
-export async function publishFixtureSource(pool:Pool,input:{accountId:string;organizationId:string;title:string;content:string;visibility:"public"|"private"},objects?:PrivateObjectStore){
+export async function publishFixtureSource(pool:Pool,input:{accountId:string;organizationId:string;title:string;content:string;visibility?:"public"|"private"},objects?:PrivateObjectStore){
  const bodies=new Map<string,Uint8Array>();
  const storage=objects??{async put(key:string,value:Uint8Array){bodies.set(key,Buffer.from(value));},async get(key:string){const body=bodies.get(key);if(!body)throw Error("Missing private fixture object");return body;},async delete(key:string){bodies.delete(key);}};
  const knowledge=new KnowledgeStore(pool,storage),scope={accountId:input.accountId,organizationId:input.organizationId};
@@ -16,6 +16,5 @@ export async function publishFixtureSource(pool:Pool,input:{accountId:string;org
  for(let start=0;start<text.length;){let end=Math.min(text.length,start+1200);if(end<text.length&&/[\uDC00-\uDFFF]/.test(text[end]!))end--;const content=text.slice(start,end);chunks.push({id:randomUUID(),revisionId:job.revisionId,ordinal:ordinal++,start,end,page:1,section:null,text:content,digest:textDigest(content),tokens:Math.min(384,Math.ceil(content.length/4))});start=end;}
  await knowledge.publishExtraction(job.id,{text,chunks,normalizerRelease:"fixture-nfc-v1",acquiredAt:new Date().toISOString()});
  await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"approve",revisionId:job.revisionId});
- if(input.visibility==="public")await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"visibility",visibility:"public"});
  return {id:job.revisionId,sourceId:job.sourceId,title:input.title,content:text,knowledge,storage};
 }

@@ -113,9 +113,8 @@ suite("local hybrid retrieval quality, eligibility and resource recovery",()=>{
   }
   quality={recallAt5:found/expectedCount,lexicalRecallAt5:lexicalFound/expectedCount,falseAnswers,results};expect(found/expectedCount,JSON.stringify(results)).toBeGreaterThanOrEqual(.9);expect(found).toBeGreaterThan(lexicalFound);expect(falseAnswers,JSON.stringify(results)).toBe(0);
  },30_000);
- it("keeps owner/public/withdrawal/version gates before ranking and rejects profile fallback",async()=>{
+ it("keeps owner and withdrawal gates before ranking and rejects profile fallback",async()=>{
   const vector=(await embed("query",[holdout[0]!.query]))[0]!;const profile={kind:"hybrid-v1" as const,embeddingRelease:release,queryVector:vector};
-  expect(await retrieval.search({...scope,publicOnly:true},holdout[0]!.query,profile,db=>requireKnowledgeMember(db,owner))).toEqual([]);
   await expect(retrieval.search(scope,holdout[0]!.query,{...profile,embeddingRelease:"missing-profile"},db=>requireKnowledgeMember(db,owner))).rejects.toMatchObject({code:"RETRIEVAL_BACKEND_UNAVAILABLE"});
   const outsider=await platform.ensureAccount({issuer:account.issuer,subject:randomUUID(),email:"outside@example.test",displayName:"Other"});await expect(retrieval.search(scope,holdout[0]!.query,profile,db=>requireKnowledgeMember(db,{...owner,accountId:outsider.id}))).rejects.toMatchObject({code:"ACCESS_DENIED"});
   const filtered=await retrieval.search({...scope,sourceRevisionIds:[]},holdout[0]!.query,profile,db=>requireKnowledgeMember(db,owner));expect(filtered).toEqual([]);
@@ -154,9 +153,6 @@ suite("local hybrid retrieval quality, eligibility and resource recovery",()=>{
   await knowledge.publishExtraction(job.id,{text,chunks:[{id:randomUUID(),revisionId:job.revisionId,ordinal:0,start:0,end:text.length,page:1,section:null,text,digest:textDigest(text),tokens:30}],normalizerRelease:"fixture-v1",acquiredAt:new Date().toISOString(),embeddings:[documentVector]});
   await knowledge.setPolicy(otherScope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"approve",revisionId:job.revisionId});
   const adversarial={...scope,sourceRevisionIds:[job.revisionId,...scope.sourceRevisionIds.slice(0,19)]};const hits=await retrieval.search(adversarial,query,profile,db=>requireKnowledgeMember(db,owner));expect(hits.length).toBeGreaterThan(0);expect(hits.every(hit=>hit.sourceId!==job.sourceId)).toBe(true);
-  const first=sources[0]!;await knowledge.setPolicy(owner,first.id,{operationId:randomUUID(),expectedGeneration:1,action:"visibility",visibility:"public"});
-  expect((await retrieval.search({...scope,publicOnly:true},query,profile,db=>requireKnowledgeMember(db,owner))).some(hit=>hit.sourceId===first.id)).toBe(true);
-  await knowledge.setPolicy(owner,first.id,{operationId:randomUUID(),expectedGeneration:2,action:"visibility",visibility:"private"});expect(await retrieval.search({...scope,publicOnly:true},query,profile,db=>requireKnowledgeMember(db,owner))).toEqual([]);
-  await knowledge.setPolicy(owner,first.id,{operationId:randomUUID(),expectedGeneration:3,action:"withdraw"});expect((await retrieval.search(scope,query,profile,db=>requireKnowledgeMember(db,owner))).every(hit=>hit.sourceId!==first.id)).toBe(true);
+  const first=sources[0]!;await knowledge.setPolicy(owner,first.id,{operationId:randomUUID(),expectedGeneration:1,action:"withdraw"});expect((await retrieval.search(scope,query,profile,db=>requireKnowledgeMember(db,owner))).every(hit=>hit.sourceId!==first.id)).toBe(true);
  },15_000);
 });

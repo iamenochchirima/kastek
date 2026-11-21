@@ -81,7 +81,7 @@ export class EvidenceStore {
   async recordChunk(taskId: string, operationId: string, chunkId: string, span: {start?: number; end?: number} = {}): Promise<EvidencePassage> {
     return this.scoped(taskId, async (db, execution) => {
       await this.operation(db, taskId, operationId, ["knowledge.search", "knowledge.read"]);
-      const row = (await db.query(`SELECT c.*,r.source_id,r.acquired_at,s.title,s.generation,s.visibility FROM agents_platform.source_chunks c
+      const row = (await db.query(`SELECT c.*,r.source_id,r.acquired_at,s.title,s.generation FROM agents_platform.source_chunks c
         JOIN agents_platform.source_revisions r ON r.id=c.revision_id JOIN agents_platform.sources s ON s.id=r.source_id
         WHERE c.id=$1 AND c.organization_id=$2`, [chunkId, execution.task.organization_id])).rows[0];
       if (!row || textDigest(row.content) !== row.content_digest) throw integrity();
@@ -92,7 +92,7 @@ export class EvidenceStore {
       const text = row.content.slice(start-row.start_offset, end-row.start_offset);
       return this.insert(db, execution, operationId, {sourceId:row.source_id,revisionId:row.revision_id,chunkId,start,end,text,title:row.title,
         acquiredAt:new Date(row.acquired_at).toISOString(),page:row.page,section:row.section,
-        manifest:createDependencyManifest([{kind:"source",sourceId:row.source_id,revisionId:row.revision_id,generation:row.generation,visibility:row.visibility}])});
+        manifest:createDependencyManifest([{kind:"source",sourceId:row.source_id,revisionId:row.revision_id,generation:row.generation}])});
     });
   }
   async recordConnected(taskId: string, operationId: string, input: ConnectedEvidenceInput): Promise<EvidencePassage> {

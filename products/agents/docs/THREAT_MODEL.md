@@ -46,7 +46,7 @@ ID and callback host before granting access; this identifies the requested targe
 but does not prove domain ownership.
 
 Website access binds deployment, allowed origin, visitor session, version, and
-approved public knowledge. Website agents cannot enable personal memory, memory tools, or
+approved attached knowledge. Website agents cannot enable personal memory, memory tools, or
 generic personal connection bindings. Only enabled, reviewed server-curated instruction packages
 with the exact shipped digest are permitted as website skills. Private and repository packages
 remain operator-only. Booking access requires a separate current service policy. An origin check does not replace the visitor's scoped session.
@@ -271,8 +271,8 @@ work for their selected deployment.
 
 ## Imported and connected evidence
 
-Every upload and public page starts as a private candidate. Only current
-organization owners approve revisions or publish source visibility. A revision's
+Every upload and public page starts as an unapproved candidate. Only current
+organization owners approve revisions. A revision's
 importer and current owners can inspect it; the original source importer cannot
 inspect another account's refresh candidate. Delayed publication rechecks job,
 source generation, membership, deadline and cancellation under the organization

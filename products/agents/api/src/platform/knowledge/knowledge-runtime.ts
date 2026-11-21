@@ -47,7 +47,7 @@ export class KnowledgeRuntime implements KnowledgeContextReader, KnowledgeRuntim
       vector = (await this.embeddings.embed({ taskId, operationId, profileRelease: config.retrievalProfile.embeddingRelease, query })).vector;
     }
     const hits = await this.retrieval.search({ organizationId: execution.task.organization_id, versionId: execution.task.version_id,
-      sourceRevisionIds: config.sourceRevisionIds, publicOnly: isCustomerPrincipal(execution.task.principal) }, query,
+      sourceRevisionIds: config.sourceRevisionIds }, query,
     profile ?? { kind: "hybrid-v1", embeddingRelease: config.retrievalProfile.kind === "hybrid-v1" ? config.retrievalProfile.embeddingRelease : "", queryVector: vector! },
     async db => { await assertCurrentAuthority(db, await loadExecution(db, taskId)); });
     const observation: KnowledgeObservation = { profile: config.retrievalProfile.kind, passages: [], omitted: hits.length };
@@ -101,9 +101,8 @@ export class KnowledgeRuntime implements KnowledgeContextReader, KnowledgeRuntim
       JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id AND p.organization_id=r.organization_id
       JOIN agents_platform.source_sections sec ON sec.revision_id=r.id AND sec.organization_id=r.organization_id
       WHERE v.organization_id=$1 AND v.version_id=$2 AND v.revision_id=ANY($3::uuid[]) AND s.state='active' AND p.state='approved'
-        AND (NOT $4::boolean OR s.visibility='public')
         AND NOT EXISTS(SELECT 1 FROM agents_platform.source_sections child WHERE child.revision_id=sec.revision_id AND child.parent_ordinal=sec.ordinal)`,
-    [execution.task.organization_id, execution.task.version_id, config.sourceRevisionIds, isCustomerPrincipal(execution.task.principal)])).rows[0];
+    [execution.task.organization_id, execution.task.version_id, config.sourceRevisionIds])).rows[0];
     return Boolean(row && row.sections > 0 && row.sections <= maxSections && row.chars <= maxChars);
   }
 
@@ -117,10 +116,9 @@ export class KnowledgeRuntime implements KnowledgeContextReader, KnowledgeRuntim
       JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id AND p.organization_id=r.organization_id
       JOIN agents_platform.source_sections sec ON sec.revision_id=r.id AND sec.organization_id=r.organization_id
       WHERE v.organization_id=$1 AND v.version_id=$2 AND v.revision_id=ANY($3::uuid[]) AND s.state='active' AND p.state='approved'
-        AND (NOT $4::boolean OR s.visibility='public')
         AND NOT EXISTS(SELECT 1 FROM agents_platform.source_sections child WHERE child.revision_id=sec.revision_id AND child.parent_ordinal=sec.ordinal)
       ORDER BY s.title,r.revision,sec.ordinal,sec.part`, [execution.task.organization_id, execution.task.version_id,
-      config.sourceRevisionIds, isCustomerPrincipal(execution.task.principal)])).rows;
+      config.sourceRevisionIds])).rows;
     const selected: Array<{ id: string; revisionId: string; sourceId: string; title: string; headingPath: string; content: string }> = [];
     let used = 0;
     for (const row of rows) {

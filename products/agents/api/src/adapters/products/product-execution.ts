@@ -44,7 +44,7 @@ export class ProductExecutionAdapter {
       }
       const sources=(await db.query(`SELECT r.id FROM agents_platform.source_revisions r JOIN agents_platform.sources s ON s.id=r.source_id AND s.organization_id=r.organization_id
         JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id AND p.organization_id=r.organization_id
-        WHERE r.organization_id=$1 AND r.id=ANY($2::uuid[]) AND s.state='active' AND s.visibility='public' AND p.state='approved' FOR SHARE OF s,p`,[tenant.organization_id,config.sourceRevisionIds])).rows;
+        WHERE r.organization_id=$1 AND r.id=ANY($2::uuid[]) AND s.state='active' AND p.state='approved' FOR SHARE OF s,p`,[tenant.organization_id,config.sourceRevisionIds])).rows;
       if(sources.length!==config.sourceRevisionIds.length) throw new PlatformError("PRODUCT_SOURCE_UNAVAILABLE",403,"The approved product knowledge is unavailable");
       const authority={ product:claims.product,organizationId:tenant.organization_id,resourceId:claims.resourceId,callerClientId:this.trust.clientId,
         principal:{kind:"human" as const,issuer:claims.actorIssuer,subject:claims.sub} };

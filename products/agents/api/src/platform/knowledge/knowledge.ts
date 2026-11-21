@@ -20,7 +20,7 @@ export interface IngestionJobDTO extends IngestionJob { contentType: string; err
 const missing = () => new PlatformError("SOURCE_NOT_FOUND", 404, "Source is unavailable");
 const sourceDTO = (row: Record<string, any>): Source => ({ id: row.id, organizationId: row.organization_id,
   importerAccountId: row.importer_account_id, ...(row.importer_service ? { importerService: row.importer_service } : {}), title: row.title, kind: row.kind, generation: row.generation,
-  state: row.state, visibility: row.visibility, createdAt: new Date(row.created_at).toISOString(),
+  state: row.state, createdAt: new Date(row.created_at).toISOString(),
   lastVerifiedAt: row.last_verified_at ? new Date(row.last_verified_at).toISOString() : null,
   verifiedBy: row.verified_by ?? null,
   reviewDueAt: row.review_due_at ? new Date(row.review_due_at).toISOString() : null });
@@ -286,14 +286,14 @@ export class KnowledgeStore {
     });
   }
 
-  async setPolicy(scope: KnowledgeScope, sourceId: string, raw: { operationId: string; expectedGeneration: number; action: "approve" | "withdraw" | "visibility"; revisionId?: string; visibility?: "private" | "public" }): Promise<Source> {
+  async setPolicy(scope: KnowledgeScope, sourceId: string, raw: { operationId: string; expectedGeneration: number; action: "approve" | "withdraw"; revisionId?: string }): Promise<Source> {
     return transaction(this.pool, db => this.setPolicyInTransaction(db,scope,sourceId,raw));
   }
-  async setPolicyInTransaction(db: PoolClient, scope: KnowledgeScope, sourceId: string, raw: { operationId: string; expectedGeneration: number; action: "approve" | "withdraw" | "visibility"; revisionId?: string; visibility?: "private" | "public" }): Promise<Source> {
+  async setPolicyInTransaction(db: PoolClient, scope: KnowledgeScope, sourceId: string, raw: { operationId: string; expectedGeneration: number; action: "approve" | "withdraw"; revisionId?: string }): Promise<Source> {
     z.uuid().parse(sourceId);
     const input = z.strictObject({ operationId: z.string().min(1).max(128), expectedGeneration: z.number().int().positive(),
-      action: z.enum(["approve", "withdraw", "visibility"]), revisionId: z.uuid().optional(), visibility: z.enum(["private", "public"]).optional() }).parse(raw);
-    if (input.action === "approve" && !input.revisionId || input.action === "visibility" && !input.visibility) throw new PlatformError("INVALID_INPUT", 400, "Select a revision or visibility");
+      action: z.enum(["approve", "withdraw"]), revisionId: z.uuid().optional() }).parse(raw);
+    if (input.action === "approve" && !input.revisionId) throw new PlatformError("INVALID_INPUT", 400, "Select a revision");
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [scope.organizationId]);
       await requireKnowledgeMember(db, scope, true);
       const digest = requestDigest({ sourceId, ...input });
@@ -310,7 +310,7 @@ export class KnowledgeStore {
         const approved = await db.query("UPDATE agents_platform.source_revision_policy SET state='approved',approved_by=$3,approved_by_service=$5,approved_at=now() WHERE source_id=$1 AND revision_id=$2 AND organization_id=$4 AND state='candidate' RETURNING revision_id", [sourceId, input.revisionId, resourceAccountId(scope), scope.organizationId, resourceService(scope)]);
         if (!approved.rowCount) throw new PlatformError("SOURCE_REVISION_UNAVAILABLE", 409, "Select an available candidate revision");
       } else {
-        await db.query("UPDATE agents_platform.sources SET generation=generation+1,state=$2,visibility=$3 WHERE id=$1", [sourceId, input.action === "withdraw" ? "withdrawn" : "active", input.visibility ?? row.visibility]);
+        await db.query("UPDATE agents_platform.sources SET generation=generation+1,state=$2 WHERE id=$1", [sourceId, input.action === "withdraw" ? "withdrawn" : "active"]);
         if (input.action === "withdraw") {
           await db.query("UPDATE agents_platform.source_revision_policy SET state='withdrawn' WHERE source_id=$1", [sourceId]);
           await db.query("UPDATE agents_platform.ingestion_jobs SET state='cancelled',updated_at=now() WHERE source_id=$1 AND state NOT IN ('ready','failed','cancelled')", [sourceId]);

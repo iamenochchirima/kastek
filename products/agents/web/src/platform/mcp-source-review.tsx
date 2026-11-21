@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
-type Review = { id: string; sourceTitle: string; action: "approve" | "visibility"; visibility: "private" | "public" | null; state: "pending" | "approved" | "cancelled" | "expired"; preview?: { revision:number; excerpt:string; truncated:boolean } | null; previewUnavailable?:boolean };
+type Review = { id: string; sourceTitle: string; state: "pending" | "approved" | "cancelled" | "expired"; preview?: { revision:number; excerpt:string; truncated:boolean } | null; previewUnavailable?:boolean };
 
 export function McpSourceReview() {
   const [parameters] = useSearchParams();
@@ -33,12 +33,11 @@ export function McpSourceReview() {
   return <main className="dashboard-theme min-h-dvh bg-background px-6 py-16 text-foreground"><section className="mx-auto max-w-lg space-y-6 rounded-xl border border-border bg-card p-6">
     <h1 className="text-xl font-semibold">Review knowledge change</h1>
     {!review && !error && <p role="status">Loading request…</p>}
-    {review && <><p>Source: <strong>{review.sourceTitle}</strong></p><p>{review.action === "approve" ? "Approve this source revision for use." : `Set visibility to ${review.visibility}.`}</p>
-      {review.action === "approve" && review.preview && <section aria-label="Source preview" className="space-y-2"><p className="text-sm font-medium">Revision {review.preview.revision}</p><div className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md border border-border p-3 text-sm">{review.preview.excerpt}</div>{review.preview.truncated && <p className="text-sm text-muted-foreground">Preview truncated. Inspect the full source before approval.</p>}</section>}
-      {review.action === "approve" && review.previewUnavailable && <p role="alert" className="text-sm text-destructive">Source preview unavailable.</p>}
-      {review.visibility === "public" && <p className="text-sm">Website customers can access this knowledge through the agent.</p>}
+    {review && <><p>Source: <strong>{review.sourceTitle}</strong></p><p>Approve this source revision for use.</p>
+      {review.preview && <section aria-label="Source preview" className="space-y-2"><p className="text-sm font-medium">Revision {review.preview.revision}</p><div className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md border border-border p-3 text-sm">{review.preview.excerpt}</div>{review.preview.truncated && <p className="text-sm text-muted-foreground">Preview truncated. Inspect the full source before approval.</p>}</section>}
+      {review.previewUnavailable && <p role="alert" className="text-sm text-destructive">Source preview unavailable.</p>}
       <Link className="text-sm underline" to="/app/knowledge">Inspect knowledge</Link>
-      {review.state === "pending" ? <div className="flex gap-3"><Button disabled={busy || (review.action === "approve" && !review.preview)} onClick={() => void decide(true)}>{busy ? "Processing…" : "Apply change"}</Button><Button variant="outline" disabled={busy} onClick={() => void decide(false)}>Cancel</Button></div> : <p role="status">{review.state === "approved" ? "Change applied" : review.state === "cancelled" ? "Request cancelled" : "Request expired"}</p>}
+      {review.state === "pending" ? <div className="flex gap-3"><Button disabled={busy || !review.preview} onClick={() => void decide(true)}>{busy ? "Processing…" : "Apply change"}</Button><Button variant="outline" disabled={busy} onClick={() => void decide(false)}>Cancel</Button></div> : <p role="status">{review.state === "approved" ? "Change applied" : review.state === "cancelled" ? "Request cancelled" : "Request expired"}</p>}
     </>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
   </section></main>;

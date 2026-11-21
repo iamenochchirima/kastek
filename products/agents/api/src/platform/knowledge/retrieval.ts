@@ -4,9 +4,9 @@ import { PlatformError } from "../../contracts/contracts";
 import { transaction } from "../../infrastructure/database";
 import { assertEmbeddingVector } from "./knowledge";
 
-export interface RetrievalScope { organizationId: string; versionId: string; sourceRevisionIds: string[]; publicOnly: boolean }
+export interface RetrievalScope { organizationId: string; versionId: string; sourceRevisionIds: string[] }
 export type RetrievalProfile = { kind: "lexical-v1" } | { kind: "hybrid-v1"; embeddingRelease: string; queryVector: number[] };
-export interface RetrievalHit { chunkId: string; sourceId: string; revisionId: string; sourceGeneration: number; visibility: "private" | "public";
+export interface RetrievalHit { chunkId: string; sourceId: string; revisionId: string; sourceGeneration: number;
   title: string; start: number; end: number; page: number | null; text: string; contentDigest: string; acquiredAt: string; rankScore: number;
   sectionId: string | null; sectionOrdinal: number | null; sectionPart: number | null; headingPath: string | null }
 /** Sections are returned whole: a hit list is a section list, not a window list. */
@@ -29,28 +29,27 @@ export class KnowledgeRetrieval {
     return transaction(this.pool, async db => {
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR SHARE", [scope.organizationId]);
       await authorize(db);
-      const params: unknown[] = [scope.organizationId, scope.versionId, scope.sourceRevisionIds, scope.publicOnly, query];
+      const params: unknown[] = [scope.organizationId, scope.versionId, scope.sourceRevisionIds, query];
       const scoped = `WITH eligible AS MATERIALIZED (
-        SELECT c.*,s.id AS source_id,s.generation,s.visibility,s.title,r.acquired_at,r.embedding_release
+        SELECT c.*,s.id AS source_id,s.generation,s.title,r.acquired_at,r.embedding_release
         FROM agents_platform.source_chunks c
         JOIN agents_platform.source_revisions r ON r.id=c.revision_id AND r.organization_id=c.organization_id
         JOIN agents_platform.sources s ON s.id=r.source_id AND s.organization_id=r.organization_id
         JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id AND p.organization_id=r.organization_id
         JOIN agents_platform.version_sources v ON v.revision_id=r.id AND v.source_id=s.id AND v.organization_id=s.organization_id
         WHERE c.organization_id=$1 AND v.version_id=$2 AND r.id=ANY($3::uuid[]) AND s.state='active' AND p.state='approved'
-        AND (NOT $4::boolean OR s.visibility='public')
       ), lexical_query AS (
         SELECT string_agg(quote_literal(term),' | ')::tsquery AS expression
-        FROM unnest(tsvector_to_array(to_tsvector('english',$5))) AS terms(term)
+        FROM unnest(tsvector_to_array(to_tsvector('english',$4))) AS terms(term)
       ), lexical_candidates AS (
         SELECT id,ts_rank_cd(search_document,q.expression) AS score FROM eligible CROSS JOIN lexical_query q
         WHERE search_document @@ q.expression
         ORDER BY score DESC,id LIMIT 20
       ), lexical AS (SELECT id,row_number() OVER(ORDER BY score DESC,id) AS rank FROM lexical_candidates)`;
       const headingBoost = `CROSS JOIN LATERAL (SELECT CASE WHEN sec.heading_path IS NULL THEN 0::float8 ELSE
-        0.05 * (SELECT count(*) FROM unnest(tsvector_to_array(to_tsvector('english',$5))) t(term)
+        0.05 * (SELECT count(*) FROM unnest(tsvector_to_array(to_tsvector('english',$4))) t(term)
           WHERE to_tsvector('english',sec.heading_path) @@ to_tsquery('english',t.term))::float8
-        / greatest(1,(SELECT count(*) FROM unnest(tsvector_to_array(to_tsvector('english',$5)))))::float8 END AS boost) hb`;
+        / greatest(1,(SELECT count(*) FROM unnest(tsvector_to_array(to_tsvector('english',$4)))))::float8 END AS boost) hb`;
       let sql: string;
       if (profile.kind === "hybrid-v1") {
         params.push(profile.embeddingRelease, `[${profile.queryVector.join(",")}]`, RETRIEVAL_PROFILE.semanticMinSimilarity);
@@ -59,14 +58,14 @@ export class KnowledgeRetrieval {
           JOIN agents_platform.sources s ON s.id=r.source_id AND s.id=v.source_id AND s.organization_id=r.organization_id
           JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id AND p.source_id=s.id AND p.organization_id=r.organization_id
           WHERE v.organization_id=$1 AND v.version_id=$2 AND s.state='active' AND p.state='approved'
-          AND r.id=ANY($3::uuid[]) AND (NOT $5::boolean OR s.visibility='public') AND (r.embedding_release IS DISTINCT FROM $4 OR EXISTS(
+          AND r.id=ANY($3::uuid[]) AND (r.embedding_release IS DISTINCT FROM $4 OR EXISTS(
             SELECT 1 FROM agents_platform.source_chunks c LEFT JOIN agents_platform.chunk_embeddings e ON e.chunk_id=c.id
-            WHERE c.revision_id=r.id AND (e.chunk_id IS NULL OR e.embedding_release<>$4)))`, [scope.organizationId, scope.versionId, scope.sourceRevisionIds, profile.embeddingRelease, scope.publicOnly])).rows[0];
+            WHERE c.revision_id=r.id AND (e.chunk_id IS NULL OR e.embedding_release<>$4)))`, [scope.organizationId, scope.versionId, scope.sourceRevisionIds, profile.embeddingRelease])).rows[0];
         if (Number(available.missing)) throw new PlatformError("RETRIEVAL_BACKEND_UNAVAILABLE", 503, "The selected knowledge index is unavailable");
         sql = `${scoped}, semantic_candidates AS (
-          SELECT c.id,(e.embedding <=> $7::public.vector) AS distance FROM eligible c
+          SELECT c.id,(e.embedding <=> $6::public.vector) AS distance FROM eligible c
           JOIN agents_platform.chunk_embeddings e ON e.chunk_id=c.id AND e.organization_id=c.organization_id
-          WHERE e.embedding_release=$6 AND c.embedding_release=$6 AND (e.embedding <=> $7::public.vector)<=1-$8::double precision
+          WHERE e.embedding_release=$5 AND c.embedding_release=$5 AND (e.embedding <=> $6::public.vector)<=1-$7::double precision
           ORDER BY distance,c.id LIMIT 20
         ), semantic AS (SELECT id,row_number() OVER(ORDER BY distance,id) AS rank FROM semantic_candidates),
         fused AS (SELECT id,sum(score) AS score FROM (
@@ -127,7 +126,7 @@ export class KnowledgeRetrieval {
       if (!chosen.length) {
         const ids = candidates.slice(0, RETRIEVAL_PROFILE.maxHits).map(row => row.id);
         if (!ids.length) return [];
-        const rows = (await db.query(`SELECT c.id,r.source_id,c.revision_id,src.generation,src.visibility,src.title,
+        const rows = (await db.query(`SELECT c.id,r.source_id,c.revision_id,src.generation,src.title,
             c.start_offset,c.end_offset,c.page,c.content,c.content_digest,r.acquired_at
           FROM agents_platform.source_chunks c
           JOIN agents_platform.source_revisions r ON r.id=c.revision_id AND r.organization_id=c.organization_id
@@ -137,7 +136,7 @@ export class KnowledgeRetrieval {
         const score = new Map(candidates.map(row => [row.id, Number(row.rank_score)]));
         return rows.sort((left, right) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0)).map(row => ({
           chunkId: row.id, sourceId: row.source_id, revisionId: row.revision_id, sourceGeneration: Number(row.generation),
-          visibility: row.visibility, title: row.title, start: Number(row.start_offset), end: Number(row.end_offset),
+          title: row.title, start: Number(row.start_offset), end: Number(row.end_offset),
           page: row.page === null ? null : Number(row.page), text: row.content, contentDigest: row.content_digest,
           acquiredAt: new Date(row.acquired_at).toISOString(), rankScore: score.get(row.id) ?? 0,
           sectionId: null, sectionOrdinal: null, sectionPart: null, headingPath: null,
@@ -145,7 +144,7 @@ export class KnowledgeRetrieval {
       }
       const revisionIds = chosen.map(([key]) => key.slice(0, key.lastIndexOf(":")));
       const ordinals = chosen.map(([key]) => Number(key.slice(key.lastIndexOf(":") + 1)));
-      const rows = (await db.query(`SELECT c.id,r.source_id,c.revision_id,src.generation,src.visibility,src.title,
+      const rows = (await db.query(`SELECT c.id,r.source_id,c.revision_id,src.generation,src.title,
           c.start_offset,c.end_offset,c.page,c.content,c.content_digest,r.acquired_at,
           c.section_id,c.section_ordinal,sec.heading_path,sec.part,want.ordinal AS selected_ordinal,
           sec.id AS selected_section_id,sec.part AS selected_part
@@ -177,7 +176,7 @@ export class KnowledgeRetrieval {
           if (bytes + size > RETRIEVAL_PROFILE.maxBytes) break;
           sectionBytes += size; bytes += size; seenChunks.add(row.id);
           hits.push({ chunkId: row.id, sourceId: row.source_id, revisionId: row.revision_id, sourceGeneration: Number(row.generation),
-            visibility: row.visibility, title: row.title, start: Number(row.start_offset), end: Number(row.end_offset),
+            title: row.title, start: Number(row.start_offset), end: Number(row.end_offset),
             page: row.page === null ? null : Number(row.page), text: row.content, contentDigest: row.content_digest,
             acquiredAt: new Date(row.acquired_at).toISOString(), rankScore: score,
             sectionId: row.selected_section_id, sectionOrdinal: Number(row.selected_ordinal), sectionPart: Number(row.selected_part), headingPath: row.heading_path });

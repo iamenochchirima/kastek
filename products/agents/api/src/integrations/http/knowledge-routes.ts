@@ -40,7 +40,7 @@ export function registerKnowledgeRoutes(app: FastifyInstance, options: { knowled
     const configuration = agentConfigurationSchema.parse(latest.configuration);
     if (!configuration.sourceRevisionIds.length) return { profile: "lexical-v1", configuredProfile: configuration.retrievalProfile.kind, attached: 0, hits: [] };
     const hits = await new KnowledgeRetrieval(options.knowledge.pool).search({
-      organizationId: scope.organizationId, versionId: latest.id, sourceRevisionIds: configuration.sourceRevisionIds, publicOnly: false,
+      organizationId: scope.organizationId, versionId: latest.id, sourceRevisionIds: configuration.sourceRevisionIds,
     }, query, { kind: "lexical-v1" }, async db => { await requireKnowledgeMember(db, scope); });
     return { profile: "lexical-v1", configuredProfile: configuration.retrievalProfile.kind, attached: configuration.sourceRevisionIds.length,
       hits: hits.map(hit => ({ sourceId: hit.sourceId, revisionId: hit.revisionId, title: hit.title, text: hit.text.slice(0, 1200),

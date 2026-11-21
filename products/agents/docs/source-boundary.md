@@ -178,7 +178,7 @@ scope. These records are private. Contact fields do not verify identity. Externa
 Growth synchronization remain outside this implementation.
 
 GET `/api/organizations/:organizationId/agents/:agentId/setup-readiness` reports saved model
-metadata/credential availability, knowledge approval/public visibility, booking policy authority,
+metadata/credential availability, knowledge approval, booking policy authority,
 native intake and handoff capability, and actual selected-channel deployment state. It does not
 call a model or certify live provider credentials. The review and Configure screens use this
 projection. Channel actions preselect the agent, preserve authorization return context and reuse
@@ -272,7 +272,7 @@ outcome semantics; a check immediately before sending cannot recall an in-flight
 Apply schema090, schema091 and schema092 before starting the matching API and worker. The `connected_uncertain_recovery_failed`
 and `connected_uncertain_notice_failed` logs record bounded retry codes without customer content;
 analytics and Collector changes are not
-applicable. PostgreSQL, controlled provider and browser fixtures validate recovery, owner-only reads and visibility;
+applicable. PostgreSQL, controlled provider and browser fixtures validate recovery and owner-only reads;
 live-provider acceptance and model evaluations remain owner-run. To stop new recovery, set
 `AGENTS_CONNECTED_UNCERTAIN_RECOVERY=false` on the worker and retain schema and receipts. Existing
 v1 adapter files and pinned identities are unchanged. A separately versioned adapter with its own
@@ -306,7 +306,7 @@ select pages, inspect extracted Markdown, and import the selection as one knowle
 The next review shows the normalized candidate. **Approve and use** approves the revision, publishes
 it for customer replies, and attaches it through the normal revision-checked agent configuration API.
 Customer channels use active, approved, attached public sources. Member conversations can also use
-attached private sources. Retrieval and reused evidence check current visibility, so changing a source
+attached sources. Retrieval and reused evidence check current approval and withdrawal, so changing a source
 to private prevents its use in customer replies. Closing or reloading resumes the exact persisted import and derives completion from its ready
 revision, current approval, active source, and saved agent knowledge bindings. Withdrawn, unavailable,
 failed and cancelled imports remain distinct and can be retried without reporting success.
@@ -823,7 +823,7 @@ require the matching worker identity. Previously accepted releases retain their 
 
 Non-website admissions use a verified `channel_customer` principal bound to the deployment and
 canonical conversation. The same admission/model routing/root budgets, Restate loop, context,
-public knowledge/skills, booking confirmation and ownership fences apply. No website session is
+approved knowledge/skills, booking confirmation and ownership fences apply. No website session is
 fabricated. Saved settings update future channel admissions without replacing the address,
 customer thread or history. Accepted work retains its pinned model, snapshot and authority.
 
@@ -1110,7 +1110,7 @@ session; authorized audit metadata remains available with current-policy payload
 The trusted `adapters/products/product-execution.ts` contract verifies signed short-lived product
 assertions against an installed issuer/key and registered tenant mapping. Product actors
 retain their own identities; admission does not invent an Agents account or membership. The current
-contract consumer supports model replies and approved public knowledge only. Rich product tools,
+contract consumer supports model replies and approved knowledge only. Rich product tools,
 private product records, delegated specialists, memory and sandbox scopes remain unavailable through
 this product adapter until their resource contracts exist. These constraints do not limit the separate
 shared harness acceptance fixtures. Agency's separate client-scoped ingress is described below;
@@ -1875,7 +1875,7 @@ PostgreSQL 17 with pgvector stores immutable chunks, full-text indexes and scope
 384-dimensional vectors. `lexical-v1` normalizes a natural-language query into English lexemes,
 matches any of those terms and ranks the eligible passages. Additional words in a question do not
 require every word to occur in a short source note. Tenant, published-version, selected-revision,
-approval, visibility and current source filters apply before either retriever ranks candidates.
+approval and current source filters apply before either retriever ranks candidates.
 `hybrid-v1` uses
 the explicitly pinned local BGE release, exact vector search and RRF (k=60),
 at most 20 candidates per retriever and five results. Missing semantic runtime
@@ -1911,7 +1911,7 @@ dependencies separately from the specialist's narrower direct read grants. Deriv
 outputs and later memory reuse must still pass the original input policy checks. Shared ancestors deduplicate;
 cycles, missing records and conflicting policies fail closed.
 
-Source withdrawal, visibility changes, connection policy and Forget block future
+Source withdrawal, connection policy and Forget block future
 consumption. Model/effect claims recheck current dependencies atomically. A final
 answer cannot publish after its source is withdrawn during generation. A consumed dependency
 invalidated by withdrawal or Forget ends the current task incomplete; a fresh turn can rebuild

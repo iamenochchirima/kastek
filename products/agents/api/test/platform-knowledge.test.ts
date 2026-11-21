@@ -36,7 +36,6 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await store.admitUpload(scope, input)).id).toBe(job.id);
     await expect(store.admitUpload(scope, { ...input, content: Buffer.from("changed") })).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
     expect((await pool.query("SELECT count(*) FROM agents_platform.ingestion_outbox WHERE job_id=$1", [job.id])).rows[0].count).toBe("1");
-    expect((await store.list(scope))[0]?.visibility).toBe("private");
     const output = extraction(job); await start(job); await store.publishExtraction(job.id, output); await store.publishExtraction(job.id, output);
     expect((await store.list(scope))[0]?.revisions[0]?.state).toBe("candidate");
     const policy = { operationId: randomUUID(), expectedGeneration: 1, action: "approve" as const, revisionId: job.revisionId };
@@ -116,12 +115,12 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await store.getJob(scope, second.id)).state).toBe("cancelled");
   });
 
-  it("bounds concurrent imports and refuses stale visibility changes", async () => {
+  it("bounds concurrent imports and refuses stale policy changes", async () => {
     const scope = await fixture(), jobs = await Promise.all([store.admitUpload(scope, upload()), store.admitUpload(scope, upload())]);
     await expect(store.admitUpload(scope, upload())).rejects.toMatchObject({ code: "IMPORT_CONCURRENCY_LIMIT" });
     await store.cancel(scope, jobs[0]!.id); await store.admitUpload(scope, upload());
-    await store.setPolicy(scope, jobs[1]!.sourceId, { operationId: randomUUID(), expectedGeneration: 1, action: "visibility", visibility: "public" });
-    await expect(store.setPolicy(scope, jobs[1]!.sourceId, { operationId: randomUUID(), expectedGeneration: 1, action: "visibility", visibility: "private" })).rejects.toMatchObject({ code: "SOURCE_POLICY_CONFLICT" });
+    await store.setPolicy(scope, jobs[1]!.sourceId, { operationId: randomUUID(), expectedGeneration: 1, action: "withdraw" });
+    await expect(store.setPolicy(scope, jobs[1]!.sourceId, { operationId: randomUUID(), expectedGeneration: 1, action: "withdraw" })).rejects.toMatchObject({ code: "SOURCE_POLICY_CONFLICT" });
     await start(jobs[1]!);
     await expect(store.publishExtraction(jobs[1]!.id, extraction(jobs[1]!))).rejects.toMatchObject({ code: "INGESTION_INVALIDATED" });
   });

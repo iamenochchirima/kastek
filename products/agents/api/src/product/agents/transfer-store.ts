@@ -279,8 +279,8 @@ export class AgentTransferStore {
     const contentType = original.content_type ?? "application/octet-stream";
     if (raw) await this.objects.put(rawKey, raw, contentType, db);
     await this.objects.put(textKey, text, "text/plain; charset=utf-8", db);
-    await db.query(`INSERT INTO agents_platform.sources(id,organization_id,importer_account_id,title,kind,generation,state,visibility,created_at,last_verified_at,verified_by,review_due_at)
-      VALUES($1,$2,$3,$4,$5,1,'active','public',now(),$6,$7,$8)`,
+    await db.query(`INSERT INTO agents_platform.sources(id,organization_id,importer_account_id,title,kind,generation,state,created_at,last_verified_at,verified_by,review_due_at)
+      VALUES($1,$2,$3,$4,$5,1,'active',now(),$6,$7,$8)`,
       [sourceId, input.destinationOrganizationId, input.accountId, input.title, original.kind, original.last_verified_at, original.verified_by, original.review_due_at]);
     await db.query(`INSERT INTO agents_platform.ingestion_jobs(id,organization_id,source_id,importer_account_id,operation_id,request_digest,revision_id,revision,accepted_generation,state,content_type,raw_key,raw_digest,raw_bytes,raw_state,parser_release,embedding_release,deadline,acquired_at,updated_at)
       VALUES($1,$2,$3,$4,$5,$6,$7,1,1,'ready',$8,$9,$10,$11,$12,$13,$14,now(),$15,now())`,

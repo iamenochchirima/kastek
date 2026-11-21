@@ -14,7 +14,7 @@ export const sourceSchema = z.strictObject({
   id, organizationId: id, importerAccountId: id.nullable(), importerService: z.strictObject({ product: z.literal("growth"), tenantId: z.string().min(1).max(256), agentId: id,
     actor: z.strictObject({ issuer: z.url().max(2048), subject: z.string().min(1).max(512) }), service: z.strictObject({ issuer: z.url().max(2048), clientId: z.string().min(1).max(128) }) }).optional(), title: z.string().trim().min(1).max(200),
   kind: z.enum(["upload", "public_url", "provider_snapshot"]), generation,
-  state: z.enum(["active", "withdrawn"]), visibility: z.enum(["private", "public"]),
+  state: z.enum(["active", "withdrawn"]),
   createdAt: z.iso.datetime(),
   lastVerifiedAt: z.iso.datetime().nullable(),
   verifiedBy: id.nullable(),
@@ -46,7 +46,7 @@ export const sourceChunkSchema = z.strictObject({
   if (textDigest(chunk.text) !== chunk.digest) context.addIssue({ code: "custom", message: "Chunk digest does not match its text" });
 });
 
-const sourceDependency = z.strictObject({ kind: z.literal("source"), sourceId: id, revisionId: id, generation, visibility: z.enum(["private", "public"]) });
+const sourceDependency = z.strictObject({ kind: z.literal("source"), sourceId: id, revisionId: id, generation });
 const connectionDependency = z.strictObject({ kind: z.literal("connection"), connectionId: id, policyRevision: generation,
   resource: z.string().min(1).max(2048), catalogDigest: digest });
 const memoryTransition = z.strictObject({ memoryId: id, memoryRevision: generation });

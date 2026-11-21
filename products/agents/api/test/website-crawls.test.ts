@@ -60,7 +60,7 @@ describe("website crawl URL admission",()=>{
   const selected={operationId:randomUUID(),pageIds:[complete.pages[0].id]};
   const imported=await store.import(scope,agentId,crawl.id,selected,"document-test-v1");
   expect((await store.import(scope,agentId,crawl.id,selected,"document-test-v1")).job.id).toBe(imported.job.id);
-  const sources=await knowledge.list(scope);expect(sources).toHaveLength(1);expect(sources[0].visibility).toBe("private");expect(sources[0].revisions).toHaveLength(0);
+  const sources=await knowledge.list(scope);expect(sources).toHaveLength(1);expect(sources[0].revisions).toHaveLength(0);
   expect((await pool.query("SELECT convert_from(k.content, 'UTF8') AS content FROM agents_platform.knowledge_object_contents k JOIN agents_platform.ingestion_jobs j ON j.raw_key=k.object_key WHERE j.id=$1",[imported.job.id])).rows[0].content).toContain("Source: https://example.com/services");
   expect((await pool.query("SELECT count(*) FROM agents_platform.ingestion_outbox WHERE job_id=$1",[imported.job.id])).rows[0].count).toBe("1");
  });
@@ -107,7 +107,7 @@ describe("website crawl URL admission",()=>{
   await expect(store.import(mcpScope,agentId,crawl.id,{operationId:randomUUID(),pageIds:[complete.pages[0].id]})).rejects.toMatchObject({code:"ACCESS_DENIED"});
   expect((await pool.query("SELECT count(*)::int n FROM agents_platform.ingestion_jobs WHERE organization_id=$1",[scope.organizationId])).rows[0].n).toBe(0);
  });
- it("seals reviewed website evidence, binds only approved revisions, and fences private or withdrawn customer retrieval",async()=>{
+ it("seals reviewed website evidence, binds only approved revisions, and fences withdrawn retrieval",async()=>{
   const{scope,agentId}=await fixture();provider();
   const crawl=await store.start(scope,agentId,{operationId:randomUUID(),url:"example.com"});await tick();await tick();
   const complete=await store.get(scope,agentId,crawl.id);
@@ -125,13 +125,11 @@ describe("website crawl URL admission",()=>{
   await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"approve",revisionId:job.revisionId});
   const saved=await platform.saveConfiguration({...scope,agentId,expectedRevision:agent.draft_revision,configuration,confirmImpact:true});
   expect(saved.agent.draft.sourceRevisionIds).toEqual([job.revisionId]);
-  const retrieval=new KnowledgeRetrieval(pool),retrievalScope={organizationId:scope.organizationId,versionId:saved.snapshot.id,sourceRevisionIds:[job.revisionId],publicOnly:true};
-  const search=(publicOnly=true)=>retrieval.search({...retrievalScope,publicOnly},"booking",{kind:"lexical-v1"},async db=>{await requireKnowledgeMember(db,scope);});
-  expect(await search()).toEqual([]);expect(await search(false)).toHaveLength(1);
-  await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"visibility",visibility:"public"});
+  const retrieval=new KnowledgeRetrieval(pool),retrievalScope={organizationId:scope.organizationId,versionId:saved.snapshot.id,sourceRevisionIds:[job.revisionId]};
+  const search=()=>retrieval.search(retrievalScope,"booking",{kind:"lexical-v1"},async db=>{await requireKnowledgeMember(db,scope);});
   expect(await search()).toHaveLength(1);
-  await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:2,action:"withdraw"});
-  expect(await search()).toEqual([]);expect(await search(false)).toEqual([]);
+  await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"withdraw"});
+  expect(await search()).toEqual([]);
  });
  it("polls an active Firecrawl cursor without following its URL or failing the crawl",async()=>{
   const{scope,agentId}=await fixture(),remote=provider();const crawl=await store.start(scope,agentId,{operationId:randomUUID(),url:"example.com"});await tick();

@@ -100,11 +100,11 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     expect(result.body.deployment.allowedOrigins).toEqual(["https://kasitek.co.za"]);
   });
 
-  async function readyAgent(visibility: "public" | "private" = "public") {
+  async function readyAgent() {
     const user = await actor(), base = `/api/organizations/${user.org}`;
     const create = await request(`${base}/agents`, { method: "POST", cookie: user.cookie, origin: browserOrigin, payload: { name: "Opening hours" } });
     expect(create.status).toBe(201);
-    const source=await publishFixtureSource(pool,{accountId:user.account.id,organizationId:user.org,title:"Hours",content:"The shop opens Monday at nine.",visibility},objects);
+    const source=await publishFixtureSource(pool,{accountId:user.account.id,organizationId:user.org,title:"Hours",content:"The shop opens Monday at nine."},objects);
     const configuration = { ...defaultBusinessConfiguration(), sourceRevisionIds: [source.id] };
     const update = await request(`${base}/agents/${create.body.agent.id}`, { method: "PUT", cookie: user.cookie, origin: browserOrigin,
       payload: { configuration, expectedRevision: create.body.agent.draftRevision } });
@@ -215,7 +215,7 @@ suite("Agents HTTP and PostgreSQL integration", () => {
   it("rejects the removed direct approval route and scalar configuration authority",async()=>{
     const user=await actor(),base=`/api/organizations/${user.org}`;
     expect((await request(`${base}/knowledge`,{cookie:user.cookie})).status).toBe(404);
-    expect((await request(`${base}/knowledge`,{method:"POST",cookie:user.cookie,origin:browserOrigin,payload:{title:"Bypass",content:"Unreviewed data",visibility:"public"}})).status).toBe(404);
+    expect((await request(`${base}/knowledge`,{method:"POST",cookie:user.cookie,origin:browserOrigin,payload:{title:"Bypass",content:"Unreviewed data"}})).status).toBe(404);
     expect((await request(`${base}/agents`,{method:"POST",cookie:user.cookie,origin:browserOrigin,payload:{name:"Unreviewed",configuration:{...defaultBusinessConfiguration(),knowledgeIds:[randomUUID()]}}})).status).toBe(400);
   });
 
@@ -251,10 +251,9 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     expect((await request("/ready")).status).toBe(200);
   });
 
-  it("refuses private website knowledge, disabled capabilities and unavailable workspace execution", async () => {
-    const f = await readyAgent("private");
-    const refused = await publish(f);
-    expect(refused.status).toBe(409); expect(refused.body.error.code).toBe("PRIVATE_KNOWLEDGE");
+  it("refuses disabled capabilities and unavailable workspace execution", async () => {
+    const f = await readyAgent();
+    const deployed = await publish(f); expect(deployed.status).toBe(201);
     const disabled = await request(`${f.base}/agents/${f.agent.id}`, { method: "PUT", cookie: f.cookie, origin: browserOrigin,
       payload: { configuration: { ...f.configuration, capabilities: { ...f.configuration.capabilities, sandbox: { enabled: true } } }, expectedRevision: 2 } });
     expect(disabled.status).toBe(400);
