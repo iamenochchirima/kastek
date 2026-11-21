@@ -64,7 +64,9 @@ export interface CompiledExecutionPolicy {
  * reply cap is small. This never widens the primary or delegated route.
  */
 export function withCompactionOutputAllowance(compiled: CompiledExecutionPolicy, model: ModelDescriptor, minimum: number): CompiledExecutionPolicy {
-  const available = compiled.policy.contextTokens - compiled.policy.maxInputTokens - compiled.policy.safetyTokens;
+  const windowBound = compiled.policy.contextTokens - compiled.policy.maxInputTokens - compiled.policy.safetyTokens;
+  const rootBound = compiled.policy.maxRootTokens === null ? Number.MAX_SAFE_INTEGER : compiled.policy.maxRootTokens - compiled.policy.maxInputTokens;
+  const available = Math.min(windowBound, rootBound);
   const maxOutputTokens = Math.min(Math.max(compiled.policy.maxOutputTokens, minimum), available);
   if (maxOutputTokens <= compiled.policy.maxOutputTokens) return compiled;
   const { revision, digest: _digest, ...limits } = compiled.policy;

@@ -5,7 +5,7 @@ import type { ModelDescriptor } from "../src/contracts/model-providers";
 
 const model = { id: "fixture/model", providerId: "fixture", protocol: "openai_chat_completions" } as ModelDescriptor;
 
-function compiled(input: { maxInputTokens: number; maxOutputTokens: number; contextTokens?: number; safetyTokens?: number }) {
+function compiled(input: { maxInputTokens: number; maxOutputTokens: number; contextTokens?: number; safetyTokens?: number; maxRootTokens?: number | null }) {
   const limits = modelServicePolicy({});
   const policy = {
     ...limits,
@@ -14,6 +14,7 @@ function compiled(input: { maxInputTokens: number; maxOutputTokens: number; cont
     maxOutputTokens: input.maxOutputTokens,
     safetyTokens: input.safetyTokens ?? 1_024,
     compactAtTokens: Math.floor(input.maxInputTokens * 0.85),
+    maxRootTokens: input.maxRootTokens ?? null,
     revision: "fixture",
     digest: "0".repeat(64),
   };
@@ -34,6 +35,11 @@ describe("compaction output allowance", () => {
   it("never exceeds the model window or the configured safety reserve", () => {
     const small = compiled({ maxInputTokens: 7_000, maxOutputTokens: 4_096, contextTokens: 12_000, safetyTokens: 512 });
     expect(withCompactionOutputAllowance(small, model, 8_192).policy.maxOutputTokens).toBe(4_488);
+  });
+
+  it("never exceeds the root token allowance", () => {
+    const trial = compiled({ maxInputTokens: 12_288, maxOutputTokens: 4_096, maxRootTokens: 16_384 });
+    expect(withCompactionOutputAllowance(trial, model, 8_192).policy.maxOutputTokens).toBe(4_096);
   });
 
   it("leaves the policy unchanged when no headroom is available", () => {
