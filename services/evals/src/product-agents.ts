@@ -7,6 +7,7 @@ import {
   createAgentRef,
   getSandbox,
   listAgentRefs,
+  reactivateAgentRef,
   type AgentRef,
   type SandboxDetail,
 } from "./store.js";
@@ -125,10 +126,13 @@ async function ensureRef(
     modelRoutesDigest: string;
   },
 ): Promise<AgentRef> {
-  const existing = (await listAgentRefs(pool, sandboxId)).find((item) =>
+  const existing = (await listAgentRefs(pool, sandboxId, true)).find((item) =>
     item.productAgentId === input.productAgentId &&
     item.productVersionId === input.productVersionId);
-  if (existing) return existing;
+  if (existing) {
+    if (!existing.retiredAt) return existing;
+    return (await reactivateAgentRef(pool, sandboxId, existing.id)) ?? existing;
+  }
   try {
     return await createAgentRef(pool, sandboxId, {
       workspaceRefId,
@@ -140,7 +144,7 @@ async function ensureRef(
     });
   } catch (error) {
     if ((error as { code?: string }).code !== "AGENT_REF_EXISTS") throw error;
-    const ref = (await listAgentRefs(pool, sandboxId)).find((item) =>
+    const ref = (await listAgentRefs(pool, sandboxId, true)).find((item) =>
       item.productAgentId === input.productAgentId &&
       item.productVersionId === input.productVersionId);
     if (!ref) throw error;

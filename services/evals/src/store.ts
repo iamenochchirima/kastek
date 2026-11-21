@@ -348,6 +348,7 @@ export interface AgentRef {
   sourceIds: string[];
   compositionDigest: string;
   modelRoutesDigest: string;
+  retiredAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -385,6 +386,7 @@ function mapAgentRef(row: Row): AgentRef {
     sourceIds,
     compositionDigest: String(row.composition_digest),
     modelRoutesDigest: String(row.model_routes_digest),
+    retiredAt: row.retired_at ? iso(row.retired_at) : null,
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   };
@@ -452,13 +454,47 @@ export async function createAgentRef(
 export async function listAgentRefs(
   pool: Pool,
   sandboxId: string,
+  includeRetired = false,
 ): Promise<AgentRef[]> {
   const result = await pool.query(
     `SELECT * FROM evals.agent_refs
-     WHERE sandbox_id=$1 ORDER BY created_at DESC, id DESC`,
+     WHERE sandbox_id=$1 ${includeRetired ? "" : "AND retired_at IS NULL"}
+     ORDER BY created_at DESC, id DESC`,
     [sandboxId],
   );
   return result.rows.map((row) => mapAgentRef(row as Row));
+}
+
+/** Bring a previously retired version back when the product still serves it. */
+export async function reactivateAgentRef(
+  pool: Pool,
+  sandboxId: string,
+  agentRefId: string,
+): Promise<AgentRef | null> {
+  const result = await pool.query(
+    `UPDATE evals.agent_refs
+     SET retired_at=NULL, updated_at=now()
+     WHERE sandbox_id=$1 AND id=$2
+     RETURNING *`,
+    [sandboxId, agentRefId],
+  );
+  return result.rows[0] ? mapAgentRef(result.rows[0] as Row) : null;
+}
+
+/** Retire refs that no longer represent a current product agent version. */
+export async function retireAgentRefsExcept(
+  pool: Pool,
+  sandboxId: string,
+  keepIds: readonly string[],
+): Promise<string[]> {
+  const result = await pool.query(
+    `UPDATE evals.agent_refs
+     SET retired_at=now(), updated_at=now()
+     WHERE sandbox_id=$1 AND retired_at IS NULL AND id <> ALL($2::uuid[])
+     RETURNING id`,
+    [sandboxId, keepIds],
+  );
+  return result.rows.map((row) => String((row as Row).id));
 }
 
 export async function getAgentRef(

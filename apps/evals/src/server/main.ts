@@ -196,6 +196,13 @@ app.post("/api/sandboxes/:id/sync", async (request) => {
     body: JSON.stringify({ confirm: "UPDATE" }),
   });
 });
+app.post("/api/sandboxes/:id/mounted-sync", async (request) => {
+  const { id } = request.params as { id: string };
+  return service(`/v1/sandboxes/${encodeURIComponent(id)}/mounted-sync`, {
+    method: "POST",
+    timeoutMs: 120_000,
+  });
+});
 app.post("/api/sandboxes/:id/runtime/restart", async (request) => {
   const { id } = request.params as { id: string };
   return service(`/v1/sandboxes/${encodeURIComponent(id)}/runtime/restart`, { method: "POST" });

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Bot, MessageSquare, RefreshCw, Trash2 } from "lucide-react";
-import type { ProductAgent, SandboxDetail } from "../../../shared/types";
+import type { MountedSyncResult, ProductAgent, SandboxDetail } from "../../../shared/types";
 import { api, errorMessage, formatDate, shortId } from "../api";
 import { ConfirmDialog, EmptyState, ErrorBox, Loading, PageHeader, StatusBadge } from "../components";
 import { AgentProfilesPanel } from "../panels/AgentProfilesPanel";
@@ -25,6 +25,10 @@ export default function SandboxDetailPage() {
   const [syncOpen, setSyncOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [mountedOpen, setMountedOpen] = useState(false);
+  const [mountedBusy, setMountedBusy] = useState(false);
+  const [mountedError, setMountedError] = useState<string | null>(null);
+  const [mountedResult, setMountedResult] = useState<MountedSyncResult | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +86,28 @@ export default function SandboxDetailPage() {
     }
   }
 
+  async function syncMountedSandbox() {
+    if (mountedBusy) return;
+    setMountedBusy(true);
+    setMountedError(null);
+    try {
+      const result = await api<MountedSyncResult>(
+        `/api/sandboxes/${encodeURIComponent(id)}/mounted-sync`,
+        { method: "POST" },
+      );
+      const refreshed = await api<SandboxDetail>(`/api/sandboxes/${encodeURIComponent(id)}`);
+      setDetail(refreshed);
+      setAgentsRefresh((value) => value + 1);
+      setMountedResult(result);
+      setMountedOpen(false);
+      setTab("overview");
+    } catch (value) {
+      setMountedError(errorMessage(value));
+    } finally {
+      setMountedBusy(false);
+    }
+  }
+
   async function restartRuntime() {
     if (restarting) return;
     setRestarting(true);
@@ -119,6 +145,9 @@ export default function SandboxDetailPage() {
   if (error) return <ErrorBox message={error} />;
   if (!detail) return <Loading label="Loading sandbox" />;
 
+  const runtime = detail.sandbox.runtime as Record<string, unknown>;
+  const isMounted = typeof runtime.sessionFile === "string" ||
+    (typeof runtime.apiUrl === "string" && runtime.productDatabase == null);
   const agentName = (refId: string) =>
     productAgents?.find((agent) => agent.refId === refId)?.name ?? shortId(refId);
   const tabs: Array<{ id: Tab; label: string; count?: number }> = [
@@ -140,20 +169,32 @@ export default function SandboxDetailPage() {
         actions={
           <>
             <Link className="button ghost" to="/"><ArrowLeft size={15} /> Sandboxes</Link>
-            <button
-              className="button ghost"
-              onClick={() => { setSyncOpen(true); setSyncError(null); }}
-              disabled={syncing || detail.sandbox.status === "provisioning" || detail.sandbox.status === "retired"}
-            >
-              <RefreshCw size={15} /> {syncing ? "Updating…" : "Update sandbox"}
-            </button>
-            <button
-              className="button ghost"
-              onClick={restartRuntime}
-              disabled={restarting || syncing || detail.sandbox.status === "provisioning" || detail.sandbox.status === "retired"}
-            >
-              <RefreshCw size={15} /> {restarting ? "Restarting…" : "Restart runtime"}
-            </button>
+            {isMounted ? (
+              <button
+                className="button ghost"
+                onClick={() => { setMountedOpen(true); setMountedError(null); }}
+                disabled={mountedBusy || detail.sandbox.status === "provisioning" || detail.sandbox.status === "retired"}
+              >
+                <RefreshCw size={15} /> {mountedBusy ? "Syncing…" : "Sync mounted sandbox"}
+              </button>
+            ) : (
+              <>
+                <button
+                  className="button ghost"
+                  onClick={() => { setSyncOpen(true); setSyncError(null); }}
+                  disabled={syncing || detail.sandbox.status === "provisioning" || detail.sandbox.status === "retired"}
+                >
+                  <RefreshCw size={15} /> {syncing ? "Updating…" : "Update sandbox"}
+                </button>
+                <button
+                  className="button ghost"
+                  onClick={restartRuntime}
+                  disabled={restarting || syncing || detail.sandbox.status === "provisioning" || detail.sandbox.status === "retired"}
+                >
+                  <RefreshCw size={15} /> {restarting ? "Restarting…" : "Restart runtime"}
+                </button>
+              </>
+            )}
             <button
               className="button ghost destructive"
               onClick={() => { setDeleteOpen(true); setDeleteError(null); }}
@@ -165,6 +206,37 @@ export default function SandboxDetailPage() {
           </>
         }
       />
+
+      {mountedOpen && (
+        <ConfirmDialog
+          title="Sync mounted sandbox?"
+          description="Refresh the owner session check, current agent versions, model catalogue and sandbox version metadata from the mounted workspace. No runtime is restarted and no product data is copied."
+          confirmLabel="Sync sandbox"
+          busyLabel="Syncing…"
+          busy={mountedBusy}
+          error={mountedError}
+          onConfirm={syncMountedSandbox}
+          onCancel={() => { if (!mountedBusy) { setMountedOpen(false); setMountedError(null); } }}
+        />
+      )}
+
+      {mountedResult && (
+        <section className="card">
+          <div className="card-head"><h3>Mounted sandbox synced</h3></div>
+          <div className="kv compact">
+            <div><span>Version</span><code>{shortId(mountedResult.version.id)}</code></div>
+            <div><span>Code revision</span><code>{mountedResult.version.codeRevision}</code></div>
+            <div><span>Schema</span><code>{mountedResult.schema.version}</code></div>
+            <div><span>Latest migration</span><code>{mountedResult.schema.latestMigration ?? "unknown"}</code></div>
+            <div><span>Active agents</span><code>{mountedResult.agents.active}</code></div>
+            <div><span>Retired refs</span><code>{mountedResult.agents.retired}</code></div>
+            <div><span>Models refreshed</span><code>{mountedResult.models.refreshed}</code></div>
+          </div>
+          {mountedResult.models.warnings.length > 0 && (
+            <p className="muted small">{mountedResult.models.warnings.join(" · ")}</p>
+          )}
+        </section>
+      )}
 
       {syncOpen && (
         <ConfirmDialog

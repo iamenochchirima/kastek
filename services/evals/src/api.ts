@@ -41,6 +41,7 @@ import {
 } from "./product-models.js";
 import { restartSandboxRuntime } from "./runtime.js";
 import { SandboxSyncError, syncSandbox } from "./sandbox-sync.js";
+import { MountedSyncError, syncMountedSandbox } from "./mounted-sync.js";
 import { AgentTemplateError, listAgentTemplates } from "./agent-templates.js";
 import {
   AgentProfileError,
@@ -269,6 +270,12 @@ export function buildApi(
       });
     }
     if (error instanceof SandboxSyncError) {
+      return reply.code(error.statusCode).send({
+        error: error.message,
+        code: error.code,
+      });
+    }
+    if (error instanceof MountedSyncError) {
       return reply.code(error.statusCode).send({
         error: error.message,
         code: error.code,
@@ -778,6 +785,19 @@ export function buildApi(
     request.log.info(
       { event: "sandbox.synced", sandboxId, updateId: result.id, codeRevision: result.targetCodeRevision },
       "Sandbox synced",
+    );
+    return result;
+  });
+
+  app.post("/v1/sandboxes/:id/mounted-sync", async (request) => {
+    const params = request.params as { id: string };
+    const sandboxId = uuid(params.id, "id");
+    const result = await syncMountedSandbox(config, pool, sandboxId);
+    request.log.info(
+      { event: "sandbox.mounted_synced", sandboxId, codeRevision: result.version.codeRevision,
+        schemaVersion: result.schema.version, latestMigration: result.schema.latestMigration,
+        activeAgents: result.agents.active, retiredAgents: result.agents.retired },
+      "Mounted sandbox synced",
     );
     return result;
   });

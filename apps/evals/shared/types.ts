@@ -34,6 +34,14 @@ export interface SandboxVersion {
   retiredAt: string | null;
 }
 
+export interface MountedSyncResult {
+  version: SandboxVersion;
+  schema: { version: string; latestMigration: string | null };
+  agents: { active: number; retired: number };
+  session: { organizationId: string; valid: true };
+  models: { refreshed: number; warnings: string[] };
+}
+
 export interface WorkspaceRef {
   id: string;
   sandboxId: string;
@@ -51,6 +59,7 @@ export interface AgentRef {
   sourceIds: string[];
   compositionDigest: string;
   modelRoutesDigest: string;
+  retiredAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
