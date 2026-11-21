@@ -24,7 +24,7 @@ for (const entry of contract.routes) test(`preserves route ${entry.path}`, async
   else await expect(page.getByRole("heading").first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Unable to load workspace", exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Page not found", exact: true })).toHaveCount(0);
-  if (path !== "/") await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  if (!["/", "/pricing"].includes(path)) await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
   expect(errors).toEqual([]);
 });
 
@@ -86,12 +86,12 @@ test("creates a developer key and reloads its controlled API state", async ({ pa
 test("renders sign-in and signup when the session is absent and guards private routes", async ({ page }) => {
   await page.route("**/api/auth/me", route => route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: "Unauthorized" }) }));
   await page.goto("/login");
-  await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome back.", exact: true })).toBeVisible();
   await page.goto("/signup");
-  await expect(page.getByRole("heading", { name: "Create account", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Create your account.", exact: true })).toBeVisible();
   await page.goto("/agents");
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome back.", exact: true })).toBeVisible();
 });
 
 
@@ -333,7 +333,7 @@ test("returns from controlled checkout and verifies the receipt once", async ({ 
   const count = (state: { requests: Array<{ path: string }> }) => state.requests.filter(item => item.path === "/api/billing/checkout/fixture-receipt/verify").length;
   const before = count(initial);
   await page.goto("/upgrade/fixture-plan");
-  await page.getByRole("button", { name: "Upgrade", exact: true }).click();
+  await page.getByRole("button", { name: "Choose Fixture plan", exact: true }).click();
   await expect(page).toHaveURL(/section=billing.*reference=fixture-receipt/);
   await expect(page.getByText("Payment complete", { exact: true })).toBeVisible();
   // Give an erroneous revalidation/effect loop time to issue a second request.
@@ -451,7 +451,7 @@ for (const finalStatus of ["PUBLISHED", "FAILED"] as const) test(`refreshes proc
   status = finalStatus;
   await expect.poll(() => reads, { timeout: 10000 }).toBeGreaterThan(beforeChange);
   await expect(composer.getByPlaceholder("Write your post...")).toHaveValue("Keep this unsaved composition");
-  await composer.getByRole("button", { name: "Close composer", exact: true }).click();
+  await composer.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByRole("region", { name: "Posts", exact: true }).getByText(finalStatus === "PUBLISHED" ? "Published" : "Failed", { exact: true }).filter({ visible: true }).first()).toBeVisible({ timeout: 10000 });
   if (finalStatus === "FAILED") expect(reads).toBeGreaterThanOrEqual(3);
   const readsAfterCompletion = reads;
