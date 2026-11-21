@@ -21,9 +21,9 @@ const policy = (maxInputTokens: number, maxKnowledgeTokens: number, maxHistoryTo
 export const ROUTE_DEFINITIONS: Readonly<Record<RouteKey, RouteDefinition>> = Object.freeze({
   conversation: { key: "conversation", policy: policy(4_000, 0, 1_500, 1_200, 0, 0, "none", ["core"]),
     instructions: "This is a short conversational turn. Reply directly and do not claim to search or look anything up." },
-  knowledge: { key: "knowledge", policy: policy(10_000, 6_000, 2_500, 2_000, 1_000, 2_000, "retrieved", ["knowledge", "product", "workspace", "core"]),
+  knowledge: { key: "knowledge", policy: policy(16_000, 8_000, 6_000, 2_000, 1_000, 2_000, "retrieved", ["knowledge", "product", "workspace", "core"]),
     instructions: "Answer from the supplied knowledge. Do not claim to search unless a knowledge tool was actually called." },
-  catalogue: { key: "catalogue", policy: policy(16_000, 10_000, 2_500, 2_000, 1_000, 2_000, "retrieved", ["knowledge", "product", "workspace", "core"]),
+  catalogue: { key: "catalogue", policy: policy(20_000, 10_000, 6_000, 2_000, 1_000, 2_000, "retrieved", ["knowledge", "product", "workspace", "core"]),
     instructions: "Answer from the supplied knowledge. Include the complete requested list when it fits the reply budget." },
   action: { key: "action", policy: policy(8_000, 2_000, 2_000, 2_000, 1_000, 4_000, "retrieved", ["action", "product", "workspace", "core"]),
     instructions: "Continue the requested action. Do not claim an effect without a tool result." },
@@ -45,7 +45,10 @@ const conversation = /^(?:hi|hello|hey|good morning|good afternoon|good evening|
 const acknowledgement = /^(?:(?:ok|okay|cool|great|nice)[\s,!.]+)?(?:thanks|thank you|thx)(?:[\s,!.]+(?:that'?s|that is|this is|so|very))?(?:[\s,!.]+(?:helpful|great|good|perfect|awesome|fine|useful|clear|appreciated))?[.! ]*$/;
 const knowledgeRequest = /\b(?:hours?|open|opening|closed|deliver|delivery|policy|refund|return|vegan|vegetarian|gluten|ingredient|allerg|payment|pay|contact|phone|address|email|location|locations|branch|branches|store|stores|price|prices|cost|how|what|where|when|why|who|do you|can i|is there|are there)\b/;
 
-export function routeTurn(input: { text: string; pendingAction?: PendingActionKind | null; lastAssistantQuestion?: boolean; workspace?: boolean }): RouteDecision {
+const LONG_INPUT_CHARS = 6_000;
+const narrowRoutes = new Set<RouteKey>(["conversation", "action", "catalogue", "knowledge"]);
+
+function routeByIntent(input: { text: string; pendingAction?: PendingActionKind | null; lastAssistantQuestion?: boolean; workspace?: boolean }): RouteDecision {
   const text = normalized(input.text), pending = input.pendingAction ?? (input.lastAssistantQuestion ? "question" : null);
   if (!text) return decision("knowledge", 0.5, "empty turn; conservative knowledge fallback", pending);
   if (pending && shortConfirmation.test(text)) return decision("confirmation", 0.98, `short confirmation after pending ${pending}`, pending);
@@ -58,6 +61,15 @@ export function routeTurn(input: { text: string; pendingAction?: PendingActionKi
   if (knowledgeRequest.test(text) || /\?$/.test(text) || input.lastAssistantQuestion) return decision("knowledge", 0.82, input.lastAssistantQuestion ? "continuation of an assistant question" : "knowledge question", pending);
   if (input.workspace) return decision("workspace", 0.62, "signed-in workspace task", pending);
   return decision("knowledge", 0.55, "ambiguous turn; conservative knowledge fallback", pending);
+}
+
+/** A pasted document must not be forced into a short action route and hit a 413. */
+export function routeTurn(input: { text: string; pendingAction?: PendingActionKind | null; lastAssistantQuestion?: boolean; workspace?: boolean }): RouteDecision {
+  const selected = routeByIntent(input);
+  if (input.text.length > LONG_INPUT_CHARS && narrowRoutes.has(selected.route)) {
+    return decision("complex", 0.7, "long input requires a larger context budget", selected.pendingAction);
+  }
+  return selected;
 }
 
 export function routePlan(decision: RouteDecision): RoutePlan {

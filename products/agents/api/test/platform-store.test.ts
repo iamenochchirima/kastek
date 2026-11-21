@@ -100,14 +100,13 @@ suite("fresh platform PostgreSQL store", () => {
     await expect(store.listAgents(other.account.id, f.org.id)).rejects.toMatchObject({ code: "ACCESS_DENIED" });
   });
 
-  it("publishes only matching business versions and public knowledge; drafts cannot move live", async () => {
+  it("publishes matching business versions; drafts cannot move live", async () => {
     const f = await fixture();
-    const knowledge = await publishFixtureSource(pool,{ accountId: f.account.id, organizationId: f.org.id, title: "Internal", content: "Private.", visibility: "private" });
+    const knowledge = await publishFixtureSource(pool,{ accountId: f.account.id, organizationId: f.org.id, title: "Internal", content: "Internal reference.", visibility: "private" });
     await store.updateDraft({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, configuration: { ...f.config, sourceRevisionIds: [knowledge.id] }, expectedRevision: 1 });
     const privateVersion = await store.createVersion({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, expectedRevision: 2 });
-    await expect(store.publishWebsite({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, versionId: privateVersion.id, allowedOrigins: ["https://example.com"] })).rejects.toMatchObject({ code: "PRIVATE_KNOWLEDGE" });
-    const deployed = await store.publishWebsite({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, versionId: f.version.id, allowedOrigins: ["https://example.com"] });
-    expect((await store.getWebsiteDeployment(deployed.id)).version_id).toBe(f.version.id);
+    const deployed = await store.publishWebsite({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, versionId: privateVersion.id, allowedOrigins: ["https://example.com"] });
+    expect((await store.getWebsiteDeployment(deployed.id)).version_id).toBe(privateVersion.id);
     await expect(store.publishWebsite({ accountId: f.account.id, organizationId: f.org.id, agentId: randomUUID(), versionId: f.version.id, allowedOrigins: ["https://example.com"] })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
     await expect(store.createWebsiteGrant({ deploymentId: deployed.id, origin: "https://other.example", sessionId: randomUUID() })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
   });

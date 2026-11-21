@@ -12,15 +12,18 @@ import { loadExecution } from "../lifecycle/state";
 import { assertEvaluationTrial } from "../admission/trial-authority";
 import { assertChannelCustomerAuthority } from "../admission/channel-authority";
 import { assertProductAuthority } from "../admission/product-authority";
+import { assertApplicationHistoryAccess } from "../admission/application-authority";
 import { productPorts } from "../../infrastructure/product-ports";
 import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
+import { applicationConnectionCustodian } from "../../capabilities/connected-tools/application-connection-authority";
 import { currentVisitorLineageAllowed,historyPrincipalAllowed } from "./visitor-lineage";
 import { assertParentEdge, delegationAncestors } from "../delegation/scope";
 import { continuationChildAllowed } from "./work-lineage";
 import { memoryScopeMatchesExecution } from "../memory/scope";
-import { assertProductNativeTaskAccess } from "../../capabilities/products/resource-scope";
+import { assertProductNativeTaskAccess } from "../../contracts/resource-scope";
 import { assertAcceptedProductMemoryTransition } from "../products/product-information";
 import { assertProductReadCustody } from "../products/product-read-custody";
+import { assertMcpTaskAuthority } from "../../infrastructure/mcp-job-authority";
 
 export type Db = Pool | PoolClient;
 export type EvidenceKind = "context" | "summary" | "memory" | "artifact" | "child_result" | "input";
@@ -42,7 +45,7 @@ export function dto(row: Record<string, any>): EvidenceReference { return eviden
 export function nodeDto(row: Record<string, any>): EvidenceNode { return { id: row.id, taskId: row.task_id, kind: row.kind, ownerId: row.owner_id, evidenceIds: row.evidence_ids, parents: row.parents, manifest: assertDependencyManifest(row.manifest) }; }
 export async function owner(db: Db, execution: Execution): Promise<string | null> {
   const principal = execution.task.principal;
-  if (isCustomerPrincipal(principal)) return null;
+  if (isCustomerPrincipal(principal) || principal.kind === "application") return null;
   if (principal.kind === "automation") return principal.ownerAccountId;
   return (await db.query("SELECT id FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2", [principal.issuer, principal.subject])).rows[0]?.id ?? null;
 }
@@ -73,6 +76,9 @@ export async function inspectionAuthority(db: Db, execution: Execution): Promise
       callerClientId:execution.task.caller_client_id,principal:execution.task.principal},execution.task.version_id);
   } else if (accountId) {
     if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE", [root.task.organization_id, accountId])).rowCount) throw unavailable();
+  } else if (root.task.principal.kind === "application") {
+    await assertApplicationHistoryAccess(db, { product: root.task.product, organizationId: root.task.organization_id,
+      resourceId: root.task.resource_id, callerClientId: root.task.caller_client_id, principal: root.task.principal }, root.agentId);
   } else if (root.task.principal.kind === "visitor") {
     if (!await currentVisitorLineageAllowed(db,root)) throw unavailable();
     if (!(await db.query(`SELECT 1 FROM agents_platform.website_deployments d JOIN agents_platform.website_sessions s ON s.deployment_id=d.id
@@ -173,9 +179,11 @@ export async function bindingAllowed(db: Db, execution: Execution, bindingId: st
   if (!execution.configuration.connectedToolBindingIds.includes(bindingId) || !grant?.connected_tool_binding_ids.includes(bindingId)) throw denied();
   if (!(await db.query("SELECT 1 FROM agents_platform.version_connected_tools WHERE organization_id=$1 AND version_id=$2 AND binding_id=$3",[execution.task.organization_id,execution.task.version_id,bindingId])).rowCount) throw denied();
   const row = (await db.query("SELECT binding,account_id FROM agents_platform.capability_bindings WHERE id=$1 AND organization_id=$2", [bindingId, execution.task.organization_id])).rows[0];
-  const expectedOwner=isCustomerPrincipal(execution.task.principal)?(await assertCustomerNativeBindings(db as PoolClient,execution.task.organization_id,[bindingId]))[0]?.ownerAccountId:await owner(db,execution);
-  if (!row || row.account_id !== expectedOwner) throw denied();
+  if (!row) throw denied();
   const binding = capabilityBindingSchema.parse(row.binding);
+  const expectedOwner=isCustomerPrincipal(execution.task.principal)?(await assertCustomerNativeBindings(db as PoolClient,execution.task.organization_id,[bindingId]))[0]?.ownerAccountId:
+    execution.task.principal.kind==="application"?await applicationConnectionCustodian(db,execution,binding):await owner(db,execution);
+  if (row.account_id !== expectedOwner) throw denied();
   const remote=["remote-mcp-v1","custom-api-v1","hubspot-contacts-v1"].includes(binding.connection?.profileId??""),reviewed=remote&&binding.policy.effect==="reviewed_write";
   if(!grant.operations.includes(reviewed?"connected.execute":"connected.read"))throw denied();
   if (!binding.connection || (!remote && (binding.policy.effect !== "read" || binding.policy.disclosure !== (binding.connection.profileId === "stash-read-v1" ? "approved_resource_identifiers" : "public_identifiers")))) throw denied();
@@ -333,13 +341,14 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
     const row = (await db.query(`SELECT s.*,p.state AS revision_state FROM agents_platform.sources s
       JOIN agents_platform.source_revision_policy p ON p.source_id=s.id AND p.organization_id=s.organization_id
       WHERE s.id=$1 AND s.organization_id=$2 AND p.revision_id=$3 FOR SHARE OF s,p`, [dependency.sourceId, execution.task.organization_id, dependency.revisionId])).rows[0];
-    if (!row || row.state !== "active" || row.revision_state !== "approved" || row.generation !== dependency.generation || row.visibility !== dependency.visibility) throw unavailable();
+    if (!row || row.state !== "active" || row.revision_state !== "approved" || row.generation !== dependency.generation) throw unavailable();
   }
   for (const dependency of dependencies.filter(item => item.kind === "connection")) {
     if (dependency.kind !== "connection") continue;
     const binding = await connectionEvidenceBinding(db,execution,dependency,origins);
     const row = (await db.query("SELECT * FROM agents_platform.connections WHERE id=$1 AND organization_id=$2 FOR SHARE", [dependency.connectionId, execution.task.organization_id])).rows[0];
-    const expectedOwner=isCustomerPrincipal(execution.task.principal)?(await assertCustomerNativeBindings(db as PoolClient,execution.task.organization_id,[binding.id]))[0]?.ownerAccountId:await owner(db,execution);
+    const expectedOwner=isCustomerPrincipal(execution.task.principal)?(await assertCustomerNativeBindings(db as PoolClient,execution.task.organization_id,[binding.id]))[0]?.ownerAccountId:
+      execution.task.principal.kind==="application"?await applicationConnectionCustodian(db,execution,binding):await owner(db,execution);
     if (!row || row.state !== "active" || row.policy_revision !== dependency.policyRevision || new Date(row.expires_at).getTime() <= Date.now() || row.account_id !== expectedOwner || binding.connection?.policyRevision !== row.policy_revision || !row.resource_handles.some((resource: ResourceHandle) => requestDigest(resource) === dependency.resource)) throw unavailable();
   }
   for(const dependency of dependencies){
@@ -404,8 +413,9 @@ export function memoryVisible(value:unknown,id:string,content:string):boolean{
   return false;
 }
 
-export async function assertCurrentAuthority(db:Pool|PoolClient,execution:Execution):Promise<void>{
+export async function assertCurrentAuthority(db:Pool|PoolClient,execution:Execution,options:{allowSettled?:boolean}={}):Promise<void>{
   if(execution.task.execution_purpose==="support_status_v1")await assertPendingSupportStatusAuthority(db,execution);
-  else await assertBaseAuthority(db,execution);
+  else await assertBaseAuthority(db,execution,options);
+  await assertMcpTaskAuthority(db, execution.task.root_task_id ?? execution.task.id);
   if(execution.task.parent_task_id)await assertDelegationInputEvidence(db,execution.task.id);
 }

@@ -63,10 +63,45 @@ test("agent cards filter, open and start setup for the selected real agent", asy
   await expect(page).toHaveURL(new RegExp(`/app/agents/${firstId}$`));
   await page.goto("/app/agents");
   await page.getByRole("link", { name: "Set up", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/app/agents/${secondId}\\?setup=guided`));
+  await expect(page).toHaveURL(new RegExp(`/app/agents/${secondId}\\?section=behaviour`));
   await page.goto("/app/agents");
   await page.getByRole("button", { name: "Create agent", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("heading", { name: "Create agent" })).toBeVisible();
+});
+
+test("creates a generic agent and opens its configuration", async ({ page }) => {
+  await fixture(page);
+  let submitted: Record<string, unknown> | undefined;
+  await page.route(`**/api/organizations/${org}/agents`, async route => {
+    if (route.request().method() !== "POST") return route.fallback();
+    submitted = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({ status: 201, json: { agent: { id: firstId } } });
+  });
+  await page.goto("/app/agents");
+  await page.getByRole("button", { name: "Create agent", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Create agent" });
+  await dialog.getByLabel("Name", { exact: true }).fill("Research assistant");
+  await dialog.getByLabel("Purpose", { exact: false }).fill("Research a topic");
+  await dialog.getByLabel("Instructions", { exact: false }).fill("Summarize the evidence.");
+  await dialog.getByRole("button", { name: "Create agent" }).click();
+  await expect(page).toHaveURL(new RegExp(`/app/agents/${firstId}\\?section=behaviour`));
+  expect(submitted).toMatchObject({ name: "Research assistant", purpose: "Research a topic", instructions: "Summarize the evidence." });
+  expect(submitted?.operationId).toBeTruthy();
+  expect(submitted).not.toHaveProperty("offering");
+});
+
+test("shows generic capabilities and unavailable future capabilities", async ({ page }) => {
+  await fixture(page);
+  await page.goto(`/app/agents/${secondId}?section=capabilities`);
+  await expect(page.getByRole("heading", { name: "Knowledge", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Memory", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Delegation", exact: true })).toBeVisible();
+  const browser = page.locator("article").filter({ has: page.getByRole("heading", { name: "Browser use" }) });
+  await expect(browser.getByText("Unavailable")).toBeVisible();
+  await expect(browser.getByRole("button")).toHaveCount(0);
+  const knowledge = page.locator("article").filter({ has: page.getByRole("heading", { name: "Knowledge", exact: true }) });
+  await knowledge.getByRole("button", { name: "Configure" }).click();
+  await expect(page).toHaveURL(new RegExp(`/app/agents/${secondId}\\?section=knowledge`));
 });
 
 test("editing an agent updates only its name and avatar", async ({ page }) => {

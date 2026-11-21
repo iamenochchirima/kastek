@@ -14,7 +14,7 @@ entitlement table.
   `(product='growth', tenant_id=<orgId>)` link.
 
 See the [central billing architecture](./architecture/central-billing.md) and
-[`services/billing/README.md`](../../../../services/billing/README.md).
+[billing support runbook](./runbooks/billing-support.md).
 
 ## Capability registry
 

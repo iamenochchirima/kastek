@@ -12,7 +12,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from "@/lib/zod-resolver";
 import { ArrowLeft, Building2, Copy, MailPlus, Users } from "lucide-react";
 import { ProtectedRoute, useAuth } from "@/lib/auth";
 import { Layout } from "@/components/layout";

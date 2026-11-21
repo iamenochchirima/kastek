@@ -12,6 +12,8 @@ export interface ModelResponse {
   message: HarnessMessage; finishReason: "stop" | "tool_calls" | "length" | "refusal";
   usage: { observed?: boolean; inputTokens?: number; outputTokens?: number; cachedInputTokens?: number;
     cacheWriteTokens?: number; reasoningTokens?: number }; providerRequestId?: string;
+  /** Canonical digest of the physical provider payload, for attribution and load verification. */
+  physicalPayloadDigest?: string;
 }
 export class ModelOperationError extends Error {
   constructor(public readonly code: string, public readonly outcome: "rejected" | "uncertain", public readonly status = 502,public readonly diagnostics?:ModelFailureDiagnostics) {

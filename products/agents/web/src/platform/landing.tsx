@@ -11,6 +11,21 @@ export function Landing() {
     void api<Session>("/api/session").then(() => { if (active) setSignedIn(true); }).catch(() => {});
     return () => { active = false; };
   }, []);
+  // Local-only website widget preview. Set VITE_AGENTS_TEST_DEPLOYMENT_ID in .env.local.
+  useEffect(() => {
+    const deploymentId = import.meta.env.DEV ? import.meta.env.VITE_AGENTS_TEST_DEPLOYMENT_ID?.trim() : undefined;
+    if (!deploymentId) return;
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = `/api/website/${encodeURIComponent(deploymentId)}/widget.js`;
+    document.body.appendChild(script);
+    return () => {
+      script.remove();
+      for (const child of [...document.body.children]) {
+        if (child instanceof HTMLElement && child.shadowRoot?.querySelector('[id^="agents-chat-"]')) child.remove();
+      }
+    };
+  }, []);
   const entry = signedIn ? "/app/agents" : "/signup";
   return <div className="marketing">
     <nav className="marketing-nav" aria-label="Public navigation">

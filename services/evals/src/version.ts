@@ -113,6 +113,28 @@ async function agentsSchema(
   };
 }
 
+/** Latest migration file for a product, used to make the schema identity concrete. */
+export async function latestSchemaMigration(
+  repoRoot: string,
+  product: "agents" | "growth",
+): Promise<string | null> {
+  if (product === "agents") {
+    const files = (await readdir(join(repoRoot, "products/agents/api/schema")))
+      .filter((name) => /^\d+_[a-z_]+\.sql$/.test(name))
+      .sort();
+    return files[files.length - 1] ?? null;
+  }
+  const entries = await readdir(
+    join(repoRoot, "products/growth/database/prisma/migrations"),
+    { withFileTypes: true },
+  );
+  const files = entries
+    .filter((entry) => entry.isDirectory() && /^\d{14}_[a-z0-9_]+$/.test(entry.name))
+    .map((entry) => entry.name)
+    .sort();
+  return files[files.length - 1] ?? null;
+}
+
 function gitRevision(repoRoot: string): string {
   try {
     const head = execFileSync("git", ["rev-parse", "HEAD"], {

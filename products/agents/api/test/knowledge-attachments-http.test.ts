@@ -5,8 +5,8 @@ import { buildPlatformApp } from "../src/composition/app";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { loadPlatformConfig } from "../src/infrastructure/config";
 import { PlatformStore } from "../src/product/agents/store";
-import { KnowledgeStore } from "../src/capabilities/knowledge/knowledge";
-import { PostgresKnowledgeObjectStore } from "../src/capabilities/knowledge/postgres-object-store";
+import { KnowledgeStore } from "../src/platform/knowledge/knowledge";
+import { PostgresKnowledgeObjectStore } from "../src/platform/knowledge/postgres-object-store";
 import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 

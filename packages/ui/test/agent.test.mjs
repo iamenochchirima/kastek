@@ -67,7 +67,8 @@ test("completed output remains primary and context is an explicit secondary cont
   const detailed = renderToStaticMarkup(createElement(AgentExecutionView, { execution, showContext: true }));
   assert.match(detailed, /Context · 11%/);
   assert.match(detailed, /Context capacity/);
-  assert.match(detailed, /Input limit/);
+  assert.match(detailed, /Route input/);
+  assert.match(detailed, /Model pressure/);
   assert.equal(agentIsActive("waiting_review"), true);
   assert.equal(agentIsActive("cancel_requested"), true);
   assert.equal(agentIsActive("failed"), false);

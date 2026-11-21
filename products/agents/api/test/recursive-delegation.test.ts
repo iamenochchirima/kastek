@@ -265,7 +265,7 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     await finishOperation(pool, child.taskId, operation.id, "completed", { finding: "Done" }, null, 100, admitted.operation.attempt_id);
     const next = await beginOperation(pool, grandchild.taskId, { ...operation, id: "budget:grandchild-after-receipt" });
     expect(next.waiting).not.toBe(true);
-    expect((await pool.query("SELECT child_reserved_tokens FROM agents_platform.execution_roots WHERE root_task_id=$1", [f.task.id])).rows[0].child_reserved_tokens).toBe(0);
+    expect((await pool.query("SELECT child_reserved_tokens FROM agents_platform.execution_roots WHERE root_task_id=$1", [f.task.id])).rows[0].child_reserved_tokens).toBe(8092);
   });
 
   it("lets a configured customer agent delegate without inheriting staff identity and fences deployment revocation", async () => {

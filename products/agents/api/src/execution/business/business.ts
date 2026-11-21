@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../../capabilities/skills/package";
 import { confirmValidProposal } from "./confirmation-proposal";
 import { procedureContext } from "../../capabilities/procedure-tools";
 import { outcomeGuidance } from "./outcome-guidance";
@@ -16,7 +17,7 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import type { ConnectedExecutor,ConnectedObservation } from "../../capabilities/connected-tools/connected-executor";
 import { connectedModelView } from "../../capabilities/connected-tools/connected-model-view";
-import type { KnowledgeObservation,KnowledgeRuntime } from "../../capabilities/knowledge/knowledge-runtime";
+import type { KnowledgeObservation, KnowledgeRuntimePort } from "../../contracts/knowledge";
 import { toolDescriptor, toolDescriptorPresentation } from "../../capabilities/tool-descriptors";
 import { capabilityBindingPresentation } from "../../capabilities/tool-presentation";
 import { capabilityDirectory, capabilityExposure } from "../context/capability-directory";
@@ -25,10 +26,10 @@ import { skillContext,skillReceiptGroups,skillFitsRequest } from "../context/ski
 import { isCustomerPrincipal,PlatformError,requestDigest,terminalTaskStates,type AgentConfiguration } from "../../contracts/contracts";
 import type { DependencyManifest } from "../../contracts/source-contracts";
 import { selectedProductContextText } from "../products/product-information";
-import { composeAgentInstructions } from "../../product/agents/identity";
+import { composeAgentInstructions } from "../context/agent-identity";
 import type { TaskRecord } from "../../contracts/records";
-import { estimatedTokensFromSerialized } from "../context/serialized-tokens";
-import { buildContext,prepareCompaction,type ContextGroup,type ContextSource,type ContextModelPolicy,type RequestTimeContext } from "../context/context";
+import { estimatedTokensFromSerialized } from "../../contracts/serialized-tokens";
+import { buildContext,estimateMessagesTokens,prepareCompaction,recentWindowTokens,type ContextGroup,type ContextSource,type ContextModelPolicy,type RequestTimeContext } from "../context/context";
 import { knowledgeModeForRoute,routePlan,routeTurn,toolAllowed,type PendingActionKind,type RoutePlan } from "../routing/turn-router";
 import { loadContinuation } from "../context/continuation";
 import { workContinuationGroups } from "../lifecycle/work-continuation";
@@ -48,7 +49,7 @@ type Execution,
 type MemoryFence,
 type TaskOutcome
 } from "../lifecycle/execution";
-import { MemoryStore, loadSkillRevisions } from "../memory/memory";
+import { loadSkillRevisions } from "../memory/skills";
 import { executeMemoryTool } from "../../capabilities/memory-tools";
 import {
 ModelOperationError,
@@ -61,13 +62,16 @@ type ToolDefinition
 } from "./model";
 
 export { settleTask } from "../lifecycle/execution";
-import { runRequiredReport, type ActionRuntime } from "../../workflows/report-delivery/program";
+import type { ActionRuntime } from "../../workflows/report-delivery/program";
+import { bookingOperationHandler } from "../../workflows/booking/handler";
+import { reportDeliveryHandler } from "../../workflows/report-delivery/handler";
+import { skillsOperationHandler } from "../../capabilities/skills/handler";
+import type { BookingService } from "../../workflows/booking/bookings";
+import { handlerFor, type CapabilityOperationHandler } from "../capabilities/operation-handlers";
 import { channelPorts } from "../../infrastructure/channel-ports";
 import type { ToolReviewStore } from "../../capabilities/reviews/tool-reviews";
-import type { BookingService } from "../../workflows/booking/bookings";
 import { visibleRecordTools } from "../../capabilities/enquiries/record-tools";
 import { awaitEnquiryConfirmation } from "./enquiry-review";
-import { awaitBookingConfirmation } from "./booking-review";
 import { awaitToolInvocationReview } from "./tool-review";
 import { invokeTaskModel, nativeContextCosts } from "../models/runtime";
 import { invokeObservedTaskModel } from "../models/observed-invocation";
@@ -77,15 +81,18 @@ import { SHARED_HARNESS_RELEASE } from "../../contracts/execution";
 import { historyResultBytes, readHistory, searchHistory, toolReceiptPreview, type RetainedArtifactReader } from "../context/journal";
 import { historyToolDefinitions } from "../../capabilities/history-tools";
 import { protocolToolVersions } from "../../capabilities/protocol-tools";
-import { loadContinuityCheckpoint, prepareCompactionJob, adoptCompactionCheckpoint, readCompactionJobOutcome, failCompactionJob, retireQueuedBackgroundCompaction, type CompactionJobOutcome, type ContinuityCheckpoint } from "../context/checkpoints";
+import { loadContinuityCheckpoint, prepareCompactionJob, adoptCompactionCheckpoint, readCompactionJobOutcome, failCompactionJob, retireQueuedBackgroundCompaction, type CompactionJobOutcome, type ContinuityCheckpoint } from "../lifecycle/checkpoints";
 import { customerChannelInstructions, customerSafeInstructions, retrievalOnlyChannelInstructions, sharedProtocolInstructions } from "../context/protocol-instructions";
 import { planBackgroundCompaction } from "../context/background-planning";
+import { compactionFlags } from "../context/compaction-flags";
+import { pruneCompactedGroups } from "../context/pruning";
+import { trimReadToolResults } from "../context/tool-results";
 import { CONTEXT_COMPACTION_WORKFLOW,type ContextCompactionWorkflow } from "../context/compaction-workflow";
 import { createToolCatalog, progressiveModelTools, assertLoadedTool, discoverToolCatalog, loadToolSchemas, toolSchemaFailureFeedback, type ToolCatalog, type ToolCatalogMetadata } from "../../capabilities/tool-discovery";
 import { instructionHead } from "../context/request-manifest";
 import { catalogSnapshotFields, hydrateCatalog } from "../context/catalog-reference";
 import { HANDOFF_RECEIPT_DEADLINE_MS, type HandoffFeedbackRequest } from "../../contracts/channel";
-function contextModelPolicy(execution: Execution, role: "primary" | "compaction" = "primary", privateCosts: Map<string, number> = new Map(), packingOverhead = 0): ContextModelPolicy {
+export function contextModelPolicy(execution: Execution, role: "primary" | "compaction" = "primary", privateCosts: Map<string, number> = new Map(), packingOverhead = 0): ContextModelPolicy {
   const route = execution.models[role], policy = route.policy;
   return { modelId: route.binding.modelId, revision: policy.digest, counterRevision: packingOverhead ? `serialized-utf8-estimate-v2-native-${packingOverhead}` : "serialized-utf8-estimated-tokens-v2",
     maxDurationSeconds: policy.maxCallDurationMs / 1000, contextWindowTokens: policy.contextTokens,
@@ -115,21 +122,29 @@ export interface BusinessOptions {
   evidence?: EvidenceStore;
   readRetainedArtifact?: RetainedArtifactReader;
   artifacts?: import("../artifacts/task-artifacts").TaskArtifactStore;
-  knowledgeRuntime?: KnowledgeRuntime;
+  knowledgeRuntime?: KnowledgeRuntimePort;
   connected?: ConnectedExecutor;
   toolReviews?: ToolReviewStore;
+  capabilityHandlers?:readonly CapabilityOperationHandler[];
   bookings?:BookingService;
+  onInvocation?: (info: { release: string }) => void;
   settleHandoffReceipt?:(taskId:string,candidate:string|null,definitiveFailure:boolean)=>Promise<unknown>;
   selectReportArtifact?:(taskId:string,name:string,generatedOutput:string)=>Promise<{id:string}>;
   executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]}|{skillId:string;path:string;inputArtifactIds?:string[]})=>Promise<unknown>;
   onSettled?: (taskId: string) => Promise<unknown> | unknown;
+  history?: ConversationHistoryReader;
+  readers?: ContextReaders;
 }
 import { operation, uncertainOperation, type Result } from "../lifecycle/durable-operation";
+import type { ContextReaders, ConversationHistoryReader, ConversationHistoryTurn } from "../context/readers";
+import { assertRunActive } from "../context/run-state-guard";
+import type { MemoryRecord, SkillRevision } from "../../contracts/memory";
 export { operation } from "../lifecycle/durable-operation";
 interface Snapshot { primaryInstructionIds?:string[]; id: string; messages: HarnessMessage[]; digest: string; estimatedTokens: number;
   memoryFence?: MemoryFence; historyCutoff: string; tools: ToolDefinition[]; evidenceManifest?: DependencyManifest; catalog?: ToolCatalog;instructionHead?:string;
   contextPlan?: { budgets: { maxInputTokens: number } } }
-const terminalSql = "('completed','incomplete','refused','failed','cancelled','uncertain')";
+const terminalStates = ["completed","incomplete","refused","failed","cancelled","uncertain"] as const;
+const terminalSql = `('${terminalStates.join("','")}')`;
 
 
 async function guardedRun<T>(ctx:restate.WorkflowContext,name:string,perform:()=>Promise<T>):Promise<T>{
@@ -261,6 +276,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   omitted: string[], options: BusinessOptions, initialKnowledge?: KnowledgeObservation, knownGeneration?: number, knownExpiry?: number, executionObservation?: string, packingOverhead = 0, deliveredInstructionIds: readonly string[] = [], pinnedSections: readonly ContextSource[] = [], turnPlan?: RoutePlan): Promise<{ snapshot?: Snapshot; history: ContextGroup[]; working: ContextGroup[];
     memoryFence?: MemoryFence; invalidated: boolean; needsCompaction: boolean; backgroundCompactionRequested?:boolean }> {
   const execution = await loadExecution(pool, taskId), task = execution.task, config = execution.configuration;
+  await assertRunActive(options.readers?.runState, taskId, task.state);
   const phase = phaseTimer(taskId, step, "snapshot");
   const protocolVersions=protocolToolVersions(execution.toolBindings);
   if(task.product!=="agents"){
@@ -372,9 +388,10 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
      knowledgeMode!=="agentic" && availableProductBindings.length===0 && execution.connectedBindings.length===0)
     routedTools=routedTools.filter(tool=>tool.function.name!=="tools_discover"&&tool.function.name!=="tools_load");
   let memoryFence: MemoryFence | undefined;
-  const memory = new MemoryStore(pool);
+  const recall = options.readers?.memory;
   if (memoryReadAllowed) {
-    const selected = await memory.readForContext({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal,taskId },task.input,8);
+    if (!recall) throw new PlatformError("MEMORY_READER_UNAVAILABLE", 503, "Memory reader is unavailable");
+    const selected = await recall.readForContext({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal,taskId },task.input,8) as { scope: { id: string; generation: number }; generation: number; memories: MemoryRecord[]; nextOffset: number | null } ;
     const eligible = options.evidence ? new Set((await options.evidence.checkMemories(taskId,selected.memories.map(item=>item.id))).filter(item=>item.eligible).map(item=>item.id)) : undefined;
     const memories = selected.memories.filter(item=>!eligible || eligible.has(item.id));
     const expiries = memories.flatMap(item => item.expiresAt ? [new Date(item.expiresAt).getTime()] : []);
@@ -395,9 +412,11 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       injectedBytes, nextOffset: selected.nextOffset, queryBytes: Buffer.byteLength(task.input, "utf8"),
     }).catch(() => undefined);
   }
-  const skills = !config.skillIds.length ? [] : (task.product !== "agents" || task.principal.kind === "automation" || isCustomerPrincipal(task.principal)) ?
-    await loadSkillRevisions(pool,task.organization_id,execution.agentId,config.skillIds) :
-    await memory.readSkills({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal }, config.skillIds);
+  const sharedSkills = task.product !== "agents" || task.principal.kind === "automation" || isCustomerPrincipal(task.principal);
+  if (config.skillIds.length && !sharedSkills && !recall) throw new PlatformError("MEMORY_READER_UNAVAILABLE", 503, "Memory reader is unavailable");
+  const skills = !config.skillIds.length ? [] : sharedSkills ?
+    await loadSkillRevisions(pool,task.organization_id,execution.agentId,config.skillIds,skillPackageCodec) :
+    await recall!.readSkills({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal }, config.skillIds) as SkillRevision[];
   const loadedSkills = await skillContext(pool,taskId,skills);
   const specialists:Awaited<ReturnType<typeof discoverSpecialists>>["specialists"]=[];
   if(directoryProtocol&&directTools.some(tool=>tool.function.name==="agents_discover")){
@@ -408,16 +427,25 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   phase.mark("capabilities");
   const invalidated = (knownGeneration !== undefined && knownGeneration !== memoryFence?.generation) ||
     (knownExpiry !== undefined && Date.now() >= knownExpiry);
-  const priorPredicate=`FROM agents_platform.tasks t
-    WHERE t.conversation_id=$1 AND t.turn_sequence<$2 AND t.state IN ${terminalSql}
-    AND NOT EXISTS(SELECT 1 FROM agents_platform.context_snapshots c WHERE c.task_id=t.id AND c.memory_scope_id=$3
-      AND c.memory_generation<>$4)`;
   const priorParams=[task.conversation_id, task.turn_sequence, memoryFence?.id ?? null, memoryFence?.generation ?? null];
-  const prior = (await pool.query(`SELECT t.id,t.input,t.output,t.state,t.turn_sequence::text AS sequence,t.created_at ${priorPredicate}
-    ORDER BY t.turn_sequence DESC LIMIT $5`, [...priorParams, historyTurnWindow()])).rows;
-  const olderTurns = !task.channel_binding
-    ? Math.max(0, Number((await pool.query(`SELECT count(*)::int AS n ${priorPredicate}`, priorParams)).rows[0]?.n ?? 0) - prior.length)
-    : 0;
+  let prior: ConversationHistoryTurn[], olderTurns = 0;
+  if (options.history) {
+    const read = await options.history.readWindow({ conversationId: task.conversation_id, beforeSequence: task.turn_sequence,
+      limit: historyTurnWindow(), terminalStates, memoryScopeId: memoryFence?.id ?? null, memoryGeneration: memoryFence?.generation ?? null });
+    prior = read.turns;
+    olderTurns = task.channel_binding ? 0 : read.olderCount;
+  } else {
+    const priorPredicate=`FROM agents_platform.tasks t
+      WHERE t.conversation_id=$1 AND t.turn_sequence<$2 AND t.state IN ${terminalSql}
+      AND (t.execution_purpose IS NULL OR t.execution_purpose <> 'manual_compaction')
+      AND NOT EXISTS(SELECT 1 FROM agents_platform.context_snapshots c WHERE c.task_id=t.id AND c.memory_scope_id=$3
+        AND c.memory_generation<>$4)`;
+    prior = (await pool.query(`SELECT t.id,t.input,t.output,t.state,t.turn_sequence::text AS sequence,t.created_at ${priorPredicate}
+      ORDER BY t.turn_sequence DESC LIMIT $5`, [...priorParams, historyTurnWindow()])).rows;
+    olderTurns = !task.channel_binding
+      ? Math.max(0, Number((await pool.query(`SELECT count(*)::int AS n ${priorPredicate}`, priorParams)).rows[0]?.n ?? 0) - prior.length)
+      : 0;
+  }
   const eligible = options.evidence ? new Set<string>() : undefined;
   let unavailableHistory=0;
   if(options.evidence)for(let offset=0;offset<prior.length;offset+=64){
@@ -512,7 +540,9 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       : knowledgeCapReached
         ? "\nKnowledge lookups are closed for this request. Answer from the knowledge already supplied and say plainly when it does not contain the answer."
         : knowledgeReadFailed ? "\nKnowledge passage paging is closed for this request. Answer from the passages already supplied." : "";
-  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: customerInstructions+memberContext+outcomeGuidance+recoveryInstructions+procedureInstructions+(directory?"\n"+directory.text:"")+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":"")+(task.channel_binding?(handoffAvailable?customerChannelInstructions:retrievalOnlyChannelInstructions):"")+knowledgeNotice+omittedInstructionNotice+(turnPlan?`\n${turnPlan.definition.instructions}`:""), compactContinuation: (task.execution_policy_version??1)>=2, ...(originatingRequest?{originatingRequest,currentInputOrigin:"coordinator" as const}:{}), currentInput: [task.input,...(selectedProductContext?[selectedProductContextText(selectedProductContext.reference)]:[]),...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
+  const contextHistory = sharedProtocol ? trimReadToolResults(history) : history;
+  const contextWorking = sharedProtocol ? trimReadToolResults(active) : active;
+  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: customerInstructions+memberContext+outcomeGuidance+recoveryInstructions+procedureInstructions+(directory?"\n"+directory.text:"")+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":"")+(task.channel_binding?(handoffAvailable?customerChannelInstructions:retrievalOnlyChannelInstructions):"")+knowledgeNotice+omittedInstructionNotice+(turnPlan?`\n${turnPlan.definition.instructions}`:""), compactContinuation: (task.execution_policy_version??1)>=2, ...(originatingRequest?{originatingRequest,currentInputOrigin:"coordinator" as const}:{}), currentInput: [task.input,...(selectedProductContext?[selectedProductContextText(selectedProductContext.reference)]:[]),...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history: contextHistory, workingGroups: contextWorking,
     summary: invalidated ? undefined : summary, sources,
     skills: loadedSkills.sources, skillCatalog: loadedSkills.catalog,
     tools: routedTools, model: execution.models.primary.binding.modelId, modelPolicy: contextModelPolicy(execution, "primary", await nativeContextCosts(pool, execution), packingOverhead),
@@ -548,17 +578,23 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     }
   }
   const totalGroups = history.length + active.length;
-  if (built.status === "compaction_required" || (!sharedProtocol && built.estimatedTokens >= execution.models.primary.policy.compactAtTokens && totalGroups > 2)) {
+  const explicitContext = !("mode" in execution.configuration.context);
+  const explicitPressure = explicitContext && built.estimatedTokens >= execution.models.primary.policy.compactAtTokens;
+  if ((((built.status === "compaction_required" && (!sharedProtocol || explicitContext)) || explicitPressure ||
+      (!sharedProtocol && built.estimatedTokens >= execution.models.primary.policy.compactAtTokens)) && (explicitContext ? totalGroups > 0 : totalGroups > 2))) {
     return { history, working: active, memoryFence, invalidated, needsCompaction: true };
   }
   phase.mark("assemble");
   const selectedContinuation=built.continuation;
-  const previousSnapshot=sharedProtocol?(await pool.query(`SELECT id,payload->>'estimatedTokens' AS tokens,payload->>'catalogDigest' AS "catalogDigest",
+  const previousSnapshot=sharedProtocol?(await pool.query(`SELECT id,payload->>'estimatedTokens' AS tokens,payload->>'fullEstimatedTokens' AS "fullTokens",payload->>'catalogDigest' AS "catalogDigest",
       payload->>'catalogOwner' AS "catalogOwner",(payload ? 'catalog') AS "hasCatalog"
     FROM agents_platform.context_snapshots WHERE task_id=$1 AND step>=0 AND step<$2 ORDER BY step DESC LIMIT 1`,[taskId,step])).rows[0]:undefined;
   const previousSize=previousSnapshot;
-  const mandatory=sharedProtocol?buildContext({...input,history:[],summary:undefined,sources:[],workingGroups:active.filter(group=>group.id.startsWith("instruction:"))}).estimatedTokens:0;
-  const forecast=compactionForecast(execution.models.primary.policy,built.estimatedTokens,previousSize?Number(previousSize.tokens):undefined,mandatory);
+  const omittedGroups = sharedProtocol ? history.filter(group => built.omittedHistoryGroupIds.includes(group.id)) : [];
+  const fullEstimatedTokens = built.estimatedTokens + (omittedGroups.length ? estimateMessagesTokens({ ...input, tools: undefined }, omittedGroups.flatMap(group => group.messages)) : 0);
+  const mandatory=sharedProtocol?buildContext({...input,history:[],summary:undefined,sources:[],workingGroups:contextWorking.filter(group=>group.id.startsWith("instruction:"))}).estimatedTokens:0;
+  const previousFullTokens=previousSize?.fullTokens?Number(previousSize.fullTokens):previousSize?Number(previousSize.tokens):undefined;
+  const forecast=compactionForecast(execution.models.primary.policy,fullEstimatedTokens,previousFullTokens,mandatory);
   const id = `context:${taskId}:${step}`;
   const knowledgeReferences = built.sourceReferences.filter(reference => reference.kind === "knowledge");
   const messageBytes = (role: "system" | "user" | "assistant" | "tool") => built.messages.filter((message: HarnessMessage) => message.role === role)
@@ -583,7 +619,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       owner: typeof previousSnapshot.catalogOwner === "string" ? previousSnapshot.catalogOwner : (previousSnapshot.hasCatalog === "catalog" ? previousSnapshot.id : null),
       digest: typeof previousSnapshot.catalogDigest === "string" ? previousSnapshot.catalogDigest : null } : undefined), ...(modernInstructions?{primaryInstructionIds}:{}), instructionGroups:active.filter(group=>group.id.startsWith("instruction:")),
     historyGroupIds: built.historyGroupIds.filter(groupId=>!groupId.startsWith("channel:")),
-    ...(task.channel_binding?{channelHistoryGroupIds:built.historyGroupIds}:{}), estimatedTokens: built.estimatedTokens,...(sharedProtocol?{compactionForecast:forecast,backgroundCompactionRequested:forecast.requested&&totalGroups>2}:{}), memoryExpiresAt: memoryFence?.expiresAt, evidenceIds: [...new Set([...built.sourceReferences.flatMap(reference=>reference.evidenceId?[reference.evidenceId]:[]),...active.flatMap(group=>group.evidenceIds??[])])] }, JSON.stringify(built.sourceReferences),
+    ...(task.channel_binding?{channelHistoryGroupIds:built.historyGroupIds}:{}), estimatedTokens: built.estimatedTokens,...(sharedProtocol?{fullEstimatedTokens,compactionForecast:forecast,backgroundCompactionRequested:forecast.requested&&totalGroups>2}:{}), memoryExpiresAt: memoryFence?.expiresAt, evidenceIds: [...new Set([...built.sourceReferences.flatMap(reference=>reference.evidenceId?[reference.evidenceId]:[]),...active.flatMap(group=>group.evidenceIds??[])])] }, JSON.stringify(built.sourceReferences),
     memoryFence?.id ?? null, memoryFence?.generation ?? null, task.history_cutoff ?? "0"])).rows[0];
   const saved = row ? undefined : (await pool.query("SELECT * FROM agents_platform.context_snapshots WHERE id=$1", [id])).rows[0];
   phase.mark("insert");
@@ -740,10 +776,15 @@ export function preparationFailureCode(error: unknown): string | null {
 }
 
 export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, runtime: {release:string;workflow:string} = {release:HARNESS_RELEASE,workflow:WORKFLOW_NAME}) {
+  // Direct constructions keep the built-in handlers; composition can override the registry.
+  const capabilityHandlers = options.capabilityHandlers ?? [bookingOperationHandler(options.bookings), reportDeliveryHandler(), skillsOperationHandler(options.executeSandbox)];
+  const compaction = compactionFlags();
   return restate.workflow({ name: restateServiceName(runtime.workflow), options: { workflowRetention: { days: 7 }, journalRetention: { days: 7 } }, handlers: {
     run: async (ctx: restate.WorkflowContext, input: { taskId: string }) => {
       if (ctx.key !== input.taskId) throw new restate.TerminalError("Task identity mismatch", { errorCode: 400 });
       const taskId = input.taskId;
+      options.onInvocation?.({ release: runtime.release });
+      const knowledge = options.readers?.knowledge ?? options.knowledgeRuntime;
       // A process-local registry must be hydrated on replay too; a journaled cache fill would be skipped.
       const runStarted = Date.now();
       const createdRow = (await pool.query(`SELECT created_at FROM agents_platform.tasks WHERE id=$1`, [taskId])).rows[0];
@@ -776,6 +817,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
       const sharedProtocol = runtime.release === SHARED_HARNESS_RELEASE;
       const adaptiveExecution = runtime.release === "product-capabilities-v14" || sharedProtocol;
       let working: ContextGroup[] = [], summary: ContextSource | undefined, omitted: string[] = [], knownGeneration: number | undefined, knownExpiry: number | undefined;
+      let backgroundFailureCode: string | undefined;
       let continuity: ContinuityCheckpoint | undefined;
       let backgroundJob:BackgroundCompactionJob|undefined,backgroundUnavailable=false;
       let partialChildren=false,finalMemoryFence:MemoryFence|undefined;
@@ -823,23 +865,23 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
           input: initial.task.input,
         };
         // A legacy pinned version above pinned-core capacity downshifts to retrieval without a republish.
-        if (accepted.mode === "pinned" && options.knowledgeRuntime &&
-            !(await guardedRun(ctx,"pinned-core-capacity",() => options.knowledgeRuntime!.pinnedEligible(taskId)))) accepted.mode = "retrieved";
+        if (accepted.mode === "pinned" && knowledge &&
+            !(await guardedRun(ctx,"pinned-core-capacity",() => knowledge!.pinnedEligible(taskId)))) accepted.mode = "retrieved";
         // The route policy is the resolved policy for this turn; config mode is already folded in.
         const turnPlan: RoutePlan = { decision: route.decision,
           definition: { ...route.definition, policy: { ...route.definition.policy, knowledgeMode: accepted.mode } } };
         let initialKnowledge: KnowledgeObservation | undefined;
         let pinnedKnowledge: ContextSource[] = [];
         if (accepted.sourceRevisionIds.length && accepted.mode !== "none") {
-          if (!options.knowledgeRuntime || !options.evidence) throw new PlatformError("KNOWLEDGE_RUNTIME_UNAVAILABLE", 503, "Knowledge retrieval is unavailable");
+          if (!knowledge || !options.evidence) throw new PlatformError("KNOWLEDGE_RUNTIME_UNAVAILABLE", 503, "Knowledge retrieval is unavailable");
           if (accepted.mode === "pinned") {
-            const sections = await guardedRun(ctx,"initial-knowledge-pinned",() => options.knowledgeRuntime!.pinnedSources(taskId));
+            const sections = await guardedRun(ctx,"initial-knowledge-pinned",() => knowledge!.pinnedSources(taskId)) as Awaited<ReturnType<KnowledgeRuntimePort["pinnedSources"]>>;
             pinnedKnowledge = sections.map(section => ({ id: section.id, revision: section.revisionId, kind: "knowledge" as const,
               content: `[${section.title} / ${section.headingPath}]\n${section.content}` }));
           } else {
           const query = fitUtf8(accepted.input, 1024), id = `knowledge:${taskId}:initial`;
           const retrieved = await operation<KnowledgeObservation>(ctx, pool, taskId, { id, kind: "tool", name: "knowledge.search", request: { query },
-            reservedTokens: 0, reservedMs: 90000, retrySafe: true, maxResultBytes: 8192 }, async () => {validateBuiltinArguments("knowledge.initial",{query});return { value: await options.knowledgeRuntime!.search(taskId, id, query), tokens: 0 };});
+            reservedTokens: 0, reservedMs: 90000, retrySafe: true, maxResultBytes: 8192 }, async () => {validateBuiltinArguments("knowledge.initial",{query});return { value: await knowledge!.search(taskId, id, query) as KnowledgeObservation, tokens: 0 };});
           if (!retrieved.ok) throw new PlatformError(retrieved.code, 409, "Initial knowledge retrieval is unavailable");
           validateBuiltinResult("knowledge.initial",retrieved.value);
           initialKnowledge = capKnowledge(retrieved.value, route.definition.policy.maxKnowledgeTokens);
@@ -856,7 +898,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                 working=working.filter(group=>!observed.compactedGroupIds.includes(group.id));
                 previousCompactionProgress=undefined;
               }else if(observed.state==="uncertain"){outcome={state:"uncertain",errorCode:observed.code??"COMPACTION_OUTCOME_UNCERTAIN"};break;}
-              else backgroundUnavailable=true;
+              else { backgroundUnavailable=true; backgroundFailureCode=observed.code; }
             }
           }
           const execution = await awaitAuthority(ctx, pool, taskId, `authority:${step}`);
@@ -917,20 +959,38 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
           knownGeneration = assembled.memoryFence?.generation;
           knownExpiry = assembled.memoryFence?.expiresAt;
           if (assembled.needsCompaction) {
+            if (compaction.policy === "off") {
+              if (backgroundJob) {
+                await guardedRun(ctx,`background-disabled:${step}`,()=>retireQueuedBackgroundCompaction(pool,backgroundJob!.taskId,backgroundJob!.id));
+                backgroundJob=undefined;
+              }
+              outcome = { state: "incomplete", errorCode: "CONTEXT_LIMIT" }; break;
+            }
             if(backgroundJob){
               const retired=await guardedRun(ctx,`background-foreground:${step}`,()=>retireQueuedBackgroundCompaction(pool,backgroundJob!.taskId,backgroundJob!.id));
               const settled=await awaitBackgroundCompaction(ctx,pool,backgroundJob,`background-foreground-join:${step}`);
               if(!retired)continue;
-              backgroundJob=undefined;backgroundUnavailable=true;
+              backgroundJob=undefined;backgroundUnavailable=true;backgroundFailureCode=settled.code;
               if(settled.state==="uncertain"){outcome={state:"uncertain",errorCode:settled.code??"COMPACTION_OUTCOME_UNCERTAIN"};break;}
             }
             const groups = [...assembled.history, ...assembled.working].filter(group=>(execution.task.execution_policy_version??1)<2||!group.id.startsWith("instruction:"));
+            const explicitContext = !("mode" in execution.configuration.context);
             const progress=measureCompactionProgress(groups,summary);
             if ((execution.task.execution_policy_version??1)>=2 && compactionDidNotProgress(assembled.invalidated ? undefined : previousCompactionProgress,progress)) {
               outcome = { state: "incomplete", errorCode: "COMPACTION_NO_PROGRESS" }; break;
             }
-            const plan = prepareCompaction(groups, { model: execution.models.compaction.binding.modelId, modelPolicy: contextModelPolicy(execution, "compaction"), retainRecent: Math.min(1, groups.length - 1), maxInputTokens: execution.models.compaction.policy.maxInputTokens,
+            const plan = prepareCompaction(groups, { model: execution.models.compaction.binding.modelId, modelPolicy: contextModelPolicy(execution, "compaction"), ...(explicitContext ? { retainRecent: Math.min(1, groups.length - 1) } : { retainRecentTokens: recentWindowTokens(execution.models.primary.policy.maxInputTokens) }), maxInputTokens: execution.models.compaction.policy.maxInputTokens,
               maxOutputTokens: execution.models.compaction.policy.maxOutputTokens, previousSummary: summary });
+            // A truncated/empty background summary is deterministic for the same frozen
+            // request. Prune instead of spending a second identical compaction call.
+            if (!explicitContext && backgroundFailureCode === "COMPACTION_INVALID") {
+              const fallback = pruneCompactedGroups(omitted, working, plan.compactedGroupIds);
+              if (fallback.pruned.length) {
+                omitted = fallback.omitted; working = fallback.working; previousCompactionProgress = undefined; backgroundFailureCode = undefined;
+                await ctx.run(`prune-event:${step}`, () => event(pool, taskId, `prune:${step}`, "context.pruned", { groups: fallback.pruned.length, reason: "COMPACTION_INVALID" }));
+                continue;
+              }
+            }
             const request: ModelRequest = { messages: plan.messages, model: execution.models.compaction.binding.modelId, maxDurationSeconds: execution.models.compaction.policy.maxCallDurationMs / 1000,
               maxInputTokens: execution.models.compaction.policy.maxInputTokens, maxOutputTokens: execution.models.compaction.policy.maxOutputTokens };
             await ctx.run(`compact-context:${step}`, async () => {
@@ -973,10 +1033,28 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                 if(waiting.settled)return waiting.settled;
                 if(waiting.waited)continue;
               }
+              // A failed summary must not fail the reply. Automatic contexts prune the
+              // frozen prefix and continue; explicit narrow limits keep their hard cap.
+              if (!explicitContext) {
+                const fallback = pruneCompactedGroups(omitted, working, plan.compactedGroupIds);
+                if (fallback.pruned.length) {
+                  omitted = fallback.omitted; working = fallback.working; previousCompactionProgress = undefined;
+                  await ctx.run(`prune-event:${step}`, () => event(pool, taskId, `prune:${step}`, "context.pruned", { groups: fallback.pruned.length, reason: compacted.code }));
+                  continue;
+                }
+              }
               outcome = failed(compacted); break;
             }
             if (compacted.value.finishReason !== "stop" || !compacted.value.message.content) {
               if(sharedProtocol)await guardedRun(ctx,`compact-rejected:${step}`,()=>failCompactionJob(pool,`compact:${taskId}:${step}`,taskId,"rejected","COMPACTION_INVALID"));
+              if (!explicitContext) {
+                const fallback = pruneCompactedGroups(omitted, working, plan.compactedGroupIds);
+                if (fallback.pruned.length) {
+                  omitted = fallback.omitted; working = fallback.working; previousCompactionProgress = undefined;
+                  await ctx.run(`prune-event:${step}`, () => event(pool, taskId, `prune:${step}`, "context.pruned", { groups: fallback.pruned.length, reason: "COMPACTION_INVALID" }));
+                  continue;
+                }
+              }
               outcome = { state: "incomplete", errorCode: "COMPACTION_INVALID" }; break;
             }
             previousCompactionProgress=progress;
@@ -990,12 +1068,12 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               ? options.evidence!.deriveSummaryFromSnapshot(taskId,summary!.id,`context:compact:${taskId}:${step}`)
               : options.evidence!.derive(taskId,"summary",summary!.id));
             omitted.push(...plan.compactedGroupIds); working = working.filter(group => !plan.compactedGroupIds.includes(group.id));
-            await ctx.run(`compaction-event:${step}`, () => event(pool, taskId, summary!.id, "context.compacted", { compactedGroups: plan.compactedGroupIds.length }));
+            await ctx.run(`compaction-event:${step}`, () => event(pool, taskId, summary!.id, "context.compacted", { compactedGroups: plan.compactedGroupIds.length, reason: "overflow" }));
             continue;
           }
           previousCompactionProgress = undefined;
           const snapshot = assembled.snapshot!;
-          if(assembled.backgroundCompactionRequested&&!backgroundJob&&!backgroundUnavailable&&options.evidence){
+          if(assembled.backgroundCompactionRequested&&compaction.background&&compaction.policy!=="off"&&!backgroundJob&&!backgroundUnavailable&&options.evidence){
             const remaining=await guardedRun(ctx,`background-allowance:${step}`,()=>executionAllowanceObservation(pool,execution));
             const hasFinishingCalls=[remaining?.agentModelCalls,remaining?.workModelCalls].every(value=>value===undefined||value>=3);
             const planned=await ctx.run(`background-prepare:${step}`,async()=>{
@@ -1153,11 +1231,10 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                 proposal=>awaitEnquiryConfirmation(ctx,pool,taskId,id,proposal,name));
               if(checked.valid&&checked.result){outcome=checked.result;stop=true;break;}
             }
-            if(name==="booking.reserve") {
-              if(!options.bookings){outcome={state:"incomplete",errorCode:"BOOKING_PROVIDER_UNAVAILABLE"};stop=true;break;}
-              const bookings=options.bookings;
+            const capabilityHandler=handlerFor(capabilityHandlers,name);
+            if(capabilityHandler?.confirm) {
               const checked=await confirmValidProposal(name,call.function.arguments,acceptedToolVersion,
-                proposal=>awaitBookingConfirmation(ctx,pool,bookings,taskId,id,(proposal as {start:string}).start));
+                proposal=>capabilityHandler.confirm!({ctx,pool,taskId,operationId:id,operation:name,arguments:proposal}));
               if(checked.valid&&checked.result){outcome=checked.result;stop=true;break;}
             }
             if(binding?.policy.approval==="exact_single_use") {
@@ -1243,12 +1320,8 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                     const created=await options.artifacts.put(taskId,id,{name:input.name,contentType:input.contentType,content:Buffer.from(input.content,"utf8")});
                     return {value:{id:created.id,taskId:created.taskId,rootTaskId:created.rootTaskId,name:created.name,contentType:created.contentType,bytes:created.bytes,contentDigest:created.contentDigest},tokens:0};
                   }
-                  if(name==="booking.availability"||name==="booking.reserve") {
-                    if(!options.bookings)throw new PlatformError("BOOKING_PROVIDER_UNAVAILABLE",503,"Booking is unavailable");
-                    const bookingArguments=args as {start:string;end:string};
-                    const value=name==="booking.availability"?await options.bookings.availability(taskId,id,bookingArguments,ctx.request().attemptCompletedSignal):await options.bookings.execute(taskId,id,bookingArguments.start,ctx.request().attemptCompletedSignal);
-                    return {value,tokens:0};
-                  }
+                  if(capabilityHandler?.invoke) return {value:await capabilityHandler.invoke({ctx,pool,taskId,operationId:id,operation:name,
+                    arguments:args,signal:ctx.request().attemptCompletedSignal}),tokens:0};
                   if(name==="agents.delegate") return {value:await admitChildren(pool,taskId,id,parseModelDelegationRequest(args)),tokens:0};
                   if(name==="agents.discover") return {value:await discoverSpecialists(pool,taskId,args as Parameters<typeof discoverSpecialists>[2]),tokens:0};
                   if(name==="work.update" || name==="work.inspect") return {value:await executeWorkTool(pool,taskId,id,name,args),tokens:0};
@@ -1266,30 +1339,30 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                     return {value:await specialistResult(pool,taskId,input),tokens:0};
                   }
                   if(name==="agents.cancel") return {value:await cancelSpecialist(pool,taskId,(args as {taskId:string}).taskId),tokens:0};
-                  if(name==="sandbox.analyze"||name==="skills.run") {
+                  if(name==="sandbox.analyze") {
                     if(!config.capabilities.sandbox.enabled || !options.executeSandbox) throw new PlatformError("SANDBOX_UNAVAILABLE",503,"Analysis is unavailable");
-                    const parsed=(name==="skills.run"?z.strictObject({skillId:z.uuid(),path:z.string().min(1).max(256),inputArtifactIds:z.array(z.uuid()).max(32).optional()}):z.strictObject({code:z.string().min(1).max(16384),inputArtifactIds:z.array(z.uuid()).max(32).optional()})).safeParse(args);
+                    const parsed=z.strictObject({code:z.string().min(1).max(16384),inputArtifactIds:z.array(z.uuid()).max(32).optional()}).safeParse(args);
                     if(!parsed.success) throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Check the analysis arguments");
                     const value=await options.executeSandbox(taskId,id,parsed.data);
                     if(value && typeof value==="object" && "state" in value && value.state==="uncertain") throw new ModelOperationError("SANDBOX_OUTCOME_UNCERTAIN","uncertain");
                     return {value,tokens:0};
                   }
                   if (name === "knowledge.search" || name === "knowledge.read") {
-                    if (!options.knowledgeRuntime) throw new PlatformError("KNOWLEDGE_RUNTIME_UNAVAILABLE",503,"Knowledge retrieval is unavailable");
+                    if (!knowledge) throw new PlatformError("KNOWLEDGE_RUNTIME_UNAVAILABLE",503,"Knowledge retrieval is unavailable");
                     try {
-                      if (name === "knowledge.search") { const input=z.strictObject({query:z.string().min(1).max(1024)}).parse(args); return {value:await options.knowledgeRuntime.search(taskId,id,input.query),tokens:0}; }
+                      if (name === "knowledge.search") { const input=z.strictObject({query:z.string().min(1).max(1024)}).parse(args); return {value:await knowledge.search(taskId,id,input.query),tokens:0}; }
                       const input=z.strictObject({evidenceId:z.uuid(),offset:z.number().int().nonnegative().optional()}).parse(args);
-                      return {value:await options.knowledgeRuntime.read(taskId,id,input.evidenceId,input.offset),tokens:0};
+                      return {value:await knowledge.read(taskId,id,input.evidenceId,input.offset),tokens:0};
                     } catch(error) { if(error instanceof z.ZodError) throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Check the knowledge arguments"); throw error; }
                   }
                   if(name==="memory.search"||name==="memory.read"||name==="memory.propose"){
-                    const value=await executeMemoryTool(pool,taskId,id,name,args,options.evidence);
+                    const value=await executeMemoryTool(pool,options.readers!.memory!,taskId,id,name,args,options.evidence);
                     if(name==="memory.propose" && options.evidence && value && typeof value==="object" && "candidateId" in value)await options.evidence.derive(taskId,"memory",String(value.candidateId));
                     return {value,tokens:0};
                   }
                   const contextPolicy = name==="skills.activate"||name==="skills.read"
                     ? contextModelPolicy(execution,"primary",await nativeContextCosts(pool,execution),packingOverhead) : undefined;
-                  const value = await executeTool(pool,taskId,id,name,call.function.arguments,resultBound,handoffFeedback,
+                  const value = await executeTool(pool,options.readers!.memory!,taskId,id,name,call.function.arguments,resultBound,handoffFeedback,
                     contextPolicy ? loaded => skillFitsRequest(loaded,name,request,messages,call.id,contextPolicy) : undefined,acceptedToolVersion);
                   if (name === "memory.propose" && options.evidence && value && typeof value === "object" && "candidateId" in value) await options.evidence.derive(taskId,"memory",String(value.candidateId));
                   return {value,tokens:0};
@@ -1414,7 +1487,12 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
           const current=await loadExecution(pool,taskId);
           if(current.task.parent_task_id) await options.evidence!.derive(taskId,"child_result",taskId);
         });
-        if(outcome.state==="completed")outcome=await runRequiredReport(ctx,pool,taskId,options,outcome,finalMemoryFence,{awaitAuthority,operation,failed});
+        if(outcome.state==="completed"){
+          const reportHandler=handlerFor(capabilityHandlers,"report.deliver");
+          if(reportHandler?.afterTurn)outcome=await reportHandler.afterTurn({ctx,pool,taskId,outcome,
+            options:{actions:options.actions,selectReportArtifact:options.selectReportArtifact},memoryFence:finalMemoryFence,
+            ports:{awaitAuthority,operation,failed}});
+        }
       } catch (error) {
         if (error instanceof restate.CancelledError) {
           await ctx.run("settle-cancellation", () => settleTask(pool, taskId, { state: "cancelled" })); throw error;

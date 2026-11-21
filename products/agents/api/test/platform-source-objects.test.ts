@@ -3,11 +3,11 @@ import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
 import {PrivateObjectStore} from "../src/infrastructure/object-store";
-import {KnowledgeStore} from "../src/capabilities/knowledge/knowledge";
+import {KnowledgeStore} from "../src/platform/knowledge/knowledge";
 import {PlatformStore} from "../src/product/agents/store";
 import {setupPlatformSchema} from "../src/composition/setup";
 import {textDigest} from "../src/contracts/source-contracts";
-import {reapSourceObjects,writeSourceObject,type SourceObjectWrite} from "../src/capabilities/knowledge/source-objects";
+import {reapSourceObjects,writeSourceObject,type SourceObjectWrite} from "../src/platform/knowledge/source-objects";
 
 const url=process.env.AGENTS_TEST_DATABASE_URL;
 (url?describe:describe.skip)("durable source object ownership with PostgreSQL and explicit storage faults",()=>{

@@ -161,7 +161,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const prepared = await trials.prepare(account.id, org.id, { expectedModelRoutesDigest: preview.modelRoutesDigest, rootTokenLimit: 32000, trialId: randomUUID(), agentId: agent.id, versionId: version.id, expectedCompositionDigest: version.effective_composition.digest, maxTokens: 32000, expiresAt: new Date(Date.now() + 300000).toISOString() });
     await trials.channelSession(account.id, org.id, prepared.id, { deploymentId: deployment.id, origin: "https://fixture.example" }, "fixture-only-channel-signing-key");
     const binding = (await pool.query("SELECT session_id FROM agents_platform.evaluation_trial_channels WHERE trial_id=$1", [prepared.id])).rows[0];
-    const grant = await store.createWebsiteGrant({ deploymentId: deployment.id, origin: "https://fixture.example", sessionId: binding.session_id });
+    const grant = await store.createWebsiteGrant({ deploymentId: deployment.id, origin: "https://fixture.example", sessionId: binding.session_id, rootTokenLimit: 32000 });
     const authority: AdmissionAuthority = { product: grant.product, organizationId: grant.organizationId, resourceId: grant.resourceId, callerClientId: grant.callerClientId, principal: grant.principal };
     const { task } = await store.admitTask({ authority, grantId: grant.id, versionId: version.id, requestKey: randomUUID(), input: "Public evaluation question", evaluationTrialId: prepared.id });
     await expect(exportExecutionHistory(pool, task.id, async () => undefined)).rejects.toMatchObject({ code: "ACCESS_DENIED" });

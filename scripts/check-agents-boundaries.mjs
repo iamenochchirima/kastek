@@ -9,13 +9,19 @@ const allowed={
  execution:['contracts','infrastructure','execution','capabilities','adapters','workflows','observability'],
  capabilities:['contracts','infrastructure','execution','capabilities','adapters','observability'],
  workflows:['contracts','infrastructure','execution','capabilities','adapters','workflows','observability'],
- product:['contracts','infrastructure','execution','capabilities','adapters','workflows','programs','product','observability'],
+ platform:['contracts','infrastructure','execution','platform','observability'],
+ integrations:['contracts','infrastructure','execution','capabilities','platform','integrations','observability'],
+ product:['contracts','infrastructure','execution','capabilities','adapters','workflows','programs','product','platform','observability'],
  programs:['contracts','execution','capabilities','workflows','programs'],
  observability:['contracts','infrastructure','observability'],composition:null,
 };
+// Edges that predate enforcement. Each is debt tied to a specific move; new edges fail.
+// Remove an entry only when the code actually moved, never to silence a new violation.
+const acceptedEdges=new Map([
+]);
 export function checkAgentsModules(root){
  const files=[];const walk=directory=>{for(const entry of readdirSync(directory,{withFileTypes:true})){const path=resolve(directory,entry.name);if(entry.isDirectory())walk(path);else if(entry.name.endsWith('.ts')||entry.name.endsWith('.json'))files.push(path);}};walk(root);
- const graph=new Map(files.map(file=>[file,[]])),failures=[];
+ const graph=new Map(files.map(file=>[file,[]])),failures=[],accepted=[];
  for(const file of files){
   const owner=relative(root,file).split('/')[0];if(owner==='acceptance')continue;
   if(!Object.hasOwn(allowed,owner)){failures.push(`${relative(root,file)} has no module ownership rule`);continue;}
@@ -37,7 +43,19 @@ export function checkAgentsModules(root){
    const base=resolve(dirname(file),specifier),target=[base+'.ts',resolve(base,'index.ts'),...(specifier.endsWith('.json')?[base]:[])].find(path=>graph.has(path));
    if(!target){failures.push(`${relative(root,file)} has unresolved internal reference ${specifier}`);continue;}
    const dependency=relative(root,target).split('/')[0];
-   if(allowed[owner]&&!allowed[owner].includes(dependency))failures.push(`${relative(root,file)} cannot depend on ${relative(root,target)}`);
+   const sourceParts=relative(root,file).split('/'),targetParts=relative(root,target).split('/');
+   if(dependency==='platform'&&targetParts.length>=3&&
+      !(owner==='platform'&&sourceParts[1]===targetParts[1])&&
+      !(targetParts.length===3&&(targetParts[2]==='index.ts'||owner==='composition'&&targetParts[1]==='knowledge'&&targetParts[2]==='bootstrap.ts'))){
+    failures.push(`${relative(root,file)} cannot import private platform module ${relative(root,target)}; use platform/${targetParts[1]}`);
+   }
+   if(dependency==='integrations'&&targetParts.length>=3&&owner!=='integrations'){
+    failures.push(`${relative(root,file)} cannot import private integration module ${relative(root,target)}; use integrations`);
+   }
+   if(allowed[owner]&&!allowed[owner].includes(dependency)){
+    const edge=`${relative(root,file)} -> ${relative(root,target)}`;
+    if(acceptedEdges.has(edge))accepted.push(edge);else failures.push(`${relative(root,file)} cannot depend on ${relative(root,target)}`);
+   }
    graph.get(file).push(target);
   }
  }
@@ -48,11 +66,16 @@ export function checkAgentsModules(root){
   visiting.add(file);for(const target of graph.get(file))cycle(target,[...path,file]);visiting.delete(file);visited.add(file);
  }
  for(const file of files)cycle(file,[]);
- return {files:files.length,failures:[...new Set(failures)]};
+ return {files:files.length,failures:[...new Set(failures)],accepted:[...new Set(accepted)],acceptedEdges};
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const root=resolve(dirname(fileURLToPath(import.meta.url)),'../products/agents/api/src');
  const result=checkAgentsModules(root);
  if(result.failures.length){console.error(result.failures.join('\n'));process.exitCode=1;}
- else console.log(`Agents internal module boundaries and dependency cycles passed for ${result.files} files`);
+ else {
+  for(const edge of result.accepted)console.log(`accepted debt: ${edge} (${result.acceptedEdges.get(edge)})`);
+  const stale=[...result.acceptedEdges.keys()].filter(edge=>!result.accepted.includes(edge));
+  for(const edge of stale)console.log(`stale accepted debt: ${edge}`);
+  console.log(`Agents internal module boundaries and dependency cycles passed for ${result.files} files`);
+ }
 }

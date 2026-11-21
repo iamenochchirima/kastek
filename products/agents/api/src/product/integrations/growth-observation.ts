@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import type { GrowthAgentCommand, GrowthAgentObservation, GrowthAgentRuntimeOperation, GrowthAgentTask } from "@kasitek-labs/contracts";
+import type { GrowthAgentObservation, GrowthAgentRuntimeOperation, GrowthAgentTask } from "@kasitek-labs/contracts";
 import { PlatformError } from "../../contracts/contracts";
 import { assertCurrentEvidence, taskEvidenceManifest } from "../../execution/context/evidence-policy";
 import { pageQuery, readPageCursor, finishPage, nextPageCursor } from "../../infrastructure/read-pages";
@@ -8,11 +8,13 @@ import { readPublicAgentUpdates } from "./public-agent-activity";
 import { projectRecipientText, taskRecipientTextScope } from "../../execution/context/recipient-text";
 import { TaskArtifactStore } from "../../execution/artifacts/task-artifacts";
 
+type ObservationCommand = { requestId: string; tenantId: string; actor: { issuer: string; subject: string };
+  input: { taskId: string; childTaskId?: string; cursor?: string; operationCursor?: string; limit?: number } };
 interface GrowthObservationReader {
   pool: Pool;
-  task(command: GrowthAgentCommand, id: string): Promise<Record<string, any>>;
+  task(command: ObservationCommand, id: string): Promise<Record<string, any>>;
   taskDto(row: Record<string, any>): Promise<GrowthAgentTask>;
-  principal(command: GrowthAgentCommand): { kind: "human"; issuer: string; subject: string };
+  principal(command: ObservationCommand): { kind: "human"; issuer: string; subject: string };
   runtime?: { authorizeTask(id: string): Promise<unknown> };
 }
 
@@ -36,7 +38,7 @@ export async function readProductChildren(pool:Pool,parent:{id:string;organizati
   return children;
 }
 
-async function operationPage(pool: Pool, row: Record<string,any>, command: Extract<GrowthAgentCommand,{operation:"tasks.observe"}>,product="growth",clientId?:string) {
+async function operationPage(pool: Pool, row: Record<string,any>, command: ObservationCommand,product="growth",clientId?:string) {
   const scope={kind:`${product}-public-operations`,tenant:command.tenantId,actor:command.actor,root:command.input.taskId,task:row.id,...(clientId?{clientId}:{})};
   const page=pageQuery.parse({limit:command.input.limit,cursor:command.input.operationCursor}),cursor=readPageCursor(page.cursor,scope);
   if(cursor.position&&!Number.isFinite(Date.parse(cursor.position)))throw new PlatformError("INVALID_CURSOR",400,"Invalid operation cursor");
@@ -52,7 +54,7 @@ async function operationPage(pool: Pool, row: Record<string,any>, command: Extra
 }
 
 /** A root-authorized projection, never an evaluation export or a browser-authorized child lookup. */
-export async function observeProductTask(service: GrowthObservationReader, command: Extract<GrowthAgentCommand,{operation:"tasks.observe"}>,options:{product?:"growth"|"agencies";clientId?:string}={}): Promise<GrowthAgentObservation> {
+export async function observeProductTask(service: GrowthObservationReader, command: ObservationCommand,options:{product?:"growth"|"agencies";clientId?:string}={}): Promise<GrowthAgentObservation> {
   const product=options.product??"growth";
   const root=await service.task(command,command.input.taskId),pool=service.pool;
   let row=root;

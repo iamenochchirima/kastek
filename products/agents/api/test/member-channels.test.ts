@@ -18,7 +18,7 @@ import { InboxStore } from "../src/product/inbox/inbox-store";
 import { RemoteConnectionStore } from "../src/product/connections/remote-connections";
 import { createRemoteMcpCapabilityCatalog } from "../src/capabilities/connected-tools/generic-connected-runtime";
 import { ToolReviewStore } from "../src/capabilities/reviews/tool-reviews";
-import { operationsForConfiguration } from "../src/product/automations/automations";
+import { operationsForConfiguration } from "../src/platform/access/grant-operations";
 import { connectFixtureModel } from "./model-fixture";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 
@@ -183,7 +183,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const f=await reviewFixture();
     await members.collect();
     await settleTask(pool,f.task.id,{state,output:"Partial draft; do not claim completion."});
-    await f.delivery.drain(8);
+    await f.delivery.drain(32);
     const rows=(await pool.query("SELECT request,state FROM agents_platform.channel_outbound WHERE member_link_id=$1 ORDER BY created_at,segment",[f.challenge.id])).rows;
     expect(rows.find(row=>row.request.memberReview)).toMatchObject({state:"suppressed"});
     const result=rows.find(row=>!row.request.memberReview);

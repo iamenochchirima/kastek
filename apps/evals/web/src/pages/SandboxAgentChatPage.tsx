@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ChevronDown, MessageSquare, Plus, RefreshCw, Send } from "lucide-react";
-import type { AgentModelCatalogue, AgentRef, ProductAgent, ProductChatMessage, ProductChatResult } from "../../../shared/types";
+import type { AgentModelCatalogue, AgentRef, ProductActivity, ProductAgent, ProductChatMessage, ProductChatResult } from "../../../shared/types";
+import { ActivityPanel } from "../ActivityPanel";
 import { api, errorMessage } from "../api";
-import { EmptyState, ErrorBox, Loading, ModelPickerDialog, PageHeader, StatusBadge } from "../components";
+import { EmptyState, ErrorBox, Loading, ModelPickerDialog, PageHeader, providerName, StatusBadge } from "../components";
 
 export default function SandboxAgentChatPage() {
   const { id = "", agentRefId = "" } = useParams();
@@ -21,7 +22,10 @@ export default function SandboxAgentChatPage() {
   const [modelError, setModelError] = useState<string | null>(null);
   const [savingModel, setSavingModel] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
+  const [activity, setActivity] = useState<ProductActivity | null>(null);
+  const [activityError, setActivityError] = useState<string | null>(null);
   const thread = useRef<HTMLDivElement | null>(null);
+  const activityPoll = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,7 +53,7 @@ export default function SandboxAgentChatPage() {
   }, [id, agentRefId]);
 
   useEffect(() => {
-    if (!agent || agent.product !== "growth") {
+    if (!agent) {
       setCatalogue(null);
       setModelError(null);
       return;
@@ -62,7 +66,7 @@ export default function SandboxAgentChatPage() {
       .then((value) => { if (!cancelled) setCatalogue(value); })
       .catch((value) => { if (!cancelled) setModelError(errorMessage(value)); });
     return () => { cancelled = true; };
-  }, [id, agentRefId, agent?.product, agent?.productAgentId]);
+  }, [id, agentRefId, agent?.productAgentId]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -79,6 +83,42 @@ export default function SandboxAgentChatPage() {
     return () => { cancelled = true; };
   }, [id, sessionId]);
 
+  const loadActivity = useCallback(async (taskId?: string) => {
+    try {
+      const suffix = taskId ? `?taskId=${encodeURIComponent(taskId)}` : "";
+      const result = await api<ProductActivity>(
+        `/api/sandboxes/${encodeURIComponent(id)}/agents/${encodeURIComponent(agentRefId)}/activity${suffix}`,
+      );
+      setActivity(result);
+      setActivityError(null);
+    } catch (value) {
+      setActivityError(errorMessage(value));
+    }
+  }, [id, agentRefId]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      setActivity(null);
+      setActivityError(null);
+      return;
+    }
+    let cancelled = false;
+    api<{ session: { latestTaskId: string } }>(
+      `/api/sandboxes/${encodeURIComponent(id)}/sessions/${encodeURIComponent(sessionId)}`,
+    )
+      .then((detail) => {
+        if (!cancelled) void loadActivity(detail.session.latestTaskId);
+      })
+      .catch((value) => {
+        if (!cancelled) setActivityError(errorMessage(value));
+      });
+    return () => { cancelled = true; };
+  }, [id, sessionId, loadActivity]);
+
+  useEffect(() => () => {
+    if (activityPoll.current) clearInterval(activityPoll.current);
+  }, []);
+
   useEffect(() => {
     const element = thread.current;
     if (element) element.scrollTop = element.scrollHeight;
@@ -91,6 +131,10 @@ export default function SandboxAgentChatPage() {
     setSending(true);
     setError(null);
     setInput("");
+    setActivityError(null);
+    if (activityPoll.current) clearInterval(activityPoll.current);
+    void loadActivity();
+    activityPoll.current = setInterval(() => { void loadActivity(); }, 1000);
     try {
       const result = await api<ProductChatResult>(`/api/sandboxes/${encodeURIComponent(id)}/chat`, {
         method: "POST",
@@ -102,10 +146,15 @@ export default function SandboxAgentChatPage() {
       });
       setMessages(result.messages);
       if (!sessionId) setSearch({ session: result.session.id }, { replace: true });
+      await loadActivity(result.turn.productTaskId);
     } catch (value) {
       setInput(text);
       setError(errorMessage(value));
     } finally {
+      if (activityPoll.current) {
+        clearInterval(activityPoll.current);
+        activityPoll.current = null;
+      }
       setSending(false);
     }
   }
@@ -186,12 +235,22 @@ export default function SandboxAgentChatPage() {
   }
   if (!agent) return <ErrorBox message="Agent not found in this sandbox" />;
 
+  const selectedModel = catalogue?.current
+    ? catalogue.models.find((model) =>
+        model.connectionId === catalogue.current!.connectionId && model.modelId === catalogue.current!.modelId)
+    : null;
+  const activeModel = catalogue?.inherited ? catalogue?.defaultModel ?? null : selectedModel;
+  const modelLabel = activeModel?.label
+    ?? catalogue?.current?.modelId
+    ?? agent.model?.label
+    ?? "Workspace default model";
+
   return (
     <>
       <PageHeader
         eyebrow={agent.product === "growth" ? "Growth agent" : "Agents agent"}
         title={agent.name}
-        description={agent.model?.label ?? "Workspace default model"}
+        description={modelLabel}
         actions={
           <>
             <Link className="button ghost" to={`/sandboxes/${id}`}><ArrowLeft size={15} /> Sandbox</Link>
@@ -218,7 +277,8 @@ export default function SandboxAgentChatPage() {
                 title="Choose model"
               >
                 <span className="model-trigger-label">Model</span>
-                <span className="model-trigger-value">{agent.model?.label ?? "Default"}</span>
+                <span className="model-trigger-value">{modelLabel}</span>
+                {activeModel && <span className="model-trigger-provider">{providerName(activeModel.provider)}</span>}
                 <ChevronDown size={14} />
               </button>
             )}
@@ -262,6 +322,7 @@ export default function SandboxAgentChatPage() {
           </button>
         </form>
       </section>
+      <ActivityPanel activity={activity} error={activityError} live={sending} />
       {modelOpen && catalogue && (
         <ModelPickerDialog
           catalogue={catalogue}

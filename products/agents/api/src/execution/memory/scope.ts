@@ -2,14 +2,10 @@ import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { PlatformError, requestDigest, type InitiatingPrincipal } from "../../contracts/contracts";
 import type { Execution } from "../../contracts/execution";
+import type { MemoryManagementScope, ProductMemoryManagementScope } from "../../contracts/memory";
+export type { MemoryManagementScope, ProductMemoryManagementScope } from "../../contracts/memory";
 
 type Db = Pool | PoolClient;
-export interface PersonalMemoryManagementScope { accountId: string; organizationId: string; agentId: string }
-export interface ProductMemoryManagementScope {
-  namespace: "product_actor"; product: "growth" | "agencies"; tenantId: string; organizationId: string; agentId: string;
-  actor: { issuer: string; subject: string }; clientId: string | null;
-}
-export type MemoryManagementScope = PersonalMemoryManagementScope | ProductMemoryManagementScope;
 const productScope = z.strictObject({ namespace: z.literal("product_actor"), product: z.enum(["growth", "agencies"]),
   tenantId: z.string().min(1).max(256), organizationId: z.uuid(), agentId: z.uuid(),
   actor: z.strictObject({ issuer: z.url().max(2048), subject: z.string().min(1).max(512) }), clientId: z.string().min(1).max(256).nullable(),

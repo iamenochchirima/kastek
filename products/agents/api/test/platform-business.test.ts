@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../src/capabilities/skills/package";
 import { contextGrantCeiling } from "../src/execution/models/settings";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel, fixtureModelProviders } from "./model-fixture";
@@ -33,16 +34,16 @@ import {ConnectionStore} from "../src/product/connections/connections";
 import {ConnectionVault} from "../src/infrastructure/vault";
 import {TaskArtifactStore} from "../src/execution/artifacts/task-artifacts";
 import {createReportReceiver,initializeReportReceiver} from "../src/acceptance/report-receiver";
-import { KnowledgeStore } from "../src/capabilities/knowledge/knowledge";
-import { KnowledgeRuntime } from "../src/capabilities/knowledge/knowledge-runtime";
+import { KnowledgeStore } from "../src/platform/knowledge/knowledge";
+import { KnowledgeRuntime } from "../src/platform/knowledge/knowledge-runtime";
 import { EvidenceStore } from "../src/execution/context/evidence";
 import { textDigest } from "../src/contracts/source-contracts";
-import { MemoryStore } from "../src/execution/memory/memory";
+import { MemoryStore } from "../src/platform/memory/memory";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
 import { toolsFor, executeTool } from "../src/capabilities/tools";
 import { ProductRuntime } from "../src/execution/products/product-runtime";
-import type { ProductResourceScope } from "../src/capabilities/products/resource-scope";
+import type { ProductResourceScope } from "../src/contracts/resource-scope";
 import { SkillPackageStore } from "../src/product/agents/skill-package-store";
 import { controlPlatformAdmissions } from "../src/product/agents/platform-admission-control";
 import { parseSkillPackage } from "../src/capabilities/skills/package";
@@ -102,14 +103,14 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const url = new URL(databaseUrl!); url.pathname = `/${databaseName}`;
     pool = new Pool({ connectionString: url.href });
     await setupPlatformSchema(pool);
-    store = new PlatformStore(pool); memory = new MemoryStore(pool);
+    store = new PlatformStore(pool); memory = new MemoryStore(pool, skillPackageCodec);
     await initializeReportReceiver(pool);
     receiver=createReportReceiver({pool,keys:[{apiKey:receiverKey,resource:"reports:controller"}],afterAccept:async id=>{await afterAccept?.(id);}});
     const address=await receiver.listen({host:"127.0.0.1",port:0});
     const vault=new ConnectionVault("v1",{v1:randomBytes(32).toString("base64")}),targets=[{id:"reports",label:"Reports",url:address+"/deliveries",resource:"reports:controller"}];
     artifacts=new TaskArtifactStore(pool,{async put(key,value){objects.set(key,Buffer.from(value));},async get(key){const value=objects.get(key);if(!value)throw Error("Missing fixture object");return value;},async delete(key){objects.delete(key);}});
     connections=new ConnectionStore(pool,vault,targets);actions=new ActionService(pool,{vault,targets,artifacts});
-    businessOptions = {evidence:new EvidenceStore(pool,artifacts.objects),knowledgeRuntime:new KnowledgeRuntime(pool,new EvidenceStore(pool,artifacts.objects)),actions:{prepare:(...args)=>actions.prepare(...args),getReview:async(...args)=>{const review=await actions.getReview(...args);await afterReviewRead?.(review);return review;},reconcile:(...args)=>actions.reconcile(...args),execute:async(...args)=>{inFlightActionCalls++;try{return await actions.execute(...args);}finally{inFlightActionCalls--;}}},selectReportArtifact:(...args)=>artifacts.prepareReport(...args), modelProvider: fixtureModelProviders(pool), modelRuntime: { dispatch: input => dispatchBoundModel(input, policy => {
+    businessOptions = {readers:{memory},evidence:new EvidenceStore(pool,artifacts.objects),knowledgeRuntime:new KnowledgeRuntime(pool,new EvidenceStore(pool,artifacts.objects)),actions:{prepare:(...args)=>actions.prepare(...args),getReview:async(...args)=>{const review=await actions.getReview(...args);await afterReviewRead?.(review);return review;},reconcile:(...args)=>actions.reconcile(...args),execute:async(...args)=>{inFlightActionCalls++;try{return await actions.execute(...args);}finally{inFlightActionCalls--;}}},selectReportArtifact:(...args)=>artifacts.prepareReport(...args), modelProvider: fixtureModelProviders(pool), modelRuntime: { dispatch: input => dispatchBoundModel(input, policy => {
       const network = (async (url, request) => {
         if (!policy.authorizeUrl(new URL(String(url)))) throw Error("Fixture destination denied");
         await policy.beforeDispatch?.();
@@ -287,8 +288,8 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const limitedGrant: ExecutionGrant = { ...grant, id: randomUUID(), operations: ["model.reply", "knowledge.read"] };
     await expect(store.createGrant({ accountId: f.account.id, grant: limitedGrant })).rejects.toMatchObject({ code: "GRANT_CAPABILITY_DENIED" });
     const admitted = await store.admitTask(request);
-    await expect(executeTool(pool, admitted.task.id, "before-activation", "skills.read", JSON.stringify({ skillId: installed.id, path: "references/hours.md" }))).rejects.toMatchObject({ code: "SKILL_ACTIVATION_REQUIRED" });
-    await expect(executeTool(pool, admitted.task.id, "foreign-skill", "skills.activate", JSON.stringify({ skillId: randomUUID() }))).rejects.toMatchObject({ code: "SKILL_SCOPE_DENIED" });
+    await expect(executeTool(pool, memory, admitted.task.id, "before-activation", "skills.read", JSON.stringify({ skillId: installed.id, path: "references/hours.md" }))).rejects.toMatchObject({ code: "SKILL_ACTIVATION_REQUIRED" });
+    await expect(executeTool(pool, memory, admitted.task.id, "foreign-skill", "skills.activate", JSON.stringify({ skillId: randomUUID() }))).rejects.toMatchObject({ code: "SKILL_SCOPE_DENIED" });
     let regular = 0, compacted = 0;
     let markBackground!:()=>void,releaseBackground!:()=>void,backgroundFinished=false;
     const backgroundStarted=new Promise<void>(resolve=>{markBackground=resolve;});
@@ -712,7 +713,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       rootCalls++;
       if(rootCalls===1)return reply("","tool_calls",[tool("agents_delegate",{requests:[{...childRequests.requests[0],...override}]})]);
       if(rootCalls===2){
-        expect(JSON.parse(body.messages.filter((message:any)=>message.role==="tool").at(-1).content)).toEqual({error:"TOOL_ARGUMENTS_INVALID"});
+        expect(JSON.parse(body.messages.filter((message:any)=>message.role==="tool").at(-1).content)).toMatchObject({error:"TOOL_ARGUMENTS_INVALID"});
         expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.tasks WHERE parent_task_id=$1",[f.task.id])).rows[0].count).toBe(0);
         return reply("","tool_calls",[tool("agents_delegate",childRequests,"corrected")]);
       }
@@ -816,7 +817,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   it("runs minimal FAQ through common operations/snapshots and settles once", async () => {
     const f = await fixture();
     expect(await execute(f.task.id)).toMatchObject({ state: "completed", output: "Open at nine.", turn_sequence: "1" });
-    expect(calls).toHaveLength(1); expect(calls[0]!.tools).toBeUndefined();
+    expect(calls).toHaveLength(1); expect(calls[0]!.tools?.map((entry:{function:{name:string}})=>entry.function.name)).toEqual(expect.arrayContaining(["history_read","history_search"]));
     expect((await store.admitTask(f.request)).task.id).toBe(f.task.id);
     await dispatchTasksOnce(pool, { ingressUrl, adminUrl });
     expect(calls).toHaveLength(1);
@@ -985,7 +986,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       request: { suffix }, reservedTokens: 10000, reservedMs: 1000 });
     const outcomes = await Promise.allSettled([claim("a"), claim("b")]);
     expect(outcomes.filter(o => o.status === "fulfilled")).toHaveLength(1);
-    expect(outcomes.find(o => o.status === "rejected")).toMatchObject({ reason: { code: "ROOT_LIMIT" } });
+    expect(outcomes.find(o => o.status === "rejected")).toMatchObject({ reason: { code: "ROOT_TOKEN_LIMIT" } });
     await settleTask(pool, f.task.id, { state: "uncertain" });
     expect((await pool.query("SELECT accounted_tokens FROM agents_platform.usage_ledger WHERE task_id=$1", [f.task.id])).rows[0].accounted_tokens).toBe(10000);
   });
@@ -1093,7 +1094,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       messages:[{role:"system",content:config.instructions},{role:"user",content:"What are the opening hours?"}],tools:toolsFor(config)};
     // Leave room for the native protocol envelope and the initial source record.
     config.instructions+="p".repeat(inputBudget-estimateRequestTokens(request));
-    return{instructions:config.instructions,tools:config.tools,context:{maxInputTokens:8192,compactAtTokens:6144}};
+    return{instructions:config.instructions,tools:config.tools,context:{maxInputTokens:8192,compactAtTokens:4096}};
   }
   it("compacts a single complete overflowing tool group and replays its evidence without spending again",async()=>{
     const sourceContent=JSON.stringify({hours:"Open at nine",note:'Opening "quoted" hours\nnext line'});

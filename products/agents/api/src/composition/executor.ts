@@ -9,7 +9,7 @@ import { createExecutorHost } from "../adapters/executors/executor-host";
 import { decodeExecutorValue, encodeExecutorValue,type ExecutorRequest } from "../contracts/executor";
 import { PlatformError } from "../contracts/contracts";
 import { sandboxManagerFromEnvironment, sandboxAllocationId } from "../capabilities/sandbox/sandbox";
-import { documentRuntimeFromEnvironment } from "../capabilities/knowledge/document-runtime";
+import { documentRuntimeFromEnvironment } from "../platform/knowledge";
 import { databasePoolOptions } from "../infrastructure/pool-policy";
 import { ExecutorOwners } from "../infrastructure/executor-owners";
 

@@ -10,13 +10,13 @@ async function fixture(options: {revoked?: boolean; changeScope?: boolean; pages
   const app = Fastify({logger: false});
   let reads = 0, pages = 0, checks = 0;
   const cursors: unknown[] = [];
-  const client = {command: async (auth: unknown, operation: string, input: {cursor?: string}) => {
+  const client = {shared: async (auth: unknown, operation: string, input: {cursor?: string}) => {
     assert.deepEqual(auth, scope);
-    if (operation === "tasks.get") return {task: {id: "task", state: ++reads > 1 || options.pages ? "completed" : "working"}};
-    assert.equal(operation, "tasks.events"); cursors.push(input.cursor);
+    if (operation === "runs.get") return {task: {id: "task", state: ++reads > 1 || options.pages ? "completed" : "working"}};
+    assert.equal(operation, "runs.events"); cursors.push(input.cursor);
     const count = options.pages && ++pages < options.pages ? 100 : 1;
     return {events: Array.from({length: count},(_,i) => ({id: `${pages}-${i}`,taskId: "task", type: reads > 1 ? "completed" : "operation.started"})), nextCursor: `cursor-${reads}`};
-  }} as unknown as Pick<GrowthAgentClient,"command">;
+  }} as unknown as Pick<GrowthAgentClient,"shared">;
   app.get("/live", (request,reply) => streamGrowthTask(request,reply,{taskId:"task",cursor:"resume", client,scope: async () => {
     checks++;
     if (checks > 2 && options.revoked) throw new ApiError(403,"denied","private internal detail");
@@ -66,7 +66,7 @@ class ObserverResponse extends EventTarget {
 test("a non-draining observer is released by the independent hard lease",async t=>{
   t.mock.timers.enable({apis:["setTimeout","Date"]});
   const raw=new ObserverResponse();let written!:()=>void;const writing=new Promise<void>(resolve=>{written=resolve;});raw.onWrite=written;
-  const client={command:async(_scope:unknown,operation:string)=>operation==="tasks.get"?{task:{id:"task",state:"working"}}:{events:[],nextCursor:null}} as unknown as Pick<GrowthAgentClient,"command">;
+  const client={shared:async(_scope:unknown,operation:string)=>operation==="runs.get"?{task:{id:"task",state:"working"}}:{events:[],nextCursor:null}} as unknown as Pick<GrowthAgentClient,"shared">;
   const pending=streamGrowthTask({}as Parameters<typeof streamGrowthTask>[0],{raw,hijack(){}} as unknown as Parameters<typeof streamGrowthTask>[1],{taskId:"task",client,scope:async()=>scope});
   await writing;t.mock.timers.tick(60001);await pending;
   assert.equal(raw.destroyed,true);
@@ -74,7 +74,7 @@ test("a non-draining observer is released by the independent hard lease",async t
 test("disconnect during the initial task read does not start an event read",async()=>{
   const raw=new ObserverResponse();let release!:()=>void,started!:()=>void;let eventReads=0;
   const gate=new Promise<void>(resolve=>{release=resolve;}),reading=new Promise<void>(resolve=>{started=resolve;});
-  const client={command:async(_scope:unknown,operation:string)=>{if(operation==="tasks.get"){started();await gate;return {task:{id:"task",state:"working"}};}eventReads++;return {events:[],nextCursor:null};}}as unknown as Pick<GrowthAgentClient,"command">;
+  const client={shared:async(_scope:unknown,operation:string)=>{if(operation==="runs.get"){started();await gate;return {task:{id:"task",state:"working"}};}eventReads++;return {events:[],nextCursor:null};}}as unknown as Pick<GrowthAgentClient,"shared">;
   const pending=streamGrowthTask({}as Parameters<typeof streamGrowthTask>[0],{raw,hijack(){}}as unknown as Parameters<typeof streamGrowthTask>[1],{taskId:"task",client,scope:async()=>scope});
   await reading;raw.destroy();release();await pending;assert.equal(eventReads,0);assert.equal(raw.headers,false);
 });
@@ -82,11 +82,11 @@ test("disconnect during the initial task read does not start an event read",asyn
 test("public observation stream binds the requested running child and drains terminal event pages",async()=>{
   const {streamGrowthObservation}=await import("../src/agents/live.js");
   const app=Fastify({logger:false});let reads=0;const inputs:unknown[]=[];
-  const client={command:async(_auth:unknown,operation:string,input:unknown)=>{
-    assert.equal(operation,"tasks.observe");inputs.push(input);reads++;
+  const client={shared:async(_auth:unknown,operation:string,input:unknown)=>{
+    assert.equal(operation,"runs.activity");inputs.push(input);reads++;
     return {task:{id:"child",state:"completed"},rootTaskId:"root",parentTaskId:"root",agentName:"Content",operations:[{id:"tool",taskId:"child",label:"Reading context",state:"completed"}],updates:[],updatesTruncated:false,
       events:Array.from({length:reads===1?100:1},(_,i)=>({id:String(i),taskId:"child",type:"operation.completed"})),nextCursor:"cursor-"+reads};
-  }} as unknown as Pick<GrowthAgentClient,"command">;
+  }} as unknown as Pick<GrowthAgentClient,"shared">;
   app.get("/observe",(request,reply)=>streamGrowthObservation(request,reply,{taskId:"root",childTaskId:"child",cursor:"resume",client,scope:async()=>scope}));
   const url=await app.listen({host:"127.0.0.1",port:0});
   try {const text=await(await fetch(url+"/observe")).text();assert.equal((text.match(/event: observation/g)??[]).length,2);assert.match(text,/"rootTaskId":"root"/);assert.match(text,/"parentTaskId":"root"/);assert.match(text,/event: end\ndata: {"terminal":true}/);assert.deepEqual(inputs,[{taskId:"root",childTaskId:"child",cursor:"resume",limit:100},{taskId:"root",childTaskId:"child",cursor:"cursor-1",limit:100}]);}

@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from "@/lib/zod-resolver";
 import { Plus, SearchCheck, ExternalLink, Hash, TrendingUp, Cpu } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListAeoContentQueryKey, getGetAeoCitationsQueryKey } from "@workspace/api-client-react";

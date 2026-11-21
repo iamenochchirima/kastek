@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from "@/lib/zod-resolver";
 import { Plus, Megaphone, Image as ImageIcon, Layers, Video, ArrowRight } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListAdCampaignsQueryKey, getListAdCreativesQueryKey } from "@workspace/api-client-react";

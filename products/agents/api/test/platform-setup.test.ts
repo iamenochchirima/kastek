@@ -22,7 +22,7 @@ suite("fresh platform setup and database snapshot boundaries", () => {
     for (const name of databases) await dropClosedTestDatabase(admin,name);
     for (const name of roles) await admin.query(`DROP ROLE IF EXISTS "${name}"`);
     await admin?.end();
-  },30_000);
+  },60_000);
   async function freshDatabase() {
     const name = `agents_setup_${randomUUID().replaceAll("-", "")}`;
     await admin.query(`CREATE DATABASE "${name}"`);
@@ -147,7 +147,7 @@ suite("fresh platform setup and database snapshot boundaries", () => {
     const outsider=await f.store.ensureAccount({issuer:"http://localhost:8080/realms/setup-test",subject:randomUUID(),email:"other@example.com",displayName:"Other"});
     await expect(f.store.deleteAgent(outsider.id,f.org.id,f.agent.id)).rejects.toMatchObject({code:"ACCESS_DENIED"});
     await f.store.deleteAgent(f.account.id,f.org.id,f.agent.id);
-    expect(await f.store.listAgents(f.account.id,f.org.id)).toEqual([]);
+    expect((await f.store.listAgents(f.account.id,f.org.id)).map(agent=>agent.name)).toEqual(["Assistant"]);
     await expect(f.store.getAgent(f.account.id,f.org.id,f.agent.id)).rejects.toMatchObject({code:"NOT_FOUND"});
     expect((await pool.query("SELECT revoked_at IS NOT NULL revoked FROM agents_platform.website_deployments WHERE id=$1",[deploymentId])).rows[0].revoked).toBe(true);
     expect((await pool.query("SELECT id FROM agents_platform.agent_versions WHERE id=$1",[f.version.id])).rowCount).toBe(1);

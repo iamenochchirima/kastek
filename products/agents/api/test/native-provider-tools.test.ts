@@ -26,7 +26,7 @@ describe("managed native provider tools",()=>{
   beforeEach(()=>{requests=[];contact=undefined;mode="ok";});
   const options=(beforeAttempt?:(phase:"read"|"effect"|"reconcile")=>Promise<void>)=>({organizationId,operationId:randomUUID(),deadlineAt:Date.now()+5000,testBaseUrl:base,beforeAttempt});
   it("pins installed code, connector authority and individual action schemas",()=>{
-    const manifest=adapterManifestSchema.parse(nativeProviderAdapterManifest());expect(manifest).toMatchObject({id:"native-provider",release:"1",boundedSchemaValidation:true});
+    const manifest=adapterManifestSchema.parse(nativeProviderAdapterManifest());expect(manifest).toMatchObject({id:"native-provider",release:"2",boundedSchemaValidation:true});
     const value=catalog();expect(value.tools).toHaveLength(2);expect(value.tools[0]!.managed).toMatchObject({providerId:"hubspot",connectorDigest:expect.stringMatching(/^[a-f0-9]{64}$/)});
     const result=bindings();expect(result.map(binding=>binding.definition.providerOperation)).toEqual(["contacts.search","contacts.create"]);
     expect(result[0]!.policy).toMatchObject({effect:"read",retry:"never"});expect(result[1]!.policy).toMatchObject({effect:"reviewed_write",approval:"exact_single_use",retry:"status_only"});

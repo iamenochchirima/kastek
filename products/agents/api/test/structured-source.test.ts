@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { convertStructuredSource, csvToMarkdown, jsonToMarkdown, parseCsv } from "../src/capabilities/knowledge/structured-source";
+import { convertStructuredSource, csvToMarkdown, jsonToMarkdown, parseCsv } from "../src/platform/knowledge/structured-source";
 
 describe("structured knowledge sources", () => {
   it("turns JSON records into retrievable blocks with inherited context", () => {

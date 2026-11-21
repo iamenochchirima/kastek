@@ -25,6 +25,7 @@ import { ModelProvidersSettings } from "./model-providers";
 import { MembersSettings } from "./members-settings";
 import { McpAccess } from "./mcp-access";
 import { BillingSettings, UsageSettings } from "./billing-settings";
+import { ApplicationsSettings } from "./applications-settings";
 
 type SettingsTab =
   | "account"
@@ -34,6 +35,7 @@ type SettingsTab =
   | "usage"
   | "models"
   | "mcp"
+  | "applications"
   | "appearance";
 
 const SETTINGS_LINKS = [
@@ -44,12 +46,13 @@ const SETTINGS_LINKS = [
   { id: "usage", label: "Usage", icon: ChartBar },
   { id: "models", label: "Model providers", icon: Cpu },
   { id: "mcp", label: "MCP access", icon: Plugs },
+  { id: "applications", label: "Applications", icon: Plugs },
   { id: "appearance", label: "Appearance", icon: Palette },
 ] as const satisfies ReadonlyArray<{ id: SettingsTab; label: string; icon: typeof UserRound }>;
 
 function tabAllowed(id: SettingsTab, organization: Organization | undefined): boolean {
   if (id === "billing" || id === "usage") return hasPermission(organization, "billing.manage");
-  if (id === "models") return hasPermission(organization, "credentials.manage");
+  if (id === "models" || id === "applications") return hasPermission(organization, "credentials.manage");
   return true;
 }
 
@@ -213,6 +216,8 @@ export function SettingsPage() {
               <McpAccess organizationId={organizationId} />
             </div>
           ) : null}
+
+          {tab === "applications" ? <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]"><ApplicationsSettings key={organizationId} organizationId={organizationId} /></div> : null}
 
           {tab === "appearance" ? (
             <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">

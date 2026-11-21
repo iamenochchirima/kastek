@@ -17,10 +17,11 @@ import { connectFixtureModel, fixtureModelProviders } from "./model-fixture";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { EvidenceStore } from "../src/execution/context/evidence";
 import { searchHistory, readHistory, toolReceiptPreview } from "../src/execution/context/journal";
-import { adoptCompactionCheckpoint, loadContinuityCheckpoint, prepareCompactionJob, readCompactionJobOutcome, retireQueuedBackgroundCompaction } from "../src/execution/context/checkpoints";
+import { adoptCompactionCheckpoint, loadContinuityCheckpoint, prepareCompactionJob, readCompactionJobOutcome, retireQueuedBackgroundCompaction } from "../src/execution/lifecycle/checkpoints";
 import { createContextCompactionWorkflow, CONTEXT_COMPACTION_WORKFLOW } from "../src/execution/context/compaction-workflow";
 import { instructionHead } from "../src/execution/context/instruction-state";
 import { prepareCompaction, type ContextGroup } from "../src/execution/context/context";
+import { compactionForecast } from "../src/execution/context/compaction-progress";
 import { requestDigest as modelRequestDigest, type ModelRequest } from "../src/execution/business/model";
 import { dispatchBoundModel } from "../src/execution/models/dispatch";
 import { dispatchTasksOnce } from "../src/execution/lifecycle/dispatcher";
@@ -130,6 +131,44 @@ const binary=process.env.AGENTS_TEST_RESTATE_BINARY;
     };
     return {id,snapshotId,groups,input,send,settled};
   }
+
+  it.skipIf(!binary)("runs one background compaction at the 85% threshold and retains the recent 15k window", async () => {
+    const f=await fixture("Compact the long launch conversation"),execution=await loadExecution(pool,f.task.id),route=execution.models.compaction,policy=route.policy;
+    const modelPolicy={modelId:route.binding.modelId,revision:policy.digest,counterRevision:"serialized-utf8-estimate-v1",
+      maxDurationSeconds:policy.maxCallDurationMs/1000,contextWindowTokens:policy.contextTokens,maxInputTokens:policy.maxInputTokens,
+      maxOutputTokens:policy.maxOutputTokens,safetyTokens:policy.safetyTokens,maxMessages:policy.maxMessages,maxTools:policy.maxTools,
+      maxRequestBytes:policy.maxRequestBytes,estimateRequestTokens:(request:ModelRequest)=>Buffer.byteLength(JSON.stringify(request))};
+    const groups:ContextGroup[]=Array.from({length:20},(_,index)=>({id:`old-${index}`,
+      messages:[{role:"user" as const,content:`${index}:`+"x".repeat(20_000)}]}));
+    groups.push({id:"recent-window",messages:[{role:"user",content:"Keep this recent correction. ".repeat(700)}]});
+    const current=Buffer.byteLength(JSON.stringify(groups.map(group=>group.messages)));
+    expect(compactionForecast({maxInputTokens:policy.maxInputTokens,compactAtTokens:policy.compactAtTokens,safetyTokens:policy.safetyTokens},current).requested).toBe(true);
+    const plan=prepareCompaction(groups,{model:route.binding.modelId,modelPolicy,retainRecentTokens:15_000,
+      maxInputTokens:policy.maxInputTokens,maxOutputTokens:policy.maxOutputTokens});
+    expect(plan.recentGroups.map(group=>group.id)).toEqual(["recent-window"]);
+    expect(plan.compactedGroupIds).not.toContain("recent-window");
+    expect(plan.compactedGroupIds.length).toBeGreaterThan(0);
+    const request:ModelRequest={messages:plan.messages,model:route.binding.modelId,maxDurationSeconds:policy.maxCallDurationMs/1000,
+      maxInputTokens:policy.maxInputTokens,maxOutputTokens:policy.maxOutputTokens};
+    const snapshotId=`context:background:${f.task.id}:threshold`,id=`compact:background:${f.task.id}:threshold`;
+    await pool.query(`INSERT INTO agents_platform.context_snapshots(id,task_id,step,digest,payload,history_cutoff)
+      VALUES($1,$2,-1,$3,$4,0)`,[snapshotId,f.task.id,modelRequestDigest(request),{messages:request.messages,estimatedTokens:plan.estimatedTokens,historyGroupIds:[]}]);
+    const evidence=new EvidenceStore(pool);await evidence.supplyContext(f.task.id,snapshotId,[]);
+    await prepareCompactionJob(pool,{id,taskId:f.task.id,mode:"background",snapshotId,
+      groups:groups.filter(group=>plan.compactedGroupIds.includes(group.id)),inputDigest:plan.inputDigest,historyIds:[],manifest:await evidence.taskManifest(f.task.id)});
+    let calls=0;compactionProvider=async()=>{calls++;return "Earlier launch context summarized; the recent correction is retained verbatim.";};
+    const response=await fetch(`${ingressUrl}/restate/send/${CONTEXT_COMPACTION_WORKFLOW}/${encodeURIComponent(id)}/run`,
+      {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({jobId:id,taskId:f.task.id})});
+    const sent=await response.json() as {invocationId:string};expect(response.ok,JSON.stringify(sent)).toBe(true);
+    await eventually(async()=>{const output=await fetch(`${ingressUrl}/restate/output/${sent.invocationId}`);await output.body?.cancel();return output.status===200;});
+    const outcome=await readCompactionJobOutcome(pool,id,f.task.id);
+    expect(outcome.state).toBe("adopted");
+    expect(calls).toBe(1);
+    expect(outcome.compactedGroupIds).not.toContain("recent-window");
+    expect(outcome.checkpoint?.summary.content).toContain("recent correction");
+    const stored=(await pool.query("SELECT source_groups FROM agents_platform.context_compaction_jobs WHERE id=$1",[id])).rows[0].source_groups as ContextGroup[];
+    expect(stored.map(group=>group.id)).not.toContain("recent-window");
+  },30000);
 
   it("recovers an exact first-turn detail beyond 1,000 generated turns and pages complete Unicode records",async()=>{
     const f=await fixture("The customer code is ORCHID-419. "+"😀source ".repeat(650));

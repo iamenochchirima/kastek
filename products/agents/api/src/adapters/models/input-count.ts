@@ -1,7 +1,7 @@
 import { requestDigest } from "../../contracts/contracts";
 import type { AcceptedModelRoute } from "../../contracts/model-bindings";
 import { ProviderTransportError } from "../../contracts/model-transport";
-import { estimatedTokensFromSerialized } from "../../execution/context/serialized-tokens";
+import { estimatedTokensFromSerialized } from "../../contracts/serialized-tokens";
 import { googleModelRequestUrl } from "./google-transport";
 
 export interface PreparedInputCount {

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from "@/lib/zod-resolver";
 import { Sparkles, Copy, Check, Clock } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListContentHistoryQueryKey } from "@workspace/api-client-react";

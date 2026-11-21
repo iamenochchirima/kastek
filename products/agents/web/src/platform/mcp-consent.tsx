@@ -9,6 +9,8 @@ export function McpConsent() {
   const requestId = parameters.get("request");
   const [details, setDetails] = useState<RequestDetails | null>(null);
   const [organization, setOrganization] = useState("");
+  const [agents, setAgents] = useState<Array<{ id: string; name: string }> | null>(null);
+  const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -29,13 +31,27 @@ export function McpConsent() {
     return () => controller.abort();
   }, [requestId]);
 
+  const needsAgents = details?.request.scopes.includes("runs:start") ?? false;
+  useEffect(() => {
+    if (!organization || !needsAgents) return;
+    const controller = new AbortController();
+    setAgents(null); setSelectedAgents([]); setError("");
+    void fetch(`/api/organizations/${encodeURIComponent(organization)}/agents`, { credentials: "same-origin", signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) throw new Error("Could not load agents.");
+        const value = await response.json() as { agents: Array<{ id: string; name: string }> };
+        setAgents(value.agents);
+      }).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Could not load agents."); });
+    return () => controller.abort();
+  }, [organization, needsAgents]);
+
   async function decide(approved: boolean) {
-    if (!requestId || busy || (approved && !organization)) return;
+    if (!requestId || busy || (approved && (!organization || (needsAgents && !selectedAgents.length)))) return;
     setBusy(true); setError("");
     try {
       const response = await fetch(`/api/mcp/oauth/requests/${encodeURIComponent(requestId)}/decision`, {
         method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ approved, ...(approved ? { organizationId: organization } : {}) }),
+        body: JSON.stringify({ approved, ...(approved ? { organizationId: organization, ...(needsAgents ? { agentIds: selectedAgents } : {}) } : {}) }),
       });
       if (!response.ok) throw new Error("Could not complete the request. Try again.");
       const value = await response.json() as { redirectUrl: string };
@@ -54,13 +70,16 @@ export function McpConsent() {
           <div><dt className="text-muted-foreground">Client ID</dt><dd className="break-all">{details.request.clientId || "Unavailable"}</dd></div>
         </dl>
         <label className="block space-y-2 text-sm">Organization
-          <select className="w-full rounded-md border border-border bg-background p-2" value={organization} onChange={event => setOrganization(event.target.value)} disabled={busy}>
+          <select className="w-full rounded-md border border-border bg-background p-2" value={organization} onChange={event => { setSelectedAgents([]); setOrganization(event.target.value); }} disabled={busy}>
             <option value="">Select organization</option>
             {details.organizations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </label>
-        <div><h2 className="text-sm font-medium">Access requested</h2><ul className="mt-2 list-inside list-disc text-sm">{details.request.scopes.map(scope => <li key={scope}>{scope === "agents:read" ? "View agents and configuration" : scope === "agents:manage" ? "Create and manage agents" : scope}</li>)}</ul></div>
-        <div className="flex gap-3"><Button onClick={() => void decide(true)} disabled={busy || !organization || !details.request.clientId || !details.request.redirectHost}>Connect</Button><Button variant="outline" onClick={() => void decide(false)} disabled={busy}>Cancel</Button></div>
+        <div><h2 className="text-sm font-medium">Access requested</h2><ul className="mt-2 list-inside list-disc text-sm">{details.request.scopes.map(scope => <li key={scope}>{scope === "agents:read" ? "View agents and configuration" : scope === "agents:manage" ? "Create and manage agents" : scope === "runs:start" ? "Start agent runs" : scope === "runs:read" ? "View agent runs" : scope === "runs:control" ? "Steer and stop agent runs" : scope}</li>)}</ul></div>
+        {needsAgents && organization ? <fieldset disabled={busy} className="space-y-2"><legend className="text-sm font-medium">Agents</legend>
+          {!agents ? <p role="status" className="text-sm text-muted-foreground">Loading agents…</p> : agents.length ? agents.map(agent => <label key={agent.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={selectedAgents.includes(agent.id)} onChange={event => setSelectedAgents(current => event.target.checked ? [...current, agent.id] : current.filter(id => id !== agent.id))} />{agent.name}</label>) : <p className="text-sm text-muted-foreground">No agents available</p>}
+        </fieldset> : null}
+        <div className="flex gap-3"><Button onClick={() => void decide(true)} disabled={busy || !organization || !details.request.clientId || !details.request.redirectHost || (needsAgents && !selectedAgents.length)}>Connect</Button><Button variant="outline" onClick={() => void decide(false)} disabled={busy}>Cancel</Button></div>
       </>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     </section>

@@ -24,8 +24,8 @@ function restorable(entries: Entry[]): Entry[] {
     versionId: entry.task.versionId,
   } : undefined }));
 }
-export function Chat({ endpoint, storageKey, token, agentId, versionId, versionNumber, initialConversationId, expectedAgentId, onPendingChanged, onConversationReady, onPinnedVersion, composerAccessory, view = "chat", cancellable = false }: {
-  endpoint: string; storageKey: string; token?: string; agentId?: string; versionId?: string; versionNumber?: number; cancellable?: boolean; initialConversationId?: string; expectedAgentId?: string; onPendingChanged?: (pending: boolean) => void; onConversationReady?: (conversationId: string) => void; onPinnedVersion?: (id: string) => void; composerAccessory?: ReactNode; view?: "chat" | "activity";
+export function Chat({ endpoint, storageKey, token, agentId, versionId, versionNumber, initialConversationId, expectedAgentId, onPendingChanged, onConversationReady, onPinnedVersion, composerAccessory, view = "chat", cancellable = false, canCompact = false }: {
+  endpoint: string; storageKey: string; token?: string; agentId?: string; versionId?: string; versionNumber?: number; cancellable?: boolean; initialConversationId?: string; expectedAgentId?: string; onPendingChanged?: (pending: boolean) => void; onConversationReady?: (conversationId: string) => void; onPinnedVersion?: (id: string) => void; composerAccessory?: ReactNode; view?: "chat" | "activity"; canCompact?: boolean;
 }) {
   const [entries, setEntries] = useState<Entry[]>(() => restorable(readStored<Entry[]>(storageKey) ?? []));
   const [savedChats, setSavedChats] = useState<SavedChat[]>(() => (readStored<SavedChat[]>(`${storageKey}.conversations`) ?? []).map(chat => ({ ...chat, entries: restorable(chat.entries) })));
@@ -36,6 +36,7 @@ export function Chat({ endpoint, storageKey, token, agentId, versionId, versionN
   const [historyGeneration, setHistoryGeneration] = useState(0);
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
+  const [compacting, setCompacting] = useState(false);
   const [continuing, setContinuing] = useState(false);
   const [refreshGeneration, setRefreshGeneration] = useState(0);
   const lock = useRef(false);
@@ -64,6 +65,29 @@ export function Chat({ endpoint, storageKey, token, agentId, versionId, versionN
   const needsContinuation = last?.task?.canContinue === true || last?.task?.state === "waiting_authority" ||
     last?.task?.state === "waiting_children" && last.task.children?.some(child => child.state === "waiting_authority");
   const conversationId = initialConversationId ?? [...entries].reverse().find(entry => entry.task)?.task?.conversationId;
+  async function compactContext() {
+    if (!agentId || !conversationId || compacting) return;
+    const scope = endpoint.replace(/\/tasks$/, "");
+    setCompacting(true);
+    try {
+      const { job } = await api<{ job: { id: string; taskId: string } }>(
+        `${scope}/agents/${agentId}/conversations/${conversationId}/compact`, {}, "POST", token);
+      let state = "pending";
+      for (let attempt = 0; attempt < 90; attempt++) {
+        const status = await api<{ state: string; errorCode: string | null }>(
+          `${scope}/agents/${agentId}/conversations/${conversationId}/compaction-jobs/${encodeURIComponent(job.id)}`, undefined, "GET", token);
+        state = status.state;
+        if (["adopted", "superseded", "failed", "uncertain", "rejected"].includes(state)) {
+          if (state !== "adopted") throw new Error(status.errorCode ?? "Context compaction did not complete.");
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      if (state === "pending") toast.message("Compaction is still running in the background.");
+      else { toast.success("Context compacted."); setRefreshGeneration(value => value + 1); }
+    } catch (cause) { toast.error(message(cause)); }
+    finally { setCompacting(false); }
+  }
   function record(next: Entry[]) { setEntries(next); writeStored(storageKey, restorable(next)); }
   async function hydrateTurns(tasks: Task[], live: () => boolean) {
     // A visible history page contains at most100 turns; limit concurrent detail reads.
@@ -213,7 +237,7 @@ export function Chat({ endpoint, storageKey, token, agentId, versionId, versionN
       stream={chatStream}
       composer={view === "chat" ? <AssistantChatComposer label={canSteer ? "Update instructions" : "Message"} sendLabel={canSteer ? "Queue instructions" : "Send message"} maxLength={canSteer ? 4000 : undefined} placeholder={canSteer ? "Add instructions…" : "Message your agent…"} value={input} onChange={value => { setInput(value); writeStored(`${storageKey}.draft`, value); }}
         onSubmit={() => void send()} disabled={sending || Boolean(activeId) && !canSteer || unknown || historyLoading || accessDenied} sending={sending}
-        context={composerAccessory} actions={<>{cancellable && needsContinuation ? <Button type="button" onClick={() => void continueTask()} disabled={sending || continuing}>{continuing ? "Continuing…" : "Continue task"}</Button> : null}</>} /> : null}
+        context={composerAccessory} actions={<>{canCompact && agentId && conversationId && !versionId && view === "chat" ? <Button type="button" size="sm" variant="ghost" disabled={compacting || sending || Boolean(activeId) || historyLoading || accessDenied} onClick={() => void compactContext()}>{compacting ? "Compacting…" : "Compact context"}</Button> : null}{cancellable && needsContinuation ? <Button type="button" onClick={() => void continueTask()} disabled={sending || continuing}>{continuing ? "Continuing…" : "Continue task"}</Button> : null}</>} /> : null}
     />
   </section>;
 }

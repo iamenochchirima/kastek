@@ -5,7 +5,7 @@ import { Add01Icon, Alert02Icon, ArrowRight01Icon, Calendar01Icon, Chatting01Ico
 import { Button } from "@/components/ui/button";
 import { api, message, organizationPath } from "./api";
 import { ErrorMessage, Loading, useWorkspace } from "./shell";
-import { GuidedAgentCreation } from "./guided-agent-creation";
+import { CreateAgentDialog } from "./create-agent-dialog";
 import "./overview.css";
 
 type Conversation = { id: string; agentName: string; channel: string; state: string; updatedAt: string };
@@ -82,6 +82,6 @@ export function OverviewPage() {
   const [open, setOpen] = useState(false);
   return <>
     <Overview onCreateAgent={() => setOpen(true)} />
-    <GuidedAgentCreation key={`${session.account.id}.${organizationId}`} open={open} onOpenChange={setOpen} organizationId={organizationId} onDraftCreated={() => {}} onCreated={id => { setOpen(false); navigate(`/app/agents/${id}`); }} />
+    <CreateAgentDialog key={`${session.account.id}.${organizationId}`} open={open} onOpenChange={setOpen} organizationId={organizationId} onCreated={id => { setOpen(false); navigate(`/app/agents/${id}?section=behaviour`); }} />
   </>;
 }

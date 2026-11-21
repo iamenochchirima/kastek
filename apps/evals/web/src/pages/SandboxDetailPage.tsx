@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Bot, MessageSquare, RefreshCw, Trash2 } from "lucide-react";
-import type { ProductAgent, SandboxDetail } from "../../../shared/types";
+import type { MountedSyncResult, ProductAgent, SandboxDetail } from "../../../shared/types";
 import { api, errorMessage, formatDate, shortId } from "../api";
 import { ConfirmDialog, EmptyState, ErrorBox, Loading, PageHeader, StatusBadge } from "../components";
 import { AgentProfilesPanel } from "../panels/AgentProfilesPanel";
+import { ApiAgentsPanel } from "../panels/ApiAgentsPanel";
 
 type Tab = "overview" | "agents" | "profiles" | "sessions" | "outcomes";
 
@@ -25,6 +26,10 @@ export default function SandboxDetailPage() {
   const [syncOpen, setSyncOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [mountedOpen, setMountedOpen] = useState(false);
+  const [mountedBusy, setMountedBusy] = useState(false);
+  const [mountedError, setMountedError] = useState<string | null>(null);
+  const [mountedResult, setMountedResult] = useState<MountedSyncResult | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,6 +40,9 @@ export default function SandboxDetailPage() {
         if (cancelled) return;
         setDetail(value);
         setError(null);
+        if ((value.sandbox.runtime as Record<string, unknown>).kind === "api") {
+          setTab("overview");
+        }
         if (value.sandbox.status === "provisioning") {
           setTab("overview");
           timer = setTimeout(load, 1_000);
@@ -52,6 +60,11 @@ export default function SandboxDetailPage() {
 
   useEffect(() => {
     if (!detail || detail.sandbox.status === "provisioning") return;
+    if ((detail.sandbox.runtime as Record<string, unknown>).kind === "api") {
+      setProductAgents([]);
+      setAgentsError(null);
+      return;
+    }
     let cancelled = false;
     setProductAgents(null);
     setAgentsError(null);
@@ -79,6 +92,28 @@ export default function SandboxDetailPage() {
       setSyncError(errorMessage(value));
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function syncMountedSandbox() {
+    if (mountedBusy) return;
+    setMountedBusy(true);
+    setMountedError(null);
+    try {
+      const result = await api<MountedSyncResult>(
+        `/api/sandboxes/${encodeURIComponent(id)}/mounted-sync`,
+        { method: "POST" },
+      );
+      const refreshed = await api<SandboxDetail>(`/api/sandboxes/${encodeURIComponent(id)}`);
+      setDetail(refreshed);
+      setAgentsRefresh((value) => value + 1);
+      setMountedResult(result);
+      setMountedOpen(false);
+      setTab("overview");
+    } catch (value) {
+      setMountedError(errorMessage(value));
+    } finally {
+      setMountedBusy(false);
     }
   }
 
@@ -119,41 +154,62 @@ export default function SandboxDetailPage() {
   if (error) return <ErrorBox message={error} />;
   if (!detail) return <Loading label="Loading sandbox" />;
 
+  const runtime = detail.sandbox.runtime as Record<string, unknown>;
+  const isApi = runtime.kind === "api";
+  const isMounted = !isApi && (typeof runtime.sessionFile === "string" ||
+    (typeof runtime.apiUrl === "string" && runtime.productDatabase == null));
   const agentName = (refId: string) =>
     productAgents?.find((agent) => agent.refId === refId)?.name ?? shortId(refId);
-  const tabs: Array<{ id: Tab; label: string; count?: number }> = [
-    { id: "overview", label: "Overview" },
-    { id: "agents", label: "Agents", count: productAgents?.length },
-    ...(detail.sandbox.product === "agents"
-      ? [{ id: "profiles" as const, label: "Profiles" }]
-      : []),
-    { id: "sessions", label: "Sessions", count: detail.sessions.length },
-    { id: "outcomes", label: "Outcomes", count: detail.outcomes.length },
-  ];
+  const tabs: Array<{ id: Tab; label: string; count?: number }> = isApi
+    ? [
+        { id: "overview", label: "Overview" },
+        { id: "profiles", label: "Agents" },
+      ]
+    : [
+        { id: "overview", label: "Overview" },
+        { id: "agents", label: "Published", count: productAgents?.length },
+        ...(detail.sandbox.product === "agents"
+          ? [{ id: "profiles" as const, label: "Agents" }]
+          : []),
+        { id: "sessions", label: "Sessions", count: detail.sessions.length },
+        { id: "outcomes", label: "Outcomes", count: detail.outcomes.length },
+      ];
 
   return (
     <>
       <PageHeader
-        eyebrow="Sandbox"
-        title={shortId(detail.sandbox.id)}
-        description={`${detail.sandbox.product} · ${detail.sandbox.status}`}
+        eyebrow={isApi ? "Application API" : "Sandbox"}
+        title={isApi && typeof runtime.name === "string" ? runtime.name : shortId(detail.sandbox.id)}
+        description={`${isApi ? "API environment" : detail.sandbox.product} · ${detail.sandbox.status}`}
         actions={
           <>
-            <Link className="button ghost" to="/"><ArrowLeft size={15} /> Sandboxes</Link>
-            <button
-              className="button ghost"
-              onClick={() => { setSyncOpen(true); setSyncError(null); }}
-              disabled={syncing || detail.sandbox.status === "provisioning" || detail.sandbox.status === "retired"}
-            >
-              <RefreshCw size={15} /> {syncing ? "Updating…" : "Update sandbox"}
-            </button>
-            <button
-              className="button ghost"
-              onClick={restartRuntime}
-              disabled={restarting || syncing || detail.sandbox.status === "provisioning" || detail.sandbox.status === "retired"}
-            >
-              <RefreshCw size={15} /> {restarting ? "Restarting…" : "Restart runtime"}
-            </button>
+            <Link className="button ghost" to="/"><ArrowLeft size={15} /> Environments</Link>
+            {isApi ? null : isMounted ? (
+              <button
+                className="button ghost"
+                onClick={() => { setMountedOpen(true); setMountedError(null); }}
+                disabled={mountedBusy || detail.sandbox.status === "provisioning" || detail.sandbox.status === "retired"}
+              >
+                <RefreshCw size={15} /> {mountedBusy ? "Syncing…" : "Sync mounted sandbox"}
+              </button>
+            ) : (
+              <>
+                <button
+                  className="button ghost"
+                  onClick={() => { setSyncOpen(true); setSyncError(null); }}
+                  disabled={syncing || detail.sandbox.status === "provisioning" || detail.sandbox.status === "retired"}
+                >
+                  <RefreshCw size={15} /> {syncing ? "Updating…" : "Update sandbox"}
+                </button>
+                <button
+                  className="button ghost"
+                  onClick={restartRuntime}
+                  disabled={restarting || syncing || detail.sandbox.status === "provisioning" || detail.sandbox.status === "retired"}
+                >
+                  <RefreshCw size={15} /> {restarting ? "Restarting…" : "Restart runtime"}
+                </button>
+              </>
+            )}
             <button
               className="button ghost destructive"
               onClick={() => { setDeleteOpen(true); setDeleteError(null); }}
@@ -165,6 +221,37 @@ export default function SandboxDetailPage() {
           </>
         }
       />
+
+      {mountedOpen && (
+        <ConfirmDialog
+          title="Sync mounted sandbox?"
+          description="Refresh the owner session check, current agent versions, model catalogue and sandbox version metadata from the mounted workspace. No runtime is restarted and no product data is copied."
+          confirmLabel="Sync sandbox"
+          busyLabel="Syncing…"
+          busy={mountedBusy}
+          error={mountedError}
+          onConfirm={syncMountedSandbox}
+          onCancel={() => { if (!mountedBusy) { setMountedOpen(false); setMountedError(null); } }}
+        />
+      )}
+
+      {mountedResult && (
+        <section className="card">
+          <div className="card-head"><h3>Mounted sandbox synced</h3></div>
+          <div className="kv compact">
+            <div><span>Version</span><code>{shortId(mountedResult.version.id)}</code></div>
+            <div><span>Code revision</span><code>{mountedResult.version.codeRevision}</code></div>
+            <div><span>Schema</span><code>{mountedResult.schema.version}</code></div>
+            <div><span>Latest migration</span><code>{mountedResult.schema.latestMigration ?? "unknown"}</code></div>
+            <div><span>Active agents</span><code>{mountedResult.agents.active}</code></div>
+            <div><span>Retired refs</span><code>{mountedResult.agents.retired}</code></div>
+            <div><span>Models refreshed</span><code>{mountedResult.models.refreshed}</code></div>
+          </div>
+          {mountedResult.models.warnings.length > 0 && (
+            <p className="muted small">{mountedResult.models.warnings.join(" · ")}</p>
+          )}
+        </section>
+      )}
 
       {syncOpen && (
         <ConfirmDialog
@@ -214,16 +301,25 @@ export default function SandboxDetailPage() {
       {tab === "overview" && (
         <>
           <section className="meta-grid">
-            <div className="meta-card"><span>Sandbox</span><strong className="mono">{detail.sandbox.id}</strong></div>
+            <div className="meta-card"><span>{isApi ? "Environment" : "Sandbox"}</span><strong className="mono">{detail.sandbox.id}</strong></div>
             <div className="meta-card"><span>Version</span><strong className="mono">{detail.version?.id ?? "—"}</strong></div>
             <div className="meta-card"><span>Code revision</span><strong className="mono">{detail.version?.codeRevision ?? "—"}</strong></div>
             <div className="meta-card"><span>Schema</span><strong className="mono">{detail.version?.schemaVersion ?? "—"}</strong></div>
             <div className="meta-card"><span>Runtime</span><strong className="mono">{detail.version?.runtimeVersion ?? "—"}</strong></div>
-            <div className="meta-card"><span>Profile</span><strong>{detail.sandbox.profile}</strong></div>
+            <div className="meta-card"><span>Runtime</span><strong>{detail.sandbox.profile}</strong></div>
             <div className="meta-card"><span>Created</span><strong>{formatDate(detail.sandbox.createdAt)}</strong></div>
-            <div className="meta-card"><span>Provisioned</span><strong>{formatDate(detail.sandbox.provisionedAt)}</strong></div>
+            <div className="meta-card"><span>{isApi ? "Connected" : "Provisioned"}</span><strong>{formatDate(detail.sandbox.provisionedAt)}</strong></div>
             {typeof detail.sandbox.runtime.productApiUrl === "string" && (
               <div className="meta-card"><span>Product API</span><strong className="mono">{detail.sandbox.runtime.productApiUrl}</strong></div>
+            )}
+            {isApi && typeof runtime.baseUrl === "string" && (
+              <div className="meta-card"><span>Base URL</span><strong className="mono">{runtime.baseUrl}</strong></div>
+            )}
+            {isApi && typeof runtime.organizationId === "string" && (
+              <div className="meta-card"><span>Organization</span><strong className="mono">{runtime.organizationId}</strong></div>
+            )}
+            {isApi && typeof runtime.applicationId === "string" && (
+              <div className="meta-card"><span>Application</span><strong className="mono">{runtime.applicationId}</strong></div>
             )}
             {detail.pair && (
               <div className="meta-card">
@@ -287,8 +383,8 @@ export default function SandboxDetailPage() {
         <section className="panel">
           <div className="panel-head">
             <div>
-              <h2>Agents</h2>
-              <p className="muted">Agents available in the product workspace.</p>
+              <h2>Published agents</h2>
+              <p className="muted">Published agents in this workspace.</p>
             </div>
             {detail.sandbox.product === "growth" && <span className="ref-chip">Growth default agents</span>}
           </div>
@@ -329,13 +425,20 @@ export default function SandboxDetailPage() {
 
       {tab === "profiles" && detail.sandbox.product === "agents" && (
         detail.workspaceRefs[0] ? (
-          <AgentProfilesPanel
-            sandboxId={detail.sandbox.id}
-            workspaceRefId={detail.workspaceRefs[0].id}
-            onAgentChanged={() => setAgentsRefresh((value) => value + 1)}
-          />
+          isApi ? (
+            <ApiAgentsPanel
+              sandboxId={detail.sandbox.id}
+              onAgentChanged={() => setAgentsRefresh((value) => value + 1)}
+            />
+          ) : (
+            <AgentProfilesPanel
+              sandboxId={detail.sandbox.id}
+              workspaceRefId={detail.workspaceRefs[0].id}
+              onAgentChanged={() => setAgentsRefresh((value) => value + 1)}
+            />
+          )
         ) : (
-          <section className="panel"><EmptyState title="No workspace" description="Agent profiles require a workspace reference." /></section>
+          <section className="panel"><EmptyState title="No workspace" description="Agent setup requires a workspace reference." /></section>
         )
       )}
 

@@ -5,6 +5,7 @@ import type {CapabilityBinding} from "../src/contracts/capability-catalog";
 import type {ProductRuntimePort} from "../src/execution/products/product-runtime";
 import {PlatformError} from "../src/contracts/contracts";
 import {awaitProductReview} from "../src/execution/business/product-review";
+vi.mock("../src/capabilities/products/product-capabilities",async importOriginal=>({...await importOriginal<typeof import("../src/capabilities/products/product-capabilities")>(),productEffectProjection:()=>"effect-status-v1"}));
 
 describe("product review preparation feedback",()=>{
   it.each(["TOOL_ARGUMENTS_INVALID","AGENT_DESTINATION_REQUIRED","AGENT_DESTINATION_UNAVAILABLE"])("lets the model correct %s before a review exists",async code=>{

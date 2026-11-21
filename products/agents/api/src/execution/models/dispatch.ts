@@ -39,6 +39,11 @@ export interface BoundModelDispatchInput {
   beforeDispatch?: () => void | Promise<void>;
   onPreparedInputCount?: (count: PreparedInputCount) => void | Promise<void>;
   beforePayloadDispatch?: (payload: Readonly<Record<string, unknown>>, count: PreparedInputCount) => Promise<void>;
+  operationId?: string;
+  attemptId?: string;
+  taskId?: string;
+  rootTaskId?: string;
+  onPhysicalPayload?: (digest: string, operationId: string | undefined, attemptId: string | undefined) => void;
 }
 export class BoundModelDispatchError extends Error {
   constructor(readonly code: string, readonly outcome: "rejected" | "uncertain", readonly status = 502,readonly diagnostics?:ModelFailureDiagnostics) {
@@ -111,12 +116,17 @@ export async function dispatchBoundModel(
         if (current !== apiKey) throw rejected("MODEL_CONNECTION_CHANGED", 409);
       },
     });
+    const observedFetch = (async (url: string, init?: RequestInit) => {
+      if (init?.body) try { input.onPhysicalPayload?.(requestDigest(JSON.parse(String(init.body))), input.operationId, input.attemptId); } catch { /* Attribution cannot change the request. */ }
+      return fetch(url, init);
+    }) as ModelFetch;
+    observedFetch.markProgress = fetch.markProgress;
     const chunks: string[] = [];
     const response = await modelProviderAdapter.invoke({ provider: binding.providerId, protocol: binding.protocol, model: binding.modelId,
       baseUrl: binding.endpoint, credentialRevision: String(binding.credentialRevision), contextWindowTokens: policy.contextTokens,
       maxOutputTokens: policy.maxOutputTokens, messages, tools, nativeHistory, maxRequestBytes,
       reasoningCapable: model.capabilities.reasoning.value === true, reasoning: generationSdkOptions(model, binding.endpoint, accepted.generation ?? {}),
-      maxResponseBytes: policy.maxResponseBytes }, { apiKey, signal: input.signal, fetch,
+      maxResponseBytes: policy.maxResponseBytes }, { apiKey, signal: input.signal, fetch: observedFetch,
       onText: delta => { chunks.push(delta); }, onProgress: fetch.markProgress, preparePayload: payload => applyGeneration(model, policy, binding.endpoint, accepted.generation, payload), beforePayloadDispatch: async payload => {
         let count: PreparedInputCount;
         try {

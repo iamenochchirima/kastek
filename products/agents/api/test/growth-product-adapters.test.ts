@@ -20,8 +20,8 @@ describe("installed Growth publication adapters", () => {
     const runtime = new GrowthProductRuntime({ query } as unknown as Pool, client);
     await expect(runtime.loadPublications()).resolves.toBeUndefined();
     expect(client.invoke).not.toHaveBeenCalled();
-    expect(growthAgentPublication.manifest.revision).toBe("13");
-    expect(growthAgentPublication.manifest.adapter.release).toBe("10");
+    expect(growthAgentPublication.manifest.revision).toBe("15");
+    expect(growthAgentPublication.manifest.adapter.release).toBe("11");
   });
 
   it("applies the versioned Growth delegation graph through child configurations", async () => {

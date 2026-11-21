@@ -5,7 +5,8 @@ import { ModelCredentialVault } from "../src/infrastructure/model-credential-vau
 import { ModelProviderStore } from "../src/product/model-providers/store";
 import { builtinProviderRegistry } from "../src/adapters/models/registry";
 
-const vault = new ModelCredentialVault(new ConnectionVault("fixture", { fixture: randomBytes(32).toString("base64") }));
+// Deterministic fixture-only key so parent and child test processes can share encrypted model credentials.
+const vault = new ModelCredentialVault(new ConnectionVault("fixture", { fixture: process.env.AGENTS_MODEL_FIXTURE_VAULT_KEY ?? Buffer.alloc(32, 7).toString("base64") }));
 export function fixtureModelProviders(pool: Pool) { return new ModelProviderStore(pool, vault); }
 /** Explicit test account setup. No deployment key, live request or runtime fallback. */
 export async function connectFixtureModel(

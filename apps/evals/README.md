@@ -30,8 +30,9 @@ pnpm --filter @kasitek/evals start
 
 ## Pages
 
-- **Sandboxes** — recorded sandboxes, their status, and workspace, agent, session and outcome counts. **Create sandbox** provisions a local Agents environment or a Growth sandbox with its paired Agents runtime. Each card and detail page has a confirmed delete action; **Delete all** requires typing `DELETE`.
-- **Sandbox detail** — tabbed Overview, Agents, Profiles, Sessions and Outcomes views. Product agents are listed from the sandbox workspace and can be opened in a chat page. Profiles create and apply versioned agent setup configurations for Agents sandboxes; creating a profile or new version starts setup immediately. Profiles can create the platform Assistant, customer-service agents, or custom agents with full advanced configuration overrides. Channels are excluded. **New profile** includes a template picker that fills the form from the file-backed preset catalogue. Sessions link back to their conversation. The Overview tab holds version, provisioning, workspaces and the paired sandbox link. **Update sandbox** applies current code/schema and records a new sandbox version. **Restart runtime** restarts the recorded runtime; the service also self-heals stopped runtimes every 10 seconds.
+- **Environments** — recorded sandboxes and deployed API environments, their status, workspaces, agents, sessions and outcomes. **Create sandbox** provisions a local Agents environment or a Growth sandbox with its paired Agents runtime. **Connect API** records a deployed product reached through an application credential. Each card and detail page has a confirmed delete action; **Delete all** requires typing `DELETE`.
+- **Configuration** — horizontal catalogue of the user-relevant agent configuration fields, their purpose, input values, required conditions and applicability across agent template archetypes. It links to sandboxes and is the reference for templates and dataset cases.
+- **Sandbox detail** — tabbed Overview, Agents, Published, Sessions and Outcomes views. **Agents** creates and applies versioned agent configurations for Agents sandboxes; creating an agent or new version starts setup immediately. It can create the platform Assistant, customer-service agents, or custom agents with full advanced configuration overrides. Channels are excluded. **New agent** includes a template picker and a **Form / Table** toggle. Table view shows the same profile fields with summaries and keeps every value editable before creating. **Published** lists agents currently published in the product workspace and opens them in a chat page. Sessions link back to their conversation. The Overview tab holds version, provisioning, workspaces and the paired sandbox link. **Update sandbox** applies current code/schema and records a new sandbox version. **Restart runtime** restarts the recorded runtime; the service also self-heals stopped runtimes every 10 seconds.
 - **Agent chat** — Growth chats include a model picker. The selected model applies to new messages in that agent's conversations, matching the Growth product's feature-level model setting.
 - **Sessions** — interactive sessions across sandboxes.
 - **Session detail** — task references, states and transcript digests.
@@ -50,6 +51,9 @@ The client server exposes:
 - `DELETE /api/sandboxes/:id`
 - `DELETE /api/sandboxes` with `{"confirm":"DELETE"}`
 - `GET /api/sandboxes/:id`
+- `POST /api/api-environments`
+- `GET /api/sandboxes/:id/api-agents`
+- `POST /api/sandboxes/:id/api-agents`
 - `POST /api/sandboxes/:id/runtime/restart`
 - `GET /api/sandboxes/:id/product-agents`
 - `POST /api/sandboxes/:id/chat`
@@ -81,3 +85,40 @@ normal product APIs; Evals records session references and digests, while transcr
 text stays in the product runtime. Delete stops the runtime processes, drops product
 databases and removes local sandbox files. Deleting either half of a Growth pair
 deletes both.
+
+## API environments
+
+**Connect API** records a deployed product. It has two modes:
+
+- **Create test org** (default): creates an organization, an agent and an
+  application with the required scopes in the deployment, then connects the
+  environment. The operator enters only a name and base URL. This uses the owner
+  session of a connected sandbox for the same base URL.
+- **Use existing credential**: connects an application credential issued by the
+  deployment. The operator enters the organization ID, application ID and
+  credential secret.
+
+For the existing-credential path, the client validates the credential with
+`GET /v1/agents`, writes the secret to
+`.audit/api-environments/<id>/credential.json` at mode `0600`, and records an
+environment with `profile = api` and `runtime.kind = api`. The secret is never
+returned to the browser.
+
+The application needs `agents:read`, `agents:manage` and `agents:publish`. Agent
+creation uses the application API:
+
+1. `POST /v1/agents` with the name, purpose and instructions.
+2. `POST /v1/agents/:id/preview` to validate the configuration.
+3. `PATCH /v1/agents/:id` with the full configuration and the returned
+   `draftRevision`. The configuration carries `tools`, `model`,
+   `sourceRevisionIds`, `memory` and `capabilities`.
+4. `POST /v1/agents/:id/versions` to publish.
+5. Record an Evals agent ref for the published version.
+
+Deleting an API environment removes the stored credential and retires the
+record; it does not change the deployment or its agents.
+
+The same pattern is the intended path for a deployed Growth environment and,
+when its runtime is defined, an Agency environment. A provisioned sandbox remains
+the way to exercise product tools and platform behaviour.
+

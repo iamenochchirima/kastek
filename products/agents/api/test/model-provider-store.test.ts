@@ -355,7 +355,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const base = `/api/organizations/${f.scope.organizationId}/model-providers`;
     try {
       const catalog = await app.inject({ url: `${base}/catalogue` });
-      expect(catalog.json().providers).toHaveLength(12);
+      expect(catalog.json().providers).toHaveLength(13);
       const created = await app.inject({ method: "POST", url: base, payload: { providerId: "openai", name: "HTTP account", apiKey: "http-fixture-secret" } });
       expect(created.statusCode).toBe(200);
       const id = created.json().connection.id;

@@ -1,5 +1,7 @@
+import { agentsAdmissionEntitlements } from "../billing/billing";
 import type { Pool } from "pg";
 import { AdmissionStore } from "../../execution/admission/admission-store";
+import { ConversationReads } from "../../platform/conversations";
 import { DeploymentStore } from "../deployments/deployment-store";
 import { IdentityStore } from "../identity/identity-store";
 import { AgentStore } from "./agent-store";
@@ -10,11 +12,13 @@ export class PlatformStore {
   private readonly agentStore:AgentStore;
   private readonly deploymentStore:DeploymentStore;
   private readonly admissionStore:AdmissionStore;
+  private readonly conversationReads:ConversationReads;
   constructor(readonly pool:Pool) {
     this.identityStore=new IdentityStore(pool);
     this.agentStore=new AgentStore(pool);
     this.deploymentStore=new DeploymentStore(pool);
-    this.admissionStore=new AdmissionStore(pool);
+    this.admissionStore=new AdmissionStore(pool, agentsAdmissionEntitlements(pool));
+    this.conversationReads=new ConversationReads(pool);
   }
   requireMembership=(...args:Parameters<IdentityStore["requireMembership"]>)=>this.identityStore.requireMembership(...args);
   ensureAccount=(...args:Parameters<IdentityStore["ensureAccount"]>)=>this.identityStore.ensureAccount(...args);
@@ -40,6 +44,7 @@ export class PlatformStore {
   getVersion=(...args:Parameters<AgentStore["getVersion"]>)=>this.agentStore.getVersion(...args);
   createGrant=(...args:Parameters<AgentStore["createGrant"]>)=>this.agentStore.createGrant(...args);
   createGrantInTransaction=(...args:Parameters<AgentStore["createGrantInTransaction"]>)=>this.agentStore.createGrantInTransaction(...args);
+  createApplicationGrantInTransaction=(...args:Parameters<AdmissionStore["createApplicationGrantInTransaction"]>)=>this.admissionStore.createApplicationGrantInTransaction(...args);
   revokeGrant=(...args:Parameters<AgentStore["revokeGrant"]>)=>this.agentStore.revokeGrant(...args);
   listDeployments=(...args:Parameters<DeploymentStore["listDeployments"]>)=>this.deploymentStore.listDeployments(...args);
   publishWebsite=(...args:Parameters<DeploymentStore["publishWebsite"]>)=>this.deploymentStore.publishWebsite(...args);
@@ -55,8 +60,8 @@ export class PlatformStore {
   admitPrivatePreviewInTransaction=(...args:Parameters<AdmissionStore["admitPrivatePreviewInTransaction"]>)=>this.admissionStore.admitPrivatePreviewInTransaction(...args);
   admitPendingSupportStatusInTransaction=(...args:Parameters<AdmissionStore["admitPendingSupportStatusInTransaction"]>)=>this.admissionStore.admitPendingSupportStatusInTransaction(...args);
   getTask=(...args:Parameters<AdmissionStore["getTask"]>)=>this.admissionStore.getTask(...args);
-  getConversation=(...args:Parameters<AdmissionStore["getConversation"]>)=>this.admissionStore.getConversation(...args);
-  getConversationPage=(...args:Parameters<AdmissionStore["getConversationPage"]>)=>this.admissionStore.getConversationPage(...args);
-  getEventPage=(...args:Parameters<AdmissionStore["getEventPage"]>)=>this.admissionStore.getEventPage(...args);
-  listTaskEvents=(...args:Parameters<AdmissionStore["listTaskEvents"]>)=>this.admissionStore.listTaskEvents(...args);
+  getConversation=(...args:Parameters<ConversationReads["getConversation"]>)=>this.conversationReads.getConversation(...args);
+  getConversationPage=(...args:Parameters<ConversationReads["getConversationPage"]>)=>this.conversationReads.getConversationPage(...args);
+  getEventPage=(...args:Parameters<ConversationReads["getEventPage"]>)=>this.conversationReads.getEventPage(...args);
+  listTaskEvents=(...args:Parameters<ConversationReads["listTaskEvents"]>)=>this.conversationReads.listTaskEvents(...args);
 }

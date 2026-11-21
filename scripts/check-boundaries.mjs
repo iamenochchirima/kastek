@@ -47,6 +47,12 @@ for (const file of files) {
       target = owners.get(name);
     }
     if (!target) continue;
+    const agentsSource = ['products', 'agents', 'api', 'src'];
+    const inAgentsPlatform = agentsSource.every((part, index) => location[index] === part) && location[4] === 'platform';
+    const targetsAgentsSource = agentsSource.every((part, index) => target[index] === part);
+    if (inAgentsPlatform && targetsAgentsSource && ['product', 'integrations'].includes(target[4])) {
+      failures.push(`${relative(root, file)} imports product or integration code via ${specifier}`);
+    }
     const destination = productOwner(target);
     if (destination && productOwner(location) !== destination) failures.push(`${relative(root, file)} imports private ${destination} source via ${specifier}`);
   }

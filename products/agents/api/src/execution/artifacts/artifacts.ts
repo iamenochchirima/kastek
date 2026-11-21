@@ -2,7 +2,8 @@ import { createHash,randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
-import { requireMemoryAccess,type ManagementScope } from "../memory/memory";
+import { requireMemoryAccess } from "../memory/access";
+import type { ManagementScope } from "../../contracts/memory";
 
 import { transaction as memoryTransaction } from "../../infrastructure/database";
 

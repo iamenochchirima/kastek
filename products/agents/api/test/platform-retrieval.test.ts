@@ -6,10 +6,10 @@ import {homedir} from "node:os";
 import {performance} from "node:perf_hooks";
 import {Pool} from "pg";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
-import {DocumentRuntime} from "../src/capabilities/knowledge/document-runtime";
-import {KnowledgeRetrieval,RETRIEVAL_PROFILE,type RetrievalScope} from "../src/capabilities/knowledge/retrieval";
-import {KnowledgeStore,requireKnowledgeMember,type KnowledgeScope} from "../src/capabilities/knowledge/knowledge";
-import {QueryEmbeddingService} from "../src/capabilities/knowledge/query-embedding";
+import {DocumentRuntime} from "../src/platform/knowledge/document-runtime";
+import {KnowledgeRetrieval,RETRIEVAL_PROFILE,type RetrievalScope} from "../src/platform/knowledge/retrieval";
+import {KnowledgeStore,requireKnowledgeMember,type KnowledgeScope} from "../src/platform/knowledge/knowledge";
+import {QueryEmbeddingService} from "../src/platform/knowledge/query-embedding";
 import {PlatformStore} from "../src/product/agents/store";
 import {setupPlatformSchema} from "../src/composition/setup";
 import {defaultBusinessConfiguration,executionGrantSchema} from "../src/contracts/contracts";
@@ -91,7 +91,7 @@ suite("local hybrid retrieval quality, eligibility and resource recovery",()=>{
  }
  async function operation(query:string){
   const authority={product:"agents" as const,organizationId:owner.organizationId,resourceId:agentId,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};
-  const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId,operations:["model.reply","knowledge.read"],sourceRevisionIds:scope.sourceRevisionIds,maxInputBytes:16384,maxOutputTokens:1024,expiresAt:new Date(Date.now()+600000).toISOString(),revokedAt:null});await platform.createGrant({...owner,grant});const admitted=await platform.admitTask({authority,versionId,grantId:grant.id,requestKey:randomUUID(),input:query});
+  const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId,operations:["model.reply","knowledge.read"],sourceRevisionIds:scope.sourceRevisionIds,maxInputBytes:16384,maxOutputTokens:1024,maxContextTokens:16384,expiresAt:new Date(Date.now()+600000).toISOString(),revokedAt:null});await platform.createGrant({...owner,grant});const admitted=await platform.admitTask({authority,versionId,grantId:grant.id,requestKey:randomUUID(),input:query});
   const operationId=`tool:${admitted.task.id}:search`;await beginOperation(pool,admitted.task.id,{id:operationId,kind:"tool",name:"knowledge.search",request:{query},reservedTokens:0,reservedMs:30000,retrySafe:true});return{taskId:admitted.task.id,operationId,grant};
  }
  it("calibrates the pinned semantic gate on separate development passages",async()=>{
@@ -113,9 +113,8 @@ suite("local hybrid retrieval quality, eligibility and resource recovery",()=>{
   }
   quality={recallAt5:found/expectedCount,lexicalRecallAt5:lexicalFound/expectedCount,falseAnswers,results};expect(found/expectedCount,JSON.stringify(results)).toBeGreaterThanOrEqual(.9);expect(found).toBeGreaterThan(lexicalFound);expect(falseAnswers,JSON.stringify(results)).toBe(0);
  },30_000);
- it("keeps owner/public/withdrawal/version gates before ranking and rejects profile fallback",async()=>{
+ it("keeps owner and withdrawal gates before ranking and rejects profile fallback",async()=>{
   const vector=(await embed("query",[holdout[0]!.query]))[0]!;const profile={kind:"hybrid-v1" as const,embeddingRelease:release,queryVector:vector};
-  expect(await retrieval.search({...scope,publicOnly:true},holdout[0]!.query,profile,db=>requireKnowledgeMember(db,owner))).toEqual([]);
   await expect(retrieval.search(scope,holdout[0]!.query,{...profile,embeddingRelease:"missing-profile"},db=>requireKnowledgeMember(db,owner))).rejects.toMatchObject({code:"RETRIEVAL_BACKEND_UNAVAILABLE"});
   const outsider=await platform.ensureAccount({issuer:account.issuer,subject:randomUUID(),email:"outside@example.test",displayName:"Other"});await expect(retrieval.search(scope,holdout[0]!.query,profile,db=>requireKnowledgeMember(db,{...owner,accountId:outsider.id}))).rejects.toMatchObject({code:"ACCESS_DENIED"});
   const filtered=await retrieval.search({...scope,sourceRevisionIds:[]},holdout[0]!.query,profile,db=>requireKnowledgeMember(db,owner));expect(filtered).toEqual([]);
@@ -154,9 +153,6 @@ suite("local hybrid retrieval quality, eligibility and resource recovery",()=>{
   await knowledge.publishExtraction(job.id,{text,chunks:[{id:randomUUID(),revisionId:job.revisionId,ordinal:0,start:0,end:text.length,page:1,section:null,text,digest:textDigest(text),tokens:30}],normalizerRelease:"fixture-v1",acquiredAt:new Date().toISOString(),embeddings:[documentVector]});
   await knowledge.setPolicy(otherScope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"approve",revisionId:job.revisionId});
   const adversarial={...scope,sourceRevisionIds:[job.revisionId,...scope.sourceRevisionIds.slice(0,19)]};const hits=await retrieval.search(adversarial,query,profile,db=>requireKnowledgeMember(db,owner));expect(hits.length).toBeGreaterThan(0);expect(hits.every(hit=>hit.sourceId!==job.sourceId)).toBe(true);
-  const first=sources[0]!;await knowledge.setPolicy(owner,first.id,{operationId:randomUUID(),expectedGeneration:1,action:"visibility",visibility:"public"});
-  expect((await retrieval.search({...scope,publicOnly:true},query,profile,db=>requireKnowledgeMember(db,owner))).some(hit=>hit.sourceId===first.id)).toBe(true);
-  await knowledge.setPolicy(owner,first.id,{operationId:randomUUID(),expectedGeneration:2,action:"visibility",visibility:"private"});expect(await retrieval.search({...scope,publicOnly:true},query,profile,db=>requireKnowledgeMember(db,owner))).toEqual([]);
-  await knowledge.setPolicy(owner,first.id,{operationId:randomUUID(),expectedGeneration:3,action:"withdraw"});expect((await retrieval.search(scope,query,profile,db=>requireKnowledgeMember(db,owner))).every(hit=>hit.sourceId!==first.id)).toBe(true);
+  const first=sources[0]!;await knowledge.setPolicy(owner,first.id,{operationId:randomUUID(),expectedGeneration:1,action:"withdraw"});expect((await retrieval.search(scope,query,profile,db=>requireKnowledgeMember(db,owner))).every(hit=>hit.sourceId!==first.id)).toBe(true);
  },15_000);
 });

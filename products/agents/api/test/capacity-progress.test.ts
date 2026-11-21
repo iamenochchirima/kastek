@@ -5,6 +5,8 @@ import {Pool} from 'pg';
 import {beforeEach,afterEach,describe,it,expect,vi} from 'vitest';
 import {defaultBusinessConfiguration,executionGrantSchema,type AdmissionAuthority} from '../src/contracts/contracts';
 import {PlatformStore} from '../src/product/agents/store';
+import {contextGrantCeiling} from '../src/execution/models/settings';
+import {SHARED_HARNESS_RELEASE} from '../src/contracts/execution';
 import {setupPlatformSchema} from '../src/composition/setup';
 import {transaction} from '../src/infrastructure/database';
 import {selectCapacityCandidates} from '../src/execution/scheduling/capacity-turns';
@@ -23,7 +25,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await connectFixtureModel(pool,account.id,org.id);
   const config=defaultBusinessConfiguration(),agent=await store.createAgent({accountId:account.id,organizationId:org.id,name:'Fixture',configuration:config}),version=await store.createVersion({accountId:account.id,organizationId:org.id,agentId:agent.id,expectedRevision:1});
   const authority:AdmissionAuthority={product:'agents',organizationId:org.id,resourceId:agent.id,callerClientId:'agents-execution',principal:{kind:'human',issuer:account.issuer,subject:account.subject}};
-  const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:['model.reply','knowledge.read'],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,expiresAt:new Date(Date.now()+120000).toISOString(),revokedAt:null});await store.createGrant({accountId:account.id,grant});
+  const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:['model.reply','knowledge.read'],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(config),expiresAt:new Date(Date.now()+120000).toISOString(),revokedAt:null});await store.createGrant({accountId:account.id,grant});
   const {task}=await store.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:'Capacity fixture'});
   return{task,grant};
  }
@@ -204,7 +206,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const selecting=await pool.connect();let dispatch:ReturnType<typeof claimDispatchBatch>|undefined;
   try{
    await selecting.query('BEGIN');expect(await selectCapacityCandidates(selecting,1)).toHaveLength(1);
-   dispatch=claimDispatchBatch(pool,{batchSize:1});
+   dispatch=claimDispatchBatch(pool,{batchSize:1},[SHARED_HARNESS_RELEASE]);
    const independent=await Promise.race([dispatch.then(()=>true),new Promise<boolean>(resolve=>setTimeout(()=>resolve(false),500))]);
    expect(independent).toBe(true);expect((await dispatch).rows.map(row=>row.task_id)).toContain(f.task.id);
   }finally{await selecting.query('ROLLBACK');selecting.release();await dispatch;}

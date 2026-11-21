@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { setupPlatformSchema } from "../src/composition/setup";
-import { PostgresKnowledgeObjectStore } from "../src/capabilities/knowledge/postgres-object-store";
+import { PostgresKnowledgeObjectStore } from "../src/platform/knowledge/postgres-object-store";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;

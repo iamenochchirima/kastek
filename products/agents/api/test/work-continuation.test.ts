@@ -15,6 +15,7 @@ import { executeWorkTool, queueOrchestrationInstruction, primaryInstructionConte
 import { EvidenceStore } from "../src/execution/context/evidence";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { requestTimeContext } from "../src/execution/business/business";
+import { SHARED_HARNESS_RELEASE } from "../src/contracts/execution";
 
 const url = process.env.AGENTS_TEST_DATABASE_URL;
 (url ? describe : describe.skip)("logical work continuation", () => {
@@ -75,7 +76,7 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     expect(await requestTimeContext(pool,root)).toEqual(expected);
     const child=(await startSpecialist(pool,root.id,"time-child",{requests:[{bindingId:"research",brief:"Plan next week"}]})).children[0]!;
     const childTask=(await loadExecution(pool,child.taskId)).task;
-    expect(childTask.harness_release).not.toBe(root.harness_release);
+    expect(childTask.harness_release).toBe(SHARED_HARNESS_RELEASE);
     expect(await requestTimeContext(pool,childTask)).toEqual(expected);
     await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[child.taskId]);
     await settleTask(pool,child.taskId,{state:"completed",output:"Research complete"});
@@ -86,7 +87,6 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     expect(await requestTimeContext(pool,turn.task)).toEqual({receivedAt:new Date(turn.task.created_at).toISOString(),referenceTimezone:"UTC",businessTimezone:null});
     expect((await requestTimeContext(pool,turn.task))?.receivedAt).not.toBe(receivedAt);
     expect(await requestTimeContext(pool,{...root,harness_release:"product-capabilities-v13",execution_policy_version:1})).toBeUndefined();
-    const old=await fixture();expect(await requestTimeContext(pool,old.task)).toBeUndefined();
   });
   it("blocks unresolved prior operations and cross-principal continuation", async () => {
     const f = await fixture();

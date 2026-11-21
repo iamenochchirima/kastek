@@ -2,14 +2,14 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
-import { requireMemoryAccess } from "../../execution/memory/memory";
+import { requireMemoryAccess } from "../../execution/memory/access";
 import { transaction } from "../../infrastructure/database";
 import { parseSkillPackage, readSkillPackageFile, type SkillPackage } from "../../capabilities/skills/package";
 import { CURATED_SKILL_PUBLISHER, curatedSkillCatalog, curatedSkillPackage } from "../../capabilities/skills/curated";
 import { acquireSkillRepository,type SkillRepositoryOptions,type SkillRepositorySource } from "../../capabilities/skills/repository";
-import { skillFamilyId } from "../../capabilities/skills/family";
+import { skillFamilyId } from "../../contracts/skills";
 import type { SkillRequirements } from "../../capabilities/skills/requirements";
-import { isProductResourceScope, requireProductResourceAccess, resourceAccountId, resourceService, resourceMatchesScope, type AgentResourceScope } from "../../capabilities/products/resource-scope";
+import { isProductResourceScope, requireProductResourceAccess, resourceAccountId, resourceService, resourceMatchesScope, type AgentResourceScope } from "../../contracts/resource-scope";
 
 async function requireSkillAccess(db: PoolClient, scope: AgentResourceScope, owner = false) {
   if (isProductResourceScope(scope)) return requireProductResourceAccess(db, scope, owner);

@@ -155,7 +155,7 @@ it("discovers canonical library schemas in content specialist bindings and rejec
     ).toEqual(descriptor.inputSchema);
     expect(binding.authority).toMatchObject({
       tenantId: "fixture-workspace",
-      policyRevision: "13",
+      policyRevision: "15",
       handlerRef: `growth.operation.${name}@1`,
     });
   }

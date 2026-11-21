@@ -19,8 +19,27 @@ export async function discoverSpecialists(pool: Pool, taskId: string, input: unk
     const selected = delegation.bindings.filter(binding => (!args.bindingId || binding.id === args.bindingId) &&
       (!query || `${binding.id} ${binding.label ?? ""} ${binding.description ?? ""}`.toLocaleLowerCase().includes(query)));
     const offset = args.offset ?? 0;
+    const named: typeof selected = [];
+    if (delegation.roster !== "restricted" && !args.bindingId && offset === 0) {
+      const rows = (await db.query(`SELECT DISTINCT ON (a.id) a.id,a.name,v.id AS version_id,v.configuration
+        FROM agents_platform.agents a JOIN agents_platform.agent_versions v ON v.agent_id=a.id AND v.organization_id=a.organization_id
+        WHERE a.organization_id=$1 AND a.deleted_at IS NULL AND a.id<>$2
+        ORDER BY a.id, v.number DESC`, [execution.task.organization_id, execution.agentId])).rows;
+      const sources = execution.configuration.sourceRevisionIds, connections = execution.configuration.connectedToolBindingIds;
+      for (const row of rows) {
+        if (selected.some(binding => binding.versionId === row.version_id)) continue;
+        let child; try { child = agentConfigurationSchema.parse(row.configuration); } catch { continue; }
+        const purpose = child.identity?.purpose ?? "Named workspace agent";
+        if (query && !`${row.name} ${purpose}`.toLocaleLowerCase().includes(query)) continue;
+        named.push({ id: `named-${row.id}`, versionId: row.version_id, label: row.name, description: purpose,
+          sourceRevisionIds: child.sourceRevisionIds.filter((id: string) => sources.includes(id)),
+          connectedToolBindingIds: child.connectedToolBindingIds.filter((id: string) => connections.includes(id)),
+          tools: child.tools, maxTokens: 12000, maxActiveMs: 300000 });
+      }
+    }
+    const candidates = [...selected, ...named];
     const specialists = [];
-    for (const binding of selected.slice(offset, offset + 8)) {
+    for (const binding of candidates.slice(offset, offset + 8)) {
       const row = (await db.query(`SELECT v.configuration,v.agent_id,a.name FROM agents_platform.agent_versions v
         JOIN agents_platform.agents a ON a.id=v.agent_id AND a.organization_id=v.organization_id
         WHERE v.organization_id=$1 AND v.id=$2 AND a.deleted_at IS NULL`, [execution.task.organization_id, binding.versionId])).rows[0];
@@ -57,6 +76,6 @@ export async function discoverSpecialists(pool: Pool, taskId: string, input: unk
       specialists.push({ bindingId: binding.id, name: binding.label ?? row?.name ?? binding.id, description: binding.description ?? "Configured specialist",
         versionId: binding.versionId, ready: !reasons.length, reasons, skillCount:config?.skillIds.length??0,skills, tools: [...binding.tools], sourceCount: binding.sourceRevisionIds.length });
     }
-    return { specialists, nextOffset: offset + 8 < selected.length ? offset + 8 : null };
+    return { specialists, nextOffset: offset + 8 < candidates.length ? offset + 8 : null };
   });
 }

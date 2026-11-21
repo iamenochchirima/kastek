@@ -18,7 +18,7 @@ export class GrowthServiceAuth {
     this.keys=readKeys(trust.keys,true);
     this.controlKeys=readKeys(trust.controlKeys??{},false);
   }
-  async verify(token:string,command:{actor:{issuer:string;subject:string};operation:string}):Promise<{clientId:string;jti:string;expiresAt:Date}> {
+  async verify(token:string,command:{actor:{issuer:string;subject:string};operation:string},options:{digestCommand?:unknown}={}):Promise<{clientId:string;jti:string;expiresAt:Date}> {
     try {
       const result=await jwtVerify(token,async header=>{
         const keys=["features.configure","model.configure"].includes(command.operation)?this.controlKeys:this.keys;
@@ -27,7 +27,7 @@ export class GrowthServiceAuth {
       },{issuer:this.trust.issuer,audience:"agents-product-api",algorithms:["RS256"],clockTolerance:5,
         requiredClaims:["sub","iat","exp","jti"]});
       const p=result.payload,now=Math.floor(Date.now()/1000);
-      if(p.product!==this.product||p.requestDigest!==requestDigest(command)||typeof p.iat!=="number"||typeof p.exp!=="number"||
+      if(p.product!==this.product||p.requestDigest!==requestDigest(options.digestCommand??command)||typeof p.iat!=="number"||typeof p.exp!=="number"||
         p.exp-p.iat>120||p.exp<=p.iat||p.iat>now+5||typeof p.jti!=="string"||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.jti)||
         ![this.apiClientId,this.trust.controlClientId??"growth-control"].includes(p.sub!)||
         command.actor.issuer!==this.trust.actorIssuer)throw Error("Service scope mismatch");

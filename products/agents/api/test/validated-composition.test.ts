@@ -50,7 +50,7 @@ describe('validated pure compilation cache',()=>{
   const original=compile(config,[],oldPins),fresh=compile(config,[],freshPins);
   expect(original.capabilities.some(binding=>(PROTOCOL_TOOL_NAMES as readonly string[]).includes(binding.id))).toBe(false);
   expect(fresh.capabilities.filter(binding=>(PROTOCOL_TOOL_NAMES as readonly string[]).includes(binding.id))).toEqual(expect.arrayContaining([
-    expect.objectContaining({id:'tools.discover',version:'2'}),expect.objectContaining({id:'history.read',version:'2'}),
+    expect.objectContaining({id:'tools.discover',version:'3'}),expect.objectContaining({id:'history.read',version:'2'}),
     expect.objectContaining({id:'history.search',version:'2'}),
   ]));
   expect(original.capabilities.find(binding=>binding.id==='memory.search')!.version).toBe('2');

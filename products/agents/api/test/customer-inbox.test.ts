@@ -401,7 +401,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   it("runs a published structured handoff tool while retaining the legacy tool binding", async () => {
     const f = await fixture(true), incoming = await inbox.ingress(f.visitor, f.conversation.id, {requestKey:randomUUID(),body:"I want to talk to someone about my order"});
     const brief = {reason:"Order question",brief:"The customer asked to speak with a person about an order."};
-    expect(await executeTool(pool,incoming.message.task_id!,"fixture:handoff","support.request_handoff",JSON.stringify(brief))).toEqual({state:"handoff_pending"});
+    expect(await executeTool(pool,{} as never,incoming.message.task_id!,"fixture:handoff","support.request_handoff",JSON.stringify(brief))).toEqual({state:"handoff_pending"});
     expect((await inbox.readStaff(f.scope,f.conversation.id)).handoffBrief).toEqual(brief);
     const config = f.version.configuration, bindings = publishedToolBindings(config);
     expect(bindings.map(item => item.name)).toContain("channel.request_handoff");

@@ -129,8 +129,9 @@ async function beginOperationForPurpose(pool: Pool, taskId: string, input: Opera
     await checkMemoryFence(db, input.memoryFence);
     if (input.evidenceManifest && !handoffFeedback) await (await import("../context/evidence-policy")).assertCurrentEvidence(db, taskId, input.evidenceManifest);
     const model = input.kind === "model" || input.kind === "compaction";
-    const rollingTree=task.harness_release==="product-capabilities-v15";
-    const optionalBackground=rollingTree&&input.kind==="compaction"&&input.workload==="background";
+    const modernRelease=task.harness_release==="product-capabilities-v15";
+    const rollingTree=modernRelease&&(!task.parent_task_id||(task.root_token_limit===null&&task.allocation_active_ms===null));
+    const optionalBackground=modernRelease&&input.kind==="compaction"&&input.workload==="background";
     if(optionalBackground){
       const job=(await db.query("SELECT state,error_code FROM agents_platform.context_compaction_jobs WHERE id=$1 AND task_id=$2 AND mode='background'",[input.id,taskId])).rows[0];
       if(job&&job.state!=="prepared")throw new PlatformError(job.error_code??"COMPACTION_JOB_SETTLED",409,"The optional compaction job has settled");
@@ -269,8 +270,8 @@ async function finishOperationInTransaction(db: PoolClient, execution: Execution
   await db.query(`UPDATE agents_platform.execution_roots SET tokens_used=tokens_used+$2,tokens_reserved=tokens_reserved-$3,
     child_reserved_tokens=greatest(0,child_reserved_tokens+$4),active_ms=active_ms+$5,active_reserved_ms=active_reserved_ms-$6,
     child_reserved_ms=greatest(0,child_reserved_ms+$7) WHERE root_task_id=$1`,
-  [execution.task.root_task_id,accounted,op.reserved_tokens,execution.task.harness_release!=="product-capabilities-v15"&&execution.task.parent_task_id&&execution.task.root_token_limit!==null?op.reserved_tokens-accounted:0,
-    duration,op.reserved_ms,execution.task.harness_release!=="product-capabilities-v15"&&execution.task.parent_task_id&&execution.task.allocation_active_ms!==null?op.reserved_ms-duration:0]);
+  [execution.task.root_task_id,accounted,op.reserved_tokens,execution.task.parent_task_id&&execution.task.root_token_limit!==null?op.reserved_tokens-accounted:0,
+    duration,op.reserved_ms,execution.task.parent_task_id&&execution.task.allocation_active_ms!==null?op.reserved_ms-duration:0]);
   await event(db, op.task_id, `result:${op.id}`, `operation.${state}`, { operationId: op.id, accountedTokens: accounted, errorCode });
   await releaseCapacity(db,op.id,state);
   return (await db.query<OperationRecord>('SELECT * FROM agents_platform.operations WHERE id=$1',[op.id])).rows[0]!;
@@ -341,12 +342,12 @@ export async function settleTask(pool: Pool, taskId: string, requested: TaskOutc
     }
     if (task.parent_task_id) {
       const latest=(await db.query("SELECT tokens_used,active_ms,allocation_released FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];
-      if(!latest.allocation_released && task.harness_release!=="product-capabilities-v15") {
-        await db.query("UPDATE agents_platform.execution_roots SET child_reserved_tokens=child_reserved_tokens-$2,child_reserved_ms=child_reserved_ms-$3 WHERE root_task_id=$1",
-          [task.root_task_id,task.root_token_limit===null?0:Math.max(0,task.root_token_limit-latest.tokens_used),task.allocation_active_ms===null?0:Math.max(0,task.allocation_active_ms-latest.active_ms)]);
+      if(!latest.allocation_released) {
+        if(task.root_token_limit!==null||task.allocation_active_ms!==null)
+          await db.query("UPDATE agents_platform.execution_roots SET child_reserved_tokens=child_reserved_tokens-$2,child_reserved_ms=child_reserved_ms-$3 WHERE root_task_id=$1",
+            [task.root_task_id,task.root_token_limit===null?0:Math.max(0,task.root_token_limit-latest.tokens_used),task.allocation_active_ms===null?0:Math.max(0,task.allocation_active_ms-latest.active_ms)]);
         await db.query("UPDATE agents_platform.tasks SET allocation_released=true WHERE id=$1",[taskId]);
       }
-      if(task.harness_release==="product-capabilities-v15")await db.query("UPDATE agents_platform.tasks SET allocation_released=true WHERE id=$1",[taskId]);
     } else {
       const reservation = (await db.query("SELECT * FROM agents_platform.usage_reservations WHERE task_id=$1 FOR UPDATE", [taskId])).rows[0];
       const total = (await db.query(`SELECT coalesce(sum(u.accounted_tokens),0)::double precision AS tokens FROM agents_platform.operation_usage u

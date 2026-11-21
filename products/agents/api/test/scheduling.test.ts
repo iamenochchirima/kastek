@@ -10,6 +10,8 @@ import {transaction} from "../src/infrastructure/database";
 import {dispatchTasksOnce} from "../src/execution/lifecycle/dispatcher";
 import {claimDispatchBatch} from "../src/execution/scheduling/dispatch-claims";
 import {requestCapacity,activateCapacity,releaseCapacity,advanceCapacity} from "../src/execution/scheduling/capacity";
+import {contextGrantCeiling} from "../src/execution/models/settings";
+import {SHARED_HARNESS_RELEASE} from "../src/contracts/execution";
 const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (dbUrl?describe:describe.skip)("durable scheduling PostgreSQL",()=>{
  let admin:Pool,pool:Pool,store:PlatformStore;
@@ -29,20 +31,20 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const config=defaultBusinessConfiguration();const agent=await store.createAgent({accountId:account.id,organizationId:org.id,name:'Fixture',configuration:config});
   const version=await store.createVersion({accountId:account.id,organizationId:org.id,agentId:agent.id,expectedRevision:1});
   const authority:AdmissionAuthority={product:'agents',organizationId:org.id,resourceId:agent.id,callerClientId:'agents-execution',principal:{kind:'human',issuer:account.issuer,subject:account.subject}};
-  const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:['model.reply','knowledge.read'],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,expiresAt:new Date(Date.now()+120000).toISOString(),revokedAt:null});await store.createGrant({accountId:account.id,grant});
+  const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:['model.reply','knowledge.read'],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(config),expiresAt:new Date(Date.now()+120000).toISOString(),revokedAt:null});await store.createGrant({accountId:account.id,grant});
   const results=await Promise.all([1,2].map(()=>store.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:'Hello'})));
   return results.map(r=>r.task);
  }
  it('claims bounded batches fairly without overlapping replica leases and recovers expired claims',async()=>{
   const a=await tasks(),b=await tasks();
-  const serial=await claimDispatchBatch(pool,{batchSize:2});
+  const serial=await claimDispatchBatch(pool,{batchSize:2},[SHARED_HARNESS_RELEASE]);
   const tenants=(await pool.query('SELECT organization_id FROM agents_platform.tasks WHERE id=ANY($1::uuid[])',[serial.rows.map(r=>r.task_id)])).rows;expect(new Set(tenants.map(r=>r.organization_id)).size).toBe(2);
   await pool.query("UPDATE agents_platform.task_outbox SET lease_until=now()-interval '1 second' WHERE task_id=ANY($1::uuid[])",[serial.rows.map(row=>row.task_id)]);
-  const [one,two]=await Promise.all([claimDispatchBatch(pool,{batchSize:2}),claimDispatchBatch(pool,{batchSize:2})]);
+  const [one,two]=await Promise.all([claimDispatchBatch(pool,{batchSize:2},[SHARED_HARNESS_RELEASE]),claimDispatchBatch(pool,{batchSize:2},[SHARED_HARNESS_RELEASE])]);
   const ids=[...one.rows,...two.rows].map(r=>r.task_id);expect(new Set(ids).size).toBe(4);
   expect(one.rows.length).toBe(2);expect(two.rows.length).toBe(2);
   await pool.query("UPDATE agents_platform.task_outbox SET lease_until=now()-interval '1 second' WHERE task_id=$1",[a[0]!.id]);
-  const recovered=await claimDispatchBatch(pool,{batchSize:2});expect(recovered.rows.map(r=>r.task_id)).toContain(a[0]!.id);
+  const recovered=await claimDispatchBatch(pool,{batchSize:2},[SHARED_HARNESS_RELEASE]);expect(recovered.rows.map(r=>r.task_id)).toContain(a[0]!.id);
   await pool.query('UPDATE agents_platform.task_outbox SET dispatched_at=now() WHERE task_id=ANY($1::uuid[])',[a.concat(b).map(t=>t.id)]);
  });
  it('serves a new tenant despite an older noisy tenant exceeding the initial candidate window',async()=>{
@@ -56,7 +58,7 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
    FROM fixtures f CROSS JOIN agents_platform.tasks t WHERE t.id=$1`,[hot[0]!.id]);
   await pool.query(`INSERT INTO agents_platform.task_outbox(task_id,created_at) SELECT id,created_at FROM agents_platform.tasks
    WHERE organization_id=$1 AND id<>ALL($2::uuid[])`,[hot[0]!.organization_id,hot.map(t=>t.id)]);
-  const quiet=await tasks(),batch=await claimDispatchBatch(pool,{batchSize:2});
+  const quiet=await tasks(),batch=await claimDispatchBatch(pool,{batchSize:2},[SHARED_HARNESS_RELEASE]);
   const owners=(await pool.query('SELECT organization_id FROM agents_platform.tasks WHERE id=ANY($1::uuid[])',[batch.rows.map(t=>t.task_id)])).rows.map(r=>r.organization_id);
   expect(owners).toContain(quiet[0]!.organization_id);expect(new Set(owners).size).toBe(2);
   await pool.query('UPDATE agents_platform.task_outbox SET dispatched_at=now() WHERE task_id IN(SELECT id FROM agents_platform.tasks WHERE organization_id=ANY($1::uuid[]))',[[hot[0]!.organization_id,quiet[0]!.organization_id]]);

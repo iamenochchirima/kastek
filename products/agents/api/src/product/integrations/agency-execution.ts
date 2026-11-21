@@ -1,3 +1,5 @@
+import { skillPackageCodec } from "../../capabilities/skills/package";
+import { ConversationReads } from "../../platform/conversations";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type { AgencyAgentCommand, AgencyAgentConversation, GrowthAgentCommand, GrowthAgentTask } from "@kasitek-labs/contracts";
@@ -20,7 +22,7 @@ import { readGrowthRuntime } from "./growth-runtime-reporting";
 import { observeProductTask, readProductChildren } from "./growth-observation";
 import { readPublicAgentUpdates } from "./public-agent-activity";
 import { projectRecipientText, taskRecipientTextScope } from "../../execution/context/recipient-text";
-import { MemoryStore, type ProductMemoryManagementScope } from "../../execution/memory/memory";
+import { MemoryStore, type ProductMemoryManagementScope } from "../../platform/memory";
 import { builtinProviderRegistry } from "../../adapters/models/registry";
 import { TaskArtifactStore } from "../../execution/artifacts/task-artifacts";
 import { privateStoreFromEnvironment } from "../../infrastructure/object-store";
@@ -216,7 +218,7 @@ export class AgencyExecutionService {
     if(command.operation==="tenant.ensure")return this.ensure(command);
     await this.tenant(this.pool,command);await this.feature(this.pool,command);
     if(command.operation.startsWith("memory.")){
-      const feature=await this.feature(this.pool,command),memory=new MemoryStore(this.pool);
+      const feature=await this.feature(this.pool,command),memory=new MemoryStore(this.pool, skillPackageCodec);
       const scope:ProductMemoryManagementScope={namespace:"product_actor",product:"agencies",tenantId:command.tenantId,clientId:command.clientId,
         organizationId:feature.organization_id,agentId:feature.agent_id,actor:command.actor};
       if(command.operation==="memory.list")return memory.list(scope,command.input);
@@ -261,7 +263,7 @@ export class AgencyExecutionService {
         const conversation=await this.conversation(this.pool,command,command.input.conversationId),tenant=await this.tenant(this.pool,command);
         if(!(await this.pool.query("SELECT 1 FROM agents_platform.tasks WHERE conversation_id=$1 AND parent_task_id IS NULL LIMIT 1",[conversation.conversation_id])).rowCount)
           return {conversation:this.conversationDto(conversation),messages:[],tasks:[],nextCursor:null};
-        const page=await this.store.getConversationPage({product:"agencies",organizationId:tenant.organization_id,resourceId:conversation.feature_id,callerClientId:"agency-api",principal:this.principal(command)},conversation.conversation_id,pageQuery.parse(command.input));
+        const page=await new ConversationReads(this.pool).getConversationPage({product:"agencies",organizationId:tenant.organization_id,resourceId:conversation.feature_id,callerClientId:"agency-api",principal:this.principal(command)},conversation.conversation_id,pageQuery.parse(command.input));
         const messages=[],tasks=[];
         for(const task of page.items){const dto=await this.taskDto(await this.task(command,task.id));tasks.push(dto);messages.push({id:dto.id+":user",role:"user",text:dto.input,taskId:dto.id,createdAt:dto.createdAt});
           for(const instruction of (await this.pool.query("SELECT sequence,instruction,created_at FROM agents_platform.orchestration_instructions WHERE task_id=$1 ORDER BY sequence",[dto.id])).rows)

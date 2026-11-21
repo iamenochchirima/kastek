@@ -4,7 +4,7 @@ import { PlatformError,requestDigest } from "../../contracts/contracts";
 import { githubOperationSchema,githubRepositoryHandle,githubRepositorySelectionSchema,type GithubOperation,type GithubRepositorySelection } from "../../contracts/github";
 import { createBoundedFetch,type NetworkAttempt } from "../../infrastructure/connected-network";
 
-export const GITHUB_ADAPTER_RELEASE = "github-public-read-v3";
+export const GITHUB_ADAPTER_RELEASE = "github-public-read-v4";
 export const GITHUB_LIMITS = Object.freeze({ responseBytes: 2097152, modelResultBytes: 8192, wallMs: 30000,
   physicalRequests: 3, releasesPerPage: 20, treeEntries: 2000, fileBytes: 1048576 });
 export { githubOperationSchema,githubRepositoryHandle,githubRepositorySelectionSchema,type GithubOperation,type GithubRepositorySelection } from "../../contracts/github";

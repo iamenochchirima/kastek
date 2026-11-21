@@ -1,0 +1,1 @@
+ALTER TABLE agents_platform.mcp_preview_provenance RENAME TO mcp_run_provenance;

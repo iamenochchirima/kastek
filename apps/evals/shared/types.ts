@@ -34,6 +34,22 @@ export interface SandboxVersion {
   retiredAt: string | null;
 }
 
+export interface MountedSyncResult {
+  version: SandboxVersion;
+  schema: { version: string; latestMigration: string | null };
+  agents: { active: number; retired: number };
+  session: { organizationId: string; valid: true };
+  models: { refreshed: number; warnings: string[] };
+}
+
+export interface ApiAgent {
+  id: string;
+  name: string;
+  draftRevision: number;
+  version: { id: string; number: number; createdAt: string } | null;
+  agentRefId: string | null;
+}
+
 export interface WorkspaceRef {
   id: string;
   sandboxId: string;
@@ -51,6 +67,7 @@ export interface AgentRef {
   sourceIds: string[];
   compositionDigest: string;
   modelRoutesDigest: string;
+  retiredAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -190,8 +207,54 @@ export interface ProductChatResult {
   productTaskState: string;
 }
 
+export interface ProductActivityTask {
+  id: string;
+  state: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  elapsedMs?: number | null;
+  workElapsedMs?: number | null;
+  modelCalls?: number | null;
+  toolCalls?: number | null;
+  tokensUsed?: number | null;
+  errorCode?: string | null;
+  versionId?: string | null;
+}
+
+export interface ProductActivityOperation {
+  operationId: string;
+  kind: string;
+  name: string;
+  label?: string;
+  category?: string;
+  state: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  durationMs: number | null;
+  errorCode: string | null;
+  accountedTokens: number | null;
+  transport?: string | null;
+  providerOperation?: string | null;
+}
+
+export interface ProductActivityEvent {
+  sequence: string;
+  kind: string;
+  createdAt: string | null;
+  payload?: Record<string, unknown>;
+}
+
+export interface ProductActivity {
+  task: ProductActivityTask | null;
+  operations: ProductActivityOperation[];
+  events: ProductActivityEvent[];
+  operationsNextCursor?: string | null;
+  eventsNextCursor?: string | null;
+}
+
 export interface AgentModelOption {
   connectionId: string;
+  connectionLabel?: string;
   modelId: string;
   label: string;
   provider: string;

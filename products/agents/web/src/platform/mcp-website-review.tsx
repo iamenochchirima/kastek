@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
-type Review = { id: string; agentId: string; agentName: string; allowedOrigins: string[]; instructions: string; appearance: { title: string; greeting: string; accent: string; launcherLabel: string; position: string }; sources: { title: string; visibility: string; state: string }[]; state: "pending" | "approved" | "cancelled" | "expired"; deploymentId: string | null };
+type Review = { id: string; agentId: string; agentName: string; allowedOrigins: string[]; instructions: string; appearance: { title: string; greeting: string; accent: string; launcherLabel: string; position: string }; sources: { title: string; state: string }[]; state: "pending" | "approved" | "cancelled" | "expired"; deploymentId: string | null };
 
 export function McpWebsiteReview() {
   const [parameters] = useSearchParams();
@@ -39,7 +39,7 @@ export function McpWebsiteReview() {
     {review && <><p>Agent: <Link className="underline" to={`/app/agents/${encodeURIComponent(review.agentId)}`}>{review.agentName}</Link></p>
       <div><h2 className="text-sm font-medium">Instructions</h2><p className="mt-2 whitespace-pre-wrap break-words text-sm">{review.instructions}</p></div>
       <div><h2 className="text-sm font-medium">Widget</h2><p className="mt-2 text-sm">{review.appearance.title} · {review.appearance.accent} · {review.appearance.position}</p><p className="mt-1 text-sm">{review.appearance.greeting}</p><p className="mt-1 text-sm">Button: {review.appearance.launcherLabel}</p></div>
-      <div><h2 className="text-sm font-medium">Knowledge</h2>{review.sources.length ? <ul className="mt-2 list-inside list-disc text-sm">{review.sources.map((source, index) => <li key={`${source.title}-${index}`}>{source.title} ({source.visibility}, {source.state})</li>)}</ul> : <p className="mt-2 text-sm text-muted-foreground">No sources</p>}</div>
+      <div><h2 className="text-sm font-medium">Knowledge</h2>{review.sources.length ? <ul className="mt-2 list-inside list-disc text-sm">{review.sources.map((source, index) => <li key={`${source.title}-${index}`}>{source.title} ({source.state})</li>)}</ul> : <p className="mt-2 text-sm text-muted-foreground">No sources</p>}</div>
       <div><h2 className="text-sm font-medium">Allowed websites</h2><ul className="mt-2 list-inside list-disc break-all text-sm">{review.allowedOrigins.map(origin => <li key={origin}>{origin}</li>)}</ul></div>
       {review.state === "pending" ? <div className="flex gap-3"><Button disabled={busy} onClick={() => void decide(true)}>{busy ? "Processing…" : "Activate"}</Button><Button variant="outline" disabled={busy} onClick={() => void decide(false)}>Cancel</Button></div> : <p role="status">{review.state === "approved" ? "Website activated" : review.state === "cancelled" ? "Request cancelled" : "Request expired"}</p>}
     </>}

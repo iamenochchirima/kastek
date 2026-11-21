@@ -3,7 +3,7 @@ import {mkdir,mkdtemp,rm,stat,symlink,unlink,utimes,writeFile} from "node:fs/pro
 import {join} from "node:path";
 import {tmpdir} from "node:os";
 import {describe,expect,it} from "vitest";
-import {DocumentRuntime} from "../src/capabilities/knowledge/document-runtime";
+import {DocumentRuntime} from "../src/platform/knowledge/document-runtime";
 import {canonicalJson} from "../src/contracts/contracts";
 const sha=(value:string)=>createHash("sha256").update(value).digest("hex");
 async function fixture(legacy=false){

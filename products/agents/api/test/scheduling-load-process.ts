@@ -6,12 +6,18 @@ import {createEndpointHandler} from '@restatedev/restate-sdk';
 import {createBusinessWorkflow} from '../src/execution/business/business';
 import {buildPlatformApp} from '../src/composition/app';
 import {loadPlatformConfig} from '../src/infrastructure/config';
+import {requestDigest as canonicalDigest} from '../src/contracts/contracts';
 import {startDispatcher} from '../src/execution/lifecycle/dispatcher';
+import {SHARED_HARNESS_RELEASE,SHARED_WORKFLOW_NAME} from '../src/contracts/execution';
 import {dispatchPolicyFromEnvironment} from '../src/execution/scheduling/dispatch-claims';
 import {databasePoolOptions} from '../src/infrastructure/pool-policy';
 import {privateStoreFromEnvironment} from '../src/infrastructure/object-store';
+import {fixtureModelProviders} from './model-fixture';
+import {dispatchBoundModel} from '../src/execution/models/dispatch';
+import {MemoryStore} from '../src/platform/memory/memory';
+import {skillPackageCodec} from '../src/capabilities/skills/package';
 import {EvidenceStore} from '../src/execution/context/evidence';
-import {KnowledgeRuntime} from '../src/capabilities/knowledge/knowledge-runtime';
+import {KnowledgeRuntime} from '../src/platform/knowledge/knowledge-runtime';
 import {TaskArtifactStore} from '../src/execution/artifacts/task-artifacts';
 import {actionsFromEnvironment} from '../src/composition/actions';
 import {composeInbox} from '../src/composition/inbox';
@@ -43,17 +49,32 @@ async function main(){
   const objects=privateStoreFromEnvironment(),evidence=objects?new EvidenceStore(pool,objects):undefined,artifacts=new TaskArtifactStore(pool,objects),actionServices=actionsFromEnvironment(pool,artifacts);
   const inbox=composeInbox(pool,{publicOrigin:'http://localhost:3100',assertServices:async()=>{}});
   const cancellationTimer=setInterval(()=>{void inbox.drainCancellations().catch(()=>{});},1000);cancellationTimer.unref();
-  const workflow=createBusinessWorkflow(pool,{openRouterApiKey:'controlled-fixture-only',evidence,knowledgeRuntime:evidence?new KnowledgeRuntime(pool,evidence):undefined,actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output),fetch:async(_url,options)=>{const headers=new Headers(options?.headers);headers.set('x-fixture-worker-id',process.env.AGENTS_LOAD_WORKER_ID??'worker');
+  const payloadAttribution=new Map<string,{operationId?:string;attemptId?:string;taskId?:string;rootTaskId?:string}>();
+  const controlledFetch=async(_url:string,options:RequestInit|undefined)=>{
+   const headers=new Headers(options?.headers);headers.set('x-fixture-worker-id',process.env.AGENTS_LOAD_WORKER_ID??'worker');
    if(process.env.AGENTS_LOAD_TRACE_PHYSICAL==='1'){
-    const digest=createHash('sha256').update(String(options?.body)).digest('hex');
-    const matches=(await pool.query(`SELECT o.id,o.attempt_id,o.task_id,t.root_task_id FROM agents_platform.context_snapshots s JOIN agents_platform.operations o ON o.task_id=s.task_id AND o.id='model:'||s.task_id::text||':'||s.step::text JOIN agents_platform.tasks t ON t.id=o.task_id WHERE s.digest=$1 AND o.kind='model' AND o.state='started' LIMIT 2`,[digest])).rows;
-    headers.set('x-fixture-attribution-count',String(matches.length));
-    if(matches.length===1){for(const[key,value]of Object.entries(matches[0]))headers.set(`x-fixture-${key}`,String(value));}
+    const payload=JSON.parse(String(options?.body)),attrs=payloadAttribution.get(canonicalDigest(payload));
+    if(attrs){
+     headers.set('x-fixture-attribution-count','1');
+     if(attrs.operationId)headers.set('x-fixture-id',attrs.operationId);
+     if(attrs.attemptId)headers.set('x-fixture-attempt_id',attrs.attemptId);
+     if(attrs.taskId)headers.set('x-fixture-task_id',attrs.taskId);
+     if(attrs.rootTaskId)headers.set('x-fixture-root_task_id',attrs.rootTaskId);
+    }
    }
-   return fetch(simulator,{...options,headers});}});
+   const response=await fetch(simulator,{...options,headers});
+   if(response.status!==200||response.headers.get('content-type')?.includes('text/event-stream'))return response;
+   const result=await response.json(),choice=result.choices?.[0];
+   const delta={...choice?.message,...(choice?.message?.tool_calls?{tool_calls:choice.message.tool_calls.map((call:any,index:number)=>({...call,index}))}:{})};
+   return new Response(`data: ${JSON.stringify({id:result.id,model:result.model,choices:[{index:0,delta,finish_reason:choice?.finish_reason}],usage:result.usage})}\n\ndata: [DONE]\n\n`,{headers:{'content-type':'text/event-stream'}});
+  };
+  const workflow=createBusinessWorkflow(pool,{modelProvider:fixtureModelProviders(pool),modelRuntime:{dispatch:input=>dispatchBoundModel({...input,
+    onPhysicalPayload:(digest,operationId,attemptId)=>{payloadAttribution.set(digest,{operationId,attemptId,taskId:input.taskId,rootTaskId:input.rootTaskId});input.onPhysicalPayload?.(digest,operationId,attemptId);},beforePayloadDispatch:async(payload,count)=>{await input.beforePayloadDispatch?.(payload,count);}},()=>{
+    const network=(async(url,init)=>controlledFetch(String(url),init)) as typeof fetch&{markProgress?:()=>void};network.markProgress=()=>{};return network;
+  })},readers:{memory:new MemoryStore(pool,skillPackageCodec)},evidence,knowledgeRuntime:evidence?new KnowledgeRuntime(pool,evidence):undefined,actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output)},{release:SHARED_HARNESS_RELEASE,workflow:SHARED_WORKFLOW_NAME});
   const server=createServer(createEndpointHandler({services:[workflow]}));server.on('session',session=>{sessions.add(session);session.once('close',()=>sessions.delete(session));});
   await new Promise<void>(resolve=>server.listen(Number(process.env.AGENTS_LOAD_WORKER_PORT??0),'0.0.0.0',resolve));const port=(server.address() as {port:number}).port;
-  const dispatcher=startDispatcher(pool,{ingressUrl:process.env.RESTATE_INGRESS_URL!,adminUrl:process.env.RESTATE_ADMIN_URL!,policy:dispatchPolicy,onPhase:(phase,durationMs,success)=>{dispatcherPhases.observe(phase,durationMs,success);nativeMetrics?.dispatcherPhase(phase,durationMs,success);}});
+  const dispatcher=startDispatcher(pool,{ingressUrl:process.env.RESTATE_INGRESS_URL!,adminUrl:process.env.RESTATE_ADMIN_URL!,runtimeRoutes:{[SHARED_HARNESS_RELEASE]:{ingressUrl:process.env.RESTATE_INGRESS_URL!,adminUrl:process.env.RESTATE_ADMIN_URL!,workflowName:SHARED_WORKFLOW_NAME}},policy:dispatchPolicy,onPhase:(phase,durationMs,success)=>{dispatcherPhases.observe(phase,durationMs,success);nativeMetrics?.dispatcherPhase(phase,durationMs,success);}});
   process.stdout.write(JSON.stringify({fixtureReady:true,role,port,dispatchPolicy})+'\n');
   for(const signal of ['SIGTERM','SIGINT'] as const)process.once(signal,()=>{clearInterval(cancellationTimer);void Promise.resolve(profiler?.stop('shutdown')).then(()=>dispatcher.stop()).then(closeTelemetry).then(()=>{for(const session of sessions)session.destroy();server.close(()=>{void pool.end().then(()=>process.exit(0));});});});
  }

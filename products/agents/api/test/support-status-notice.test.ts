@@ -31,6 +31,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
       CREATE TABLE agents_platform.agent_versions(id uuid,organization_id uuid,agent_id uuid,configuration jsonb);
       CREATE TABLE agents_platform.support_status_executions(task_id uuid PRIMARY KEY,organization_id uuid,conversation_id uuid,input_message_id uuid,episode_command_id uuid,ownership_generation bigint);
       CREATE TABLE agents_platform.operations(id text PRIMARY KEY,task_id uuid,kind text,name text,state text,output jsonb);
+      CREATE TABLE agents_platform.product_references(id text PRIMARY KEY,source_task_id uuid,resource_id text);
       ALTER TABLE agents_platform.tasks ADD COLUMN turn_sequence bigint DEFAULT 1, ADD COLUMN parent_task_id uuid, ADD COLUMN input text DEFAULT '';
       ALTER TABLE agents_platform.operations ADD COLUMN request jsonb, ADD COLUMN started_at timestamptz DEFAULT now();
       CREATE TABLE agents_platform.evidence_nodes(id uuid,task_id uuid);

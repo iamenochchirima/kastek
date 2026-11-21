@@ -10,7 +10,7 @@ import {compilePublishedComposition} from "../src/execution/programs/publication
 import {defaultBusinessConfiguration,agentConfigurationSchema,executionGrantSchema,assertGrantAuthority,requestDigest} from "../src/contracts/contracts";
 import {registerProductAdapter,sameProductAuthority} from "../src/capabilities/products/product-capabilities";
 import {growthInstalledAdapterManifest} from "../src/adapters/products/growth-capability-manifests";
-import {parseGrowthAgentCommand} from "@kasitek-labs/contracts";
+import {parseGrowthAgentCommand,parseProductAgentCommand} from "@kasitek-labs/contracts";
 import {orchestrationTools} from "../src/contracts/orchestration";
 import type {GrowthAgentPublication,ProductCapabilityDescriptor,GrowthAgentCommand,GrowthAgentAction} from "@kasitek-labs/contracts";
 const organizationId=randomUUID(),tenantId=randomUUID();
@@ -63,7 +63,7 @@ describe("Growth product contracts",()=>{
     const configured={...publication,policy:{...publication.policy,optionalCapabilities:{...publication.policy.optionalCapabilities,delegation:true}}};
     const delegation={enabled:true as const,maxChildren:2,maxDepth:1 as const,policy:{maxTasks:16,maxStalls:3},bindings:["research","content","campaigns"].map(id=>({id,versionId:randomUUID(),sourceRevisionIds:[],connectedToolBindingIds:[],tools:[],maxTokens:12000,maxActiveMs:300000}))};
     const coordinator=growthFeatureConfiguration(configured,"assistant",organizationId,tenantId,undefined,delegation);
-    expect(coordinator.tools).toEqual([...orchestrationTools]);expect(compilePublishedComposition(coordinator,[]).program.version).toBe("4");
+    expect(coordinator.tools).toEqual(["artifact.create",...orchestrationTools]);expect(compilePublishedComposition(coordinator,[]).program.version).toBe("4");
     const specialist=growthFeatureConfiguration(configured,"content",organizationId,tenantId);
     expect(specialist.program.version).toBe("3");expect(specialist.capabilities.delegation.enabled).toBe(false);
     expect(coordinator.productBindings[0].id).not.toBe(specialist.productBindings[0].id);
@@ -82,10 +82,11 @@ describe("Growth product contracts",()=>{
     expect(delegationRequestSchema.safeParse({requests:[{bindingId:"content",brief:"Scoped work",maxTokens:12001}]}).success).toBe(false);
   });
   it("parses bounded steering and continuation commands without widening their signed payload",()=>{
-    expect(parseGrowthAgentCommand({...command,operation:"tasks.instructions",input:{taskId:randomUUID(),instruction:"Change the audience"}}).operation).toBe("tasks.instructions");
-    expect(parseGrowthAgentCommand({...command,operation:"tasks.continue",input:{taskId:randomUUID()}}).operation).toBe("tasks.continue");
-    expect(()=>parseGrowthAgentCommand({...command,operation:"tasks.instructions",input:{taskId:randomUUID(),instruction:"x".repeat(4001)}})).toThrow();
-    expect(()=>parseGrowthAgentCommand({...command,operation:"tasks.continue",input:{taskId:randomUUID(),configuration:{}}})).toThrow();
+    const gateway={...command,product:"growth" as const};
+    expect(parseProductAgentCommand({...gateway,operation:"runs.steer",input:{taskId:randomUUID(),instruction:"Change the audience"}}).operation).toBe("runs.steer");
+    expect(parseProductAgentCommand({...gateway,operation:"runs.continue",input:{taskId:randomUUID()}}).operation).toBe("runs.continue");
+    expect(()=>parseProductAgentCommand({...gateway,operation:"runs.steer",input:{taskId:randomUUID(),instruction:"x".repeat(4001)}})).toThrow();
+    expect(()=>parseProductAgentCommand({...gateway,operation:"runs.continue",input:{taskId:randomUUID(),configuration:{}}})).toThrow();
   });
   it("cannot give standalone or read-only agents Growth mutation authority",()=>{
     const config=contentConfiguration(),id=randomUUID(),authority={product:"agents" as const,organizationId:randomUUID(),resourceId:"content",callerClientId:"growth-api",principal:{kind:"human" as const,...actor}};

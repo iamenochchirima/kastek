@@ -10,6 +10,7 @@ export class PlatformError extends Error {
 
 export const principalSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("human"), issuer: z.url(), subject: z.string().min(1).max(512) }),
+  z.strictObject({ kind: z.literal("application"), applicationId: z.uuid() }),
   z.strictObject({ kind: z.literal("automation"), id: z.uuid(), ownerAccountId: z.uuid() }),
   z.strictObject({ kind: z.literal("visitor"), deploymentId: z.uuid(), sessionId: z.uuid() }),
   z.strictObject({ kind: z.literal("channel_customer"), deploymentId: z.uuid(), participantId: z.uuid() }),

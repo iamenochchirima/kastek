@@ -59,7 +59,7 @@ export class PlatformDiscovery {
       JOIN LATERAL (SELECT t.version_id,t.created_at,t.state FROM agents_platform.tasks t WHERE t.conversation_id=c.id AND t.parent_task_id IS NULL AND t.product='agents' AND t.caller_client_id='agents-execution' AND t.resource_id=$2::text AND t.principal=$3::jsonb AND t.created_at<=$4 ORDER BY t.turn_sequence DESC LIMIT 1) last ON true
       JOIN LATERAL (SELECT t.input FROM agents_platform.tasks t WHERE t.conversation_id=c.id AND t.parent_task_id IS NULL AND t.principal=$3::jsonb ORDER BY t.turn_sequence LIMIT 1) first ON true
       JOIN agents_platform.agent_versions v ON v.id=last.version_id
-      WHERE c.organization_id=$1 AND c.agent_id=$2::uuid AND c.principal=$3::jsonb AND c.deployment_id IS NULL AND (c.deleted_at IS NOT NULL)=$9::boolean
+      WHERE c.organization_id=$1 AND c.agent_id=$2::uuid AND c.principal=$3::jsonb AND c.deployment_id IS NULL AND c.deleted_at IS NULL AND (c.archived_at IS NOT NULL)=$9::boolean
       AND ($5::uuid IS NULL OR last.version_id=$5) AND ($6::timestamptz IS NULL OR (last.created_at,c.id)<($6::timestamptz,$7::uuid))
       ORDER BY last.created_at DESC,c.id DESC LIMIT $8`,[org,query.agentId,JSON.stringify(principal),cursor.snapshot,query.versionId??null,cursor.position||null,cursor.id||null,query.limit+1,archived])).rows as (ConversationSummary&{position:string})[];
     for(const row of rows)row.title=row.title.trim()||"Conversation";

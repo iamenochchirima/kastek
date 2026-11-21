@@ -143,7 +143,17 @@ is added. Operational investigation uses record revisions/activity plus existing
 
 ## Product scope and implementation gaps
 
-Agent creation uses one customer-service offering with selectable question answering, support,
+Quick creation starts with a name, then one job template (Answer questions, Customer support,
+Bookings or Enquiries) or a Custom mix of those jobs, then optional website or document knowledge,
+then Create. A template sets the setup responsibilities and derives identity and instructions; it
+grants no external connection. The draft is created after the job choice so knowledge can attach;
+closing the dialog leaves a resumable draft. Purpose, instructions, model, identity, tools, memory,
+handoff, delegation, workflows and skills default and are edited after creation. The Capabilities
+page shows **What it does** and **Platform capabilities**; schedules, code execution and browser use
+remain unavailable. The controlled `create-agent-wizard.spec.ts` covers template, bookings, Custom
+and resume paths.
+
+The guided setup flow uses one customer-service offering with selectable question answering, support,
 appointments and native enquiries. The guided flow saves progress on the server after each forward
 step. A scoped session pointer resumes the same agent after reload; creation retries use a stable
 operation ID. The setup progress card on the agent menu resumes or edits it. Saves use draft revisions and
@@ -168,7 +178,7 @@ scope. These records are private. Contact fields do not verify identity. Externa
 Growth synchronization remain outside this implementation.
 
 GET `/api/organizations/:organizationId/agents/:agentId/setup-readiness` reports saved model
-metadata/credential availability, knowledge approval/public visibility, booking policy authority,
+metadata/credential availability, knowledge approval, booking policy authority,
 native intake and handoff capability, and actual selected-channel deployment state. It does not
 call a model or certify live provider credentials. The review and Configure screens use this
 projection. Channel actions preselect the agent, preserve authorization return context and reuse
@@ -262,7 +272,7 @@ outcome semantics; a check immediately before sending cannot recall an in-flight
 Apply schema090, schema091 and schema092 before starting the matching API and worker. The `connected_uncertain_recovery_failed`
 and `connected_uncertain_notice_failed` logs record bounded retry codes without customer content;
 analytics and Collector changes are not
-applicable. PostgreSQL, controlled provider and browser fixtures validate recovery, owner-only reads and visibility;
+applicable. PostgreSQL, controlled provider and browser fixtures validate recovery and owner-only reads;
 live-provider acceptance and model evaluations remain owner-run. To stop new recovery, set
 `AGENTS_CONNECTED_UNCERTAIN_RECOVERY=false` on the worker and retain schema and receipts. Existing
 v1 adapter files and pinned identities are unchanged. A separately versioned adapter with its own
@@ -295,9 +305,9 @@ Training data → Import website. Owners can enter a bare domain, follow crawl p
 select pages, inspect extracted Markdown, and import the selection as one knowledge candidate.
 The next review shows the normalized candidate. **Approve and use** approves the revision, publishes
 it for customer replies, and attaches it through the normal revision-checked agent configuration API.
-Knowledge has no visibility split: an attached source is usable in every conversation with that agent,
-including customer channels. Removing a source from customer answers is done by not attaching it, or by
-deleting it. Closing or reloading resumes the exact persisted import and derives completion from its ready
+Customer channels use active, approved, attached public sources. Member conversations can also use
+attached sources. Retrieval and reused evidence check current approval and withdrawal, so changing a source
+to private prevents its use in customer replies. Closing or reloading resumes the exact persisted import and derives completion from its ready
 revision, current approval, active source, and saved agent knowledge bindings. Withdrawn, unavailable,
 failed and cancelled imports remain distinct and can be retried without reporting success.
 
@@ -813,7 +823,7 @@ require the matching worker identity. Previously accepted releases retain their 
 
 Non-website admissions use a verified `channel_customer` principal bound to the deployment and
 canonical conversation. The same admission/model routing/root budgets, Restate loop, context,
-public knowledge/skills, booking confirmation and ownership fences apply. No website session is
+approved knowledge/skills, booking confirmation and ownership fences apply. No website session is
 fabricated. Saved settings update future channel admissions without replacing the address,
 customer thread or history. Accepted work retains its pinned model, snapshot and authority.
 
@@ -1100,13 +1110,13 @@ session; authorized audit metadata remains available with current-policy payload
 The trusted `adapters/products/product-execution.ts` contract verifies signed short-lived product
 assertions against an installed issuer/key and registered tenant mapping. Product actors
 retain their own identities; admission does not invent an Agents account or membership. The current
-contract consumer supports model replies and approved public knowledge only. Rich product tools,
+contract consumer supports model replies and approved knowledge only. Rich product tools,
 private product records, delegated specialists, memory and sandbox scopes remain unavailable through
 this product adapter until their resource contracts exist. These constraints do not limit the separate
 shared harness acceptance fixtures. Agency's separate client-scoped ingress is described below;
 production deployment remains separate.
 
-Growth uses `product/integrations/growth-execution.ts` for private product conversations,
+Growth uses `product/integrations/product-agent-execution.ts` for shared conversations, runs, reviews, artifacts and model operations, and `product/integrations/growth-execution.ts` for Growth-owned extensions. Private product conversations,
 configuration, tasks, review UI and exports. Its product-owned manifest and four presets live in
 Growth API `src/agents/manifest.ts`. Managed revision 5 publishes a `tool-directed@4` assistant
 with three pinned same-business `tool-directed@3` specialists. Both compile immutable product bindings;
@@ -1357,7 +1367,7 @@ Executor routing and physical recovery require their own independent-process acc
 ## Internal module boundaries
 
 Implemented code lives under `contracts`, `infrastructure`, `execution`, `capabilities`,
-`workflows`, `adapters`, `product`, and `composition`. Product identity, agent/version,
+`workflows`, `adapters`, `platform`, `integrations`, `product`, and `composition`. Product identity, agent/version,
 website deployment, and execution admission stores have separate implementations;
 `product/agents/store.ts` composes their existing management interface. Execution
 consumers use neutral record contracts and credential ports. S3 transport is separate
@@ -1367,9 +1377,67 @@ so authority checks do not depend cyclically on storage.
 `pnpm verify:agents-modules` checks static imports, type imports, re-exports,
 string-literal dynamic imports/requires, forbidden dependency directions and file
 cycles. Contracts and infrastructure cannot import product routes or programs;
-capability/workflow/runtime modules cannot import product implementations. Unsupported
-computed module loading fails the check. Negative fixtures prove these checks reject
-forbidden edges and cycles. Cross-product checks remain separate.
+capability/workflow/runtime modules cannot import product implementations. `integrations` may call capability stores for the HTTP surface. `platform`
+may use contracts, infrastructure, execution and observability, and cannot reach
+product or integration implementations. `integrations` may use platform, and cannot
+reach product implementations. `product` may use platform. Unsupported computed module
+loading fails the check. Negative fixtures prove these checks reject forbidden edges
+and cycles. Cross-product checks remain separate.
+
+No accepted edges remain. The command keeps the accepted-debt mechanism and reports a
+recorded edge that no longer occurs as stale so it can be deleted. Workspace
+permissions moved to
+`platform/access/permissions.ts`; product routes and integrations require them from
+there. The serialized-payload token estimate moved to `contracts/serialized-tokens.ts`
+and identity prompt composition to `execution/context/agent-identity.ts`; product
+identity defaults remain in `product/agents/identity.ts`. Admission reads billing
+entitlements through `execution/admission/entitlements.ts`; the Agents adapter lives in
+`product/billing/billing.ts` and `PlatformStore` injects it. The credential-reflection
+helper moved to `infrastructure/credential-reflection.ts`; the GitHub, MCP, Stash,
+public-repository, remote-MCP, native-API and native-provider adapter releases were
+bumped because their manifest path lists changed the executable digest.
+
+Conversation turn, event and page reads moved to `platform/conversations/reads.ts`.
+Compaction inputs and summaries stay owned by `execution/context` and the compaction
+workflow: execution produces them while a run is live, and the API only reads the
+resulting checkpoints. Moving them under platform/conversations requires the context
+group and source types to move to contracts first, because execution cannot import
+platform.
+Admission still creates turns; the read store owns how they are listed and paginated.
+Context assembly reads history through `execution/context/readers.ts`; the workflow
+receives `PlatformConversationHistory` from composition and keeps its inline query as
+the fallback for callers that do not inject a reader. KnowledgeRuntime and MemoryStore
+implement the knowledge and memory readers, and context assembly prefers the injected
+readers over constructing stores directly. PlatformRunStateReader is injected and has
+no consumer yet.
+
+Knowledge HTTP routes moved to `integrations/http/knowledge-routes.ts`. The knowledge
+store, runtime, ingestion, retrieval and object store now live under
+`platform/knowledge/`, with `capability.ts` carrying the optional capability
+descriptor and readiness helper. Execution depends on `contracts/knowledge.ts`, which
+defines the retrieval port and observation types, so it no longer imports platform
+code.
+
+Memory HTTP routes moved to `integrations/http/memory-routes.ts`, and
+`platform/memory/capability.ts` carries the optional capability descriptor and
+readiness helper. MemoryStore stays in `execution/memory` because capabilities/skills
+and execution/memory import each other; moving it needs the skills package contracts
+extracted first.
+
+Agent management HTTP handlers moved from composition to `platform/agents/http.ts`.
+Composition passes the product store, creation operations, offerings data and the
+avatar schema as ports, so the module depends only on `contracts` and
+`infrastructure`. Paths and payloads are unchanged.
+
+Task and conversation handlers moved to `platform/runs/http.ts`: lists, admission,
+detail, events, evidence, artifacts, instructions, continuation, cancel, history
+export, conversation read and conversation delete. Archive and restore remain in
+composition because retention makes deletion irreversible. Evaluation trial routes
+moved to `integrations/http/evaluation-routes.ts` and visitor website routes to
+`integrations/http/website-routes.ts`; both receive product behaviour as ports.
+Session, workspace, assistant, member-channel, connection-fallback and MCP review
+routes moved to their own `integrations/http/` modules. Only the archive and restore
+pair remains in composition.
 
 Composition entry points are `api/src/composition/` and compile to
 `api/dist/composition/`. MCP's bounded helper remains adjacent to its adapter under
@@ -1807,7 +1875,7 @@ PostgreSQL 17 with pgvector stores immutable chunks, full-text indexes and scope
 384-dimensional vectors. `lexical-v1` normalizes a natural-language query into English lexemes,
 matches any of those terms and ranks the eligible passages. Additional words in a question do not
 require every word to occur in a short source note. Tenant, published-version, selected-revision,
-approval, visibility and current source filters apply before either retriever ranks candidates.
+approval and current source filters apply before either retriever ranks candidates.
 `hybrid-v1` uses
 the explicitly pinned local BGE release, exact vector search and RRF (k=60),
 at most 20 candidates per retriever and five results. Missing semantic runtime
@@ -1843,7 +1911,7 @@ dependencies separately from the specialist's narrower direct read grants. Deriv
 outputs and later memory reuse must still pass the original input policy checks. Shared ancestors deduplicate;
 cycles, missing records and conflicting policies fail closed.
 
-Source withdrawal, visibility changes, connection policy and Forget block future
+Source withdrawal, connection policy and Forget block future
 consumption. Model/effect claims recheck current dependencies atomically. A final
 answer cannot publish after its source is withdrawn during generation. A consumed dependency
 invalidated by withdrawal or Forget ends the current task incomplete; a fresh turn can rebuild

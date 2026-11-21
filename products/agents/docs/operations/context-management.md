@@ -1,6 +1,6 @@
 # Context management
 
-Owner: Agents engineering. Reviewed: 2026-11-02.
+Owner: Agents engineering. Reviewed: 2026-11-20.
 
 Conversation tasks, queued directions and operation receipts retain the original records. Context
 packing selects complete message groups for a particular model request. A continuity checkpoint
@@ -42,6 +42,60 @@ shape and digest. Selecting Automatic in the configuration editor is an explicit
 cannot widen an already accepted grant. Automatic grant creation uses the trusted service input
 ceiling and leaves final route narrowing to admission. No stored grants, model bindings or accepted
 work are rewritten. This configuration change requires no additional database migration.
+
+## Compaction policy
+
+Automatic context compacts at 85% of the effective input allowance. The service default is
+167,116 of 196,608 input tokens; `model-execution-policy-v3` scales the same proportion for a
+smaller selected model. Explicit context limits keep their configured `compactAtTokens`.
+
+Route budgets are request-packing limits, not compaction triggers. When history exceeds a route's
+history budget, the assembler keeps a contiguous recent window and exposes older turns through
+`history.search` and `history.read`. It does not run a summary merely because the route is full.
+A separate full-conversation estimate drives the model-pressure forecast, so a 10k or 20k route
+request is not treated as a nearly full 196k model window.
+
+Compaction is background work at the 85% threshold. It retains the most recent 15,000 tokens
+for a large model window, scaled to 25% of the effective input (with a 1,000-token floor) for
+narrow contexts. Foreground compaction is reserved for a request that cannot fit even after route
+packing, an explicit narrow context limit, or recovery from an actual overflow. A failed summary
+prunes the frozen prefix and continues; the stored turns and their evidence remain available to
+history search/read, and a failed or unavailable background job never blocks the reply. Explicit
+narrow context limits keep their hard cap instead of silently pruning required context.
+
+A reasoning model can spend the whole compaction output allowance on internal reasoning and
+return no summary. The user-facing reply cap is not a summary budget, so the compaction route
+gets its own floor of 8,192 output tokens, clamped to the model window and the configured safety
+reserve. The primary and delegated routes keep their configured cap. The pruning fallback still
+covers a summary that fails for another reason.
+
+A pasted document longer than 6,000 characters is routed to the 24k complex route even when it
+contains action keywords. Previously a long document could be classified as a short action and
+rejected with `CONTEXT_MANDATORY_OVERFLOW`. Explicit narrow context limits still reject input
+that genuinely cannot fit.
+
+The chat's **Compact context** action admits a hidden maintenance task with a fresh execution
+root, freezes the current conversation into the same immutable background job, and settles the
+task after adoption. Maintenance tasks are excluded from conversation history and conversation
+reads.
+
+Under the shared protocol, tool results the model has already read are shortened to a bounded
+opening with an explicit note. The newest result is left whole, and the complete output remains in
+the task trace and any retained evidence/artifact handle. This reduces repeat cost without using a
+summary call. Compaction requests cap tool output separately.
+
+The context meter reports route-input usage and model-pressure usage separately. A 37% route and
+a 7% model window are different facts and must not be presented as one percentage.
+
+### Rollout flags
+
+- `AGENTS_COMPACTION_POLICY=pressure|off` enables automatic summaries or leaves route windowing
+  only. The default is `pressure`.
+- `AGENTS_COMPACTION_BACKGROUND=true|false` controls optional background summaries.
+- `AGENTS_COMPACTION_MANUAL=true|false` controls the explicit Compact context action.
+
+Flags are read at the operation boundary; invalid values fail instead of silently changing
+behavior. A restart applies a new value without a schema change.
 
 ## Request custody and recovery
 

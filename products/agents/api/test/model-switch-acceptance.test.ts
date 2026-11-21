@@ -17,7 +17,7 @@ import { dispatchTasksOnce } from "../src/execution/lifecycle/dispatcher";
 import { loadExecution } from "../src/execution/lifecycle/state";
 import { defaultBusinessConfiguration, terminalTaskStates } from "../src/contracts/contracts";
 import { probeProviderModel } from "../src/product/model-providers/probe";
-import { KnowledgeRuntime } from "../src/capabilities/knowledge/knowledge-runtime";
+import { KnowledgeRuntime } from "../src/platform/knowledge/knowledge-runtime";
 import { EvidenceStore } from "../src/execution/context/evidence";
 import { customerConfiguration } from "../src/product/offerings/offerings";
 import { builtinProviderRegistry } from "../src/adapters/models/registry";

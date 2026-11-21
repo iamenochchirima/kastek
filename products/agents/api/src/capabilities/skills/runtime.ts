@@ -1,7 +1,9 @@
+import { skillPackageCodec } from "./package";
 import type { Pool } from "pg";
 import { PlatformError } from "../../contracts/contracts";
 import { assertCurrentAuthority, loadExecution } from "../../execution/lifecycle/execution";
-import { loadSkillRevisions, type SkillRevision } from "../../execution/memory/memory";
+import { loadSkillRevisions } from "../../execution/memory/skills";
+import type { SkillRevision } from "../../contracts/memory";
 import { transaction } from "../../infrastructure/database";
 import { validateBuiltinArguments, validateBuiltinResult } from "../tool-contracts";
 import { activateSkillPackage, readSkillPackageFile, SKILL_PACKAGE_LIMITS, type SkillFileEvidence, type SkillFileRange } from "./package";
@@ -69,7 +71,7 @@ export async function executeSkillTool(pool: Pool, taskId: string, name: "skills
     const execution = await loadExecution(db, taskId);
     await assertCurrentAuthority(db, execution);
     if (!execution.configuration.skillIds.includes(args.skillId)) throw new PlatformError("SKILL_SCOPE_DENIED", 403, "Skill is not selected for this agent version");
-    const skill = (await loadSkillRevisions(db, execution.task.organization_id, execution.agentId, [args.skillId]))[0]!;
+    const skill = (await loadSkillRevisions(db, execution.task.organization_id, execution.agentId, [args.skillId], skillPackageCodec))[0]!;
     if (name === "skills.read") {
       const active = await db.query(`SELECT 1 FROM agents_platform.operations WHERE task_id=$1 AND name='skills.activate' AND state='completed'
         AND output->>'skillId'=$2 AND output->'evidence'->>'packageDigest'=$3`, [taskId, skill.id, skill.contentDigest]);

@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../src/capabilities/skills/package";
 import { contextGrantCeiling } from "../src/execution/models/settings";
 import { connectFixtureModel } from "./model-fixture";
 import {randomUUID} from "node:crypto";
@@ -6,8 +7,8 @@ import {afterAll,beforeAll,describe,expect,it,vi} from "vitest";
 import {PlatformStore} from "../src/product/agents/store";
 import {defaultBusinessConfiguration,executionGrantSchema,requestDigest} from "../src/contracts/contracts";
 import {EvidenceStore,assertCurrentEvidence,assertDelegationInputEvidence,taskEvidenceManifest} from "../src/execution/context/evidence";
-import {KnowledgeRuntime} from "../src/capabilities/knowledge/knowledge-runtime";
-import {MemoryStore} from "../src/execution/memory/memory";
+import {KnowledgeRuntime} from "../src/platform/knowledge/knowledge-runtime";
+import {MemoryStore} from "../src/platform/memory/memory";
 import {admitChildren,readChildResults} from "../src/execution/delegation/delegation";
 import {beginOperation,finishOperation,loadExecution,settleTask,assertCurrentAuthority} from "../src/execution/lifecycle/execution";
 import {setupPlatformSchema} from "../src/composition/setup";
@@ -22,7 +23,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
  let admin:Pool,pool:Pool,store:PlatformStore,evidence:EvidenceStore,memory:MemoryStore,app:Awaited<ReturnType<typeof buildPlatformApp>>;
  const database=`agents_delegation_input_${randomUUID().replaceAll("-","")}`,bodies=new Map<string,Uint8Array>();
  const objects={async put(key:string,value:Uint8Array){bodies.set(key,value);},async get(key:string){const value=bodies.get(key);if(!value)throw Error("Missing private fixture body");return value;},async delete(key:string){bodies.delete(key);}};
- beforeAll(async()=>{admin=new Pool({connectionString:url});await admin.query(`CREATE DATABASE "${database}"`);const target=new URL(url!);target.pathname=`/${database}`;pool=new Pool({connectionString:target.href});await setupPlatformSchema(pool);store=new PlatformStore(pool);evidence=new EvidenceStore(pool,objects);memory=new MemoryStore(pool);vi.spyOn(storageModule,"privateStoreFromEnvironment").mockReturnValue(objects);app=await buildPlatformApp({pool,logging:false,config:loadPlatformConfig({NODE_ENV:"test",AGENTS_DATABASE_URL:target.href,AGENTS_PUBLIC_URL:"http://localhost:3100",AGENTS_OIDC_CLIENT_SECRET:"delegation-input-private-test-only"})});});
+ beforeAll(async()=>{admin=new Pool({connectionString:url});await admin.query(`CREATE DATABASE "${database}"`);const target=new URL(url!);target.pathname=`/${database}`;pool=new Pool({connectionString:target.href});await setupPlatformSchema(pool);store=new PlatformStore(pool);evidence=new EvidenceStore(pool,objects);memory=new MemoryStore(pool, skillPackageCodec);vi.spyOn(storageModule,"privateStoreFromEnvironment").mockReturnValue(objects);app=await buildPlatformApp({pool,logging:false,config:loadPlatformConfig({NODE_ENV:"test",AGENTS_DATABASE_URL:target.href,AGENTS_PUBLIC_URL:"http://localhost:3100",AGENTS_OIDC_CLIENT_SECRET:"delegation-input-private-test-only"})});});
  afterAll(async()=>{await app?.close();vi.restoreAllMocks();await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(kind:"source"|"memory",metadataOnly=false){
   const contextEvidence=metadataOnly?new EvidenceStore(pool):evidence;

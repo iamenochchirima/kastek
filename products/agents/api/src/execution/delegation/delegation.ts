@@ -58,6 +58,9 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
       const maxTasks=(rootDelegation.enabled?rootDelegation.policy?.maxTasks:undefined) ?? ((task.execution_policy_version??1)<2?16:null);
       if(maxTasks !== null && count+parsed.requests.length>maxTasks) throw new PlatformError("SPECIALIST_TASK_LIMIT",429,"Specialist task budget is exhausted");
     }
+    const parentDelegation=config.capabilities.delegation;
+    const selectorOf=(request:{bindingId:string})=>request.bindingId;
+    const namedAgentId=(selector:string)=>selector.startsWith("named-")?selector.slice(6):undefined;
     let previous: {id:string;conversation_id:string;version_id:string;binding_id:string}|undefined;
     if(options.priorTaskId) {
       if(parsed.requests.length!==1) throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Follow up one specialist at a time");
@@ -65,19 +68,39 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
         JOIN agents_platform.delegations d ON d.child_task_id=t.id JOIN agents_platform.conversations c ON c.id=t.conversation_id
         WHERE t.id=$1 AND t.parent_task_id=$2 AND t.root_task_id=$4 AND t.organization_id=$3
           AND t.state IN ('completed','incomplete','refused','failed','cancelled','uncertain') AND c.deleted_at IS NULL FOR UPDATE OF c`,[options.priorTaskId,parentId,task.organization_id,task.root_task_id])).rows[0];
-      if(!previous || previous.binding_id!==parsed.requests[0]!.bindingId) throw new PlatformError("SPECIALIST_SCOPE_DENIED",403,"Specialist continuation is unavailable");
+      if(!previous || previous.binding_id!==selectorOf(parsed.requests[0]!)) throw new PlatformError("SPECIALIST_SCOPE_DENIED",403,"Specialist continuation is unavailable");
       if((await db.query("SELECT 1 FROM agents_platform.tasks WHERE conversation_id=$1 AND state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain')",[previous.conversation_id])).rowCount) throw new PlatformError("SPECIALIST_BUSY",409,"Specialist conversation is busy");
       const latest=(await db.query("SELECT id FROM agents_platform.tasks WHERE conversation_id=$1 ORDER BY turn_sequence DESC LIMIT 1",[previous.conversation_id])).rows[0];
       if(latest?.id!==previous.id) throw new PlatformError("SPECIALIST_STALE_TURN",409,"Follow up the latest specialist turn");
     }
+    const sharedSources=sourceAuthorityIds(config),sharedConnections=connectedToolAuthorityIds(config);
     const prepared=[];
     for(const request of parsed.requests) {
-      const binding=config.capabilities.delegation.bindings.find(item=>item.id===request.bindingId);
+      const selector=selectorOf(request);
+      const saved=parentDelegation.bindings.find(item=>item.id===selector);
+      const named=namedAgentId(selector), general=!saved&&selector==="general";
+      let binding: typeof parentDelegation.bindings[number]|undefined = saved;
+      if(!saved&&!named&&!general) throw new PlatformError("DELEGATION_BINDING_DENIED",403,"Specialist is not permitted");
+      if(!saved&&parentDelegation.roster==="restricted") throw new PlatformError("DELEGATION_ROSTER_DENIED",403,"Specialists are restricted to saved assignments");
+      const version=(await db.query(saved
+        ? "SELECT v.* FROM agents_platform.agent_versions v JOIN agents_platform.agents a ON a.id=v.agent_id AND a.organization_id=v.organization_id WHERE v.organization_id=$1 AND v.id=$2 AND a.deleted_at IS NULL FOR SHARE OF v,a"
+        : named
+          ? "SELECT v.* FROM agents_platform.agent_versions v JOIN agents_platform.agents a ON a.id=v.agent_id AND a.organization_id=v.organization_id WHERE v.organization_id=$1 AND a.id=$2 AND a.deleted_at IS NULL ORDER BY v.number DESC LIMIT 1 FOR SHARE OF v,a"
+          : "SELECT v.* FROM agents_platform.agent_versions v WHERE v.organization_id=$1 AND v.id=$2 FOR SHARE OF v",
+        [task.organization_id, saved?binding!.versionId:(named??task.version_id)])).rows[0];
+      if(!version) throw new PlatformError("DELEGATION_BINDING_DENIED",403,"Specialist version is unavailable");
+      if(!saved) {
+        // A named or temporary general child carries the published child configuration narrowed to
+        // what the parent itself is authorized to see; saved assignments remain the restricted roster.
+        const child=agentConfigurationSchema.parse(version.configuration);
+        binding={id:selector,versionId:version.id,label:named?"Named specialist":"General specialist",
+          sourceRevisionIds:child.sourceRevisionIds.filter(id=>sharedSources.includes(id)),
+          connectedToolBindingIds:child.connectedToolBindingIds.filter(id=>sharedConnections.includes(id)),
+          tools:child.tools,maxTokens:request.maxTokens??12000,maxActiveMs:300000};
+      }
       if(!binding) throw new PlatformError("DELEGATION_BINDING_DENIED",403,"Specialist is not permitted");
       if(!options.adaptive&&(binding.maxTokens===null||binding.maxTokens>12000||binding.maxActiveMs===null))throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Legacy delegation allocations cannot exceed 12,000 tokens");
-      const version=(await db.query("SELECT v.* FROM agents_platform.agent_versions v JOIN agents_platform.agents a ON a.id=v.agent_id AND a.organization_id=v.organization_id WHERE v.organization_id=$1 AND v.id=$2 AND a.deleted_at IS NULL FOR SHARE OF v,a",[task.organization_id,binding.versionId])).rows[0];
       if(previous && version?.id!==previous.version_id) throw new PlatformError("SPECIALIST_SCOPE_DENIED",403,"Specialist version changed");
-      if(!version) throw new PlatformError("DELEGATION_BINDING_DENIED",403,"Specialist version is unavailable");
       if(task.product==="growth"&&!(await db.query("SELECT 1 FROM agents_platform.product_execution_features WHERE product='growth' AND organization_id=$1 AND agent_id=$2 AND enabled FOR SHARE",[task.organization_id,version.agent_id])).rowCount)throw new PlatformError("DELEGATION_BINDING_DENIED",403,"Growth specialist is unavailable");
       const childConfig=agentConfigurationSchema.parse(version.configuration);
       if (Buffer.byteLength(request.brief)>childConfig.model.maxInputBytes ||
@@ -95,7 +118,7 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
         throw new PlatformError("ARTIFACT_HANDOFF_UNAVAILABLE",409,"This specialist cannot read selected artifacts");
       prepared.push({request,binding,version,effective,composition,maxTokens,models});
     }
-    const rollingTree=task.harness_release==="product-capabilities-v15";
+    const rollingTree=task.harness_release==="product-capabilities-v15"&&prepared.every(item=>item.binding.maxTokens===null&&item.binding.maxActiveMs===null);
     const tokens=rollingTree?0:prepared.reduce((sum,item)=>sum+(item.maxTokens??0),0), ms=rollingTree?0:prepared.reduce((sum,item)=>sum+(item.binding.maxActiveMs??0),0);
     // The root task allowance covers every branch. A narrower ancestor may also cap its subtree.
     for(const ancestor of [parent,...await delegationAncestors(db,parent)]) {

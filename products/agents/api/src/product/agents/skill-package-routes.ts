@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { Pool } from "pg";
 import { z } from "zod";
-import type { ManagementScope } from "../../execution/memory/memory";
+import type { ManagementScope } from "../../platform/memory";
 import { parseSkillPackage, parseSkillZip, SKILL_PACKAGE_LIMITS } from "../../capabilities/skills/package";
 import { SkillPackageStore } from "./skill-package-store";
 import { curatedSkillPackage } from "../../capabilities/skills/curated";

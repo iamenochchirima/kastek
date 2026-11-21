@@ -3,7 +3,7 @@ import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
 import type { Account } from "../../contracts/records";
 import { MemberStore, type InvitationRecord, type MemberRole, type MemberScope } from "./store";
-import { memberRoles } from "./permissions";
+import { memberRoles } from "../../platform/access";
 
 const role = z.enum(memberRoles);
 const memberBody = z.strictObject({ email: z.email().max(254), role: role.default("member") });

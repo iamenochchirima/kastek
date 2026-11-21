@@ -12,7 +12,7 @@ import { AppSwitcher, buildKasitekAppLinks } from "@kasitek-labs/ui/app-switcher
 import { InboxAlertsButton, InboxAlertsDialog, useInboxAlerts } from "./inbox-alerts";
 import { AssistantLauncher } from "./assistant-launcher";
 
-type Workspace = { organizationId: string; session: Session; createWorkspace: () => void; selectWorkspace: (id: string) => void; logout: () => Promise<void> };
+type Workspace = { organizationId: string; session: Session; plan: string | null; createWorkspace: () => void; selectWorkspace: (id: string) => void; logout: () => Promise<void> };
 const WorkspaceContext = createContext<Workspace | null>(null);
 export function useWorkspace() { const value = useContext(WorkspaceContext); if (!value) throw new Error("Workspace unavailable"); return value; }
 export function Loading() { return <div aria-label="Loading" className="space-y-4 py-8"><Skeleton className="h-7 w-48" /><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div>; }
@@ -43,6 +43,7 @@ export function WorkspaceShell() {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [billingFeatures, setBillingFeatures] = useState<Record<string, boolean> | null>(null);
+  const [plan, setPlan] = useState<string | null>(null);
   const load = async () => {
     setError("");
     try { const result = await api<Session>("/api/session"); setSession(result); const saved = sessionStorage.getItem("agents.organization"); setOrganizationId(result.organizations.find(org => org.id === saved)?.id ?? result.organizations[0]?.id ?? ""); }
@@ -50,11 +51,11 @@ export function WorkspaceShell() {
   };
   useEffect(() => { void load(); }, []);
   useEffect(() => {
-    if (!organizationId) { setBillingFeatures(null); return; }
+    if (!organizationId) { setBillingFeatures(null); setPlan(null); return; }
     let live = true;
-    api<{ snapshot?: { features?: Record<string, boolean> } }>(`${organizationPath(organizationId)}/billing`)
-      .then(result => { if (live) setBillingFeatures(result.snapshot?.features ?? null); })
-      .catch(() => { if (live) setBillingFeatures(null); });
+    api<{ snapshot?: { features?: Record<string, boolean>; plan?: { key?: string } | null } }>(`${organizationPath(organizationId)}/billing`)
+      .then(result => { if (live) { setBillingFeatures(result.snapshot?.features ?? null); setPlan(result.snapshot?.plan?.key ?? null); } })
+      .catch(() => { if (live) { setBillingFeatures(null); setPlan(null); } });
     return () => { live = false; };
   }, [organizationId]);
   async function createWorkspace(event: FormEvent) {
@@ -93,7 +94,7 @@ export function WorkspaceShell() {
     <header className="workspace-mobile-header"><Button ref={navigationTrigger} aria-label="Open navigation" size="icon" variant="ghost" onClick={() => setNavigationOpen(true)}><HugeiconsIcon icon={Menu01Icon} size={20} /></Button><Link to="/app/overview" className="font-semibold">Agents</Link><AppSwitcher current="agents" apps={appLinks} /><span className="ml-auto truncate text-xs text-muted-foreground">{session?.organizations.find(org => org.id === organizationId)?.name}</span>{organizationId ? <InboxAlertsButton unread={alerts.data?.unread ?? 0} onClick={openAlerts} mobile /> : null}</header>
     <Dialog open={navigationOpen} onOpenChange={setNavigationOpen}><DialogContent className="workspace-navigation-drawer" onCloseAutoFocus={event => { event.preventDefault(); navigationTrigger.current?.focus(); }}><DialogHeader><DialogTitle>Workspace navigation</DialogTitle><DialogDescription className="sr-only">Select a workspace page.</DialogDescription></DialogHeader>{navigation}<Button variant="ghost" onClick={() => setNavigationOpen(false)}><HugeiconsIcon icon={SidebarLeft01Icon} size={16} />Close navigation</Button></DialogContent></Dialog>
     <main id="workspace-content" tabIndex={-1} className={`workspace-main ${location.pathname.startsWith("/app/agents") ? "workspace-main-agents" : ""}`}>
-      {error ? <div className="workspace-page space-y-3"><ErrorMessage value={error} /><Button variant="outline" onClick={() => void load()}>Try again</Button></div> : !session ? <div className="workspace-page"><Loading /></div> : !organizationId ? <section className="workspace-page space-y-4"><h1 className="text-2xl font-semibold">No workspace access</h1><Button variant="outline" onClick={() => void load()}>Try again</Button></section> : <WorkspaceContext.Provider value={{ organizationId, session, createWorkspace: () => setWorkspaceOpen(true), selectWorkspace, logout }}><div className="workspace-outlet" key={`${session.account.id}.${organizationId}`}><Outlet /></div><AssistantLauncher organizationId={organizationId} accountId={session.account.id} isOwner={hasPermission(session.organizations.find(organization => organization.id === organizationId), "workspace.manage")} open={assistantOpen} onOpenChange={setAssistantOpen} hidden={navigationOpen || workspaceOpen || alertsOpen || /^\/app\/agents\/[^/]+/.test(location.pathname)} /></WorkspaceContext.Provider>}
+      {error ? <div className="workspace-page space-y-3"><ErrorMessage value={error} /><Button variant="outline" onClick={() => void load()}>Try again</Button></div> : !session ? <div className="workspace-page"><Loading /></div> : !organizationId ? <section className="workspace-page space-y-4"><h1 className="text-2xl font-semibold">No workspace access</h1><Button variant="outline" onClick={() => void load()}>Try again</Button></section> : <WorkspaceContext.Provider value={{ organizationId, session, plan, createWorkspace: () => setWorkspaceOpen(true), selectWorkspace, logout }}><div className="workspace-outlet" key={`${session.account.id}.${organizationId}`}><Outlet /></div><AssistantLauncher organizationId={organizationId} accountId={session.account.id} isOwner={hasPermission(session.organizations.find(organization => organization.id === organizationId), "workspace.manage")} open={assistantOpen} onOpenChange={setAssistantOpen} hidden={navigationOpen || workspaceOpen || alertsOpen || /^\/app\/agents\/[^/]+/.test(location.pathname)} /></WorkspaceContext.Provider>}
     </main>
     <InboxAlertsDialog key={`${organizationId}.${session?.account.id}`} open={alertsOpen} onOpenChange={setAlertsOpen} controller={alerts} restoreFocus={() => { if (alertsTrigger.current?.isConnected) alertsTrigger.current.focus(); else navigationTrigger.current?.focus(); }} />
     <Dialog open={workspaceOpen} onOpenChange={setWorkspaceOpen}><DialogContent><DialogHeader><DialogTitle>Create workspace</DialogTitle><DialogDescription>Name your workspace.</DialogDescription></DialogHeader><form onSubmit={event => void createWorkspace(event)} className="space-y-4"><label className="block space-y-2 text-sm">Workspace name<Input required maxLength={120} value={name} onChange={event => setName(event.target.value)} autoFocus /></label><Button type="submit" disabled={busy || !name.trim()}>{busy ? "Creating…" : "Create workspace"}</Button></form></DialogContent></Dialog>

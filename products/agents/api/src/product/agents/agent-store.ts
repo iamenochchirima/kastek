@@ -1,3 +1,4 @@
+import { skillPackageCodec } from "../../capabilities/skills/package";
 import { delegatedConfiguration } from "../../execution/delegation/scope";
 import { delegatedSkills } from "../../execution/delegation/skills";
 import { isDeepStrictEqual } from "node:util";
@@ -20,6 +21,7 @@ import { defaultAgentGuidance, defaultAgentIdentity, setupUpdatedLayers } from "
 import { randomAgentAvatar } from "./avatars";
 import { customerConfiguration } from "../offerings/offerings";
 import { compilePublishedComposition } from "../../execution/programs/publication";
+import { procedureDefinitionsFor } from "../../execution/procedures/workflow-revisions";
 import { assertComposition, assertInspectableComposition } from "../../execution/programs/composition";
 
 import { publishedToolBindings } from "../../capabilities/tools";
@@ -27,8 +29,9 @@ import { publishedToolBindings } from "../../capabilities/tools";
 import type { Account,AgentRecord,VersionRecord,WebsiteDeployment } from "../../contracts/records";
 import { DeploymentStore } from "../deployments/deployment-store";
 import { AuthorityStore } from "../../execution/admission/authority-store";
-import { loadSkillRevisions } from "../../execution/memory/memory";
-import { assertAgentsBillingFeature } from "../billing/billing";
+import { loadSkillRevisions } from "../../execution/memory/skills";
+import { assertAgentsBillingFeature, assertAgentsBillingLimit } from "../billing/billing";
+import { requirePermission } from "../../platform/access";
 
 type Db=Pool|PoolClient;
 function updatedSupportHoursSetup(agent:AgentRecord,configuration:AgentConfiguration):CustomerSetup|undefined {
@@ -155,7 +158,8 @@ export class AgentStore extends AuthorityStore {
     }
     return this.transaction(async db=>{
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
-      await this.membership(db,input.accountId,input.organizationId);
+      await this.membership(db, input.accountId, input.organizationId);
+      await requirePermission(db, { accountId: input.accountId, organizationId: input.organizationId }, "agents.manage");
       const digest=requestDigest({name:input.name,offering:input.offering??"customer-service",setup,...(input.configuration?{configuration:config}:{})});
       if(input.operationId){
         const existing=(await db.query<AgentRecord & {setup_request_digest:string}>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND created_by=$2 AND setup_operation_id=$3",[input.organizationId,input.accountId,input.operationId])).rows[0];
@@ -165,6 +169,9 @@ export class AgentStore extends AuthorityStore {
           return {agent:existing,snapshot,deployments:[]};
         }
       }
+      const count = await db.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM agents_platform.agents WHERE organization_id=$1 AND deleted_at IS NULL", [input.organizationId]);
+      await assertAgentsBillingLimit(this.pool, input.organizationId, "limit.agent_count", Number(count.rows[0]?.count ?? "0"));
       const agent=(await db.query<AgentRecord>(`INSERT INTO agents_platform.agents(id,organization_id,name,avatar,draft,created_by,offering,setup,setup_step,setup_operation_id,setup_request_digest)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,[randomUUID(),input.organizationId,text(input.name,120),randomAgentAvatar(),config,input.accountId,setup?"customer-service":input.offering??(input.configuration?null:"faq"),setup,setup?"Responsibilities":null,input.operationId??null,input.operationId?digest:null])).rows[0]!;
       const snapshot=await this.createVersionInTransaction(db,{...input,agentId:agent.id},agent);
@@ -177,6 +184,8 @@ export class AgentStore extends AuthorityStore {
   async saveConfigurationInTransaction(db:PoolClient,input:{accountId:string;organizationId:string;agentId:string;name?:string;avatar?:string;configuration:AgentConfiguration;expectedRevision:number;confirmImpact?:boolean;setup?:CustomerSetup;setupStep?:string}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
     let setup=input.setup===undefined?undefined:customerSetupSchema.parse(input.setup);
     let config=agentConfigurationSchema.parse(input.configuration);
+      const normalizeKnowledge=(value:AgentConfiguration):AgentConfiguration=>({...value,knowledge:value.knowledge&&value.knowledge.mode!=="auto"?value.knowledge:{mode:"retrieved"}});
+      const comparisonConfig=normalizeKnowledge(config);
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
       await this.membership(db,input.accountId,input.organizationId);
       await this.assertNoPendingTransfer(db,input.organizationId,input.agentId);
@@ -194,7 +203,8 @@ export class AgentStore extends AuthorityStore {
       if(agent.draft_revision!==input.expectedRevision)throw new PlatformError("DRAFT_CONFLICT",409,"The configuration has changed. Refresh and try again.");
       const latest=(await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC LIMIT 1",[input.organizationId,input.agentId])).rows[0];
       const previous=latest?agentConfigurationSchema.parse(latest.configuration):null;
-      const authority=previous?configurationAuthorityChange(previous,config):{expanded:false,reduced:false};
+      const latestConfig=previous;
+      const authority=previous?configurationAuthorityChange(previous,comparisonConfig):{expanded:false,reduced:false};
       if(authority.reduced)await db.query(`SELECT g.id FROM agents_platform.execution_grants g
         WHERE g.organization_id=$1 AND g.revoked_at IS NULL AND g.version_id IN
         (SELECT id FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2)
@@ -204,16 +214,17 @@ export class AgentStore extends AuthorityStore {
       const name=input.name===undefined?agent.name:text(input.name,120);
       const avatar=input.avatar??agent.avatar;
       const setupChanged=(setup!==undefined&&!isDeepStrictEqual(agent.setup,setup))||(input.setupStep!==undefined&&agent.setup_step!==input.setupStep);
-      const changed=!isDeepStrictEqual(agentConfigurationSchema.parse(agent.draft),config)||setupChanged;
+      const changed=!isDeepStrictEqual(normalizeKnowledge(agentConfigurationSchema.parse(agent.draft)),comparisonConfig)||setupChanged;
+      const procedureDefinitions=await procedureDefinitionsFor(db,input.organizationId,config.procedures??[]);
       let refreshRelease = false;
       if (!changed && latest && latest.draft_revision === agent.draft_revision) {
         const bindings = (await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])", [input.organizationId, config.connectedToolBindingIds])).rows.map(row => capabilityBindingSchema.parse(row.binding));
         if (bindings.length !== config.connectedToolBindingIds.length) throw new PlatformError("CAPABILITY_BINDING_UNAVAILABLE",409,"Published connected tools are unavailable");
-        const current = compilePublishedComposition(config, bindings);
+        const current = compilePublishedComposition(latestConfig!, bindings, undefined, undefined, procedureDefinitions);
         try { assertComposition(latest.effective_composition, current); }
         catch (error) {
           if (!(error instanceof PlatformError) || error.code !== "PROGRAM_RELEASE_UNAVAILABLE") throw error;
-          const accepted=compilePublishedComposition(config,bindings,latest.effective_composition.runtime,latest.tool_bindings);
+          const accepted=compilePublishedComposition(latestConfig!,bindings,latest.effective_composition.runtime,latest.tool_bindings,procedureDefinitions);
           assertInspectableComposition(latest.effective_composition, accepted);
           refreshRelease = true;
         }
@@ -223,7 +234,7 @@ export class AgentStore extends AuthorityStore {
         agent=(await db.query<AgentRecord>("UPDATE agents_platform.agents SET name=$3,avatar=$4,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *",[input.organizationId,input.agentId,name,avatar])).rows[0]!;
         return {agent,snapshot:latest,deployments};
       }
-      if(input.confirmImpact!==true&&(((previous?canonical(previous)!==canonical(config):changed)&&(deployments.length>0||channelDeployments.length>0))||authority.expanded))throw new PlatformError("CONFIGURATION_CONFIRMATION_REQUIRED",409,"Confirm changes to agent permissions or connected customer channels.");
+      if(input.confirmImpact!==true&&(((previous?canonical(previous)!==canonical(comparisonConfig):changed)&&(deployments.length>0||channelDeployments.length>0))||authority.expanded))throw new PlatformError("CONFIGURATION_CONFIRMATION_REQUIRED",409,"Confirm changes to agent permissions or connected customer channels.");
       agent=(await db.query<AgentRecord>(`UPDATE agents_platform.agents SET draft=$3,name=$4,avatar=$7,setup=coalesce($5,setup),setup_step=coalesce($6,setup_step),draft_revision=draft_revision+1,updated_at=now()
         WHERE organization_id=$1 AND id=$2 RETURNING *`,[input.organizationId,input.agentId,config,name,setup??null,input.setupStep??null,avatar])).rows[0]!;
       const snapshot=await this.createVersionInTransaction(db,input,agent);
@@ -255,6 +266,7 @@ export class AgentStore extends AuthorityStore {
   }
   async createVersionInTransaction(db:PoolClient,input:{accountId:string;organizationId:string;agentId:string},agent:AgentRecord):Promise<VersionRecord> {
       const config = agentConfigurationSchema.parse(agent.draft);
+      const procedureDefinitions=await procedureDefinitionsFor(db,input.organizationId,config.procedures??[]);
       if (config.tools.includes("channel.request_handoff"))
         await assertAgentsBillingFeature(this.pool, input.organizationId, "agents.feature.handoff");
       const connectedAuthority = connectedToolAuthorityIds(config);
@@ -318,14 +330,14 @@ export class AgentStore extends AuthorityStore {
       assertConnectedBindingDependencies(connected.filter(row => config.connectedToolBindingIds.includes(row.id))
         .map(row => capabilityBindingSchema.parse(row.binding)));
       if (config.skillIds.length) {
-        const selectedSkills=await loadSkillRevisions(db, input.organizationId, input.agentId, config.skillIds);
+        const selectedSkills=await loadSkillRevisions(db, input.organizationId, input.agentId, config.skillIds, skillPackageCodec);
         const profiles=connected.map(row=>capabilityBindingSchema.parse(row.binding).connection?.profileId).filter((profile):profile is string=>!!profile);
         for(const skill of selectedSkills)if(skill.package)assertSkillRequirements(skill.package.requirements,config,profiles);
       }
-      const composition = compilePublishedComposition(config, connected.filter(row => config.connectedToolBindingIds.includes(row.id)).map(row => capabilityBindingSchema.parse(row.binding)));
+      const composition = compilePublishedComposition(config, connected.filter(row => config.connectedToolBindingIds.includes(row.id)).map(row => capabilityBindingSchema.parse(row.binding)), undefined, undefined, procedureDefinitions);
       const version = (await db.query<VersionRecord>(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,execution_kind,configuration,created_by,draft_revision,tool_bindings,effective_composition)
         SELECT $1,$2,$3,coalesce(max(number),0)+1,$4,$5,$6,$7,$8,$9 FROM agents_platform.agent_versions WHERE agent_id=$3 RETURNING *`,
-      [randomUUID(), input.organizationId, input.agentId, config.executionKind, config, input.accountId, agent.draft_revision,JSON.stringify(publishedToolBindings(config)),composition])).rows[0]!;
+      [randomUUID(), input.organizationId, input.agentId, config.executionKind, config, input.accountId, agent.draft_revision,JSON.stringify(publishedToolBindings(config,false,undefined,undefined,procedureDefinitions.size)),composition])).rows[0]!;
       for (const source of sources) await db.query("INSERT INTO agents_platform.version_sources(organization_id,version_id,source_id,revision_id) VALUES($1,$2,$3,$4)", [input.organizationId, version.id, source.source_id, source.id]);
       for (const binding of connected) await db.query("INSERT INTO agents_platform.version_connected_tools(organization_id,version_id,binding_id) VALUES($1,$2,$3)", [input.organizationId, version.id, binding.id]);
       return version;

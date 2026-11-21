@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { transaction } from "./db.js";
 import type { SandboxManifest } from "./version.js";
@@ -240,6 +240,79 @@ export async function createSandbox(
   });
 }
 
+export interface CreateApiEnvironmentInput {
+  id: string;
+  name: string;
+  baseUrl: string;
+  organizationId: string;
+  applicationId: string;
+  credentialFile: string;
+  workspaceLabel?: string;
+}
+
+function digest(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+/**
+ * An API environment is a deployed product reached through its application API.
+ * It is stored in the sandbox registry so agent refs, sessions and the client keep
+ * one environment record; `profile='api'` and `runtime.kind='api'` distinguish it
+ * from a provisioned sandbox.
+ */
+export async function createApiEnvironment(
+  pool: Pool,
+  input: CreateApiEnvironmentInput,
+): Promise<SandboxDetail> {
+  const identity = digest(
+    `${input.baseUrl}\n${input.organizationId}\n${input.applicationId}`,
+  );
+  await transaction(pool, async (client) => {
+    await client.query(
+      `INSERT INTO evals.sandboxes(
+         id, product, status, profile, provisioned_at, runtime
+       ) VALUES($1,'agents','ready','api',now(),$2::jsonb)`,
+      [
+        input.id,
+        JSON.stringify({
+          kind: "api",
+          name: input.name,
+          baseUrl: input.baseUrl,
+          organizationId: input.organizationId,
+          applicationId: input.applicationId,
+          credentialFile: input.credentialFile,
+        }),
+      ],
+    );
+    await client.query(
+      `INSERT INTO evals.sandbox_versions(
+         id, sandbox_id, code_revision, image_digest, schema_version,
+         migration_checksum, config_digest, runtime_version,
+         model_routes_digest, adapter_versions
+       ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [
+        randomUUID(),
+        input.id,
+        `application-api:${new URL(input.baseUrl).host}`.slice(0, 200),
+        "application-api",
+        "api",
+        identity,
+        digest(JSON.stringify({ applicationId: input.applicationId })),
+        "application-api",
+        identity,
+        JSON.stringify({ application: "1" }),
+      ],
+    );
+    await insertWorkspaceRef(client, input.id, {
+      productWorkspaceId: input.organizationId,
+      label: input.workspaceLabel ?? input.name,
+    });
+  });
+  const detail = await getSandbox(pool, input.id);
+  if (!detail) throw new Error("API environment was not recorded");
+  return detail;
+}
+
 export async function listSandboxes(
   pool: Pool,
   limit: number,
@@ -348,6 +421,7 @@ export interface AgentRef {
   sourceIds: string[];
   compositionDigest: string;
   modelRoutesDigest: string;
+  retiredAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -385,6 +459,7 @@ function mapAgentRef(row: Row): AgentRef {
     sourceIds,
     compositionDigest: String(row.composition_digest),
     modelRoutesDigest: String(row.model_routes_digest),
+    retiredAt: row.retired_at ? iso(row.retired_at) : null,
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   };
@@ -452,13 +527,47 @@ export async function createAgentRef(
 export async function listAgentRefs(
   pool: Pool,
   sandboxId: string,
+  includeRetired = false,
 ): Promise<AgentRef[]> {
   const result = await pool.query(
     `SELECT * FROM evals.agent_refs
-     WHERE sandbox_id=$1 ORDER BY created_at DESC, id DESC`,
+     WHERE sandbox_id=$1 ${includeRetired ? "" : "AND retired_at IS NULL"}
+     ORDER BY created_at DESC, id DESC`,
     [sandboxId],
   );
   return result.rows.map((row) => mapAgentRef(row as Row));
+}
+
+/** Bring a previously retired version back when the product still serves it. */
+export async function reactivateAgentRef(
+  pool: Pool,
+  sandboxId: string,
+  agentRefId: string,
+): Promise<AgentRef | null> {
+  const result = await pool.query(
+    `UPDATE evals.agent_refs
+     SET retired_at=NULL, updated_at=now()
+     WHERE sandbox_id=$1 AND id=$2
+     RETURNING *`,
+    [sandboxId, agentRefId],
+  );
+  return result.rows[0] ? mapAgentRef(result.rows[0] as Row) : null;
+}
+
+/** Retire refs that no longer represent a current product agent version. */
+export async function retireAgentRefsExcept(
+  pool: Pool,
+  sandboxId: string,
+  keepIds: readonly string[],
+): Promise<string[]> {
+  const result = await pool.query(
+    `UPDATE evals.agent_refs
+     SET retired_at=now(), updated_at=now()
+     WHERE sandbox_id=$1 AND retired_at IS NULL AND id <> ALL($2::uuid[])
+     RETURNING id`,
+    [sandboxId, keepIds],
+  );
+  return result.rows.map((row) => String((row as Row).id));
 }
 
 export async function getAgentRef(

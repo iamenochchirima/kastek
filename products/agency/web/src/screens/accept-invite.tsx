@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "@/lib/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from "@/lib/zod-resolver";
 import { tenantFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Input } from "@/components/ui/input";

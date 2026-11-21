@@ -41,6 +41,14 @@ import {
 } from "./product-models.js";
 import { restartSandboxRuntime } from "./runtime.js";
 import { SandboxSyncError, syncSandbox } from "./sandbox-sync.js";
+import { MountedSyncError, syncMountedSandbox } from "./mounted-sync.js";
+import {
+  ApiEnvironmentError,
+  connectApiEnvironment,
+  createApiAgent,
+  createTestApiEnvironment,
+  listApiAgents,
+} from "./api-environments.js";
 import { AgentTemplateError, listAgentTemplates } from "./agent-templates.js";
 import {
   AgentProfileError,
@@ -53,6 +61,7 @@ import {
 import {
   chatWithProductAgent,
   ProductChatError,
+  productAgentActivity,
   productMessages,
 } from "./product-chat.js";
 import {
@@ -273,6 +282,18 @@ export function buildApi(
         code: error.code,
       });
     }
+    if (error instanceof MountedSyncError) {
+      return reply.code(error.statusCode).send({
+        error: error.message,
+        code: error.code,
+      });
+    }
+    if (error instanceof ApiEnvironmentError) {
+      return reply.code(error.statusCode).send({
+        error: error.message,
+        code: error.code,
+      });
+    }
     if (error instanceof AgentProfileError) {
       return reply.code(error.statusCode).send({
         error: error.message,
@@ -373,6 +394,26 @@ export function buildApi(
     service: "evals",
     version: "0.1.0",
   }));
+
+  app.post("/v1/api-environments", async (request, reply) => {
+    const result = await connectApiEnvironment(config, pool, request.body);
+    request.log.info(
+      { event: "environment.api.connected", environmentId: result.environment.sandbox.id,
+        applicationId: (result.environment.sandbox.runtime as Record<string, unknown>).applicationId },
+      "API environment connected",
+    );
+    return reply.code(201).send(result);
+  });
+
+  app.post("/v1/api-environments/test", async (request, reply) => {
+    const result = await createTestApiEnvironment(config, pool, request.body);
+    request.log.info(
+      { event: "environment.api.test_org_created", environmentId: result.environment.sandbox.id,
+        organizationId: result.organization.id, agentId: result.agent.id },
+      "Test organization created for API environment",
+    );
+    return reply.code(201).send(result);
+  });
 
   app.post("/v1/sandboxes", async (request, reply) => {
     const body = bodyObject(request.body);
@@ -573,6 +614,29 @@ export function buildApi(
       });
     }
     return reply.code(201).send({ workspaceRef: ref });
+  });
+
+  app.get("/v1/sandboxes/:id/api-agents", async (request) => {
+    const params = request.params as { id: string };
+    return {
+      agents: await listApiAgents(config, pool, uuid(params.id, "id")),
+    };
+  });
+
+  app.post("/v1/sandboxes/:id/api-agents", async (request, reply) => {
+    const params = request.params as { id: string };
+    const result = await createApiAgent(
+      config,
+      pool,
+      uuid(params.id, "id"),
+      request.body,
+    );
+    request.log.info(
+      { event: "environment.api.agent_created", sandboxId: params.id,
+        agentId: result.agent.id, versionId: result.agent.version?.id },
+      "API agent created",
+    );
+    return reply.code(201).send(result);
   });
 
   app.post("/v1/sandboxes/:id/agents", async (request, reply) => {
@@ -781,6 +845,19 @@ export function buildApi(
     return result;
   });
 
+  app.post("/v1/sandboxes/:id/mounted-sync", async (request) => {
+    const params = request.params as { id: string };
+    const sandboxId = uuid(params.id, "id");
+    const result = await syncMountedSandbox(config, pool, sandboxId);
+    request.log.info(
+      { event: "sandbox.mounted_synced", sandboxId, codeRevision: result.version.codeRevision,
+        schemaVersion: result.schema.version, latestMigration: result.schema.latestMigration,
+        activeAgents: result.agents.active, retiredAgents: result.agents.retired },
+      "Mounted sandbox synced",
+    );
+    return result;
+  });
+
   app.post("/v1/sandboxes/:id/runtime/restart", async (request) => {
     const params = request.params as { id: string };
     const sandboxId = uuid(params.id, "id");
@@ -796,6 +873,20 @@ export function buildApi(
     const params = request.params as { id: string };
     const sandboxId = uuid(params.id, "id");
     return { agents: await listProductAgents(config, pool, sandboxId) };
+  });
+
+  app.get("/v1/sandboxes/:id/agents/:agentRefId/activity", async (request) => {
+    const params = request.params as { id: string; agentRefId: string };
+    const query = request.query as { taskId?: unknown };
+    return productAgentActivity(
+      config,
+      pool,
+      uuid(params.id, "id"),
+      uuid(params.agentRefId, "agentRefId"),
+      typeof query.taskId === "string" && query.taskId
+        ? uuid(query.taskId, "taskId")
+        : undefined,
+    );
   });
 
   app.post("/v1/sandboxes/:id/chat", async (request) => {

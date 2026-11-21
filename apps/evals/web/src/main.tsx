@@ -8,6 +8,7 @@ import SandboxAgentChatPage from "./pages/SandboxAgentChatPage";
 import SessionsPage from "./pages/SessionsPage";
 import SessionDetailPage from "./pages/SessionDetailPage";
 import OutcomesPage from "./pages/OutcomesPage";
+import AgentConfigurationPage from "./pages/AgentConfigurationPage";
 import "./styles.css";
 
 createRoot(document.getElementById("root")!).render(
@@ -21,6 +22,7 @@ createRoot(document.getElementById("root")!).render(
           <Route path="sandboxes/:id/sessions/:sessionId" element={<SessionDetailPage />} />
           <Route path="sessions" element={<SessionsPage />} />
           <Route path="outcomes" element={<OutcomesPage />} />
+          <Route path="configuration" element={<AgentConfigurationPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

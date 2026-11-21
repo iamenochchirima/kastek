@@ -78,7 +78,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       {name:"agents.model.budget_roots",value:1,attributes:{budget:"cost",state:"saturated"}},
       {name:"agents.model.unknown_cost_operations",value:0,attributes:{}},
     ]));
-    for(const point of points)expect(Object.keys(point.attributes).every(key=>["product","program","state","workload","kind","action","role","budget"].includes(key))).toBe(true);
+    for(const point of points)expect(Object.keys(point.attributes).every(key=>["product","program","state","workload","kind","action","role","budget","tenant"].includes(key)),JSON.stringify(point)).toBe(true);
     expect((await collectNativeMetrics(pool,"worker")).filter(point=>point.name==="agents.usage.tokens")).toEqual(points.filter(point=>point.name==="agents.usage.tokens"));
   });
   it.skipIf(!process.env.AGENTS_TEST_OTEL_METRICS_ENDPOINT)("exports real SDK metric points through the local Collector",async()=>{

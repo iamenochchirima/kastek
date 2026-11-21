@@ -152,6 +152,71 @@ For `product: "growth"`, the request creates a Growth sandbox and a paired
 Agents runtime sandbox. The Growth runtime uses the signed Growth → Agents
 service keys and records the pair in `GET /v1/sandboxes/:id`.
 
+### Connect an API environment
+
+A deployed product can be recorded without provisioning it. This is the path an
+external product uses: it owns the deployment and the evaluation service reaches
+it through an Agents application credential.
+
+Create a test organization in a deployment Evals already has an owner session
+for. The operator supplies no organization, application or credential:
+
+```sh
+curl -sS http://127.0.0.1:4600/v1/api-environments/test \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{
+    "name":"Agents local test",
+    "baseUrl":"http://127.0.0.1:4100",
+    "organizationName":"Evals test org"
+  }'
+```
+
+The service creates the organization, an agent, and an application with
+`agents:read`, `agents:manage` and `agents:publish`, then connects the
+environment and records the bootstrap agent. The owner session comes from a
+connected sandbox whose `runtime.apiUrl` matches the base URL.
+
+To connect an existing application credential instead:
+
+```sh
+curl -sS http://127.0.0.1:4600/v1/api-environments \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{
+    "name":"Agents staging",
+    "baseUrl":"https://agents.staging.example.com",
+    "organizationId":"<organization-uuid>",
+    "applicationId":"<application-uuid>",
+    "credential":"kat_..."
+  }'
+```
+
+The service validates the credential with `GET /v1/agents`, writes it to
+`.audit/api-environments/<id>/credential.json` at mode `0600`, and records an
+environment with `profile = api` and `runtime.kind = api`.
+
+Create and configure an agent through the application API:
+
+```sh
+POST /v1/sandboxes/:id/api-agents
+{
+  "name":"Support API agent",
+  "purpose":"Answer customer questions",
+  "instructions":"Answer from approved knowledge only.",
+  "configuration": { "tools":["memory.search"], "memory":{"enabled":true}, "...":"..." },
+  "publish":true
+}
+```
+
+The service calls `POST /v1/agents`, previews and patches the configuration using
+the returned `draftRevision`, publishes the version and records an agent
+reference. `GET /v1/sandboxes/:id/api-agents` lists the application's agents with
+their current version, draft revision and Evals reference.
+
+Deleting an API environment removes the credential file and retires the record.
+It does not change the deployment.
+
 The local provisioner currently:
 
 1. Creates `agents_sandbox_<id>` on the local PostgreSQL server.
@@ -251,11 +316,12 @@ page and on the chat error state. The service also checks ready sandboxes every 
 seconds and restarts a stopped local runtime automatically. If the Growth runtime is
 unavailable, the Agents tab returns a clear error instead of an empty list.
 
-### Agent setup profiles
+### Agent setup
 
-Agent setup profiles make sandbox agent configuration repeatable. A profile targets
-either the existing platform Assistant or a new business agent, and is applied
-through normal Agents APIs.
+Agent setup makes sandbox agent configuration repeatable. The control plane stores
+each versioned configuration as an immutable profile record; the Evals UI and
+API call the resulting thing an agent. A setup targets either the existing platform
+Assistant or a new business agent, and is applied through normal Agents APIs.
 
 ```sh
 curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/agent-profiles" \
@@ -377,6 +443,13 @@ Growth model selection is feature-level and applies to new messages, matching th
 Growth product. The sandbox provisioning expands the Growth model grant to the full
 local provider catalogue, so the chat model picker is not limited to the single
 managed default.
+
+Agents model selection reads the sandbox organization's active model-provider
+connections and their cached catalogue. The chat picker filters by provider, shows
+the organization default and every discovered model, and names the connection when a
+provider has more than one. Selecting a model updates the organization default;
+inherited agent configurations use it on the next message without republishing the
+agent version.
 
 ```sh
 curl -sS "http://127.0.0.1:4600/v1/sandboxes/$SANDBOX_ID/agents/$AGENT_REF_ID/models" \

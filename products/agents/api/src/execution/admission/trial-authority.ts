@@ -46,7 +46,7 @@ export async function trialModelRoutes(db: PoolClient, trialId: string, organiza
     const binding = route.binding;
     if (binding.organizationId !== organizationId || requestDigest(route.definition) !== binding.providerDefinitionDigest ||
         (grant.rootTokenLimit !== null && (route.policy.maxRootTokens === null || route.policy.maxRootTokens > grant.rootTokenLimit)) || route.policy.maxInputBytes > grant.maxInputBytes ||
-        route.policy.maxInputTokens > grant.maxContextTokens || route.policy.maxOutputTokens > grant.maxOutputTokens) {
+        route.policy.maxInputTokens > grant.maxContextTokens || (binding.role !== "compaction" && route.policy.maxOutputTokens > grant.maxOutputTokens)) {
       throw new PlatformError("EVALUATION_MODEL_MISMATCH", 403, "The execution grant does not authorize the pinned model policy");
     }
     const current = await db.query(`SELECT 1 FROM agents_platform.model_provider_connections c

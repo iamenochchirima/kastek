@@ -93,7 +93,7 @@ export class DeploymentStore extends AuthorityStore {
       await this.assertCustomerSubtreeInTransaction(db,version,websiteConfig,new Set(),allowProductBindings);
       if(websiteConfig.capabilities.businessActions.enabled)await loadBookingPolicy(db,input.organizationId,input.agentId,websiteConfig.capabilities.businessActions);
       if ((await db.query(`SELECT 1 FROM agents_platform.version_sources v JOIN agents_platform.sources s ON s.id=v.source_id
-        JOIN agents_platform.source_revision_policy p ON p.revision_id=v.revision_id WHERE v.version_id=$1 AND (s.state<>'active' OR p.state<>'approved')`, [version.id])).rowCount) throw new PlatformError("PRIVATE_KNOWLEDGE", 409, "Website agents require approved public knowledge");
+        JOIN agents_platform.source_revision_policy p ON p.revision_id=v.revision_id WHERE v.version_id=$1 AND (s.state<>'active' OR p.state<>'approved')`, [version.id])).rowCount) throw new PlatformError("UNAPPROVED_KNOWLEDGE", 409, "Website agents require approved knowledge");
   }
   private async assertCustomerSubtreeInTransaction(db:PoolClient,version:VersionRecord,configuration:VersionRecord["configuration"],trail:Set<string>,allowProductBindings=false):Promise<void> {
     if(trail.has(version.id))throw new PlatformError("DELEGATION_SCOPE_DENIED",409,"Specialist publication contains a cycle");
@@ -106,7 +106,7 @@ export class DeploymentStore extends AuthorityStore {
     if((await db.query(`SELECT 1 FROM agents_platform.source_revisions r JOIN agents_platform.sources s ON s.id=r.source_id
       JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id WHERE r.organization_id=$1 AND r.id=ANY($2::uuid[])
       AND (s.state<>'active' OR p.state<>'approved')`,[version.organization_id,sourceAuthorityIds(configuration)])).rowCount)
-      throw new PlatformError("PRIVATE_KNOWLEDGE",409,"Customer specialists require approved public knowledge");
+      throw new PlatformError("UNAPPROVED_KNOWLEDGE",409,"Customer specialists require approved knowledge");
     if(configuration.capabilities.delegation.enabled) {
       const next=new Set([...trail,version.id]);
       for(const binding of configuration.capabilities.delegation.bindings) {

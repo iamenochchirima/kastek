@@ -80,7 +80,7 @@ describe("direct private product writes", () => {
  it("requires product.write even though no separate draft review is needed", () => {
   const {bindings}=fixture("draft_write"),config=defaultBusinessConfiguration();config.program={id:"tool-directed",version:"3"};config.productBindings=bindings;
   const authority={product:"growth" as const,organizationId:bindings[0]!.organizationId,resourceId:"business",callerClientId:"growth-api",principal:{kind:"human" as const,issuer:"https://identity.example",subject:"person"}};
-  const versionId=randomUUID(),grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId,operations:["model.reply","product.read"],sourceRevisionIds:[],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+60000).toISOString(),revokedAt:null});
+  const versionId=randomUUID(),grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId,operations:["model.reply","product.read"],sourceRevisionIds:[],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.model.maxInputBytes,rootTokenLimit:32000,expiresAt:new Date(Date.now()+60000).toISOString(),revokedAt:null});
   expect(()=>assertGrantAuthority(grant,authority,versionId,config)).toThrowError(expect.objectContaining({code:"GRANT_PRODUCT_DENIED"}));
   expect(()=>assertGrantAuthority({...grant,operations:[...grant.operations,"product.write"]},authority,versionId,config)).not.toThrow();
  });
@@ -140,7 +140,7 @@ describe("direct private product writes", () => {
  it("requires product.write even though no separate draft review is needed", () => {
   const {bindings}=fixture("draft_write"),config=defaultBusinessConfiguration();config.program={id:"tool-directed",version:"3"};config.productBindings=bindings;
   const authority={product:"growth" as const,organizationId:bindings[0]!.organizationId,resourceId:"business",callerClientId:"growth-api",principal:{kind:"human" as const,issuer:"https://identity.example",subject:"person"}};
-  const versionId=randomUUID(),grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId,operations:["model.reply","product.read"],sourceRevisionIds:[],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+60000).toISOString(),revokedAt:null});
+  const versionId=randomUUID(),grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId,operations:["model.reply","product.read"],sourceRevisionIds:[],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.model.maxInputBytes,rootTokenLimit:32000,expiresAt:new Date(Date.now()+60000).toISOString(),revokedAt:null});
   expect(()=>assertGrantAuthority(grant,authority,versionId,config)).toThrowError(expect.objectContaining({code:"GRANT_PRODUCT_DENIED"}));
   expect(()=>assertGrantAuthority({...grant,operations:[...grant.operations,"product.write"]},authority,versionId,config)).not.toThrow();
  });

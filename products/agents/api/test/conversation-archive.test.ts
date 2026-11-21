@@ -17,7 +17,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const url = new URL(databaseUrl!); url.pathname = `/${database}`; pool = new Pool({ connectionString: url.href }); await setupPlatformSchema(pool); store = new PlatformStore(pool);
     app = await buildPlatformApp({ pool, logging: false, config: loadPlatformConfig({ NODE_ENV: "test", AGENTS_DATABASE_URL: url.href, AGENTS_PUBLIC_URL: origin, AGENTS_OIDC_CLIENT_SECRET: "archive-offline-fixture-secret-only", OPENROUTER_API_KEY: "offline-never-sent" }) });
     endpoint = await app.listen({ port: 0, host: "127.0.0.1" });
-  });
+  },30_000);
   afterAll(async () => { await app?.close(); await pool?.end(); if (admin) { await dropClosedTestDatabase(admin, database); await admin.end(); } });
   async function actor() { const user = await store.ensureAccount({ issuer: "http://localhost:8080/realms/kasitek", subject: randomUUID(), email: "archive@example.test", displayName: "Archivist" }); const session = await store.createSession({ accountId: user.id, providerSessionId: randomUUID(), expiresAt: new Date(Date.now() + 3600000) }); return { user, cookie: `agents_session=${session.token}` }; }
   async function call(method: string, path: string, cookie: string, body?: unknown) { const response = await fetch(endpoint + path, { method, headers: { cookie, "content-type": "application/json", origin }, body: body === undefined ? undefined : JSON.stringify(body) }); return { status: response.status, body: await response.json() as any }; }

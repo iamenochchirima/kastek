@@ -80,8 +80,8 @@ interface Root { id: string; organization_id: string; principal: unknown; create
 interface RuntimeRows {
   tasks: { id: string; name: string; tokens_used: unknown; model_calls: unknown; tool_calls: unknown }[];
   operations: { id: string; task_id: string; kind: string; name: string; catalog_description?:unknown; catalog_binding?:unknown; state: string; started_at: unknown; completed_at: unknown; error_code: unknown }[];
-  aggregate: { input_tokens?: unknown; output_tokens?: unknown; observed_calls?: unknown; operation_count?: unknown; compaction_count?: unknown; last_compacted_at?: unknown; compacting?: boolean };
-  snapshot?: { estimated_tokens?: unknown; history_count?: unknown; source_count?: unknown; compacted?: unknown };
+  aggregate: { input_tokens?: unknown; output_tokens?: unknown; observed_calls?: unknown; operation_count?: unknown; compaction_count?: unknown; last_compacted_at?: unknown; compacting?: boolean; pruned_groups?: unknown };
+  snapshot?: { estimated_tokens?: unknown; full_estimated_tokens?: unknown; trigger_tokens?: unknown; route_input_limit?: unknown; history_count?: unknown; source_count?: unknown; compacted?: unknown };
   route?: { model_id?: unknown; provider_id?: unknown; policy?: Record<string, unknown> };
   timing?: { duration_ms?: unknown; first_token_ms?: unknown; output_tokens?: unknown };
 }
@@ -89,7 +89,11 @@ interface RuntimeRows {
 export function projectGrowthRuntime(root: Root, rows: RuntimeRows, now = new Date()): GrowthAgentRuntime {
   const observedAt = now.toISOString(), policy = rows.route?.policy;
   const estimated = count(rows.snapshot?.estimated_tokens), window = count(policy?.contextTokens), compactAt = count(policy?.compactAtTokens),inputLimit=count(policy?.maxInputTokens);
+  const full = count(rows.snapshot?.full_estimated_tokens) ?? estimated;
+  const trigger = count(rows.snapshot?.trigger_tokens) ?? compactAt;
+  const routeLimit = count(rows.snapshot?.route_input_limit);
   const available=[inputLimit,window].filter((value):value is number=>value!==null&&value>0),effectiveInput=available.length?Math.min(...available):null;
+  const routeEffective=routeLimit??effectiveInput;
   const duration = count(rows.timing?.duration_ms), first = count(rows.timing?.first_token_ms), output = count(rows.timing?.output_tokens);
   const agentNames = new Map(rows.tasks.map(task => [task.id, task.name.slice(0, 256)]));
   const operations = rows.operations.slice(0, operationLimit).sort((left,right)=>Date.parse(instant(left.started_at)??"")-Date.parse(instant(right.started_at)??"")||left.id.localeCompare(right.id)).flatMap((operation): GrowthAgentRuntimeOperation[] => {
@@ -108,9 +112,13 @@ export function projectGrowthRuntime(root: Root, rows: RuntimeRows, now = new Da
       outputTokensPerSecond: output !== null && duration !== null && duration > 0 ? output / (duration / 1000) : null },
     context: { estimatedInputTokens: estimated, inputLimitTokens: inputLimit, windowTokens: window,
       reservedOutputTokens: count(policy?.maxOutputTokens), safetyTokens: count(policy?.safetyTokens),
-      compactAtTokens: compactAt, pressure: rows.aggregate.compacting ? "compaction_due" : estimated === null || compactAt === null ? null : estimated >= compactAt ? "compaction_due" : "normal",
+      compactAtTokens: trigger, pressure: rows.aggregate.compacting ? "compaction_due" : full === null || trigger === null ? null : full >= trigger ? "compaction_due" : "normal",
       decision: rows.aggregate.compacting ? "compacting" : rows.snapshot ? rows.snapshot.compacted === true ? "compacted" : "prepared" : null,
       utilizationPercent: estimated !== null && effectiveInput !== null ? estimated / effectiveInput * 100 : null,
+      routeInputLimitTokens: routeLimit,
+      routeUtilizationPercent: estimated !== null && routeEffective !== null ? estimated / routeEffective * 100 : null,
+      fullInputTokens: full,
+      prunedGroups: count(rows.aggregate.pruned_groups) ?? 0,
       compactionCount: count(rows.aggregate.compaction_count) ?? 0, lastCompactedAt: instant(rows.aggregate.last_compacted_at),
       historyGroups: count(rows.snapshot?.history_count), sourceCount: count(rows.snapshot?.source_count) },
     usage: { accountedTokens: rows.tasks.reduce((sum, task) => sum + (count(task.tokens_used) ?? 0), 0),
@@ -154,9 +162,14 @@ export async function readTaskRuntime(pool: Pool, root: Root, product:"agents"|"
     bool_or(task_id=$2 AND kind='compaction' AND state='started') compacting,
     count(*) FILTER(WHERE kind IN ('model','compaction') AND output->'usage'->>'observed'='true')::int observed_calls,
     sum(CASE WHEN kind IN ('model','compaction') AND output->'usage'->>'observed'='true' AND jsonb_typeof(output->'usage'->'inputTokens')='number' THEN (output->'usage'->>'inputTokens')::numeric END) input_tokens,
-    sum(CASE WHEN kind IN ('model','compaction') AND output->'usage'->>'observed'='true' AND jsonb_typeof(output->'usage'->'outputTokens')='number' THEN (output->'usage'->>'outputTokens')::numeric END) output_tokens
+    sum(CASE WHEN kind IN ('model','compaction') AND output->'usage'->>'observed'='true' AND jsonb_typeof(output->'usage'->'outputTokens')='number' THEN (output->'usage'->>'outputTokens')::numeric END) output_tokens,
+    (SELECT COALESCE(sum(CASE WHEN jsonb_typeof(e.payload->'groups')='number' THEN (e.payload->>'groups')::int ELSE 0 END),0)
+     FROM agents_platform.task_events e WHERE e.task_id=$2 AND e.kind='context.pruned')::int pruned_groups
     FROM agents_platform.operations WHERE task_id=ANY($1::uuid[])`, [ids,root.id])).rows[0] ?? {};
   const snapshot = (await pool.query(`SELECT payload->'estimatedTokens' estimated_tokens,
+    CASE WHEN jsonb_typeof(payload->'fullEstimatedTokens')='number' THEN (payload->>'fullEstimatedTokens')::numeric END full_estimated_tokens,
+    CASE WHEN jsonb_typeof(payload->'compactionForecast'->'triggerTokens')='number' THEN (payload->'compactionForecast'->>'triggerTokens')::numeric END trigger_tokens,
+    CASE WHEN jsonb_typeof(payload->'contextPlan'->'budgets'->'maxInputTokens')='number' THEN (payload->'contextPlan'->'budgets'->>'maxInputTokens')::numeric END route_input_limit,
     jsonb_array_length(CASE WHEN jsonb_typeof(payload->'historyGroupIds')='array' THEN payload->'historyGroupIds' ELSE '[]'::jsonb END) history_count,
     jsonb_array_length(CASE WHEN jsonb_typeof(source_references)='array' THEN source_references ELSE '[]'::jsonb END) source_count
     FROM agents_platform.context_snapshots WHERE task_id=$1 AND id LIKE 'context:%' ORDER BY step DESC LIMIT 1`, [root.id])).rows[0];

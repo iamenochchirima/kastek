@@ -6,7 +6,7 @@ import {createServer} from "node:http";
 import {spawn,execFile} from "node:child_process";
 import {promisify} from "node:util";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
-import {DocumentRuntime,type DocumentInput,type DocumentOutput} from "../src/capabilities/knowledge/document-runtime";
+import {DocumentRuntime,type DocumentInput,type DocumentOutput} from "../src/platform/knowledge/document-runtime";
 
 const suite=process.env.AGENTS_DOCUMENT_RUNTIME_VERIFY==="1"?describe:describe.skip;
 suite("real pinned no-network document and embedding resources",()=>{
@@ -72,7 +72,7 @@ suite("real pinned no-network document and embedding resources",()=>{
  },60_000);
  it("reattaches after caller death without rerunning and honors pinned helpers rather than current pointer",async()=>{
   const allocationId=randomUUID(),jobId=randomUUID();allocated.add(allocationId);
-  const script=`const {DocumentRuntime}=require('./src/capabilities/knowledge/document-runtime');(async()=>{const r=new DocumentRuntime({cache:${JSON.stringify(cache)}});await r.start({allocationId:${JSON.stringify(allocationId)},jobId:${JSON.stringify(jobId)},profileRelease:${JSON.stringify(release)},input:{kind:'embed',mode:'document',texts:Array(16).fill('cancellation '.repeat(380))}});console.log('launched');setInterval(()=>{},10000)})().catch(e=>{console.error(e.code);process.exit(1)})`;
+  const script=`const {DocumentRuntime}=require('./src/platform/knowledge/document-runtime');(async()=>{const r=new DocumentRuntime({cache:${JSON.stringify(cache)}});await r.start({allocationId:${JSON.stringify(allocationId)},jobId:${JSON.stringify(jobId)},profileRelease:${JSON.stringify(release)},input:{kind:'embed',mode:'document',texts:Array(16).fill('cancellation '.repeat(380))}});console.log('launched');setInterval(()=>{},10000)})().catch(e=>{console.error(e.code);process.exit(1)})`;
   const child=spawn(process.execPath,["--import","tsx","-e",script],{cwd:process.cwd(),stdio:["ignore","pipe","pipe"]});await new Promise<void>((resolve,reject)=>{child.stdout.on("data",()=>resolve());child.on("error",reject);child.on("exit",code=>{if(code!==null)reject(Error("Caller exited before resource launch"));});});child.kill("SIGKILL");
   const before=await finish(allocationId),resource=join(cache,"resources",allocationId,"output.json"),timestamp=(await stat(resource)).mtimeMs;
   const pointer=join(cache,"current-profile.json"),previous=await readFile(pointer,"utf8");

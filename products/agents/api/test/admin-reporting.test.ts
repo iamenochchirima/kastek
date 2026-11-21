@@ -63,7 +63,7 @@ describe.skipIf(!parent)('current Agents reporting and durable Analytics adapter
   expect(value(all,'tokens_input')).toBe('150');expect(value(all,'tokens_output')).toBe('30');expect(value(all,'model_cost')).toBe('1500');expect(value(all,'unknown_model_operations')).toBe('1');expect(value(all,'dispatch_retries')).toBe('2');
   expect(all.metrics.find(m=>m.key==='model_cost')?.availability).toBe('partial');
   expect(all.metrics.find(m=>m.key==='model_cost')?.dimensions).toEqual({consumer:'agents',provider:'openrouter',model:'fixture-model',exactness:'usage_estimate'});
-  expect(value(all,'organizations')).toBe('1');expect(value(all,'memberships')).toBe('1');expect(value(all,'agents')).toBe('1');
+  expect(value(all,'organizations')).toBe('1');expect(value(all,'memberships')).toBe('1');expect(value(all,'agents')).toBe('2');
   expect(all.records.some(item=>item.id===evalTask)).toBe(false);expect(JSON.stringify(all)).not.toContain('PRIVATE_');
   const selected=await agentsAdminReport(pool,{...query,consumer:'growth',organizationId:'verified-growth-org'});expect(value(selected,'runs')).toBe('1');expect(selected.records[0]?.organizationId).toBe('verified-growth-org');
   const wrong=await agentsAdminReport(pool,{...query,consumer:'growth',organizationId:growth.organizationId});expect(value(wrong,'runs')).toBe('0');

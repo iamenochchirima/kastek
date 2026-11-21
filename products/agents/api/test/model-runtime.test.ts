@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { PlatformError, requestDigest } from "../src/contracts/contracts";
+import { agentConfigurationSchema, defaultBusinessConfiguration, PlatformError, requestDigest } from "../src/contracts/contracts";
 import type { Execution } from "../src/contracts/execution";
 import { acceptedModelRoutesSchema, type AcceptedModelRoutes } from "../src/contracts/model-bindings";
 import type { BoundModelDispatchInput } from "../src/execution/models/dispatch";
@@ -13,6 +13,8 @@ import type { ProviderTransportResponse } from "../src/adapters/models/pi-transp
 import { createModelFetch, type ModelFetch } from "../src/infrastructure/model-network";
 import { transaction } from "../src/infrastructure/database";
 import { setupPlatformSchema } from "../src/composition/setup";
+import { compilePublishedComposition } from "../src/execution/programs/publication";
+import { publishedToolBindings } from "../src/capabilities/tool-definitions";
 
 const source = { kind: "operator" as const, reference: "runtime-fixture", observedAt: "2026-10-21T00:00:00.000Z" };
 function routes(organizationId: string, agentId: string): AcceptedModelRoutes {
@@ -44,22 +46,24 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin,database); await admin.end(); } });
   async function fixture(save = true) {
     const organizationId = randomUUID(), account = randomUUID(), agent = randomUUID(), version = randomUUID(), grant = randomUUID(), conversation = randomUUID(), taskId = randomUUID();
-    const pinned = routes(organizationId, agent);
+    const pinned = routes(organizationId, agent), configuration = agentConfigurationSchema.parse(defaultBusinessConfiguration()), composition = compilePublishedComposition(configuration, []), bindings = JSON.stringify(publishedToolBindings(configuration));
+    const principal = { kind: "human" as const, issuer: "https://fixture.test", subject: account };
     await transaction(pool, async db => {
-      await db.query(`INSERT INTO agents_platform.accounts(id,issuer,subject,email,display_name) VALUES($1::uuid,'fixture',($1::uuid)::text,'fixture@example.test','Fixture')`, [account]);
+      await db.query(`INSERT INTO agents_platform.accounts(id,issuer,subject,email,display_name) VALUES($1::uuid,'https://fixture.test',($1::uuid)::text,'fixture@example.test','Fixture')`, [account]);
       await db.query(`INSERT INTO agents_platform.organizations(id,name) VALUES($1,'Fixture')`, [organizationId]);
       await db.query(`INSERT INTO agents_platform.agents(id,organization_id,name,draft,created_by) VALUES($1,$2,'Fixture','{}',$3)`, [agent, organizationId, account]);
-      await db.query(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by,effective_composition)
-        VALUES($1,$2,$3,1,1,'business','{"executionKind":"business"}',$4,jsonb_build_object('schemaVersion','1','digest',repeat('a',64)))`, [version, organizationId, agent, account]);
-      await db.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,max_input_bytes,max_output_tokens,expires_at)
-        VALUES($1,'agents',$2,$3,'fixture','{"kind":"human"}',$4,'[]',16384,1024,now()+interval '1 hour')`, [grant, organizationId, agent, version]);
-      await db.query(`INSERT INTO agents_platform.conversations(id,organization_id,agent_id,principal) VALUES($1,$2,$3,'{}')`, [conversation, organizationId, agent]);
-      await db.query(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,principal,version_id,grant_id,conversation_id,request_key,request_digest,input,root_task_id,effective_composition)
-        VALUES($1,'agents',$2,$3,'fixture','{}',$4,$5,$6,($1::uuid)::text,repeat('a',64),'Fixture',$1,jsonb_build_object('schemaVersion','1','digest',repeat('a',64)))`, [taskId, organizationId, agent, version, grant, conversation]);
+      await db.query(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by,effective_composition,tool_bindings)
+        VALUES($1,$2,$3,1,1,'business',$4,$5,$6,$7)`, [version, organizationId, agent, configuration, account, composition, bindings]);
+      await db.query(`INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'owner')`, [organizationId, account]);
+      await db.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,max_input_bytes,max_output_tokens,max_context_tokens,expires_at)
+        VALUES($1,'agents',$2,$3,'fixture',$4,$5,'["model.reply"]',16384,8192,196608,now()+interval '1 hour')`, [grant, organizationId, agent, principal, version]);
+      await db.query(`INSERT INTO agents_platform.conversations(id,organization_id,agent_id,principal) VALUES($1,$2,$3,$4)`, [conversation, organizationId, agent, principal]);
+      await db.query(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,principal,version_id,grant_id,conversation_id,request_key,request_digest,input,root_task_id,effective_composition,harness_release)
+        VALUES($1,'agents',$2,$3,'fixture',$8,$4,$5,$6,($1::uuid)::text,repeat('a',64),'Fixture',$1,$7,'product-capabilities-v15')`, [taskId, organizationId, agent, version, grant, conversation, composition, principal]);
       if (save) await saveTaskModelRoutes(db, taskId, organizationId, pinned);
     });
     const task = (await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0];
-    return { taskId, organizationId, pinned, execution: { task, agentId: agent, configuration: {}, models: pinned, connectedBindings: [], toolBindings: [] } as unknown as Execution };
+    return { taskId, organizationId, pinned, execution: { task, agentId: agent, configuration, models: pinned, connectedBindings: [], toolBindings: [] } as unknown as Execution };
   }
   async function operation(f: Awaited<ReturnType<typeof fixture>>, compaction = false) {
     const id = randomUUID();
@@ -109,7 +113,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const result = await invokeTaskModel(invocation(f, id), dependencies);
     expect(result.modelIdentity).toEqual(modelIdentity);
     expect(result.message.content).toBe("Visible answer"); expect(result.usage.observed).toBe(true);
-    expect(dependencies.assertAuthority).toHaveBeenCalledOnce();
+    expect(dependencies.assertAuthority).toHaveBeenCalledTimes(2);
     expect(JSON.stringify(result)).not.toMatch(/private-reasoning|private-signature|nativeState|private-fixture-key/);
     const row = (await pool.query("SELECT * FROM agents_platform.private_model_continuations WHERE operation_id=$1", [id])).rows[0];
     expect(row.state).toBe("completed"); expect(JSON.stringify(row.native_state)).toContain("private-signature");
@@ -236,7 +240,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       const result = await invokeTaskModel(invocation(f, id), dependencies);
       expect(result.message.content).toBe("Hello"); expect(calls).toBe(1); expect(result).not.toHaveProperty("nativeState");
       const counted = (await pool.query("SELECT input_count FROM agents_platform.private_model_continuations WHERE operation_id=$1", [id])).rows[0].input_count;
-      expect(counted).toMatchObject({ precision: "serialized_bytes_estimate", revision: "serialized-native-utf8-v1" });
+      expect(counted).toMatchObject({ precision: "serialized_bytes_estimate", revision: "serialized-native-estimated-tokens-v2" });
       expect(counted.tokens).toBeGreaterThan(0); expect(counted.payloadDigest).toMatch(/^[a-f0-9]{64}$/);
       expect(result).not.toHaveProperty("inputCount");
       expect((await pool.query("SELECT state FROM agents_platform.private_model_continuations WHERE operation_id=$1", [id])).rows[0].state).toBe("completed");
@@ -251,7 +255,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       const rejectedRows = (await pool.query("SELECT state FROM agents_platform.private_model_continuations WHERE operation_id=ANY($1::text[])", [[overflow, expired]])).rows;
       expect(rejectedRows).toEqual([{ state: "rejected" }, { state: "rejected" }]);
       const nativeOverflow=await operation(f);
-      await expect(invokeTaskModel({...invocation(f,nativeOverflow),messages:[{role:"user",content:"x".repeat(16000)}]},dependencies))
+      await expect(invokeTaskModel({...invocation(f,nativeOverflow),maxRequestBytes:200000,messages:[{role:"user",content:"x".repeat(80000)}]},dependencies))
         .rejects.toMatchObject({code:"CONTEXT_LIMIT",outcome:"rejected"});
       expect(calls).toBe(1);
       const deniedCount=(await pool.query("SELECT state,input_count FROM agents_platform.private_model_continuations WHERE operation_id=$1",[nativeOverflow])).rows[0];

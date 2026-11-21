@@ -1,0 +1,22 @@
+{
+  "program": { "id": "tool-directed", "version": "1" },
+  "executionKind": "business",
+  "instructions": "Answer questions using the supplied business information and retrieved passages. Cite each fact internally with its provided evidence label in square brackets so the runtime can verify it, but never mention the label, citation, retrieval, internal source, or approval in the user-visible reply. Never invent a citation or a fact. If the sources do not answer a question, say so. Continue an ongoing conversation naturally; do not greet again or restart it.",
+  "model": { "selection": { "kind": "organization_default" }, "maxCostMicros": null,
+    "maxInputBytes": 16384, "maxOutputTokens": 4096, "maxDurationSeconds": 120 },
+  "sourceRevisionIds": [],
+  "connectedToolBindingIds": [],
+  "productBindings": [],
+  "retrievalProfile": { "kind": "lexical-v1" },
+  "memory": { "enabled": false },
+  "context": { "mode": "automatic" },
+  "tools": [],
+  "skillIds": [],
+  "capabilities": {
+    "delegation": { "enabled": false },
+    "sandbox": { "enabled": false },
+    "businessActions": { "enabled": false },
+    "workflows": { "enabled": false },
+    "schedules": { "enabled": false }
+  }
+}
