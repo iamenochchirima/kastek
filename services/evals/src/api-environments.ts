@@ -15,10 +15,12 @@ import {
   createApiEnvironment,
   getSandbox,
   listAgentRefs,
+  listSandboxes,
   type AgentRef,
   type SandboxDetail,
   type WorkspaceRef,
 } from "./store.js";
+import { ownerRequest, ProductAgentError, readOwnerSession, type OwnerSession } from "./product-agents.js";
 
 type Json = Record<string, any>;
 
@@ -160,6 +162,178 @@ function environmentName(value: unknown): string {
   return text(value, "name", 120);
 }
 
+async function storeCredential(
+  config: EvalsConfig,
+  environmentId: string,
+  data: { applicationId: string; organizationId: string; baseUrl: string; credential: string },
+): Promise<string> {
+  const file = credentialPath(config, environmentId);
+  await mkdir(dirname(file), { recursive: true, mode: 0o700 });
+  await writeFile(file, JSON.stringify(data, null, 2), { mode: 0o600 });
+  await chmod(file, 0o600);
+  return file;
+}
+
+async function ownerSessionFor(
+  config: EvalsConfig,
+  pool: Pool,
+  baseUrl: string,
+): Promise<{ detail: SandboxDetail; session: OwnerSession }> {
+  const target = baseUrl.replace(/\/+$/, "");
+  const sandboxes = await listSandboxes(pool, 200);
+  for (const detail of sandboxes) {
+    const runtime = detail.sandbox.runtime as Json;
+    if (detail.sandbox.status !== "ready" || runtime.kind === "api") continue;
+    if (typeof runtime.apiUrl !== "string" ||
+        runtime.apiUrl.replace(/\/+$/, "") !== target) continue;
+    try {
+      return { detail, session: await readOwnerSession(config, detail) };
+    } catch {
+      continue;
+    }
+  }
+  fail(
+    409,
+    "owner_session_required",
+    "Connect a sandbox for this base URL before creating a test organization",
+  );
+}
+
+/**
+ * Create an isolated test organization in a deployment Evals already has an owner
+ * session for, then enroll an application and connect it. The caller never handles
+ * the organization, application or credential.
+ */
+export async function createTestApiEnvironment(
+  config: EvalsConfig,
+  pool: Pool,
+  raw: unknown,
+): Promise<{
+  environment: SandboxDetail;
+  agents: number;
+  organization: { id: string; name: string };
+  agent: { id: string; name: string };
+}> {
+  const input = (raw ?? {}) as Json;
+  const name = environmentName(input.name);
+  const baseUrlText = text(input.baseUrl, "baseUrl", 2_000);
+  let baseUrl: string;
+  try {
+    baseUrl = normalizeApplicationUrl(baseUrlText);
+  } catch (error) {
+    if (error instanceof ApplicationApiError) fail(400, error.code, error.message);
+    throw error;
+  }
+  const organizationName =
+    optionalText(input.organizationName, "organizationName", 120) ?? `${name} org`;
+  const agentName =
+    optionalText(input.agentName, "agentName", 120) ?? `${name} agent`;
+  const { session } = await ownerSessionFor(config, pool, baseUrl);
+
+  let organizationId: string;
+  let agentId: string;
+  let applicationId: string;
+  let secret: string;
+  try {
+    const organization = await ownerRequest(
+      session,
+      "agents_session",
+      "POST",
+      "/api/organizations",
+      { name: organizationName },
+    );
+    const org = organization.organization as Json | undefined;
+    if (typeof org?.id !== "string") throw new Error("The product did not create the organization");
+    organizationId = org.id;
+
+    const createdAgent = await ownerRequest(
+      session,
+      "agents_session",
+      "POST",
+      `/api/organizations/${encodeURIComponent(organizationId)}/agents`,
+      { name: agentName },
+    );
+    const agent = createdAgent.agent as Json | undefined;
+    if (typeof agent?.id !== "string") throw new Error("The product did not create the agent");
+    agentId = agent.id;
+
+    const application = await ownerRequest(
+      session,
+      "agents_session",
+      "POST",
+      `/api/organizations/${encodeURIComponent(organizationId)}/applications`,
+      {
+        name: `${name} application`,
+        agentIds: [agentId],
+        scopes: ["agents:read", "agents:manage", "agents:publish"],
+      },
+    );
+    const app = application.application as Json | undefined;
+    const credentialValue = application.credential as Json | undefined;
+    if (typeof app?.id !== "string" || typeof credentialValue?.secret !== "string") {
+      throw new Error("The product did not create the application credential");
+    }
+    applicationId = app.id;
+    secret = credentialValue.secret;
+  } catch (error) {
+    if (error instanceof ProductAgentError) {
+      if (error.statusCode === 401) {
+        fail(409, "owner_session_expired", "The owner session expired; refresh the sandbox session and retry");
+      }
+      if (error.statusCode === 403) {
+        fail(409, "owner_session_forbidden", "The owner session cannot create a test organization");
+      }
+      fail(502, "test_org_failed", error.message);
+    }
+    fail(502, "test_org_failed", error instanceof Error ? error.message : "Test organization creation failed");
+  }
+
+  const environmentId = randomUUID();
+  const file = await storeCredential(config, environmentId, {
+    applicationId,
+    organizationId,
+    baseUrl,
+    credential: secret,
+  });
+  const environment = await createApiEnvironment(pool, {
+    id: environmentId,
+    name,
+    baseUrl,
+    organizationId,
+    applicationId,
+    credentialFile: file,
+    workspaceLabel: organizationName,
+  }).catch(async (error: unknown) => {
+    await rm(dirname(file), { recursive: true, force: true });
+    throw error;
+  });
+
+  const workspace = environment.workspaceRefs[0];
+  if (workspace) {
+    try {
+      const client = new ApplicationClient({ baseUrl, credential: secret });
+      const created = await client.inspectAgent(agentId);
+      await createAgentRef(pool, environmentId, {
+        workspaceRefId: workspace.id,
+        productAgentId: created.id,
+        productVersionId: created.version.id,
+        sourceIds: [],
+        compositionDigest: digest({ kind: "bootstrap", agentId }),
+        modelRoutesDigest: digest({ selection: { kind: "organization_default" } }),
+      });
+    } catch {
+      // The environment is still connected; the agent can be referenced later.
+    }
+  }
+
+  return {
+    environment,
+    agents: 1,
+    organization: { id: organizationId, name: organizationName },
+    agent: { id: agentId, name: agentName },
+  };
+}
+
 /** Register a deployed product reached through an existing application credential. */
 export async function connectApiEnvironment(
   config: EvalsConfig,
@@ -190,14 +364,12 @@ export async function connectApiEnvironment(
   }
 
   const environmentId = randomUUID();
-  const file = credentialPath(config, environmentId);
-  await mkdir(dirname(file), { recursive: true, mode: 0o700 });
-  await writeFile(
-    file,
-    JSON.stringify({ applicationId, organizationId, baseUrl, credential: secret }, null, 2),
-    { mode: 0o600 },
-  );
-  await chmod(file, 0o600);
+  const file = await storeCredential(config, environmentId, {
+    applicationId,
+    organizationId,
+    baseUrl,
+    credential: secret,
+  });
 
   const environment = await createApiEnvironment(pool, {
     id: environmentId,

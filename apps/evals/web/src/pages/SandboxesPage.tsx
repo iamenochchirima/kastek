@@ -22,9 +22,11 @@ export default function SandboxesPage() {
   const [apiOpen, setApiOpen] = useState(false);
   const [apiBusy, setApiBusy] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [apiMode, setApiMode] = useState<"test" | "existing">("test");
   const [apiForm, setApiForm] = useState({
     name: "",
     baseUrl: "http://127.0.0.1:4100",
+    organizationName: "",
     organizationId: "",
     applicationId: "",
     credential: "",
@@ -72,12 +74,37 @@ export default function SandboxesPage() {
     setApiBusy(true);
     setApiError(null);
     try {
-      const result = await api<{ environment: SandboxDetail }>("/api/api-environments", {
+      const endpoint = apiMode === "test"
+        ? "/api/api-environments/test"
+        : "/api/api-environments";
+      const body = apiMode === "test"
+        ? {
+            name: apiForm.name.trim(),
+            baseUrl: apiForm.baseUrl.trim(),
+            ...(apiForm.organizationName.trim()
+              ? { organizationName: apiForm.organizationName.trim() }
+              : {}),
+          }
+        : {
+            name: apiForm.name.trim(),
+            baseUrl: apiForm.baseUrl.trim(),
+            organizationId: apiForm.organizationId.trim(),
+            applicationId: apiForm.applicationId.trim(),
+            credential: apiForm.credential.trim(),
+          };
+      const result = await api<{ environment: SandboxDetail }>(endpoint, {
         method: "POST",
-        body: JSON.stringify(apiForm),
+        body: JSON.stringify(body),
       });
       setApiOpen(false);
-      setApiForm((current) => ({ ...current, name: "", organizationId: "", applicationId: "", credential: "" }));
+      setApiForm((current) => ({
+        ...current,
+        name: "",
+        organizationName: "",
+        organizationId: "",
+        applicationId: "",
+        credential: "",
+      }));
       navigate(`/sandboxes/${result.environment.sandbox.id}`);
     } catch (value) {
       setApiError(errorMessage(value));
@@ -191,7 +218,14 @@ export default function SandboxesPage() {
                   </button>
                 </div>
               </div>
-              <h3 className="mono">{shortId(item.sandbox.id)}</h3>
+              <h3 className={item.sandbox.profile === "api" ? "" : "mono"}>
+                {item.sandbox.profile === "api" && typeof item.sandbox.runtime.name === "string"
+                  ? item.sandbox.runtime.name
+                  : shortId(item.sandbox.id)}
+              </h3>
+              {item.sandbox.profile === "api" && typeof item.sandbox.runtime.name === "string" && (
+                <p className="muted small mono">{shortId(item.sandbox.id)}</p>
+              )}
               <p className="muted">{item.sandbox.profile === "api" ? "API environment" : `${item.sandbox.product} · ${item.sandbox.profile}`}</p>
               <div className="kv compact">
                 <div><span>Version</span><code>{item.version ? shortId(item.version.id) : "none"}</code></div>
@@ -311,6 +345,23 @@ export default function SandboxesPage() {
             <form onSubmit={connectApi}>
               <div className="modal-body">
                 <label className="field">
+                  <span className="field-label">Method</span>
+                  <select
+                    className="select"
+                    value={apiMode}
+                    onChange={(event) => setApiMode(event.target.value as "test" | "existing")}
+                    disabled={apiBusy}
+                  >
+                    <option value="test">Create test org</option>
+                    <option value="existing">Use existing credential</option>
+                  </select>
+                  <span className="field-hint">
+                    {apiMode === "test"
+                      ? "Creates an organization, agent and application in the deployment. Requires a connected sandbox owner session."
+                      : "Connects an application credential issued by the deployment."}
+                  </span>
+                </label>
+                <label className="field">
                   <span className="field-label">Name</span>
                   <input
                     className="input"
@@ -331,39 +382,55 @@ export default function SandboxesPage() {
                     disabled={apiBusy}
                   />
                 </label>
-                <label className="field">
-                  <span className="field-label">Organization ID</span>
-                  <input
-                    className="input mono"
-                    value={apiForm.organizationId}
-                    onChange={(event) => setApiForm((current) => ({ ...current, organizationId: event.target.value }))}
-                    placeholder="00000000-0000-0000-0000-000000000000"
-                    disabled={apiBusy}
-                  />
-                </label>
-                <label className="field">
-                  <span className="field-label">Application ID</span>
-                  <input
-                    className="input mono"
-                    value={apiForm.applicationId}
-                    onChange={(event) => setApiForm((current) => ({ ...current, applicationId: event.target.value }))}
-                    placeholder="00000000-0000-0000-0000-000000000000"
-                    disabled={apiBusy}
-                  />
-                </label>
-                <label className="field">
-                  <span className="field-label">Credential</span>
-                  <input
-                    className="input mono"
-                    type="password"
-                    value={apiForm.credential}
-                    onChange={(event) => setApiForm((current) => ({ ...current, credential: event.target.value }))}
-                    placeholder="kat_…"
-                    autoComplete="off"
-                    disabled={apiBusy}
-                  />
-                  <span className="field-hint">Application credential with agents:read, agents:manage and agents:publish.</span>
-                </label>
+                {apiMode === "test" ? (
+                  <label className="field">
+                    <span className="field-label">Organization name</span>
+                    <input
+                      className="input"
+                      value={apiForm.organizationName}
+                      onChange={(event) => setApiForm((current) => ({ ...current, organizationName: event.target.value }))}
+                      placeholder="Evals test org"
+                      disabled={apiBusy}
+                    />
+                    <span className="field-hint">Optional. Defaults to the environment name.</span>
+                  </label>
+                ) : (
+                  <>
+                    <label className="field">
+                      <span className="field-label">Organization ID</span>
+                      <input
+                        className="input mono"
+                        value={apiForm.organizationId}
+                        onChange={(event) => setApiForm((current) => ({ ...current, organizationId: event.target.value }))}
+                        placeholder="00000000-0000-0000-0000-000000000000"
+                        disabled={apiBusy}
+                      />
+                    </label>
+                    <label className="field">
+                      <span className="field-label">Application ID</span>
+                      <input
+                        className="input mono"
+                        value={apiForm.applicationId}
+                        onChange={(event) => setApiForm((current) => ({ ...current, applicationId: event.target.value }))}
+                        placeholder="00000000-0000-0000-0000-000000000000"
+                        disabled={apiBusy}
+                      />
+                    </label>
+                    <label className="field">
+                      <span className="field-label">Credential</span>
+                      <input
+                        className="input mono"
+                        type="password"
+                        value={apiForm.credential}
+                        onChange={(event) => setApiForm((current) => ({ ...current, credential: event.target.value }))}
+                        placeholder="kat_…"
+                        autoComplete="off"
+                        disabled={apiBusy}
+                      />
+                      <span className="field-hint">Needs agents:read, agents:manage and agents:publish.</span>
+                    </label>
+                  </>
+                )}
                 {apiError && <ErrorBox message={apiError} />}
               </div>
               <div className="modal-actions">
@@ -371,9 +438,10 @@ export default function SandboxesPage() {
                 <button
                   className="button"
                   type="submit"
-                  disabled={apiBusy || !apiForm.name.trim() || !apiForm.baseUrl.trim() || !apiForm.organizationId.trim() || !apiForm.applicationId.trim() || !apiForm.credential.trim()}
+                  disabled={apiBusy || !apiForm.name.trim() || !apiForm.baseUrl.trim() ||
+                    (apiMode === "existing" && (!apiForm.organizationId.trim() || !apiForm.applicationId.trim() || !apiForm.credential.trim()))}
                 >
-                  {apiBusy ? "Connecting…" : "Connect"}
+                  {apiBusy ? "Connecting…" : apiMode === "test" ? "Create environment" : "Connect"}
                 </button>
               </div>
             </form>

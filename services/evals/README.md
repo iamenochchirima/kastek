@@ -158,6 +158,27 @@ A deployed product can be recorded without provisioning it. This is the path an
 external product uses: it owns the deployment and the evaluation service reaches
 it through an Agents application credential.
 
+Create a test organization in a deployment Evals already has an owner session
+for. The operator supplies no organization, application or credential:
+
+```sh
+curl -sS http://127.0.0.1:4600/v1/api-environments/test \
+  -H "authorization: Bearer $EVALS_OPERATOR_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{
+    "name":"Agents local test",
+    "baseUrl":"http://127.0.0.1:4100",
+    "organizationName":"Evals test org"
+  }'
+```
+
+The service creates the organization, an agent, and an application with
+`agents:read`, `agents:manage` and `agents:publish`, then connects the
+environment and records the bootstrap agent. The owner session comes from a
+connected sandbox whose `runtime.apiUrl` matches the base URL.
+
+To connect an existing application credential instead:
+
 ```sh
 curl -sS http://127.0.0.1:4600/v1/api-environments \
   -H "authorization: Bearer $EVALS_OPERATOR_TOKEN" \
@@ -173,8 +194,7 @@ curl -sS http://127.0.0.1:4600/v1/api-environments \
 
 The service validates the credential with `GET /v1/agents`, writes it to
 `.audit/api-environments/<id>/credential.json` at mode `0600`, and records an
-environment with `profile = api` and `runtime.kind = api`. The credential needs
-`agents:read`, `agents:manage` and `agents:publish` to create agents.
+environment with `profile = api` and `runtime.kind = api`.
 
 Create and configure an agent through the application API:
 

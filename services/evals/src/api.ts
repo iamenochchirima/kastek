@@ -46,6 +46,7 @@ import {
   ApiEnvironmentError,
   connectApiEnvironment,
   createApiAgent,
+  createTestApiEnvironment,
   listApiAgents,
 } from "./api-environments.js";
 import { AgentTemplateError, listAgentTemplates } from "./agent-templates.js";
@@ -400,6 +401,16 @@ export function buildApi(
       { event: "environment.api.connected", environmentId: result.environment.sandbox.id,
         applicationId: (result.environment.sandbox.runtime as Record<string, unknown>).applicationId },
       "API environment connected",
+    );
+    return reply.code(201).send(result);
+  });
+
+  app.post("/v1/api-environments/test", async (request, reply) => {
+    const result = await createTestApiEnvironment(config, pool, request.body);
+    request.log.info(
+      { event: "environment.api.test_org_created", environmentId: result.environment.sandbox.id,
+        organizationId: result.organization.id, agentId: result.agent.id },
+      "Test organization created for API environment",
     );
     return reply.code(201).send(result);
   });

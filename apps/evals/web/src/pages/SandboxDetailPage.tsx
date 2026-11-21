@@ -301,7 +301,7 @@ export default function SandboxDetailPage() {
       {tab === "overview" && (
         <>
           <section className="meta-grid">
-            <div className="meta-card"><span>Sandbox</span><strong className="mono">{detail.sandbox.id}</strong></div>
+            <div className="meta-card"><span>{isApi ? "Environment" : "Sandbox"}</span><strong className="mono">{detail.sandbox.id}</strong></div>
             <div className="meta-card"><span>Version</span><strong className="mono">{detail.version?.id ?? "—"}</strong></div>
             <div className="meta-card"><span>Code revision</span><strong className="mono">{detail.version?.codeRevision ?? "—"}</strong></div>
             <div className="meta-card"><span>Schema</span><strong className="mono">{detail.version?.schemaVersion ?? "—"}</strong></div>

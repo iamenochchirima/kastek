@@ -173,6 +173,13 @@ app.post("/api/api-environments", async (request, reply) => {
   });
   return reply.code(201).send(value);
 });
+app.post("/api/api-environments/test", async (request, reply) => {
+  const value = await service<{ environment: SandboxDetail; agents: number }>("/v1/api-environments/test", {
+    method: "POST",
+    body: JSON.stringify(request.body ?? {}),
+  });
+  return reply.code(201).send(value);
+});
 app.get("/api/sandboxes/:id/api-agents", async (request) => {
   const { id } = request.params as { id: string };
   return service(`/v1/sandboxes/${encodeURIComponent(id)}/api-agents`);

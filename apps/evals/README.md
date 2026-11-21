@@ -88,14 +88,21 @@ deletes both.
 
 ## API environments
 
-**Connect API** records a deployed product reached through an existing Agents
-application credential. It does not provision or own the deployment.
+**Connect API** records a deployed product. It has two modes:
 
-The form takes a name, base URL, organization ID, application ID and credential
-secret. The client validates the credential with `GET /v1/agents`, writes the
-secret to `.audit/api-environments/<id>/credential.json` at mode `0600`, and
-records an environment with `profile = api` and `runtime.kind = api`. The secret
-is never returned to the browser.
+- **Create test org** (default): creates an organization, an agent and an
+  application with the required scopes in the deployment, then connects the
+  environment. The operator enters only a name and base URL. This uses the owner
+  session of a connected sandbox for the same base URL.
+- **Use existing credential**: connects an application credential issued by the
+  deployment. The operator enters the organization ID, application ID and
+  credential secret.
+
+For the existing-credential path, the client validates the credential with
+`GET /v1/agents`, writes the secret to
+`.audit/api-environments/<id>/credential.json` at mode `0600`, and records an
+environment with `profile = api` and `runtime.kind = api`. The secret is never
+returned to the browser.
 
 The application needs `agents:read`, `agents:manage` and `agents:publish`. Agent
 creation uses the application API:
