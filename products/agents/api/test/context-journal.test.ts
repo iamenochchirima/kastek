@@ -132,7 +132,7 @@ const binary=process.env.AGENTS_TEST_RESTATE_BINARY;
     return {id,snapshotId,groups,input,send,settled};
   }
 
-  it("runs one background compaction at the 85% threshold and retains the recent 15k window", async () => {
+  it.skipIf(!binary)("runs one background compaction at the 85% threshold and retains the recent 15k window", async () => {
     const f=await fixture("Compact the long launch conversation"),execution=await loadExecution(pool,f.task.id),route=execution.models.compaction,policy=route.policy;
     const modelPolicy={modelId:route.binding.modelId,revision:policy.digest,counterRevision:"serialized-utf8-estimate-v1",
       maxDurationSeconds:policy.maxCallDurationMs/1000,contextWindowTokens:policy.contextTokens,maxInputTokens:policy.maxInputTokens,
