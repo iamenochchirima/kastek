@@ -43,11 +43,13 @@ describe("website widget active conversation", () => {
       await page.addScriptTag({ url: "http://localhost/api/website/fixture/widget.js" });
       await page.getByRole("button", { name: "Chat", exact: true }).click();
       await browserExpect(page.getByRole("log").getByText("First pending").first()).toBeVisible();
+      await browserExpect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
       expect(count).toBe(1);
       resolveChat1 = true;
       await page.reload();
       await page.addScriptTag({ url: "http://localhost/api/website/fixture/widget.js" });
       await page.getByRole("button", { name: "Chat", exact: true }).click();
+      await browserExpect.poll(() => count).toBe(2);
       await browserExpect(page.getByRole("log").getByText("First pending")).toHaveCount(0);
       await browserExpect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
       await page.getByRole("textbox", { name: "Message", exact: true }).fill("Second message");
