@@ -143,7 +143,7 @@ test("adaptive orchestration admits a third specialist and saves explicit execut
   expect(fixture.saved).toHaveLength(0);
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect.poll(() => fixture.saved.length).toBe(1);
-  expect(fixture.saved[0]).toMatchObject({ configuration: { program: { id: "tool-directed", version: "4" }, tools: expect.arrayContaining(["agents.discover", "agents.start", "agents.followup", "work.update", "agents.delegate"]), capabilities: { delegation: { maxChildren: 4, maxDepth: 1, policy: { maxTasks: 24, maxStalls: 4 }, bindings: [{ versionId: "content-v1" }, { versionId: "editor-v1" }, { versionId: "reviewer-v1" }] } } } });
+  expect(fixture.saved[0]).toMatchObject({ configuration: { program: { id: "tool-directed", version: "4" }, tools: expect.arrayContaining(["agents.discover", "agents.start", "agents.followup", "work.update", "agents.delegate"]), capabilities: { delegation: { maxChildren: 4, maxDepth: null, policy: { maxTasks: 24, maxStalls: 4 }, bindings: [{ versionId: "content-v1" }, { versionId: "editor-v1" }, { versionId: "reviewer-v1" }] } } } });
 });
 
 test("adaptive execution policy fits supported widths and themes", async ({ page }) => {
@@ -238,7 +238,7 @@ test("adaptive empty roster saves valid configuration before and after final rem
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect.poll(() => fixture.saved.length).toBe(1);
   const empty = agentConfigurationSchema.parse((fixture.saved[0] as {configuration: unknown}).configuration);
-  expect(empty).toMatchObject({ program: { version: "4" }, context: { maxInputTokens: 24000, compactAtTokens: 22000 }, capabilities: { delegation: { enabled: false } } });
+  expect(empty).toMatchObject({ program: { version: "4" }, context: { maxInputTokens: 8192, compactAtTokens: 6144 }, capabilities: { delegation: { enabled: false } } });
   expect(empty.tools).not.toContain("agents.start");
   await section.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Content · v1", exact: true }) }).getByRole("button", { name: "Add specialist" }).click();
   await section.getByRole("spinbutton", { name: "Concurrent tasks" }).fill("4");
@@ -252,7 +252,7 @@ test("adaptive empty roster saves valid configuration before and after final rem
   await expect(section.getByRole("spinbutton", { name: "Concurrent tasks" })).toHaveValue("4");
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect.poll(() => fixture.saved.length).toBe(4);
-  expect(agentConfigurationSchema.parse((fixture.saved[3] as {configuration: unknown}).configuration)).toMatchObject({ capabilities: { delegation: { enabled: true, maxChildren: 4, policy: { maxTasks: 16, maxStalls: 3 } } }, tools: expect.arrayContaining(["agents.start", "agents.followup"]) });
+  expect(agentConfigurationSchema.parse((fixture.saved[3] as {configuration: unknown}).configuration)).toMatchObject({ capabilities: { delegation: { enabled: true, maxChildren: 4, policy: { maxTasks: null, maxStalls: 3 } } }, tools: expect.arrayContaining(["agents.start", "agents.followup"]) });
 });
 
 

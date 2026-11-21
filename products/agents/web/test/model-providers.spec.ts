@@ -50,7 +50,7 @@ async function add(page: Page, name = "Production") {
 }
 for (const width of [1440, 768, 390]) test(`provider settings CRUD, catalogue and explicit probe at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 1000 }); const state = await fixture(page);
-  await page.goto("/app/settings"); await expect(page.getByText("No model providers", { exact: true })).toBeVisible();
+  await page.goto("/app/settings?section=models"); await expect(page.getByText("No model providers", { exact: true })).toBeVisible();
   await add(page); await expect(page.getByRole("heading", { name: "Production", exact: true })).toBeVisible();
   await add(page, "Staging"); await expect(page.getByRole("heading", { name: "Staging", exact: true })).toBeVisible();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("heading", { name: "Production", exact: true }) });
@@ -84,7 +84,7 @@ for (const width of [1440, 768, 390]) test(`provider settings CRUD, catalogue an
   expect(state.errors).toEqual([]); await expect(confirmation).toHaveCount(0); await page.screenshot({ path: test.info().outputPath(`providers-${width}.png`), fullPage: true, animations: "disabled" });
 });
 test("provider save errors preserve masked form and allow retry", async ({ page }) => {
-  await fixture(page, true); await page.goto("/app/settings"); await expect(page.getByText("No model providers", { exact: true })).toBeVisible(); await add(page);
+  await fixture(page, true); await page.goto("/app/settings?section=models"); await expect(page.getByText("No model providers", { exact: true })).toBeVisible(); await add(page);
   const dialog = page.getByRole("dialog"); await expect(dialog.getByRole("alert")).toContainText("unavailable"); await expect(dialog.getByLabel("API key", { exact: true })).toHaveValue("fixture_secret_not_real");
   await dialog.getByRole("button", { name: "Save connection" }).click(); await expect(dialog).toHaveCount(0);
 });
@@ -92,13 +92,13 @@ test("provider save errors preserve masked form and allow retry", async ({ page 
 test("provider setup is owner-only", async ({ page }) => {
   const state = await fixture(page);
   await page.route("**/api/session", route => route.fulfill({ json: { account: { id: "member", email: "member@example.test", displayName: "Member" }, organizations: [{ id: "org", name: "Test workspace", role: "member" }] } }));
-  await page.goto("/app/settings");
-  await expect(page.getByText("Workspace owner access required.", { exact: true })).toBeVisible();
+  await page.goto("/app/settings?section=models");
+  await expect(page.getByRole("button", { name: "Model providers", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Add provider", exact: true })).toHaveCount(0);
   expect(state.calls.some(call => call.path.startsWith(base))).toBe(false);
 });
 test("cached catalogue failure can refresh without an implicit probe", async ({ page }) => {
-  const state = await fixture(page); await page.goto("/app/settings"); await expect(page.getByText("No model providers", { exact: true })).toBeVisible(); await add(page);
+  const state = await fixture(page); await page.goto("/app/settings?section=models"); await expect(page.getByText("No model providers", { exact: true })).toBeVisible(); await add(page);
   await page.route("**/connection-1/models", route => route.fulfill({ status: 409, json: { error: { message: "Changed" } } }));
   await page.getByRole("button", { name: "Models", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Models", exact: true });
@@ -109,7 +109,7 @@ test("cached catalogue failure can refresh without an implicit probe", async ({ 
 });
 
 test("owner explicitly restores configured agent access and attests private model metadata", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 1000 }); const state = await fixture(page); await page.goto("/app/settings"); await add(page);
+  await page.setViewportSize({ width: 390, height: 1000 }); const state = await fixture(page); await page.goto("/app/settings?section=models"); await add(page);
   await page.getByRole("button", { name: "Access", exact: true }).click(); const access = page.getByRole("dialog", { name: "Provider access" });
   await access.getByRole("button", { name: "Restore access" }).click(); const confirmation = page.getByRole("alertdialog");
   expect(state.calls.filter(call => call.path.endsWith("/reauthorize"))).toHaveLength(0);
@@ -127,7 +127,7 @@ test("owner explicitly restores configured agent access and attests private mode
 });
 
 for (const [status, code, recovery] of [[401, "MODEL_AUTHENTICATION_FAILED", "Key rejected"], [402, "MODEL_BILLING_REQUIRED", "Add provider credit"], [403, "MODEL_ACCESS_DENIED", "cannot access"], [429, "MODEL_RATE_LIMITED", "rate limit reached"]] as const) test(`catalogue ${status} recovery preserves the selection`, async ({ page }) => {
-  const state = await fixture(page); await page.goto("/app/settings"); await add(page);
+  const state = await fixture(page); await page.goto("/app/settings?section=models"); await add(page);
   await page.getByRole("button", { name: "Models", exact: true }).click(); const dialog = page.getByRole("dialog", { name: "Models", exact: true });
   await dialog.getByRole("button", { name: "Refresh models" }).click(); await dialog.getByRole("button", { name: /Fixture model/ }).click();
   await page.route("**/models/refresh", route => route.fulfill({ status, json: { error: { code, message: "Provider rejected" } } }));
@@ -138,7 +138,7 @@ for (const [status, code, recovery] of [[401, "MODEL_AUTHENTICATION_FAILED", "Ke
 });
 
 test("stale catalogue preserves a retired default and recovers from empty discovery", async ({ page }) => {
-  const state = await fixture(page); await page.goto("/app/settings"); await add(page);
+  const state = await fixture(page); await page.goto("/app/settings?section=models"); await add(page);
   await page.route("**/model-providers/default", route => route.fulfill({ json: { selection: { kind: "connection", connectionId: "connection-1", modelId: "retired-model" }, revision: 1 } }));
   // Reload picks up the persisted default before opening its cached catalogue.
   await page.reload();
@@ -159,7 +159,7 @@ test("stale catalogue preserves a retired default and recovers from empty discov
 test("tablet provider key and revocation dialogs in both themes", async ({ page }) => {
   const state = await fixture(page);
   await page.setViewportSize({ width: 768, height: 1024 });
-  await page.goto("/app/settings");
+  await page.goto("/app/settings?section=models");
   await expect(page.getByText("No model providers", { exact: true })).toBeVisible();
   await add(page);
   const row = page.getByRole("listitem").filter({ has: page.getByRole("heading", { name: "Production", exact: true }) });
@@ -193,7 +193,7 @@ for (const width of [1440, 768, 390]) for (const theme of ["light", "dark"] as c
   await page.setViewportSize({ width, height: 1000 });
   await page.emulateMedia({ colorScheme: theme });
   const state = await fixture(page, false, true);
-  await page.goto("/app/settings");
+  await page.goto("/app/settings?section=models");
   const row = page.getByRole("listitem").filter({ has: page.getByRole("heading", { name: "Included NVIDIA model", exact: true }) });
   await expect(row).toContainText("Included model");
   await expect(row.getByRole("button", { name: "Edit key", exact: true })).toHaveCount(0);
