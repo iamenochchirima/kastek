@@ -136,6 +136,7 @@ export interface GrowthAgentCommandInputs extends GrowthAgentResourceInputs {
   "features.upgrade.apply": GrowthAgentCapabilityUpgradeApply & { featureId: GrowthAgentFeatureId; publication: import("./growth-agent-provisioning.js").GrowthAgentPublication };
   "features.configure": { featureId: GrowthAgentFeatureId; configuration: Record<string, unknown> };
   "features.profile": { featureId: GrowthAgentFeatureId; name: string; avatar: string };
+  "models.select": { featureId: GrowthAgentFeatureId; expectedRevision: number; selection: GrowthAgentModelSelection };
 }
 export type GrowthAgentCommandOperation = keyof GrowthAgentCommandInputs;
 export type GrowthAgentCommand<K extends GrowthAgentCommandOperation = GrowthAgentCommandOperation> = {

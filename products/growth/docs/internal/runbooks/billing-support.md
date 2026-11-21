@@ -22,5 +22,4 @@ Do not edit subscription state directly. Correct a provider mismatch through rec
 verified provider event. Full refunds revoke unspent plan AI usage; partial refunds remain a
 reconciliation issue.
 
-The canonical references are [`services/billing/README.md`](../../../../services/billing/README.md)
-and the [central billing architecture](../architecture/central-billing.md).
+The canonical reference is the [central billing architecture](../architecture/central-billing.md).

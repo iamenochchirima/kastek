@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from "@/lib/zod-resolver";
 import { Plus, Mic, PhoneCall, Clock, PlayCircle, Settings2, Activity } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListVoiceAgentsQueryKey, getListVoiceCallsQueryKey } from "@workspace/api-client-react";

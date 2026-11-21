@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from "@/lib/zod-resolver";
 import { Plus, Mail, MessageCircle, GitBranch, ArrowRight, Play, Pause } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListNurturingSequencesQueryKey, getGetNurturingStatsQueryKey } from "@workspace/api-client-react";

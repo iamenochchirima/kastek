@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from "@/lib/zod-resolver";
 import { Plus, BarChart3, ExternalLink, Activity, Users, MousePointerClick, DollarSign } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListReportingDashboardsQueryKey } from "@workspace/api-client-react";
