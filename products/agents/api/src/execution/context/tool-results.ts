@@ -24,6 +24,9 @@ export function trimReadToolResults(groups: ContextGroup[], options: { keepNewes
   const keepNewest = options.keepNewestGroup ?? true;
   return groups.map((group, index) => {
     if (keepNewest && index === groups.length - 1) return group;
+    // Tool results that issued evidence are checked against the snapshot text. Shortening
+    // them would make the stored evidence look forged, so leave those groups whole.
+    if (group.evidenceIds?.length) return group;
     let changed = false;
     const messages = group.messages.map(message => {
       const next = shorten(message);

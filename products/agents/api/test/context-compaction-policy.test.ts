@@ -55,6 +55,12 @@ describe("read tool-result trimming", () => {
     expect(old.messages[0]!.content).toBe("o".repeat(5000));
   });
 
+  it("leaves a tool result that carries evidence whole", () => {
+    const evidence = { ...group("evidence", { role: "tool" as const, content: "e".repeat(5000) }), evidenceIds: ["evidence-1"] };
+    const trimmed = trimReadToolResults([evidence, group("newest", { role: "tool", content: "n".repeat(100) })]);
+    expect(trimmed[0]!.messages[0]!.content).toBe("e".repeat(5000));
+  });
+
   it("can trim every group when the newest result has already been read", () => {
     const only = group("only", { role: "tool", content: "z".repeat(5000) });
     expect(trimReadToolResults([only], { keepNewestGroup: false })[0]!.messages[0]!.content).toContain("Tool result shortened");
