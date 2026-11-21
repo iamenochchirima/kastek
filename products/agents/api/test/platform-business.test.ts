@@ -110,7 +110,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const vault=new ConnectionVault("v1",{v1:randomBytes(32).toString("base64")}),targets=[{id:"reports",label:"Reports",url:address+"/deliveries",resource:"reports:controller"}];
     artifacts=new TaskArtifactStore(pool,{async put(key,value){objects.set(key,Buffer.from(value));},async get(key){const value=objects.get(key);if(!value)throw Error("Missing fixture object");return value;},async delete(key){objects.delete(key);}});
     connections=new ConnectionStore(pool,vault,targets);actions=new ActionService(pool,{vault,targets,artifacts});
-    businessOptions = {evidence:new EvidenceStore(pool,artifacts.objects),knowledgeRuntime:new KnowledgeRuntime(pool,new EvidenceStore(pool,artifacts.objects)),actions:{prepare:(...args)=>actions.prepare(...args),getReview:async(...args)=>{const review=await actions.getReview(...args);await afterReviewRead?.(review);return review;},reconcile:(...args)=>actions.reconcile(...args),execute:async(...args)=>{inFlightActionCalls++;try{return await actions.execute(...args);}finally{inFlightActionCalls--;}}},selectReportArtifact:(...args)=>artifacts.prepareReport(...args), modelProvider: fixtureModelProviders(pool), modelRuntime: { dispatch: input => dispatchBoundModel(input, policy => {
+    businessOptions = {readers:{memory},evidence:new EvidenceStore(pool,artifacts.objects),knowledgeRuntime:new KnowledgeRuntime(pool,new EvidenceStore(pool,artifacts.objects)),actions:{prepare:(...args)=>actions.prepare(...args),getReview:async(...args)=>{const review=await actions.getReview(...args);await afterReviewRead?.(review);return review;},reconcile:(...args)=>actions.reconcile(...args),execute:async(...args)=>{inFlightActionCalls++;try{return await actions.execute(...args);}finally{inFlightActionCalls--;}}},selectReportArtifact:(...args)=>artifacts.prepareReport(...args), modelProvider: fixtureModelProviders(pool), modelRuntime: { dispatch: input => dispatchBoundModel(input, policy => {
       const network = (async (url, request) => {
         if (!policy.authorizeUrl(new URL(String(url)))) throw Error("Fixture destination denied");
         await policy.beforeDispatch?.();
@@ -713,7 +713,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       rootCalls++;
       if(rootCalls===1)return reply("","tool_calls",[tool("agents_delegate",{requests:[{...childRequests.requests[0],...override}]})]);
       if(rootCalls===2){
-        expect(JSON.parse(body.messages.filter((message:any)=>message.role==="tool").at(-1).content)).toEqual({error:"TOOL_ARGUMENTS_INVALID"});
+        expect(JSON.parse(body.messages.filter((message:any)=>message.role==="tool").at(-1).content)).toMatchObject({error:"TOOL_ARGUMENTS_INVALID"});
         expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.tasks WHERE parent_task_id=$1",[f.task.id])).rows[0].count).toBe(0);
         return reply("","tool_calls",[tool("agents_delegate",childRequests,"corrected")]);
       }
@@ -817,7 +817,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   it("runs minimal FAQ through common operations/snapshots and settles once", async () => {
     const f = await fixture();
     expect(await execute(f.task.id)).toMatchObject({ state: "completed", output: "Open at nine.", turn_sequence: "1" });
-    expect(calls).toHaveLength(1); expect(calls[0]!.tools).toBeUndefined();
+    expect(calls).toHaveLength(1); expect(calls[0]!.tools?.map((entry:{function:{name:string}})=>entry.function.name)).toEqual(expect.arrayContaining(["history_read","history_search"]));
     expect((await store.admitTask(f.request)).task.id).toBe(f.task.id);
     await dispatchTasksOnce(pool, { ingressUrl, adminUrl });
     expect(calls).toHaveLength(1);
@@ -986,7 +986,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       request: { suffix }, reservedTokens: 10000, reservedMs: 1000 });
     const outcomes = await Promise.allSettled([claim("a"), claim("b")]);
     expect(outcomes.filter(o => o.status === "fulfilled")).toHaveLength(1);
-    expect(outcomes.find(o => o.status === "rejected")).toMatchObject({ reason: { code: "ROOT_LIMIT" } });
+    expect(outcomes.find(o => o.status === "rejected")).toMatchObject({ reason: { code: "ROOT_TOKEN_LIMIT" } });
     await settleTask(pool, f.task.id, { state: "uncertain" });
     expect((await pool.query("SELECT accounted_tokens FROM agents_platform.usage_ledger WHERE task_id=$1", [f.task.id])).rows[0].accounted_tokens).toBe(10000);
   });

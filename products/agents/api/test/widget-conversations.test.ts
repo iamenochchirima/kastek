@@ -38,11 +38,11 @@ describe("website widget active conversation", () => {
       await page.getByRole("button", { name: "Send", exact: true }).click();
       await browserExpect(page.getByRole("button", { name: "Retry message" })).toBeVisible();
       await page.getByRole("button", { name: "Retry message" }).click();
-      await browserExpect(page.getByRole("log").getByText("First pending")).toBeVisible();
+      await browserExpect(page.getByRole("log").getByText("First pending").first()).toBeVisible();
       await page.reload();
       await page.addScriptTag({ url: "http://localhost/api/website/fixture/widget.js" });
       await page.getByRole("button", { name: "Chat", exact: true }).click();
-      await browserExpect(page.getByRole("log").getByText("First pending")).toBeVisible();
+      await browserExpect(page.getByRole("log").getByText("First pending").first()).toBeVisible();
       expect(count).toBe(1);
       resolveChat1 = true;
       await page.reload();

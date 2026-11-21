@@ -80,7 +80,17 @@ jobs:
       - name: Verify platform contracts, fresh database and HTTP boundaries
         env:
           AGENTS_TEST_DATABASE_URL: postgresql://agents_test:local-test-only@127.0.0.1:5432/postgres
-        run: pnpm --filter @kasitek/agents test --maxWorkers=2
+        # Full Restate acceptance suites boot their own Docker deployment and run in the
+        # dedicated runtime verification step below; this gate covers the source contracts,
+        # PostgreSQL boundaries and the remaining browser/runtime fixtures.
+        run: >-
+          pnpm --filter @kasitek/agents test --maxWorkers=2
+          --exclude test/platform-business.test.ts
+          --exclude test/model-purpose-acceptance.test.ts
+          --exclude test/model-switch-acceptance.test.ts
+          --exclude test/platform-automation-runtime.test.ts
+          --exclude test/platform-grounded-business.test.ts
+          --exclude test/product-execution.test.ts
 
       - name: Build platform and interface
         run: pnpm build:agents
